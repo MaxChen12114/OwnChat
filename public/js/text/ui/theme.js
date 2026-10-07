@@ -223,15 +223,30 @@ const Mixer = (() => {
   const enabled = () => getAudioEnabled();
   const anyPlaying = () => !!(decks.amb.id || decks.mus.id) && enabled();
 
+  // 2026-10-07 拖动卡顿修复（E-C）：--pulse 写在 <html> 上 —— 每次写都让整棵样式树失效重算。
+  // 旧版 20Hz 无脑写（极简主题没有任何 --pulse 消费者也照写），手机端就是持续的微卡。
+  // 现在：① 值不变不写；② 只在有消费者的主题（candle/glass，或音频播放中）出力；③ 页面隐藏时跳过。
+  let _lastPulse = "";
   function setPulseVar(v) {
-    document.documentElement.style.setProperty("--pulse", v.toFixed(3));
+    const s = v.toFixed(3);
+    if (s === _lastPulse) return;
+    _lastPulse = s;
+    document.documentElement.style.setProperty("--pulse", s);
+  }
+  function pulseNeeded() {
+    if (anyPlaying()) return true;
+    const t = document.documentElement.getAttribute("data-theme");
+    return t === "candle" || t === "glass";
   }
   function setPulseClass(on) {
     document.documentElement.classList.toggle("pulse-on", !!on);
   }
+  // 2026-10-07 (E-C)：分析器缓冲复用 —— 旧版每帧 new Uint8Array(frequencyBinCount)（60fps 下白造垃圾）
+  let _freqBuf = null;
   function tick() {
     if (!analyser) { rafId = requestAnimationFrame(tick); return; }
-    const buf = new Uint8Array(analyser.frequencyBinCount);
+    if (!_freqBuf || _freqBuf.length !== analyser.frequencyBinCount) _freqBuf = new Uint8Array(analyser.frequencyBinCount);
+    const buf = _freqBuf;
     analyser.getByteFrequencyData(buf);
     let sum = 0;
     for (let i = 0; i < buf.length; i++) sum += buf[i];
@@ -242,6 +257,8 @@ const Mixer = (() => {
   function startFallback() {
     if (fallbackTimer) return;
     fallbackTimer = setInterval(() => {
+      // 无消费者（极简主题且无音频）或页面不可见：不出力（定时器保留，切回 candle/glass 即恢复）
+      if (!pulseNeeded() || document.hidden) return;
       fallbackPhase += 0.05;
       setPulseVar(0.4 * (Math.sin(fallbackPhase * 1.4) * 0.5 + 0.5));
     }, 50);

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Self-hosting / deployment questions
+    url: https://github.com/MaxChen12114/OwnChat#self-hosting-cloudflare-workers
+    about: The README covers deploying to your own Cloudflare account (free tier is fine).
+  - name: Security report
+    url: https://github.com/MaxChen12114/OwnChat/security/advisories/new
+    about: Please report vulnerabilities privately — see SECURITY.md.

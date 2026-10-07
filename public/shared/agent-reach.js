@@ -119,7 +119,7 @@
 # Agent-Reach Skill
 
 ## 能力
-- **fetch_page(url)**          读任意网页内容（桌面端 Rust 原生直连优先，网页端走 /api/fetch worker 代理，绕墙 / CORS）
+- **fetch_page(url)**          读任意网页内容（**本站自身地址/相对路径=同源直读**——读自己的源码就用这个；桌面端 Rust 原生直连优先，其余走 /api/fetch worker 代理，绕墙 / CORS）
 - **web_search(query, deep?)** 全网搜索：默认免费 DDG；deep=true 升级 Exa 语义搜索(付费 ~$0.007/次)，返回标题 + 摘要 + 链接
 - **search_bilibili(keyword)** B 站搜索视频/专栏，无需登录
 - **search_github(query)**     搜 GitHub 仓库（star 排序）
@@ -432,8 +432,9 @@
     registry.define({
       name: "fetch_page",
       description:
-        "读取任意网页的文本内容。桌面端优先 Rust 原生直连，网页端/失败时走 /api/fetch worker 代理（绕过 GFW 和 CORS）。" +
-        "适合：读文章、文档、GitHub README、B 站专栏等。均带超时，不会挂死。",
+        "读取任意网页的文本内容。本站自己的地址（含 \"/\" 开头的相对路径，如 /js/text/engine/app.js）走**同源直读**（页面直接读，不经代理，读自己部署的前端源码就用这个）；" +
+        "其余地址桌面端优先 Rust 原生直连，网页端/失败时走 /api/fetch worker 代理（绕过 GFW 和 CORS）。" +
+        "适合：读文章、文档、GitHub README、B 站专栏、本站自己的源码文件等。均带超时，不会挂死。",
       parameters: {
         type: "object",
         properties: {
@@ -447,12 +448,34 @@
         const url = args && typeof args.url === "string" ? args.url.trim() : ""
         if (!url) return { ok: false, error: "url 不能为空" }
         const maxChars = Math.max(500, Math.min(40000, Number(args.max_chars) || 8000))
-        // ① 桌面端：Rust 原生直连（无 GFW / CORS）
+        // ① 同源地址：页面自己直读，不走任何代理也不出网 ——
+        // 2026-10-07 修复「自己抓自己」死局：worker 的 /api/fetch 去抓本站 = worker 子请求自身，
+        // Cloudflare 直接掐断（实测外部跳板也会识破 Worker 出口，全军覆没）。
+        // 同源相对路径（"/js/..."）就是读自己部署的前端源码的正道；本站绝对 URL 折算成相对路径再读。
+        const _origin = (typeof location !== "undefined" && location.origin) ? location.origin : ""
+        const _isSameOrigin = url.charAt(0) === "/" ||
+          (!!_origin && (url === _origin || url.indexOf(_origin + "/") === 0))
+        if (_isSameOrigin) {
+          const _rel = url.charAt(0) === "/" ? url : (url.slice(_origin.length) || "/")
+          try {
+            const _sr = await fetchWithTimeout(_rel, {}, DEFAULT_TIMEOUT_MS)
+            if (!_sr.ok) return { ok: false, url: url, error: "同源读取失败：HTTP " + _sr.status + "（" + _rel + "）" }
+            const _sraw = await _sr.text()
+            const _sct = (_sr.headers && _sr.headers.get && _sr.headers.get("content-type")) || ""
+            const _stxt = (/text\/html/i.test(_sct) || /^\s*</.test(_sraw)) ? htmlToText(_sraw) : _sraw
+            if (!_stxt || !_stxt.trim()) return { ok: false, url: url, error: "同源读取为空：" + _rel }
+            // 同源直读不做「代理那套 150 字门槛」：JS/CSS 这类短文件也要原样返回
+            return { ok: true, source: "same-origin", url: _rel, text: _stxt.slice(0, maxChars), chars: _stxt.length }
+          } catch (e) {
+            return { ok: false, url: url, error: "同源读取异常：" + (e && e.message ? e.message : String(e)) }
+          }
+        }
+        // ② 桌面端：Rust 原生直连（无 GFW / CORS）
         const nativeFirst = await tryNativeFetch(url, maxChars)
         if (nativeFirst != null && nativeFirst.trim()) {
           return { ok: true, source: "native", url: url, text: nativeFirst, chars: nativeFirst.length }
         }
-        // ② /api/fetch worker 代理（同源 Cloudflare 出口，无 GFW/CORS；与 web_search 同路径）
+        // ③ /api/fetch worker 代理（同源 Cloudflare 出口，无 GFW/CORS；与 web_search 同路径）
         try {
           const _pr = await fetchWithTimeout(PROXY + "?url=" + encodeURIComponent(url), {}, DEFAULT_TIMEOUT_MS)
           if (_pr.ok) {

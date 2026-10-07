@@ -43,6 +43,7 @@
       lang: (typeof navigator !== "undefined" && navigator.language) || "",
       app_version: ver ? (ver.version || "") : (_verStr || "unknown"),
       app_hash: ver ? (ver.hash || "") : "",
+      site_origin: (typeof location !== "undefined" && location.origin) ? location.origin : "",
       tools_count: toolNames.length,
       tools: toolNames,
     }
@@ -99,6 +100,11 @@
       "日期：" + s.local_time.slice(0, 10) + "（周" + s.weekday + "，" + s.tz + "）",
       "运行端：" + (s.is_tauri ? "桌面端 Tauri" : "浏览器") + " | 网络：" + (s.is_online ? "在线" : "离线"),
       "版本：" + s.app_version + (s.app_hash ? ("@" + s.app_hash) : ""),
+      // 2026-10-07: 自我认知 —— 站点地址用 location.origin 取（不硬编码域名，fork 后也正确）；
+      // 「可读源码」两行让 agent 知道去哪读自己：本站前端=同源相对路径直读，上游=公开仓库 raw。
+      // 这两行是会话级静态内容，不影响 <env> 的前缀缓存策略（见上一行注释）。
+      "站点：" + (s.site_origin || "未知"),
+      "可读源码：本站前端=同源相对路径（/js/… /shared/… /styles*.css，用 fetch_page 直读）；上游公开仓库=https://github.com/MaxChen12114/OwnChat（文件原文：https://raw.githubusercontent.com/MaxChen12114/OwnChat/main/<路径>）",
       "已装工具(" + s.tools_count + ")：" + (s.tools.join(", ") || "无"),
       "加载自检：" + l0.summary,
       "</env>",

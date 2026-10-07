@@ -1301,6 +1301,9 @@
   // 改 RAF: 每帧最多 1 次重排负载,多次调用合并到下一帧
   let _scrollRafPending = false;
   function scrollToBottom() {
+    // 2026-10-07 拖动卡顿修复（E-A）：触摸/滚轮交互中不抢滚动位置（该时间戳由 chat-ux.js 维护）。
+    // 旧版流式期间每个 delta 都可能把位置拽回底部 —— 手指按住滚动时就是「拉锯」。
+    if (Date.now() < (window.__scrollTouchUntil || 0)) return;
     if (_scrollRafPending) return;
     _scrollRafPending = true;
     requestAnimationFrame(() => {
@@ -2014,12 +2017,19 @@
   // setTimeout(0) 确保在 settings.js init() 同步执行完（card 已挂载）后才接线。
   document.addEventListener("DOMContentLoaded", () => setTimeout(wireHistoryUI, 0));
 
+  // 2026-10-07 拖动卡顿修复（E-A）：输入处理改 rAF 节流 —— 旧版每次按键都做 scrollHeight 强制读
+  // + getBoundingClientRect/getComputedStyle 测量 + 两处样式写；拖动手势共存时是明确的卡点。
+  let _inputRaf = 0;
   inputEl.addEventListener("input", () => {
-    inputEl.style.height = "auto";
-    inputEl.style.height = inputEl.scrollHeight + "px";
-    const stick = isNearBottom();
-    updateSpacer();
-    if (stick) scrollToBottom();
+    if (_inputRaf) return;
+    _inputRaf = requestAnimationFrame(() => {
+      _inputRaf = 0;
+      inputEl.style.height = "auto";
+      inputEl.style.height = inputEl.scrollHeight + "px";
+      const stick = isNearBottom();
+      updateSpacer();
+      if (stick) scrollToBottom();
+    });
   });
 
   function setupResizeObserver() {
@@ -2036,10 +2046,13 @@
   // 主修是 viewport meta 的 interactive-widget=resizes-content(布局视口随键盘收缩,
   // 此时 innerHeight 同步变小 → kb≈0,不会双重补偿);个别 WebView 不支持该模式时
   // (resizes-visual:innerHeight 不变、vv.height 缩小),kb = 键盘高度,CSS 据此上浮。
+  let _lastKb = -1;
   function syncKbVar() {
     try {
       const vv = window.visualViewport;
       const kb = Math.max(0, Math.round((window.innerHeight - vv.height) - (vv.offsetTop || 0)));
+      if (kb === _lastKb) return; // 2026-10-07 (E-A)：值没变就不写 —— 每次写都让根样式失效重算
+      _lastKb = kb;
       document.documentElement.style.setProperty("--kb", kb + "px");
     } catch (_) {}
   }
@@ -2929,9 +2942,11 @@
                 if (_now - _lastLiveRenderMs >= 70) {
                   _lastLiveRenderMs = _now;
                   aiRow.bubble.textContent = stripPhotoSignalLive(stripJailbreakPrefix(stripThinkBlocks(full)));
+                  // 2026-10-07 (E-A): 贴底检查并入节流窗口 —— 旧版每个 delta 都读
+                  // scrollHeight/scrollTop（强制布局），拖动手势期间和合成器抢主线程。
+                  if (isNearBottom()) scrollToBottom();
                 }
               }
-              if (isNearBottom()) scrollToBottom();
             }
           } catch {}
         }

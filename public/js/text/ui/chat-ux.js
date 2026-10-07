@@ -286,10 +286,24 @@
       { passive: true }
     );
 
+    // 2026-10-07 拖动卡顿修复（E-A）：手指正在滚动时自动跟随必须让路。
+    // 旧实现里流式回复每 ~70ms 写一次文本 → MutationObserver 就发起一次 smooth 滚动，
+    // 手指按住不放时页面持续把滚动位置往回拽 —— 手机端表现为「拖动反馈慢半拍」。
+    // 现在：① 程序化滚动一律 instant（behavior:"auto"），不再和手势抢主线程的滚动动画；
+    //       ② 触摸/滚轮交互中（最后一次事件后 500ms 内）暂停自动跟随，控制权完全归手指。
+    // 与 app.js 的滚动路径通过 window.__scrollTouchUntil 共享该状态（仓库既有的 window 全局接线风格）。
+    const markUserScroll = () => {
+      const until = Date.now() + 500;
+      if (until > (window.__scrollTouchUntil || 0)) window.__scrollTouchUntil = until;
+    };
+    ["touchstart", "touchmove", "wheel", "pointerdown"].forEach((ev) => {
+      history.addEventListener(ev, markUserScroll, { passive: true });
+    });
+
     const scrollObserver = new MutationObserver(() => {
-      if (autoScroll) {
-        history.scrollTo({ top: history.scrollHeight, behavior: "smooth" });
-      }
+      if (!autoScroll) return;
+      if (Date.now() < (window.__scrollTouchUntil || 0)) return; // 手指还在滚 —— 让路
+      history.scrollTo({ top: history.scrollHeight, behavior: "auto" });
     });
     scrollObserver.observe(chat, { childList: true, subtree: true, characterData: true });
 
@@ -298,8 +312,9 @@
     if (sendBtn) {
       sendBtn.addEventListener("click", () => {
         autoScroll = true;
+        window.__scrollTouchUntil = 0; // 显式发送动作优先于「刚才在拖动」的压制窗
         setTimeout(() => {
-          history.scrollTo({ top: history.scrollHeight, behavior: "smooth" });
+          history.scrollTo({ top: history.scrollHeight, behavior: "auto" });
         }, 50);
       });
     }

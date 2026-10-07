@@ -16,7 +16,9 @@
 
   var STYLE_ID = "convListStyles";
   var LIST_MAX = "40vh";
-  var POLL_MS = 2500;
+  // 2026-10-07 (E-D)：2.5s → 8s。即时性由 4 个事件监听 + focus 保证，轮询只是兜底；
+  // 真正的减负在 render() 的「原始存储快照」闸门 —— 没变就连整库 JSON.parse 都省。
+  var POLL_MS = 8000;
 
   var CSS_TEXT = `
 /* 2026-09-14 瘦身:这一组原来是列表区里视觉最重的部分(虚线边框 + 大字 + 26px 头像 + 深底色)。
@@ -99,6 +101,8 @@
 
   // ───────── 渲染 ─────────
   var lastSig = "";
+  var _lastRaw = null;      // 会话库原始字符串快照（E-D：没变就跳过 listConversations 的整库 parse）
+  var _lastMetaRaw = null;  // 槽位元数据原始字符串快照
   var renaming = false;
   var menuEl = null;
 
@@ -113,11 +117,19 @@
     return '<span class="conv-avatar">' + ICON_CHAT + "</span>";
   }
 
-  function render() {
+  function render(force) {
     var el = mount();
     if (!el) return;
+    if (document.hidden && !force) return; // E-D：页面不可见时不出力（后台零开销）
     var a = app();
     if (!a || !a.listConversations) return;
+    // E-D 廉价闸门：会话库与槽位元数据的原始字符串都没变 → 连 JSON.parse 都省。
+    // lastSig==="" 表示刚刚被显式要求刷新（新建/删除/事件），此时必须放行。
+    var raw = null, metaRaw = null;
+    try { raw = localStorage.getItem("cfw_chat_session_v1"); } catch (e) {}
+    try { metaRaw = localStorage.getItem("cfw_chat_slot_meta_v1"); } catch (e) {}
+    if (!force && lastSig !== "" && el.childElementCount && raw === _lastRaw && metaRaw === _lastMetaRaw) return;
+    _lastRaw = raw; _lastMetaRaw = metaRaw;
     var list;
     try { list = a.listConversations() || []; } catch (e) { return; }
     var sig = JSON.stringify(list.map(function (c) {
@@ -267,5 +279,5 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
   else start();
 
-  window.__convList = { refresh: function () { lastSig = ""; render(); }, mount: mount };
+  window.__convList = { refresh: function () { lastSig = ""; render(true); }, mount: mount };
 })();

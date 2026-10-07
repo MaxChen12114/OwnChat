@@ -712,6 +712,27 @@
     sync();
   }
 
+  // ─── §外观. App 壳特效档位（2026-10-07 新增，E-B）───
+  // 手机 App 壳内默认「流畅优先」：index.html 里 html.android-app:not(.fx-rich) 那组覆盖关掉了
+  // 毛玻璃 / 全屏混合层 / 常驻动画（拖动卡顿的主因）。勾选这里 = 加回 .fx-rich，换回完整观感。
+  // 只在壳内出现（有 android-app 类）—— 桌面浏览器没有这组覆盖，开关无意义。
+  function mountAppFxCard() {
+    if (!document.documentElement.classList.contains('android-app')) return;
+    var slot = document.getElementById('setAppearanceThemeSlot') || document.getElementById('setAppearanceTopSlot');
+    if (!slot || document.getElementById('appFxCard')) return;
+    var card = document.createElement('div'); card.className = 'card'; card.id = 'appFxCard';
+    card.innerHTML = '<h4>App 内特效档位</h4>'
+      + '<p>App 壳内<b>默认「流畅优先」</b>：关闭毛玻璃模糊、全屏混合层与常驻动画，拖动/滚动更跟手、更省电。勾选可换回完整的玻璃 / 烛光观感（代价是耗电与可能的卡顿）。</p>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="appFxRichToggle"><label for="appFxRichToggle">完整特效（更耗电 / 可能卡顿）</label></div></div>';
+    slot.appendChild(card);
+    var t = card.querySelector('#appFxRichToggle');
+    t.checked = localStorage.getItem('cfw_app_fx_rich_v1') === '1';
+    t.addEventListener('change', function () {
+      localStorage.setItem('cfw_app_fx_rich_v1', t.checked ? '1' : '0');
+      document.documentElement.classList.toggle('fx-rich', t.checked);
+    });
+  }
+
   function mountStaticSettingsCards() {
     mountAuthCard();
     mountLocalHistoryCard(); // 常用:放账号页第一屏
@@ -722,6 +743,7 @@
     mountBackgroundCard(); // 2026-10-06: 背景图从编辑器 UI 页搬来（外观分类）
     mountMobileAppLayoutCard();
     mountDisplayCard();      // 字号/字体属于外观
+    mountAppFxCard();        // 2026-10-07 (E-B): App 壳内特效档位（仅壳内出现）
     mountStateLayerCard();  // 角色状态层开关(有卡就注入的把手)
     mountWebSearchCard();   // 2026-10-07: 联网搜索（Worker 代查 + Exa 可选）
     mountBaseIdCard();       // 基座:放「对话」首卡 —— 它影响一切,理应最上面

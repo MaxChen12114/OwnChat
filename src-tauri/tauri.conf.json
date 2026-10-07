@@ -45,7 +45,7 @@
       "endpoints": [
         "https://github.com/MaxChen12114/OwnChat/releases/latest/download/latest.json"
       ],
-      "pubkey": "<用 npx tauri signer generate 生成后填这里；README「桌面端与安卓构建」有说明>"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU1MEJBOTY4RTc2NzIwQkIKUldTN0lHZm5hS2tMVlJZbVUrS09mKzFwNnJ6L3hWcStmK2lLc1Q1VEhmSUE1S3BRbWdITDNFa3kK"
     }
   }
 }

@@ -53,3 +53,4 @@ keystore.properties
 # ===== Tauri 签名密钥（私钥绝对不能提交！）=====
 ownchat.key
 *.key
+*.key.pub

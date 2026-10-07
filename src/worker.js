@@ -1133,6 +1133,16 @@ async function handleFetchProxy(request) {
   if (isPrivateHost(targetUrl.hostname)) {
     return resp("Blocked: private/reserved address", "text/plain; charset=utf-8", 400);
   }
+  // 2026-10-07: 自引用拦截 —— worker 子请求自己的 host 等于「自己抓自己」，Cloudflare 直接掐断
+  // （实测还连带外部跳板一起被识别拒绝，agent 会误判成「网断了」）。这里给出明确指引：
+  // 站内资源用同源相对路径读（客户端直读，不经本代理）；读上游源码用公开仓库的 raw 地址。
+  if (targetUrl.host === reqUrl.host) {
+    return resp(
+      "Blocked: this is the site's own address; the worker cannot fetch itself. " +
+      "Use same-origin relative paths instead (e.g. fetch_page(\"/js/text/engine/app.js\")) — the page reads them directly. " +
+      "本站自身地址请用同源相对路径读取；上游源码可读 https://raw.githubusercontent.com/MaxChen12114/OwnChat/main/<path>。",
+      "text/plain; charset=utf-8", 400);
+  }
   // 转发原始请求头,剔除会泄露 worker 或干扰上游的头
   const fwd = new Headers();
   for (const [k, v] of request.headers) {

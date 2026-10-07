@@ -392,6 +392,31 @@
     }
     /* 思考强度移动端显示:运行时归一化为单一 data-mobile-effort,避免 CSS 属性包含匹配互相覆盖。 */
     #composer #thinkToggle.active .think-label { position: relative; }
+    /* ── 2026-10-07 (E-B) App 壳内「低特效」档：默认开启 ──────────────────────
+       Android WebView 对 backdrop-filter（毛玻璃）/ mix-blend-mode / 全屏背景动画的逐帧重采样
+       是「拖动屏幕反馈慢」的主要来源。壳内默认关掉这些最贵的效果（半透明底色保留、观感基本不变，
+       只是不再实时取样模糊）；设置→外观勾「完整特效」加 .fx-rich 类即可整体换回。 */
+    html.android-app:not(.fx-rich) #topbar,
+    html.android-app:not(.fx-rich) .mobile-bottom-tabs,
+    html.android-app:not(.fx-rich) .mobile-tab-panel.active,
+    html.android-app:not(.fx-rich) .input-inner,
+    html.android-app:not(.fx-rich) .bubble,
+    html.android-app:not(.fx-rich) #settingsMask,
+    html.android-app:not(.fx-rich) .sidebar-backdrop,
+    html.android-app:not(.fx-rich) .pill,
+    html.android-app:not(.fx-rich) .iconbtn {
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+    }
+    html.android-app:not(.fx-rich) #candleFxMist,
+    html.android-app:not(.fx-rich) #candleFxVignette { display: none !important; }
+    html.android-app:not(.fx-rich) body {
+      animation: none !important;
+      background-attachment: scroll !important;
+    }
+    html.android-app:not(.fx-rich) .avatar,
+    html.android-app:not(.fx-rich) .bubble { animation: none !important; }
+    html.android-app:not(.fx-rich) #topbar { background: var(--bg) !important; }
   </style>
   <!-- FOUC-safe 主题预应用:在 styles.css 应用前读 LS 立即贴 data-theme -->
   <!-- 支持 minimal(默认) / glass / candle;新增主题只需扩 ALLOWED 集合 -->
@@ -402,6 +427,8 @@
         var isAndroidShell = sp.get("shell") === "android" || localStorage.getItem("cfw_android_app_shell_v1") === "1";
         if (sp.get("shell") === "android") localStorage.setItem("cfw_android_app_shell_v1", "1");
         if (isAndroidShell) document.documentElement.classList.add("android-app");
+        // 2026-10-07 (E-B): App 壳内默认低特效（拖动流畅优先）；勾选设置里的「完整特效」才加 fx-rich
+        if (isAndroidShell && localStorage.getItem("cfw_app_fx_rich_v1") === "1") document.documentElement.classList.add("fx-rich");
         var t = localStorage.getItem("cfw_theme_v1");
         if (t === "glass" || t === "candle") document.documentElement.setAttribute("data-theme", t);
       } catch (e) {}
@@ -1286,6 +1313,7 @@
     return Math.floor(sec/86400) + '天前';
   }
   function refresh(){
+    if (document.hidden) return; // 2026-10-07 (E-D)：不可见时不出力；可见时由 visibilitychange 补刷
     var ind = document.getElementById('syncStatusIndicator');
     if (!ind) return;
     var sync = window.__sync;
@@ -1337,6 +1365,7 @@
   // 注册表(从不 dispatch 这个事件),此行永不触发;上一行已是正确接线,纯冗余。
   window.addEventListener('storage', function(e){ if (e.key && e.key.indexOf('cfw_sync_') === 0) refresh(); });
   setInterval(refresh, 15000);
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden) refresh(); }); // E-D：回前台补刷
   setTimeout(refresh, 200);
   setTimeout(refresh, 1500);
   setTimeout(refresh, 4000);
@@ -1585,6 +1614,8 @@
       if (sp.get("shell") === "android") localStorage.setItem("cfw_android_app_shell_v1", "1");
       if (sp.get("shell") === "android" || localStorage.getItem("cfw_android_app_shell_v1") === "1") {
         document.documentElement.classList.add("android-app");
+        // 2026-10-07 (E-B): 与 head 里的 FOUC 脚本同一口径 —— 完整特效是显式勾选才开
+        if (localStorage.getItem("cfw_app_fx_rich_v1") === "1") document.documentElement.classList.add("fx-rich");
       }
     } catch(e) {}
   }

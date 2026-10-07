@@ -328,6 +328,7 @@ html[data-scheme="light"]:not([data-theme]){--sp-c1:#0969da;--sp-c2:#8250df;--sp
   function hostVisible(h){ return !!(h && h.getClientRects && h.getClientRects().length > 0); }
   function anyVisible(){ return hosts.some(hostVisible); }
   function tick(){
+    if (document.hidden) return; // 2026-10-07 (E-D)：页面不可见时不收集不出力（后台零开销）
     if (!anyVisible()) return;
     const s = collect();
     hosts.forEach(h => { if (hostVisible(h)) renderInto(h, s); });

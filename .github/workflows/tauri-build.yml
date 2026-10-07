@@ -32,6 +32,19 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # 2026-10-07: 公开仓库曾因缺这个 secret 在签名步骤报 minisign "Missing comment in secret key"
+      # （GitHub 把缺失 secret 展开成空串，tauri-cli 把空串当密钥解析）。缺东西要响：这里提前拦下并给出人话。
+      - name: Check updater signing secret
+        shell: bash
+        env:
+          SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$SIGNING_KEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is not set for this repository. The release build needs it to sign the updater artifacts, otherwise it fails late with the cryptic minisign error 'Missing comment in secret key'."
+            echo "::error::Fix: Settings -> Secrets and variables -> Actions -> New repository secret -> TAURI_SIGNING_PRIVATE_KEY (value = full contents of the private key file). See README section 'Desktop & Android builds'."
+            exit 1
+          fi
+
       - name: Build & publish release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -41,7 +54,7 @@ jobs:
         with:
           tagName: app-v__VERSION__
           releaseName: "OwnChat v__VERSION__"
-          releaseBody: "Windows 桌面安装包(NSIS),下载 .exe 双击安装即可。"
+          releaseBody: "Windows installer (NSIS). Download the .exe and run it."
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true

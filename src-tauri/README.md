@@ -10,7 +10,11 @@
    **远程源拿到的 IPC 权限等同于本机应用**，只授予你自己的站。
 3. `identifier`：换成你自己的（它就是安卓的 `applicationId`，上线后再改等于换应用）。
 
-## 自动更新（可选）
+## 自动更新
+
+官方公开版发布由维护者签名：`plugins.updater.pubkey` 已内置对应公钥，私钥放在本仓库的 Secrets 里。
+
+要发布**你自己的**版本（通常先改了域名 / identifier），请换成你自己的密钥对：
 
 ```bash
 npx tauri signer generate -w ownchat.key        # 生成自己的签名密钥

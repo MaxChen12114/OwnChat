@@ -1,0 +1,29 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 生成提示词注册表（src/prompts/*/index.js 是生成物，不入库），再跑真语法门。
+      # 别用 node --check：本仓库没有 package.json，Node 的语法探测路径会漏报结构错误
+      # （scripts/check-syntax.mjs 的注释里有实测记录）。
+      - name: Generate registries and run syntax gate
+        run: |
+          node scripts/gen-prompts.mjs
+          node scripts/check-syntax.mjs

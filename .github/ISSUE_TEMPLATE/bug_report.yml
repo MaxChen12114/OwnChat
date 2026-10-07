@@ -1,0 +1,52 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! Please fill in as much as you can — it saves a lot of back-and-forth.
+        For security issues, please use the private channel described in SECURITY.md instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where does it happen?
+      options:
+        - Web (my own deployment)
+        - Desktop app (Windows / macOS / Linux)
+        - Android app
+        - The app still works — it's a deployment/build problem
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Settings panel shows the version, or name the release tag you installed (e.g. app-v4.71.0).
+  - type: input
+    id: model
+    attributes:
+      label: Model / provider
+      description: Which mode (free NVIDIA NIM / fast DeepSeek / BYO endpoint) and which model id were you using?
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console errors / build logs / screenshots
+      description: Browser console (F12) or terminal output if available. Text is easier to search than screenshots.
