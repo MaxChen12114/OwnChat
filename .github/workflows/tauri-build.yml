@@ -52,10 +52,13 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: app-v__VERSION__
+          # 开发验证 tag（app-v*-testN）→ draft release（公开不可见，仓库管理员可见），供装机实测；
+          # 正式 tag（app-vX.Y.Z）→ 照常公开发布。tagName 用实际推的那个 tag，
+          # 避免测试构建把 release 建到正式 tag 上。
+          tagName: ${{ github.event_name == 'push' && github.ref_name || 'app-v__VERSION__' }}
           releaseName: "OwnChat v__VERSION__"
           releaseBody: "Windows installer (NSIS). Download the .exe and run it."
-          releaseDraft: false
+          releaseDraft: ${{ contains(github.ref_name, '-test') }}
           prerelease: false
           includeUpdaterJson: true
 
