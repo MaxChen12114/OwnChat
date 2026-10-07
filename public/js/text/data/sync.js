@@ -410,7 +410,10 @@
   function emit(status, detail) { for (const fn of listeners) { try { fn(status, detail); } catch {} } }
 
   // 4.17: 同步聊天历史 toggle - 默认 OFF。配置类资产(角色卡/preset/费用)总是同步,聊天单独控制
-  function includeChat() { return localStorage.getItem(INCLUDE_CHAT_KEY) === "1"; }
+  // 2026-10-07: 默认开（老用户显式关过 = "0" 的保持关）。
+  // 起因：卡片主文案一直承诺"把全部数据(…对话历史)同步"，而真正的门控是这个默认关的开关 ——
+  // 用户把总开关打开、点了「立即同步」却什么都没同步（doChatPush 静默 return，按钮还显示"✓ 已同步"）。
+  function includeChat() { return localStorage.getItem(INCLUDE_CHAT_KEY) !== "0"; }
   function setIncludeChat(on) { localStorage.setItem(INCLUDE_CHAT_KEY, on ? "1" : "0"); }
   // 4.17: 临时暂停 - markDirty 静默丢弃(已 schedule 的 timer 不取消,跑完即止)
   function isPaused() { return localStorage.getItem(PAUSE_KEY) === "1"; }
@@ -780,6 +783,26 @@
       localStorage.setItem("cfw_chat_session_v1", JSON.stringify(m.sessions));
       localStorage.setItem(CHAT_SLOT_META_KEY, JSON.stringify(m.slotMeta));
       localStorage.setItem(CHAT_TOMB_KEY, JSON.stringify(m.tomb));
+      // 2026-10-07: 会话被删/被墓碑清理后，「会话名」在服务端是 union 合并、删不掉 ——
+      // 结果留下一条没有消息的幽灵条目（侧栏显示「某某 · 暂无消息」，实测踩过）。
+      // 落地时按"合并结果里还有没有这个会话"过滤一遍：只丢真幽灵，不影响本机空会话。
+      {
+        const cm0 = m.convMeta || {};
+        for (const k of Object.keys(cm0)) {
+          if (!(k in (m.sessions || {}))) delete cm0[k];
+        }
+      }
+      // 2026-10-07: 别的设备的「主对话」id 带各自设备号（c_main_<deviceId>），合并进来是另一条会话。
+      // 给它一个能自解释的名字，用户才不会读成"没同步"。只改显示名，不动 id、不动数据、可逆。
+      {
+        const myId = chatDeviceId();
+        const cm = m.convMeta || {};
+        for (const k in cm) {
+          if (k.indexOf("c_main_") !== 0 || k === "c_main_" + myId) continue;
+          const meta = cm[k];
+          if (meta && (!meta.name || meta.name === "主对话")) meta.name = "主对话 · 其他设备";
+        }
+      }
       localStorage.setItem(CHAT_CONV_META_KEY, JSON.stringify(m.convMeta));
       const conflictKeys = new Set((m.conflicts || []).map(c => c.slotKey));
       const synced = {};
@@ -830,8 +853,11 @@
   }
   let chatPushTimer = null, chatPushing = false, pendingChatPush = false;
   async function doChatPush() {
-    if (!includeChat()) return;
-    if (chatPushing) { pendingChatPush = true; return; }
+    // 返回结果对象而不是 undefined：「立即同步」按钮必须能区分「推了」和「什么都没推」，
+    // 旧版静默 return 把"没同步"报成了"✓ 已同步"。
+    if (!includeChat()) return { skipped: "chat-off" };
+    if (!syncEnabled() || !token()) return { skipped: "sync-off" };
+    if (chatPushing) { pendingChatPush = true; return { skipped: "inflight" }; }
     chatPushing = true;
     try {
       const blob = buildLocalChatBlob();
@@ -868,7 +894,8 @@
       }
       incrPushCount();
       emit("chat-synced", { source: "push" });
-    } catch (e) { emit("chat-error", e); }
+      return { ok: true, slots: Object.keys(blob.slots || {}).length, savedAt: (res && res.savedAt) || null };
+    } catch (e) { emit("chat-error", e); return { error: (e && e.message) || String(e) }; }
     finally { chatPushing = false; if (pendingChatPush) { pendingChatPush = false; setTimeout(doChatPush, 1500); } }
   }
   function markChatDirty() {
@@ -877,7 +904,21 @@
     if (chatPushTimer) clearTimeout(chatPushTimer);
     chatPushTimer = setTimeout(() => { chatPushTimer = null; doChatPush(); }, 30000);
   }
-  async function pushChatNow() { if (chatPushTimer) { clearTimeout(chatPushTimer); chatPushTimer = null; } await doChatPush(); }
+  async function pushChatNow() { if (chatPushTimer) { clearTimeout(chatPushTimer); chatPushTimer = null; } return await doChatPush(); }
+  // 立即拉一轮（只拉不推）：「同步聊天历史」刚打开时、以及回前台/定时巡检时调用。
+  // 与 pullChatOnStartup 的区别：不做启动期的一次性判定，任何时刻都能调。
+  async function pullChatNow() {
+    if (!includeChat()) return { skipped: "chat-off" };
+    if (!syncEnabled() || !token()) return { skipped: "sync-off" };
+    try {
+      const remote = await pullChatFromKV();
+      if (!remote) return { ok: true, empty: true };
+      applyMergedChatToLocal(mergeChatSessions(remote));
+      localStorage.setItem(LAST_CHAT_PULL_KEY, String(Date.now()));
+      emit("chat-synced", { source: "pull" });
+      return { ok: true, pulled: true };
+    } catch (e) { emit("chat-error", e); return { error: (e && e.message) || String(e) }; }
+  }
   async function pullChatOnStartup() {
     if (!syncEnabled() || !token() || !includeChat()) return;
     try {
@@ -1271,7 +1312,7 @@
     // 4.21-F: 排除清单跨设备同步通道
     pullExcludeOnStartup, pushExcludeNow, getRegistry,
     // 4.76: 聊天会话独立同步通道(slot 级合并 + 3-way 冲突裁决 + tombstone)
-    markChatDirty, pushChatNow, pullChatOnStartup, mergeChatSessions, getChatConflicts, resolveChatConflict,
+    markChatDirty, pushChatNow, pullChatOnStartup, pullChatNow, mergeChatSessions, getChatConflicts, resolveChatConflict,
     // 4.78: 角色卡独立同步通道(按卡 id LWW 合并 + tombstone);character.js 存/删卡后调 bumpCharMeta/tombChar
     markCharsDirty, pushCharsNow, pullCharsOnStartup, bumpCharMeta, tombChar,
     exportJSON, importJSON,
@@ -1305,6 +1346,34 @@
       pullCostOnStartup().then(() => { try { pushCostNow(); } catch (e) {} }); // 4.52: 拉取合并后再把本机费用桶推上云,让其他设备下次能拉到本机费用(修"费用只显示在本机")
     })();
   }
+
+  // 2026-10-07: 一直开着的窗口也要能收到别的设备的改动 —— 回前台/窗口聚焦时拉一轮（距上次 >60s 才拉，
+  // 免得来回切窗口打爆 KV 配额），另加 5 分钟兜底定时。三项（总开关/密码/对话同步）任一没开就静默跳过。
+  // 拉到新内容时 applyMergedChatToLocal 会自己 emit 'chat-merged'，由 chat-extras 的提示条告知用户。
+  let _lastAutoPullAt = 0;
+  function autoPullChat() {
+    if (!syncEnabled() || !token() || !includeChat()) return;
+    const now = Date.now();
+    if (now - _lastAutoPullAt < 60000) return;
+    _lastAutoPullAt = now;
+    pullChatNow().catch(() => {});
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) autoPullChat(); });
+  window.addEventListener("focus", autoPullChat);
+  setInterval(() => { if (document.visibilityState === "visible") autoPullChat(); }, 300000);
+
+  // 桌面壳退出前冲刷：lib.rs 在托盘「退出 OwnChat」与「关窗收托盘」时 emit app-flush-now，
+  // 这里立刻把最后的改动推上去（Rust 侧留 ~1.2s 再真正退出/隐藏）。网页端该事件永不触发，挂着无害。
+  try {
+    const ev = window.__TAURI__ && window.__TAURI__.event;
+    if (ev && typeof ev.listen === "function") {
+      ev.listen("app-flush-now", () => {
+        try { pushNow(); } catch (e) {}
+        try { pushChatNow(); } catch (e) {}
+        try { pushCharsNow(); } catch (e) {}
+      });
+    }
+  } catch (e) {}
 
   // 多 tab 互同：另一个 tab 改了 LS 也触发 push
   window.addEventListener("storage", (e) => {

@@ -520,6 +520,14 @@
   function stateLayerPayload() {
     try { return localStorage.getItem("cfw_state_layer_v1") === "0" ? { stateLayer: false } : {}; } catch (e) { return {}; }
   }
+  // 2026-10-07 联网搜索：只在"开"时下发字段（缺省=不开，服务端也不会挂搜索工具）。
+  function webSearchPayload() {
+    try {
+      if (localStorage.getItem("cfw_web_search_v1") !== "1") return {};
+      // 深度搜索(Exa)只在开关也打开时下发；Worker 侧没配 EXA_API_KEY 会自动降级回免费搜索
+      return { webSearch: true, webSearchDeep: localStorage.getItem("cfw_web_search_deep_v1") === "1" };
+    } catch (e) { return {}; }
+  }
 
   // ─── 4.70 思考过程显示设置(show=展开 / collapse=折叠 / hide=隐藏;默认折叠)───
   // 但我们不再「猜着删」,而是把内联思考「捕获」到 .reasoning-block 折叠块,按本设置控制可见性。
@@ -2324,6 +2332,7 @@
             customProvider: customProviderSnapshot, // 4.69 BYO 自定义 API 直传
             ...baseIdPayload(), // 基座版本(未选=不发)
             ...stateLayerPayload(), // 2026-10-05：角色状态层(仅在设置里关掉时才发 false)
+            ...webSearchPayload(), // 2026-10-07 联网搜索（开关打开时服务端才挂 web_search 工具）
             messages: _msgsToSend,
           }),
         });
@@ -2830,6 +2839,7 @@
           lorebook: lorebookEntries,
           ...baseIdPayload(), // 基座版本(未选=不发)
           ...stateLayerPayload(), // 2026-10-05：角色状态层(仅在设置里关掉时才发 false)
+          ...webSearchPayload(), // 2026-10-07 联网搜索（开关打开时服务端才挂 web_search 工具）
           messages: _reqMessages,
         }),
       });

@@ -718,6 +718,8 @@ async function handleChat(request, env) {
   //   wantStream=false(payload.stream===false) → 非流式,返回完整 JSON(含 tool_calls)供前端 runAgentLoop 解析
   //   默认 stream=true,保持现有单轮流式聊天零改动
   const tools = Array.isArray(payload?.tools) && payload.tools.length ? payload.tools : null;
+  // 2026-10-07 联网搜索：最后一轮要能"摘掉工具"强制作答，所以走一个可变副本（见下方工具循环）。
+  let finalTools = tools;
   const toolChoice = payload?.tool_choice !== undefined ? payload.tool_choice : undefined;
   const wantStream = payload?.stream !== false;
 
@@ -862,6 +864,87 @@ async function handleChat(request, env) {
   })();
   let activeThinkParams = thinkParams;
   let thinkingDowngraded = false; // 4.82: 因上游 400 去掉思考参数时置位(用 X-Thinking 暴露,便于排查"开了思考没生效")
+  // ── 2026-10-07 联网搜索（普通聊天）────────────────────────────────────────
+  // 开关打开时给上游挂一个 web_search 工具；模型要搜就由 worker 自己查（复用 runSearch：Exa 可选 + DDG 兜底），
+  // 结果回灌后再让它作答。最多 2 轮防跑飞；只有"最后一轮"走原有流式管线，前端打字机效果不变。
+  // 为什么在 worker 侧查：DeepSeek 官方 API 没有服务端搜索（官方文档里内置工具标 Ignored），
+  // 所以"联网"这件事只能由我们自己的 Worker 代查。
+  if (payload?.webSearch === true && !byo) {
+    // 深搜(Exa，按次计费)双门控：前端「深度搜索」开关打开 且 Worker 配了 EXA_API_KEY 才允许；
+    // 否则模型就算把 deep 写成 true 也只走免费 DDG（不让一次"多花点钱"的调用溜过去）。
+    const deepAllowed = payload?.webSearchDeep === true && !!(env && (env.EXA_API_KEY || "").trim());
+    const SEARCH_TOOL = {
+      type: "function",
+      function: {
+        name: "web_search",
+        description: "联网搜索。需要实时或较新的信息（新闻、价格、版本号、赛事、人物近况、你知识外的事实）时调用；返回标题+摘要+链接。"
+          + (deepAllowed ? "" : "注意：本部署未开启深搜，deep 字段请一律填 false。"),
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "搜索关键词（中英文均可）" },
+            deep: { type: "boolean", description: "是否深搜：普通搜索不够准/不够全时才置 true（可能产生额外成本）" },
+          },
+          required: ["query", "deep"],
+          additionalProperties: false,
+        },
+        strict: true,
+      },
+    };
+    const stripStrict = (list) => list.map((t) => ({ type: t.type, function: { name: t.function.name, description: t.function.description, parameters: t.function.parameters } }));
+    let rounds = 0, searched = false;
+    while (rounds < 2) {
+      const sendTools = (tools || []).concat([SEARCH_TOOL]);
+      const probeBody = { model: model, stream: false, messages: cleanedMessages, tools: sendTools, tool_choice: "auto", ...activeThinkParams };
+      const probeHeaders = { ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}), "Content-Type": "application/json" };
+      const probeTimeout = thinking === "enabled" ? 90000 : 60000;
+      let probe = await fetchWithTimeout(endpoint, { method: "POST", headers: probeHeaders, body: JSON.stringify(probeBody) }, probeTimeout);
+      if (!probe.ok && probe.status === 400) {
+        // 上游不认 strict（部分 OpenAI 兼容端点）→ 去掉 strict 重试一次，工具本身仍然可用
+        const t = await probe.text().catch(() => "");
+        if (/strict/i.test(t)) {
+          const relaxed = Object.assign({}, probeBody, { tools: stripStrict(sendTools) });
+          probe = await fetchWithTimeout(endpoint, { method: "POST", headers: probeHeaders, body: JSON.stringify(relaxed) }, probeTimeout);
+        } else {
+          break; // 其它 400：不在这里吞，交回正常管线按原逻辑报错
+        }
+      }
+      if (!probe.ok) break;
+      const pj = await probe.json().catch(() => null);
+      const pmsg = pj && pj.choices && pj.choices[0] && pj.choices[0].message;
+      const calls = (pmsg && pmsg.tool_calls) || [];
+      const wantSearch = calls.some((c) => c && c.function && c.function.name === "web_search");
+      if (!wantSearch) break; // 模型不需要搜索 → 直接进正常出稿
+      cleanedMessages.push({ role: "assistant", content: (pmsg && pmsg.content) || "", tool_calls: calls });
+      for (const c of calls) {
+        let args = {};
+        try { args = JSON.parse((c.function && c.function.arguments) || "{}"); } catch (_) {}
+        let toolText = "";
+        if (c.function && c.function.name === "web_search") {
+          const q = String(args.query || "").trim();
+          if (!q) toolText = "错误：缺少 query";
+          else {
+            const r = await runSearch(env, q, { n: 5, deep: deepAllowed && args.deep === true });
+            toolText = formatSearchForModel(q, r);
+            if (r && r.ok !== false) searched = true;
+          }
+        } else {
+          toolText = "错误：本会话只提供 web_search 工具。";
+        }
+        cleanedMessages.push({ role: "tool", tool_call_id: c.id, content: toolText });
+      }
+      rounds++;
+    }
+    if (searched) {
+      cleanedMessages.push({
+        role: "system",
+        content: "上面的 web_search 结果是你自己 Worker 的实时检索结果。请基于这些结果回答；引用具体信息时在句末附来源链接（如 <https://…>）。若结果与问题无关，就如实说没查到。",
+      });
+      // 最后一轮摘掉工具：强制它出正文而不是再来一轮搜索（也挡住无限循环）
+      finalTools = null;
+    }
+  }
+
   const buildUpstreamOptions = (thinkExtra) => ({
     method: "POST",
     headers: {
@@ -874,8 +957,8 @@ async function handleChat(request, env) {
       ...(wantStream ? { stream_options: { include_usage: true } } : {}),
       messages: cleanedMessages,
       // 2026-06-08 内核 agent 循环: 透传 function calling 协议(tools/tool_choice)
-      ...(tools ? { tools } : {}),
-      ...(toolChoice !== undefined ? { tool_choice: toolChoice } : {}),
+      ...(finalTools ? { tools: finalTools } : {}),
+      ...(finalTools && toolChoice !== undefined ? { tool_choice: toolChoice } : {}),
       // 4.69 G1 / 4.82: 思考模式 + 强度(按 provider 方言;见上 thinkParams)
       ...thinkExtra,
       // 4.69 G1: OpenAI 兼容采样 / JSON 模式透传(仅 payload 显式提供时带,保持旧行为零变化)
@@ -1110,37 +1193,19 @@ async function searchViaExa(env, q, n) {
 // 2026-06-18 / 4.70: /api/search — 服务端搜索。主通道 Exa(env.EXA_API_KEY,服务端 API、不按 IP 封),
 // 未配 key 或 Exa 失败时降级到 DDG html 抓取(对 CF 数据中心出口 IP 易被限速)。无 GFW / 无 CORS。
 // 等价 Claude Code 的服务端 WebSearch：搜索在 Cloudflare Worker 执行，客户端无需直连境外站。
-async function handleSearchProxy(request, env) {
-  if (request.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET,OPTIONS",
-        "Access-Control-Allow-Headers": "*",
-        "Access-Control-Max-Age": "86400",
-      },
-    });
-  }
-  const reqUrl = new URL(request.url);
-  const q = (reqUrl.searchParams.get("q") || "").trim();
-  const n = Math.min(10, Math.max(1, parseInt(reqUrl.searchParams.get("n") || "5", 10)));
-  if (!q) return resp(JSON.stringify({ ok: false, error: "Missing ?q=" }), "application/json; charset=utf-8", 400);
-
-  // 4.70: 搜索源不写死 —— 默认走免费 DDG(够用、零成本);仅当显式请求(engine=exa / src=exa / deep=1)
-  // 且配了 EXA_API_KEY 时才升级到 Exa(按次计费 ≈$0.007),Exa 失败再降级回 DDG。
-  // 这样大多数场景免费,只有 agent 判断「DDG 不够、需要深搜」时才花 Exa 的钱。
-  const engine = (reqUrl.searchParams.get("engine") || reqUrl.searchParams.get("src") || "").trim().toLowerCase();
-  const wantExa = engine === "exa" || reqUrl.searchParams.get("deep") === "1";
-  if (wantExa && env && (env.EXA_API_KEY || "").trim()) {
+// 2026-10-07: 搜索核心抽成 runSearch() —— /api/search 与「普通聊天联网搜索」的工具循环共用同一套后端
+// （Exa 可选 + 免费 DDG 兜底），避免两处实现各写一份慢慢漂移。
+async function runSearch(env, q, opts) {
+  opts = opts || {};
+  const n = Math.min(10, Math.max(1, parseInt(opts.n || 5, 10) || 5));
+  // 默认走免费 DDG；仅当显式要求深搜且配了 EXA_API_KEY 时才升级 Exa（按次计费 ≈$0.007），Exa 失败再降级。
+  if (opts.deep && env && (env.EXA_API_KEY || "").trim()) {
     const exa = await searchViaExa(env, q, n);
-    if (exa && exa.results && exa.results.length) {
-      return resp(JSON.stringify(exa), "application/json; charset=utf-8", 200, { "Access-Control-Allow-Origin": "*" });
-    }
+    if (exa && exa.results && exa.results.length) return exa;
   }
-
   const ddgUrl = "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(q) + "&kl=cn-zh";
   let html = "";
+  let ddgErr = "";
   try {
     const upstream = await fetchWithTimeout(ddgUrl, {
       headers: {
@@ -1149,15 +1214,13 @@ async function handleSearchProxy(request, env) {
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
       },
     }, 15000);
-    if (!upstream.ok) {
-      return resp(JSON.stringify({ ok: false, error: "DDG returned " + upstream.status }), "application/json; charset=utf-8", 502);
-    }
-    html = await upstream.text();
+    // 2026-10-07: 这里不再直接 return 失败 —— 必须让控制流走到下面的 Bing 兜底
+    // （旧写法 DDG 一 504 就整条搜索失败，实测本机 3/3 都这样）。
+    if (!upstream.ok) ddgErr = "DDG returned " + upstream.status;
+    else html = await upstream.text();
   } catch (e) {
-    return resp(JSON.stringify({ ok: false, error: String(e && e.message ? e.message : e) }), "application/json; charset=utf-8", 502);
+    ddgErr = String(e && e.message ? e.message : e);
   }
-
-  // 提取 result__a 链接（DDG redirect URL 里的 uddg 参数是实际目标 URL）
   const links = [];
   const linkRe = /class="result__a"[^>]+href="([^"]*)"/gi;
   const titleRe = /class="result__a"[^>]+href="[^"]*"[^>]*>([\s\S]*?)<\/a>/gi;
@@ -1183,17 +1246,83 @@ async function handleSearchProxy(request, env) {
   while ((sm = snipRe.exec(html)) !== null) {
     snippets.push(sm[1].replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#x27;/g, "'").trim());
   }
-
-  const results = links.map(function(href, i) {
+  const results = links.map(function (href, i) {
     return { title: titles[i] || href, url: href, snippet: snippets[i] || "" };
   });
+  if (results.length) return { ok: true, source: "ddg", query: q, results: results };
+  // DDG 没结果（常见于 504 或限速）→ 走 Bing RSS 免费兜底
+  const bing = await searchViaBingRss(q, n);
+  if (bing.length) return { ok: true, source: "bing", query: q, results: bing };
+  return { ok: true, source: "ddg", query: q, results: [] };
+}
 
-  return resp(
-    JSON.stringify({ ok: true, source: "ddg", query: q, results: results }),
-    "application/json; charset=utf-8",
-    200,
-    { "Access-Control-Allow-Origin": "*" }
-  );
+// 搜索结果 → 模型可读文本（标题/摘要/URL）。带 URL 才能让它"附来源"，否则只能空口复述。
+function formatSearchForModel(q, r) {
+  if (!r || r.ok === false) return "搜索失败：" + ((r && r.error) || "未知错误");
+  const list = (r.results || []).slice(0, 6);
+  if (!list.length) return "（没有找到与「" + q + "」相关的结果）";
+  const src = r.source === "exa" ? "Exa" : (r.source === "bing" ? "Bing" : "DuckDuckGo");
+  return "搜索「" + q + "」的结果（来源：" + src + "）：\n"
+    + list.map(function (it, i) { return (i + 1) + ". " + it.title + "\n   " + (it.snippet || "") + "\n   " + it.url; }).join("\n");
+}
+
+// 2026-10-07 免费兜底：Bing 的 RSS 搜索端点（不需要 key）。为什么必须有它 —— DDG 的 html 端点
+// 对数据中心/共享出口 IP 经常直接 504（实测本机连续 3/3 失败、`lite.duckduckgo.com` 更是完全不可达），
+// 只留 DDG 会让「联网搜索」时好时坏。Bing RSS 返回标准 XML，解析十几行就能兜住。
+async function searchViaBingRss(q, n) {
+  try {
+    const url = "https://cn.bing.com/search?format=rss&count=" + Math.min(10, n) + "&q=" + encodeURIComponent(q);
+    const r = await fetchWithTimeout(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/rss+xml,application/xml,text/xml",
+      },
+    }, 15000);
+    if (!r.ok) return [];
+    const xml = await r.text();
+    const strip = (s) => String(s || "")
+      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&")
+      .trim();
+    const items = [];
+    const re = /<item>([\s\S]*?)<\/item>/gi;
+    let m;
+    while ((m = re.exec(xml)) !== null && items.length < n) {
+      const block = m[1];
+      const pick = (tag) => {
+        const mm = block.match(new RegExp("<" + tag + ">([\\s\\S]*?)</" + tag + ">"));
+        return mm ? strip(mm[1]) : "";
+      };
+      const link = pick("link");
+      if (!link) continue;
+      items.push({ title: pick("title") || link, url: link, snippet: pick("description") });
+    }
+    return items;
+  } catch (e) { return []; }
+}
+
+async function handleSearchProxy(request, env) {
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+        "Access-Control-Max-Age": "86400",
+      },
+    });
+  }
+  const reqUrl = new URL(request.url);
+  const q = (reqUrl.searchParams.get("q") || "").trim();
+  const n = Math.min(10, Math.max(1, parseInt(reqUrl.searchParams.get("n") || "5", 10)));
+  if (!q) return resp(JSON.stringify({ ok: false, error: "Missing ?q=" }), "application/json; charset=utf-8", 400);
+  const engine = (reqUrl.searchParams.get("engine") || reqUrl.searchParams.get("src") || "").trim().toLowerCase();
+  const deep = engine === "exa" || reqUrl.searchParams.get("deep") === "1";
+  const out = await runSearch(env, q, { n: n, deep: deep });
+  const status = (out && out.ok === false) ? 502 : 200;
+  return resp(JSON.stringify(out), "application/json; charset=utf-8", status, { "Access-Control-Allow-Origin": "*" });
 }
 
 export default {
@@ -1240,7 +1369,6 @@ export default {
       return handleCustomEndpointModels(request, env);
     }
 
-    // 收口成 POST + isUnlocked：锁定态 403，不泄漏任何库文本（与 bases 同一条纪律）。
     if (request.method === "POST" && url.pathname === "/api/presets") {
       return handlePresetLibrary(request, env);
     }

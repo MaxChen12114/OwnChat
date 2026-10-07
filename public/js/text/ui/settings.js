@@ -258,6 +258,39 @@
       try { if (bs.value) localStorage.setItem(KB, bs.value); else localStorage.removeItem(KB); } catch (e) {}
     });
   }
+  // ─── §联网搜索卡（2026-10-07 新增）───
+  // 背景：DeepSeek 官方 API 没有服务端搜索（官方文档里内置工具标 Ignored，定价页也无搜索项），
+  // 所以「联网」由本项目的 Worker 代查：免费的 DuckDuckGo 兜底，配了 EXA_API_KEY 才升级深搜。
+  // 开关默认关（不静默把查询外发）；只对普通聊天生效，Agent 模式本来就有 web_search 工具。
+  function mountWebSearchCard() {
+    var slot = document.getElementById('setChatSlot');
+    if (!slot || document.getElementById('webSearchCard')) return;
+    var card = document.createElement('div'); card.className = 'card'; card.id = 'webSearchCard';
+    card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>联网搜索（Web Search）</h4>'
+      + '<p>开启后，普通聊天遇到需要实时信息的问题（新闻、价格、版本、赛事…）时会自己搜索再回答，并在引用处附来源链接。搜索由<b>你自己的 Worker</b> 执行 —— 官方 API 里没有内置搜索，这里是把搜索工具挂在聊天请求上、由 Worker 侧跑。</p>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="webSearchToggle"><label for="webSearchToggle">启用联网搜索</label></div>'
+      + '<div class="toggle" style="margin-top:6px;"><input type="checkbox" id="webSearchDeepToggle"><label for="webSearchDeepToggle">深度搜索（Exa · 按次计费 ≈¥0.05/次）</label></div></div>'
+      + '<div id="webSearchStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div>'
+      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>默认走免费的 DuckDuckGo,它不通时自动改用 <b>Bing</b>(同样免费);只有 Worker 侧配置了 <code>EXA_API_KEY</code>（<code>wrangler secret put EXA_API_KEY</code>）且这里勾了「深度搜索」时才会用 Exa,没配则自动降级。开了联网的回复会比平时慢一些——要多 1~2 轮「搜索 + 复述结果」。查询词会发到你自己的 Worker 再转给搜索服务;Agent 模式的 <code>web_search</code> 工具不受此开关影响。</span></div>';
+    slot.appendChild(card);
+    var t = card.querySelector('#webSearchToggle');
+    var d = card.querySelector('#webSearchDeepToggle');
+    var st = card.querySelector('#webSearchStatus');
+    function paint() {
+      var on = localStorage.getItem('cfw_web_search_v1') === '1';
+      var deep = localStorage.getItem('cfw_web_search_deep_v1') === '1';
+      t.checked = on; d.checked = deep;
+      d.disabled = !on;
+      if (st) st.textContent = !on ? '未启用（聊天只靠模型自身知识）' : (deep ? '已启用 · 深搜(Exa)优先，未配 key 自动降级' : '已启用 · 免费搜索(DuckDuckGo)');
+    }
+    t.addEventListener('change', function () {
+      localStorage.setItem('cfw_web_search_v1', t.checked ? '1' : '0');
+      if (!t.checked) { localStorage.setItem('cfw_web_search_deep_v1', '0'); }
+      paint();
+    });
+    d.addEventListener('change', function () { localStorage.setItem('cfw_web_search_deep_v1', d.checked ? '1' : '0'); paint(); });
+    paint();
+  }
   // ─── §对话. 角色状态层开关（2026-10-05 新增）───
   // 回答「为什么默认就是 RP」:判定只有一条 —— 有角色卡就注入 Layer2 的【当前状态】那一段
   // (关系/情绪/好感/场景/摘要)。这个开关就是那个手动把手:关掉后角色卡照旧,只是不再注入状态。
@@ -304,7 +337,7 @@
     if (!slot || document.getElementById('syncEnableToggle')) return;
     var card = document.createElement('div');
     card.className = 'card';
-    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 18.5a4.5 4.5 0 0 1-.7-8.95A5.5 5.5 0 0 1 17 9.1 3.7 3.7 0 0 1 16.8 18.5z"/></svg>云同步（Cloud Sync）</h4><p>把全部数据(角色卡 · 指令模块 · 亲密度 · 费用日志 · 对话历史)同步到 Cloudflare KV,换浏览器换设备都能看到。开启后本地改动会延迟 30 秒自动推送(4.17 起为省 KV 配额从 3s 调到 30s)。<b>不同步:</b>密码 token / 同步状态本身。</p><div class="rowline"><div class="toggle"><input type="checkbox" id="syncEnableToggle"><label for="syncEnableToggle">启用云同步</label></div><div class="toggle" style="margin-top:6px;"><input type="checkbox" id="syncIncludeChatToggle"><label for="syncIncludeChatToggle">同步聊天历史（默认关 · 开启=跨设备共享对话）</label></div><div class="btns"><button class="smallbtn" id="syncNowBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v3.5h-3.5"/></svg>立即同步</button><button class="smallbtn" id="syncExportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导出备份</button><button class="smallbtn" id="syncImportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导入备份</button><input type="file" id="syncImportFile" accept=".json" style="display:none"><button class="smallbtn danger" id="syncWipeBtn" title="删除云端 KV 上的全部数据(角色卡/指令模块/费用/对话的云端副本)。本地数据保留;同步仍开启时下次本地改动会重新上传,想让云端保持空请清空后关闭云同步。"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5h15"/><path d="M9 6.5V5.2A1.7 1.7 0 0 1 10.7 3.5h2.6A1.7 1.7 0 0 1 15 5.2V6.5"/><path d="M6.8 6.5l.7 12.2a1.8 1.8 0 0 0 1.8 1.7h5.4a1.8 1.8 0 0 0 1.8-1.7l.7-12.2"/></svg>清空云端</button></div></div><div id="syncStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div><div id="syncQuotaWarn" style="font-size:11px;color:#f80;margin-top:4px;display:none;"></div><details id="cloudExcludeSection" style="margin-top:10px;"><summary style="cursor:pointer;font-size:12px;color:var(--muted);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 16.5a4.2 4.2 0 0 1-.6-8.35A5.2 5.2 0 0 1 16.5 8"/><path d="M14.5 14l5 5M19.5 14l-5 5"/></svg>按角色/会话 只清云端（保留本地）</summary><div style="font-size:11px;color:var(--muted);margin:6px 0;line-height:1.5;">只把选中项从云端 KV 抹掉,本地保留且本设备不再上传(tombstone)。<b>会话</b>仅在开了「同步聊天历史」时云端才有副本。<b>跨设备注意:</b>排除清单仅本设备生效,其他仍持有该数据且未排除的设备改动后可能把它推回。</div><div id="cloudExcludeList" style="display:flex;flex-direction:column;gap:6px;"></div></details>`;
+    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 18.5a4.5 4.5 0 0 1-.7-8.95A5.5 5.5 0 0 1 17 9.1 3.7 3.7 0 0 1 16.8 18.5z"/></svg>云同步（Cloud Sync）</h4><p>把数据同步到 Cloudflare KV,换浏览器换设备都能看到:角色卡 · 指令模块 · 亲密度 · 费用日志,以及<b>对话历史（需勾选下方「同步聊天历史」)</b>。本地改动延迟 30 秒自动推送(为省 KV 配额;桌面端关窗与回到前台会立刻补推/补拉)。<b>不同步:</b>密码 token / 同步状态本身。</p><div class="rowline"><div class="toggle"><input type="checkbox" id="syncEnableToggle"><label for="syncEnableToggle">启用云同步</label></div><div class="toggle" style="margin-top:6px;"><input type="checkbox" id="syncIncludeChatToggle"><label for="syncIncludeChatToggle">同步聊天历史（跨设备共享对话）</label></div><div class="btns"><button class="smallbtn" id="syncNowBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v3.5h-3.5"/></svg>立即同步</button><button class="smallbtn" id="syncExportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导出备份</button><button class="smallbtn" id="syncImportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导入备份</button><input type="file" id="syncImportFile" accept=".json" style="display:none"><button class="smallbtn danger" id="syncWipeBtn" title="删除云端 KV 上的全部数据(角色卡/指令模块/费用/对话的云端副本)。本地数据保留;同步仍开启时下次本地改动会重新上传,想让云端保持空请清空后关闭云同步。"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5h15"/><path d="M9 6.5V5.2A1.7 1.7 0 0 1 10.7 3.5h2.6A1.7 1.7 0 0 1 15 5.2V6.5"/><path d="M6.8 6.5l.7 12.2a1.8 1.8 0 0 0 1.8 1.7h5.4a1.8 1.8 0 0 0 1.8-1.7l.7-12.2"/></svg>清空云端</button></div></div><div id="syncStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div><div id="syncQuotaWarn" style="font-size:11px;color:#f80;margin-top:4px;display:none;"></div><details id="cloudExcludeSection" style="margin-top:10px;"><summary style="cursor:pointer;font-size:12px;color:var(--muted);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 16.5a4.2 4.2 0 0 1-.6-8.35A5.2 5.2 0 0 1 16.5 8"/><path d="M14.5 14l5 5M19.5 14l-5 5"/></svg>按角色/会话 只清云端（保留本地）</summary><div style="font-size:11px;color:var(--muted);margin:6px 0;line-height:1.5;">只把选中项从云端 KV 抹掉,本地保留且本设备不再上传(tombstone)。<b>会话</b>仅在开了「同步聊天历史」时云端才有副本。<b>跨设备注意:</b>排除清单仅本设备生效,其他仍持有该数据且未排除的设备改动后可能把它推回。</div><div id="cloudExcludeList" style="display:flex;flex-direction:column;gap:6px;"></div></details>`;
     slot.appendChild(card);
   }
   // ─── M1: 本地对话记忆卡(#historyKeep / #promptKeep / #clearHistory) ───
@@ -690,6 +723,7 @@
     mountMobileAppLayoutCard();
     mountDisplayCard();      // 字号/字体属于外观
     mountStateLayerCard();  // 角色状态层开关(有卡就注入的把手)
+    mountWebSearchCard();   // 2026-10-07: 联网搜索（Worker 代查 + Exa 可选）
     mountBaseIdCard();       // 基座:放「对话」首卡 —— 它影响一切,理应最上面
     mountChatModeCard();
     mountAutopilotCard();
@@ -840,12 +874,28 @@
   }
 
   // ─── 5. 同步聊天历史 toggle ───
+  // 2026-10-07: 初值从 __sync.includeChat() 读（"默认开"的口径只在 sync.js 一处），
+  // 打开时立刻 pull→push 一轮并给可见反馈 —— 旧版只写 LS，用户勾了看不到任何动静。
   function initSyncChatToggle() {
     const t = document.getElementById('syncIncludeChatToggle');
     if (!t) return;
-    t.checked = localStorage.getItem('cfw_sync_include_chat_v1') === '1';
-    t.addEventListener('change', () => {
-      localStorage.setItem('cfw_sync_include_chat_v1', t.checked ? '1' : '0');
+    const st = (window.__sync && window.__sync.getStatus && window.__sync.getStatus()) || {};
+    t.checked = !!st.includeChat;
+    t.addEventListener('change', async () => {
+      if (window.__sync && window.__sync.setIncludeChat) window.__sync.setIncludeChat(t.checked);
+      else localStorage.setItem('cfw_sync_include_chat_v1', t.checked ? '1' : '0');
+      if (!t.checked) return;
+      const el = document.getElementById('syncStatus');
+      const say = (s) => { if (el) el.textContent = s; };
+      say('正在拉取云端对话…');
+      try {
+        const r = await window.__sync.pullChatNow();
+        if (r && r.skipped) { say(r.skipped === 'sync-off' ? '请先打开上面的「启用云同步」并输入密码，对话才能同步' : '对话同步未生效'); return; }
+        if (r && r.error) { say('拉取云端对话失败：' + r.error); return; }
+        say('已拉取云端对话，正在上传本机对话…');
+        const p = await window.__sync.pushChatNow();
+        say(p && p.ok ? ('对话同步已开启 · 已上传 ' + (p.slots || 0) + ' 条会话') : '对话同步已开启（本机暂无会话可上传）');
+      } catch (e) { say('对话同步失败：' + ((e && e.message) || e)); }
     });
   }
 
@@ -1019,10 +1069,23 @@
       try {
         await window.__sync.pushNow();
         // 4.78: 立即同步同时补推独立通道(pushNow 只推 main blob;聊天走 /sync/chat、角色卡走 /sync/chars,否则手动点立即同步不会立刻推这两类,得等各自 30s 自动推)
-        if (window.__sync.pushChatNow)  await window.__sync.pushChatNow();
+        const _chat = window.__sync.pushChatNow ? await window.__sync.pushChatNow() : null;
         if (window.__sync.pushCharsNow) await window.__sync.pushCharsNow();
-        syncNowBtn.textContent = '✓ 已同步';
-        if (syncStatusEl) syncStatusEl.textContent = '同步完成 · ' + new Date().toLocaleString('zh-CN', { hour12: false });
+        // 2026-10-07: 如实回报 —— 对话通道没开/没推成时必须说清楚,不再一律"✓ 已同步"(那条假成功让"什么都没同步"看起来像成功了)
+        const _when = new Date().toLocaleString('zh-CN', { hour12: false });
+        if (_chat && _chat.skipped === 'chat-off') {
+          syncNowBtn.textContent = '✓ 已同步(不含对话)';
+          if (syncStatusEl) syncStatusEl.textContent = '对话历史未同步:勾选上方「同步聊天历史」后,对话才会跨设备共享 · ' + _when;
+        } else if (_chat && _chat.skipped === 'sync-off') {
+          syncNowBtn.textContent = '✓ 已同步(不含对话)';
+          if (syncStatusEl) syncStatusEl.textContent = '未启用云同步/缺密码:对话未同步 · ' + _when;
+        } else if (_chat && _chat.error) {
+          syncNowBtn.textContent = '部分失败';
+          if (syncStatusEl) syncStatusEl.textContent = '其余数据已同步,对话同步失败:' + _chat.error + ' · ' + _when;
+        } else {
+          syncNowBtn.textContent = '✓ 已同步';
+          if (syncStatusEl) syncStatusEl.textContent = '同步完成(含对话 ' + ((_chat && _chat.slots) || 0) + ' 条会话) · ' + _when;
+        }
       } catch (e) {
         syncNowBtn.textContent = '同步失败';
         alert('同步失败: ' + (e && e.message || e));

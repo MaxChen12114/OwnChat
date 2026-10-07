@@ -951,15 +951,23 @@ pub fn run() {
                         }
                     }
                     "quit" => {
-                        // 退出前顺手结束后台语音服务，避免留孤儿进程
-                        if let Some(state) = app.try_state::<TtsProcess>() {
-                            if let Ok(mut g) = state.0.lock() {
-                                if let Some(mut child) = g.take() {
-                                    let _ = child.kill();
+                        // 2026-10-07 退出前冲刷：聊天推送是 30s 防抖，直接 exit(0) 会丢掉最近半分钟的会话
+                        // （手机端看不到刚聊完的那段）。先 emit 让前端立刻 pushChatNow/pushNow，
+                        // 留 1.2s 窗口再退（同步推送通常 300ms 内完成）。
+                        let _ = app.emit("app-flush-now", ());
+                        let app_for_exit = app.clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_millis(1200));
+                            // 退出前顺手结束后台语音服务，避免留孤儿进程
+                            if let Some(state) = app_for_exit.try_state::<TtsProcess>() {
+                                if let Ok(mut g) = state.0.lock() {
+                                    if let Some(mut child) = g.take() {
+                                        let _ = child.kill();
+                                    }
                                 }
                             }
-                        }
-                        app.exit(0)
+                            app_for_exit.exit(0);
+                        });
                     }
                     _ => {}
                 })
@@ -1027,6 +1035,9 @@ pub fn run() {
         .on_window_event(|window, event| match event {
             // 点窗口关闭 = 收进托盘，不退出进程（托盘菜单「退出」才真正退出）
             tauri::WindowEvent::CloseRequested { api, .. } => {
+                // 2026-10-07: 收托盘前也冲一次 —— 窗口被隐藏时页面的 visibilitychange 未必触发，
+                // 而"点 X 关掉"是桌面端最常见的丢数据路径（最后 30s 的会话上不了云）。
+                let _ = window.emit("app-flush-now", ());
                 let _ = window.hide();
                 api.prevent_close();
             }

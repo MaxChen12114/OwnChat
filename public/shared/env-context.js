@@ -56,7 +56,7 @@
 
     // 关键全局模块是否加载
     // 2026-06-20 修正误报:旧版探测 global.__dev.isOn(并不存在的方法名)→ __dev 已加载也永远判 fail(自检「1/6」那根刺)。
-    // app.js 暴露的 window.__dev 真方法是 isDevMode(及 getNsfwLevel/getReplyStyle 等),这里探真实方法名。
+    // app.js 暴露的 window.__dev 真方法是 isDevMode(及 getReplyStyle 等),这里探真实方法名。
     add("dev.js (window.__dev)", !!(global.__dev && typeof global.__dev.isDevMode === "function"),
         "window.__dev 缺失或无 isDevMode → dev.js 未加载或加载顺序错")
     add("agent-kernel.js (window.AgentKernel)", !!(global.AgentKernel && typeof global.AgentKernel.createToolRegistry === "function"),
