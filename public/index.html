@@ -1,0 +1,1868 @@
+<!DOCTYPE html>
+<!-- 路径: public/index.html （酒馆主页 · 根 /） -->
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+  <title>OwnChat</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/styles-2.css" />
+  <!-- PWA: 可安装应用外壳(manifest + 各平台 meta);图标依赖 /assets/icon-192.png 与 icon-512.png -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#15161a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="OwnChat" />
+  <meta name="description" content="OwnChat —— 数据与密钥都留在你自己手里的 AI 创作平台：角色扮演、长文写作、代码协作、图像与语音，部署到你自己的 Cloudflare Workers。" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+  <!-- 2026-05-29: Settings 移动端字体协调修复 (克制裁减不折腾 styles.css) -->
+  <style>
+    @media (max-width: 640px) {
+      #settings #settingsHeader h3 { font-size: 18px; margin: 0 0 4px; }
+      #settings #settingsHeader .hint { font-size: 12px; line-height: 1.5; }
+      #settings .card h4 { font-size: 15px; line-height: 1.4; font-weight: 600; letter-spacing: 0.01em; margin: 0 0 8px; }
+      #settings .card p { font-size: 13px; line-height: 1.65; }
+      #settings .card label { font-size: 13px; }
+      #settings .card code { font-size: 11.5px; padding: 1px 5px; border-radius: 3px; }
+      #settings .card .toggle label { font-size: 13px; }
+      #settings .card .smallbtn { font-size: 12px; }
+      /* 4.70: settings 手机端 flex-wrap 修复 */
+      #settings .rowline { flex-wrap: wrap; gap: 8px; }
+      #settings .toggle  { flex-wrap: wrap; }
+      #settings .btns    { flex-wrap: wrap; gap: 6px; }
+    }
+    @media (min-width: 641px) {
+    }
+    /* 4.18 (fix): 独立 toggle 隐藏统计小字 (token/速度/累计费用) */
+    /* styles.css 里 .hide-msg-actions 旧规则会一并隐 .stats,这里用 !important revert 拆开 */
+    html.hide-msg-actions .stats { display: block !important; }
+    html.hide-stats .stats { display: none !important; }
+    /* 4.20: 顶栏组件可开关 - 实时资金按钮 #costDisplay 关闭后,topbar-spacer 自动吸收空隙紧凑剩余按钮 */
+    html.hide-topbar-cost #costDisplay { display: none !important; }
+    /* 2026-06-07 顶栏 emoji→线性 SVG:统一 #topbar 内 .iconbtn 的 SVG 尺寸,currentColor 随主题(集中一处,后续换图标只改 SVG 本身) */
+    #topbar .iconbtn svg { width: 18px; height: 18px; display: block; }
+    /* 2026-06-07 模式键(免费/快速)= 线性 SVG 图标 + 文字标签;手机端隐藏文字只留图标(顶栏瘦身),桌面端图标+文字 */
+    #topbar #modeToggle { display: inline-flex; align-items: center; gap: 6px; }
+    #topbar #modeToggle .btn-text { font-size: 13px; line-height: 1; }
+    @media (max-width: 640px) { #topbar #modeToggle .btn-text { display: none; } }
+
+    #topbar #personaToggle { width: auto; display: inline-flex; align-items: center; gap: 6px; padding: 0 11px; }
+
+    #topbar #personaToggle { border-radius: 9px !important; }
+    #topbar #personaToggle .btn-text { font-size: 13px; line-height: 1; }
+    @media (max-width: 640px) { #topbar #personaToggle .btn-text { display: none; } #topbar #personaToggle { padding: 0; width: 38px; } }
+    /* 2026-06-08 免费模式顶栏占位:免费 / 无消费时 #costDisplay 补占位文案,弱化显示填补中段空隙(item7) */
+    #costDisplay.cost-placeholder { opacity: .5; }
+    /* 2026-06-08 手机端开发者工具「更多」下拉:收纳 ⏸/🛠 dev 按钮,避免窄屏顶栏换行冲突(item6) */
+    #topbarMoreMenu { position: absolute; z-index: 9999; flex-direction: column; gap: 6px; padding: 8px; border-radius: 12px; background: var(--bubble-ai, #161616); border: 1px solid var(--border, #2a2a2a); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+    #topbarMoreMenu .iconbtn { width: auto; height: 34px; justify-content: flex-start; gap: 8px; padding: 6px 12px; }
+    /* 思考过程折叠块:隐藏浏览器默认实心三角 marker,只用自定义 SVG 图标 */
+    details.reasoning-block > summary { list-style: none; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+    details.reasoning-block > summary::marker { display: none; }
+    details.reasoning-block > summary::-webkit-details-marker { display: none; }
+    /* 4.38-ui: 思考按钮去 🧠 emoji,改简洁 sparkle 线性图标 + 文字;active 态紫色微光,与 send 的线性 SVG 风格统一 */
+    #thinkToggle { display: inline-flex; align-items: center; gap: 5px; }
+    #thinkToggle .think-ico { width: 15px; height: 15px; flex: none; opacity: .65; transition: opacity .15s, transform .15s, filter .15s, color .15s; }
+    #thinkToggle:hover:not(:disabled) .think-ico { opacity: 1; }
+    #thinkToggle.active .think-ico { opacity: 1; color: inherit; filter: drop-shadow(0 0 3px rgba(127,127,127,.45)); transform: scale(1.06); }
+    #thinkToggle.active .think-label { color: inherit; }
+    #thinkToggle:disabled .think-ico { opacity: .35; }
+    /* 2026-09-12 修复:composerAttachBtn(回形针)错位 + 样式丑 —— 它只是个纯图标按钮,
+       之前完全依赖通用 .chip-btn(为「图标+文字标签」按钮设计,如 #thinkToggle),
+       缺文字标签时布局跟着错位。这里给它单独钉一个固定尺寸的居中方形图标按钮,
+       与 sendBtn / thinkToggle 同一套设计语言(圆角、hover 反馈)。 */
+    #composer #composerAttachBtn {
+      display: inline-flex; align-items: center; justify-content: center;
+      flex: 0 0 auto; width: 34px; height: 34px; padding: 0;
+      border-radius: 9px; background: rgba(127,127,127,.08);
+      border: 1px solid rgba(127,127,127,.22); color: inherit;
+      opacity: .8; cursor: pointer;
+      transition: background .15s, opacity .15s, border-color .15s;
+    }
+    #composer #composerAttachBtn:hover { opacity: 1; background: rgba(127,127,127,.16); }
+    #composer #composerAttachBtn svg { width: 16px; height: 16px; display: block; }
+    /* 2026-09-12 修复:思考按钮(#thinkToggle)是「图标+文字」pill(border-radius:999px,padding:6px 12px,无固定高度),
+       实际渲染高度(~27px)矮于回形针按钮的固定 34px 方块 —— 底部对齐容器(.input-inner align-items:flex-end)下
+       两键顶部就不齐,看起来「一个上一个下」。这里钉死同一 34px 高度 + 同款 9px 圆角,和回形针统一设计语言,
+       不动全局 .chip-btn(其它用到该 class 的地方不受影响,仅 #composer 内的 #thinkToggle 生效)。 */
+    #composer {
+      align-items: center !important;
+    }
+    #composer #composerAttachBtn,
+    #composer #thinkToggle {
+      align-self: center !important;
+      height: 34px;
+      min-height: 34px;
+      box-sizing: border-box;
+    }
+    #composer #thinkToggle {
+      padding: 0 12px; border-radius: 9px;
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+      flex: 0 0 auto;
+      line-height: 1;
+    }
+    #composer #thinkToggle .think-label { line-height: 1; }
+    /* 2026-09-12 修复:上面两条 34px 定尺寸对全部屏幕宽度生效,手机端相对输入框显得太大块。
+       手机端(≤640px)统一降到 30px/8px 圆角,图标/文字同比缩小,桌面端不受影响。 */
+    @media (max-width: 640px) {
+      #composer #composerAttachBtn { width: 30px; height: 30px; border-radius: 8px; }
+      #composer #composerAttachBtn svg { width: 15px; height: 15px; }
+      #composer #thinkToggle { height: 30px; padding: 0 9px; border-radius: 8px; gap: 4px; }
+      #composer #thinkToggle .think-ico { width: 13px; height: 13px; }
+      /* 2026-09-12 手机端思考按钮瘦身:关闭时只显示 sparkle 图标;开启时按强度显示单字。
+         原「图标 + 思考关/思考开」在窄屏 composer 里太占空间,还会挤压输入框。
+         开启后不再写长文案,而是从按钮文本/title/aria 里识别 low/medium/high/auto 等强度:
+         低/弱 →「低」,中/默认/auto →「中」,高/强 →「高」。识别不到强度则继续只显示图标。 */
+      #composer #thinkToggle .think-label { font-size: 0; width: 0; overflow: hidden; }
+      #composer #thinkToggle.active .think-label { width: 0; overflow: hidden; }
+      #composer #thinkToggle.active .think-label::after { font-size: 12px; line-height: 1; }
+      /* 用 JS 写入 data-mobile-effort,避免 title/aria 里同时含“高中低”导致 CSS 全部命中、最后总显示“高”。 */
+      #composer #thinkToggle.active[data-mobile-effort="low"] .think-label,
+      #composer #thinkToggle.active[data-mobile-effort="medium"] .think-label,
+      #composer #thinkToggle.active[data-mobile-effort="high"] .think-label { width: auto; overflow: visible; }
+      #composer #thinkToggle.active[data-mobile-effort="low"] .think-label::after { content: "低"; }
+      #composer #thinkToggle.active[data-mobile-effort="medium"] .think-label::after { content: "中"; }
+      #composer #thinkToggle.active[data-mobile-effort="high"] .think-label::after { content: "高"; }
+    }
+    /* 4.39-ui: 左侧栏 + 移动 tab 图标统一为线性 SVG;用 currentColor 继承各主题文字色,无需维护多套图标 */
+    .sidebar-btn-icon, .mobile-tab-icon { display: inline-flex; align-items: center; justify-content: center; }
+    .sidebar-btn-icon svg { width: 18px; height: 18px; display: block; }
+    .mobile-tab-icon svg { width: 22px; height: 22px; display: block; }
+    .sidebar-btn-disabled .sidebar-btn-icon svg { opacity: .55; }
+    /* 2026-09-14 UI第二轮:底栏视觉层已收敛进 styles-2.css 悬浮胶囊 dock(单一样式源);此处仅保留桌面硬隐藏。
+       不写 #mobileBottomTabs 的 display/position/transform,避免盖过桌面隐藏与滚动隐藏逻辑 */
+    /* 2026-09-13 fix: 手机底栏 DOM 在 .app-shell 外,桌面端必须硬隐藏,避免桌面底部出现占位条/手机按钮。 */
+    @media (min-width: 769px) {
+      #mobileBottomTabs,
+      #mobileTabsRestoreBtn,
+      .mobile-tab-panel {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+    }
+    /* 4.40-ui: 设置面板标题/按钮 emoji 换线性图标(currentColor 随主题,与左栏统一) */
+    #settings .card h4 { display: flex; align-items: center; gap: 8px; }
+    #settings .card h4 svg { width: 16px; height: 16px; flex: none; opacity: .85; }
+    #settings .smallbtn { display: inline-flex; align-items: center; gap: 5px; }
+    #settings .smallbtn svg { width: 13px; height: 13px; flex: none; }
+    #settings #cloudExcludeSection > summary svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 5px; }
+    /* 4.41-ui: 右侧栏标签化(群聊控制台 / 图像),解决图像快捷面板挤占、遮挡多智能体控制台的问题 */
+    /* 4.42-fix: 仅桌面让右栏 flex 纵向布局;移动端不写 #rightSidebar(ID) 规则,交回 styles.css 的 .right-sidebar 隐藏 + 鱼缸显隐控制。4.41 原无条件 #rightSidebar{display:flex} 因 ID 特异性盖过 styles.css 移动端 .right-sidebar{display:none},导致手机右栏常驻挡聊天 */
+    /* 2026-10-06: #rightSidebar 不再自己写 background —— 旧写死 var(--bubble-ai) 是 ID 级规则,
+       ID 特异性压过 styles-2.css 里 .left-sidebar,.right-sidebar 的玻璃/烛色主题底,
+       导致右栏永远比左栏更透明(自定义背景图下尤其明显)。玻璃底/主题底统一由 styles-2.css 那条管。 */
+    @media (min-width: 1024px) { #rightSidebar { display: flex; flex-direction: column; min-height: 0; position: relative; /* 2026-06-16: 让内部 #rsResizeHandle(position:absolute) 相对右栏定位，否则手柄会脱离流相对视口定位覆盖全页交互元素 */ } }
+    /* 2026-06-16 极简主题右栏背景兜底：4.29 改白底后右栏失去独立背景规则，白字打在白底上导致按钮「消失」+全白；各分主题已有独立 background 覆盖此兜底 */
+    #rightSidebar .rs-header { padding: 8px 8px 6px; }
+    #rightSidebar .rs-tabs { display: flex; gap: 3px; background: rgba(127,127,127,.10); border-radius: 10px; padding: 3px; }
+    /* 2026-09-14 UI第二轮:三 tab 时右栏 240px 下每个仅 ~70px,原 gap6/padding8/12.5px 收不下「图标+两字」→ 文字被压成竖排。
+       收紧间距字号 + nowrap 钉死单行;min-width:0 允许 flex 收缩但文字不换行(极端窄栏下图标先让位)。 */
+    #rightSidebar .rs-tab { flex: 1; min-width: 0; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 7px 6px; border: none; border-radius: 8px; background: transparent; color: inherit; opacity: .58; cursor: pointer; transition: background .15s, opacity .15s, box-shadow .15s; }
+    #rightSidebar .rs-tab > span:not(.rs-dot) { overflow: hidden; text-overflow: ellipsis; }
+    #rightSidebar .rs-tab svg { width: 15px; height: 15px; flex: none; }
+    #rightSidebar .rs-tab:hover { opacity: .85; }
+    #rightSidebar .rs-tab.active { opacity: 1; background: rgba(127,127,127,.22); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+    #rightSidebar .rs-tab .rs-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: none; }
+    #rightSidebar .rs-tab.has-activity .rs-dot { display: inline-block; }
+    #rightSidebar .rs-body { flex: 1; min-height: 0; display: flex; }
+    #rightSidebar .rs-panel { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 10px; }
+    #rightSidebar .rs-panel[hidden] { display: none; }
+    #rightSidebar .rs-empty { font-size: 11.5px; line-height: 1.6; opacity: .5; text-align: center; padding: 18px 12px; }
+    #rightSidebar #fishbowlSlot:not(:empty) + .rs-empty { display: none; }
+    #rightSidebar .rs-panel .sidebar-slot-placeholder { padding: 0; border: none; background: none; text-align: left; color: inherit; min-height: 0; }
+    /* 4.59: 群聊控制台「建微信群聊」入口(从左侧栏迁入);线性图标 + 双行文案,走主题变量 */
+    #rightSidebar .rs-build-group { display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--border, #333); border-radius: 12px; background: rgba(127,127,127,.06); color: inherit; cursor: pointer; text-align: left; transition: border-color .15s, background .15s; }
+    #rightSidebar .rs-build-group:hover { border-color: rgba(127,127,127,.55); background: rgba(127,127,127,.10); }
+    #rightSidebar .rs-build-group .rs-build-group-ico { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex: none; border-radius: 9px; background: rgba(127,127,127,.14); color: inherit; }
+    #rightSidebar .rs-build-group .rs-build-group-ico svg { width: 17px; height: 17px; display: block; }
+    #rightSidebar .rs-build-group .rs-build-group-tx { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    #rightSidebar .rs-build-group .rs-build-group-tx b { font-size: 13px; font-weight: 600; }
+    #rightSidebar .rs-build-group .rs-build-group-tx small { font-size: 11px; opacity: .6; line-height: 1.3; }
+    /* 4.63-ui: Settings 规整 — 分组标题 + 桌面端统一字号(消除"一会大一会小") */
+    #settings .settings-group-title { font-size: 12px; font-weight: 700; letter-spacing: .08em; color: #c8c8c8; opacity: .9; margin: 24px 4px 10px; }
+    #settings .settings-group-title:first-of-type { margin-top: 4px; }
+    #settings .card h4 { font-size: 15px; font-weight: 600; line-height: 1.4; letter-spacing: .01em; }
+    #settings .card > p { font-size: 13px; line-height: 1.65; }
+    #settings .card label { font-size: 13px; line-height: 1.5; }
+    #settings .card .smallbtn { font-size: 12px; }
+    /* 2026-06-08 设置面板规整 + 去 emoji:把散落的 💡/⚠️ 提示行统一为「线性 SVG 图标 + 文字」组件,字号·间距·颜色一致,消除"乱乱的"观感(与全站 SVG 图标语言对齐) */
+    #settings .settings-tip, #settings .settings-warn { display: flex; align-items: flex-start; gap: 7px; font-size: 11px; line-height: 1.6; margin-top: 10px; }
+    #settings .settings-tip { color: #888; }
+    #settings .settings-warn { color: #cf914a; }
+    #settings .settings-tip > svg, #settings .settings-warn > svg { width: 13px; height: 13px; flex: none; margin-top: 2.5px; opacity: .85; }
+    #settings .settings-tip code, #settings .settings-warn code { font-size: 11px; }
+    /* 2026-06-03: 移动端左侧抽屉可滚动修复 — 按钮多时底部 GitHub 入口被截断滑不到/卡住，nav 独立滚动 + 安全区垫底 */
+    @media (max-width: 1023px) {
+      #leftSidebar { display: flex; flex-direction: column; max-height: 100dvh; }
+      #leftSidebar .sidebar-nav { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+    }
+
+
+    /* 版本号小字:伪装成普通版本标记的隐秘触发点(连点 7 下) */
+    #appVersionTag { margin-top: 18px; text-align: center; font-size: 11px; color: #6a6a6a; opacity: .5; user-select: none; cursor: default; letter-spacing: .03em; }
+    /* 2026-06-08 设置卡片=展示容器、非按钮:移除 hover「升起」(删 0 6px 22px 抬起阴影 + 紫描边 #9aa3ff),改 Notion 式静态不浮起。各主题保留各自静态描边;light scheme 层另有平面 hover 反馈。分组标题左侧色条样式见下行 */
+    #settings .card { transition: border-color .15s; }
+    #settings .settings-group-title { display: flex; align-items: center; gap: 8px; }
+    #settings .settings-group-title::before { content: ""; width: 3px; height: 13px; border-radius: 2px; background: currentColor; opacity: .4; flex: none; }
+    #settingsHeader { padding-bottom: 8px; border-bottom: 1px solid rgba(127,127,127,.14); }
+    #settings::-webkit-scrollbar { width: 8px; }
+    #settings .settings-shell::-webkit-scrollbar { width: 8px; }
+    #settings .settings-shell::-webkit-scrollbar-thumb { background: rgba(127,127,127,.35); border-radius: 4px; }
+    #settings::-webkit-scrollbar-thumb { background: rgba(127,127,127,.35); border-radius: 4px; }
+    /* 主页版隐秘触发点:左侧栏底部版本小字,样式克制(像普通版本标签),连点 7 下触发访问码 */
+    #appVersionTagHome { margin: 14px 6px 4px; text-align: center; font-size: 10.5px; color: #5a5a5a; opacity: .55; user-select: none; cursor: default; letter-spacing: .03em; }
+    /* 2026-06-11 顶栏统一 + 模型名防挤裁:去掉冗余 Model 文字标签给下拉腾地、控件等高 34/圆角 9、缩小间距,避免窗口偏窄时 select 被压成「DeepSeek V」 */
+    #topbar .topbar-inner { align-items: center; gap: 6px; }
+    #topbar .pill.model-pill { display: inline-flex; align-items: center; height: 34px; padding: 0 8px; border-radius: 9px; flex: 0 0 auto; }
+    #topbar .model-pill .model-label { display: none; }
+    #topbar .model-pill #modelSel { flex: 0 0 auto; min-width: 130px; max-width: 230px; width: auto; height: 30px; border: none; background: transparent; color: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+    #topbar #costDisplay.topbar-cost-inline { flex: 0 0 auto; height: 34px; white-space: nowrap; }
+    #topbar #modeToggle, #topbar #personaToggle, #topbar #settingsBtn { height: 34px; }
+    /* 2026-06-11 手机端模型名框定宽:免费/快速切换时旧 width:auto 让 select 随模型名长短变宽(两态框大小不一)。手机让 model-pill 占满中段 + select 填满到定宽,切模式不再跳动。此选择器含 #modelSel(2 id)特异性 >= 旧规则,且更靠后 */
+    @media (max-width: 768px) {
+      #topbar .pill.model-pill { flex: 1 1 auto; min-width: 0; justify-content: center; }
+      #topbar .model-pill #modelSel { width: 100%; min-width: 0; max-width: 200px; }
+    }
+    /* 2026-09-12 Android App 专属适配:
+       1) 普通手机网页不再被强行顶下;只有 html.android-app 命中 App 安全区。
+       2) Android WebView 的 env(safe-area-inset-top) 可能为 0,所以用固定 42px 兜底。
+       3) 底栏/输入框/聊天底部留白统一走变量,避免 hide-mobile-tabs 与 nav-hidden 互相打架。 */
+    @media (max-width: 768px) {
+      :root {
+        /* 2026-09-14 UI第二轮:底栏改悬浮胶囊 dock 后占位变大(底部 10px 间隙 + 58px 高度 = 68px),
+           原 58px 是按旧「贴底全宽条」算的 → 输入框底部 66px 实际压住 dock 顶部 68px。此处按真实占位重算。 */
+        --mobile-tabs-h: calc(68px + env(safe-area-inset-bottom));
+        --composer-bottom: calc(var(--mobile-tabs-h) + 16px);
+        --chat-bottom-space: calc(148px + env(safe-area-inset-bottom));
+      }
+      html.hide-mobile-tabs {
+        --mobile-tabs-h: 0px;
+        --composer-bottom: calc(8px + env(safe-area-inset-bottom));
+        --chat-bottom-space: calc(76px + env(safe-area-inset-bottom));
+      }
+      html.android-app #topbar {
+        padding-top: max(env(safe-area-inset-top), 42px) !important;
+        padding-left: max(8px, env(safe-area-inset-left)) !important;
+        padding-right: max(8px, env(safe-area-inset-right)) !important;
+        box-sizing: border-box !important;
+      }
+      html.android-app #topbar .topbar-inner {
+        min-height: 44px;
+        align-items: center;
+      }
+      /* 手机网页不需要刷新键；App 如需刷新后续走设置页入口，不占顶栏。 */
+      #appRefreshBtn { display: none !important; }
+      #topbar .pill.model-pill {
+        min-width: 0;
+        max-width: min(54vw, 240px);
+      }
+      #topbar .model-pill #modelSel {
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      html.android-app #history {
+        padding-top: 16px !important;
+      }
+      html.hide-mobile-tabs #mobileBottomTabs {
+        display: none !important;
+      }
+      .input-floating {
+        left: 0 !important;
+        right: 0 !important;
+        /* 4.83: --kb = 软键盘遮挡高度(app.js visualViewport 兜底写入)。
+           interactive-widget=resizes-content 生效时 kb≈0 不影响;不生效的旧 WebView 上把输入框顶到键盘上方 */
+        bottom: calc(var(--composer-bottom) + var(--kb, 0px)) !important;
+        padding: 0 max(12px, env(safe-area-inset-left)) 0 max(12px, env(safe-area-inset-right)) !important;
+        box-sizing: border-box !important;
+      }
+      .input-inner {
+        width: 100% !important;
+        max-width: none !important;
+        min-height: 58px !important;
+        padding: 11px 11px 11px 13px !important;
+        border-radius: 20px !important;
+        gap: 9px !important;
+        align-items: center !important;
+      }
+      textarea#msg {
+        min-height: 34px !important;
+        max-height: 132px !important;
+        line-height: 1.42 !important;
+        font-size: 16px !important;
+        padding: 7px 0 !important;
+      }
+      #sendBtn {
+        width: 38px !important;
+        height: 38px !important;
+        flex: 0 0 38px !important;
+      }
+      html.android-app #bottom-spacer {
+        height: max(var(--chat-bottom-space), calc(112px + env(safe-area-inset-bottom))) !important;
+        min-height: max(var(--chat-bottom-space), calc(112px + env(safe-area-inset-bottom))) !important;
+      }
+      html.hide-mobile-tabs #chat {
+        padding-bottom: var(--chat-bottom-space) !important;
+      }
+      html.hide-mobile-tabs body.nav-hidden .input-floating {
+        transform: none !important;
+      }
+      /* 底栏默认折叠；快速唤醒按钮也默认隐藏，只有设置中打开后才显示。 */
+      #mobileTabsRestoreBtn { display: none; }
+      html.hide-mobile-tabs.show-mobile-tabs-restore #mobileTabsRestoreBtn {
+        display: inline-flex !important;
+        position: fixed; right: 10px; bottom: calc(88px + env(safe-area-inset-bottom)); z-index: 9998;
+        width: 32px; height: 32px; border-radius: 999px; align-items: center; justify-content: center;
+        border: 1px solid rgba(127,127,127,.24); background: rgba(20,20,20,.72); color: inherit;
+        backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); opacity: .55;
+      }
+      html.hide-mobile-tabs.show-mobile-tabs-restore #mobileTabsRestoreBtn:active { opacity: 1; transform: scale(.94); }
+      #composer {
+        align-items: center !important;
+      }
+      html.android-app #composer #composerAttachBtn,
+      html.android-app #composer #thinkToggle {
+        align-self: center !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        box-sizing: border-box;
+      }
+      html.android-app #composer #composerAttachBtn {
+        width: 36px !important;
+        flex-basis: 36px !important;
+      }
+      html.android-app #composer #composerAttachBtn svg {
+        width: 19px !important;
+        height: 19px !important;
+      }
+      html.android-app #composer #thinkToggle {
+        padding: 0 10px !important;
+        min-width: 36px !important;
+      }
+    }
+    /* 2026-09-12 Android App 即时反馈修复:
+       - 设置页顶部标签不再被状态栏/顶栏覆盖,点击区域整体下移并固定在面板内部。
+       - 极简黑夜输入框改成更克制的 Notion 暗色层级,避免一整块亮灰突兀。
+       - 回形针图标放大并留足呼吸感。 */
+    @media (max-width: 768px) {
+      html.android-app #settingsMask {
+        align-items: flex-start !important;
+        padding-top: calc(max(env(safe-area-inset-top), 42px) + 12px) !important;
+        padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+      }
+      html.android-app #settings {
+        width: min(760px, 94vw) !important;
+      }
+      /* 仅极简夜间生效；日间极简有 data-scheme="light"，不能被这组深色 !important 盖掉。 */
+      html:not([data-theme]):not([data-scheme="light"]) .input-inner {
+        background: rgba(30,30,30,.96) !important;
+        border-color: rgba(255,255,255,.14) !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.045) !important;
+      }
+      html:not([data-theme]):not([data-scheme="light"]) #composer #composerAttachBtn,
+      html:not([data-theme]):not([data-scheme="light"]) #composer #thinkToggle {
+        background: rgba(255,255,255,.055) !important;
+        border-color: rgba(255,255,255,.12) !important;
+      }
+      html:not([data-theme]):not([data-scheme="light"]) #composer #composerAttachBtn:hover,
+      html:not([data-theme]):not([data-scheme="light"]) #composer #thinkToggle:hover {
+        background: rgba(255,255,255,.10) !important;
+      }
+      html:not([data-theme]):not([data-scheme="light"]) textarea#msg::placeholder { color: rgba(255,255,255,.42) !important; }
+      html[data-scheme="light"]:not([data-theme]) .input-inner {
+        background: #ffffff !important;
+        border-color: #e3e2e0 !important;
+        box-shadow: 0 8px 30px rgba(0,0,0,.12) !important;
+      }
+      html[data-scheme="light"]:not([data-theme]) #composer #composerAttachBtn,
+      html[data-scheme="light"]:not([data-theme]) #composer #thinkToggle {
+        background: #f3f3f1 !important;
+        border-color: #e3e2e0 !important;
+        color: #787774 !important;
+      }
+      html[data-scheme="light"]:not([data-theme]) #composer #composerAttachBtn:hover,
+      html[data-scheme="light"]:not([data-theme]) #composer #thinkToggle:hover {
+        background: #e9e9e6 !important;
+        color: #37352f !important;
+      }
+      html[data-scheme="light"]:not([data-theme]) textarea#msg::placeholder { color: #b3b1ac !important; opacity: 1; }
+    }
+    /* 思考强度移动端显示:运行时归一化为单一 data-mobile-effort,避免 CSS 属性包含匹配互相覆盖。 */
+    #composer #thinkToggle.active .think-label { position: relative; }
+  </style>
+  <!-- FOUC-safe 主题预应用:在 styles.css 应用前读 LS 立即贴 data-theme -->
+  <!-- 支持 minimal(默认) / glass / candle;新增主题只需扩 ALLOWED 集合 -->
+  <script>
+    (function () {
+      try {
+        var sp = new URLSearchParams(location.search || "");
+        var isAndroidShell = sp.get("shell") === "android" || localStorage.getItem("cfw_android_app_shell_v1") === "1";
+        if (sp.get("shell") === "android") localStorage.setItem("cfw_android_app_shell_v1", "1");
+        if (isAndroidShell) document.documentElement.classList.add("android-app");
+        var t = localStorage.getItem("cfw_theme_v1");
+        if (t === "glass" || t === "candle") document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    })();
+  </script>
+  <!-- 2026-05-29 FOUC-safe 聊天区个性化:启动立即应用字号/字体/隐藏按钮/wechat 风格 -->
+  <script>
+    (function(){
+      try {
+        var ls = localStorage, html = document.documentElement;
+        if (ls.getItem('cfw_hide_msg_actions_v1') === '1') html.classList.add('hide-msg-actions');
+        if (ls.getItem('cfw_hide_stats_v1') === '1') html.classList.add('hide-stats');
+        // 4.20: 顶栏组件开关 (默认开,只有 LS === '0' 才隐藏)
+        if (ls.getItem('cfw_show_topbar_cost_v1') === '0') html.classList.add('hide-topbar-cost');
+        // 2026-09-12 手机端统一:App 和网页底部功能栏都默认折叠;只有设置里显式开启(cfw_mobile_bottom_tabs_v1 === '1')才显示。
+        var tabsPref = ls.getItem('cfw_mobile_bottom_tabs_v1');
+        if (tabsPref !== '1') html.classList.add('hide-mobile-tabs');
+        if (ls.getItem('cfw_mobile_tabs_restore_v1') === '1') html.classList.add('show-mobile-tabs-restore');
+        // 4.15 hotfix: 不再给 html 加 data-reply-style="wechat" — wechat 模式仅控拆气泲,不再隐藏小按钮(需隐藏请用上面独立 toggle)
+        var fs = parseInt(ls.getItem('cfw_chat_font_size_v1') || '13', 10);
+        if (fs >= 12 && fs <= 28) html.style.setProperty('--chat-font-size', fs + 'px');
+        var ff = ls.getItem('cfw_chat_font_family_v1') || '';
+        if (ff) html.style.setProperty('--chat-font-family', ff);
+      } catch (e) {}
+    })();
+  </script>
+  <!-- 2026-06-08 欢迎页(应用端独有·可关闭):仅 Tauri 桌面壳 + 会话为空 + 未关闭时显示;FOUC-safe 由 head 早脚本贴 is-desktop/welcome-dismissed,JS 观察 #chat 切 chat-empty。网页版无 is-desktop → 永不显示。配色走中性/继承,不引入紫色(对齐参考稿无紫) -->
+  <style>
+    #ownchatWelcome { display: none; }
+    html.is-desktop.chat-empty:not(.welcome-dismissed) #ownchatWelcome { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 65vh; box-sizing: border-box; padding: 48px 24px; position: relative; }
+    #ownchatWelcome .ow-close { position: absolute; top: 14px; right: 16px; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 8px; background: transparent; color: inherit; opacity: .4; cursor: pointer; transition: opacity .15s, background .15s; }
+    #ownchatWelcome .ow-close:hover { opacity: .9; background: rgba(127,127,127,.14); }
+    #ownchatWelcome .ow-logo { width: 60px; height: 60px; border-radius: 18px; margin-bottom: 16px; display: inline-flex; align-items: center; justify-content: center; background: rgba(127,127,127,.12); color: inherit; opacity: .9; }
+    #ownchatWelcome .ow-logo svg { width: 30px; height: 30px; }
+    #ownchatWelcome .ow-title { font-size: 26px; font-weight: 700; letter-spacing: .01em; margin: 0 0 4px; }
+    #ownchatWelcome .ow-sub { font-size: 14px; opacity: .55; margin: 0 0 24px; }
+    #ownchatWelcome .ow-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 210px)); gap: 12px; width: 100%; max-width: 444px; }
+    #ownchatWelcome .ow-card { display: flex; align-items: center; gap: 10px; text-align: left; padding: 14px 16px; border: 1px solid var(--border, #2a2a2a); border-radius: 14px; background: var(--bubble-ai, rgba(127,127,127,.05)); color: inherit; cursor: pointer; font-size: 13.5px; line-height: 1.4; transition: transform .15s, border-color .15s, box-shadow .15s; }
+    #ownchatWelcome .ow-card:hover { transform: translateY(-2px); border-color: rgba(127,127,127,.55); box-shadow: 0 8px 22px rgba(0,0,0,.18); }
+    #ownchatWelcome .ow-card .ow-card-ico { width: 20px; height: 20px; flex: none; display: inline-flex; align-items: center; justify-content: center; opacity: .8; }
+    #ownchatWelcome .ow-card .ow-card-ico svg { width: 18px; height: 18px; display: block; }
+    @media (max-width: 560px) { #ownchatWelcome .ow-grid { grid-template-columns: 1fr; } }
+  </style>
+  <script>
+    (function(){ try { var html = document.documentElement; if (window.__TAURI__ || window.__TAURI_INTERNALS__ || window.isTauri || window.__TAURI_METADATA__ || /Tauri/i.test(navigator.userAgent) || location.protocol === 'tauri:' || location.hostname === 'tauri.localhost') html.classList.add('is-desktop'); if (localStorage.getItem('cfw_welcome_dismissed_v1') === '1') html.classList.add('welcome-dismissed'); } catch (e) {} })();
+  </script>
+  <style>
+    /* ===== 右栏分主题强风格 ===== */
+    html[data-theme=glass] #rightSidebar .rs-tabs { background: rgba(255,255,255,.22); box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+    html[data-theme=glass] #rightSidebar .rs-tab.active { background: rgba(255,255,255,.6); color: #1c2330; box-shadow: 0 2px 8px rgba(31,45,80,.18); }
+    html[data-theme=glass] #rightSidebar .rs-build-group { background: rgba(255,255,255,.3); border-color: rgba(255,255,255,.4); }
+    html[data-theme=glass] #rightSidebar .rs-build-group:hover { background: rgba(255,255,255,.45); }
+    html[data-theme=glass] #rightSidebar .rs-build-group .rs-build-group-ico { background: rgba(90,130,160,.22); }
+
+    /* 2026-10-06: 右栏本体的底色/描边/backdrop-filter 一律不再单独写 —— 全部由 styles-2.css 的
+       .left-sidebar,.right-sidebar 主题块统一供给(左右栏同一条规则,结构上保证观感一致)。
+       历史坑:这里曾写 #rightSidebar { background: var(--bubble-ai) },ID 特异性压过后面的主题底,
+       右栏永远比左栏透(自定义背景图下尤其明显)。下面只保留 tabs/按钮/分组等内部件配色。 */
+    html[data-theme=candle] #rightSidebar .rs-tabs { background: rgba(217,168,104,.12); box-shadow: inset 0 0 0 1px rgba(217,168,104,.2); }
+    html[data-theme=candle] #rightSidebar .rs-tab { color: #e6d6bd; }
+    html[data-theme=candle] #rightSidebar .rs-tab.active { background: linear-gradient(135deg, rgba(217,168,104,.45), rgba(242,231,214,.3)); color: #171009; box-shadow: 0 2px 12px rgba(217,168,104,.35); }
+    html[data-theme=candle] #rightSidebar .rs-build-group { background: rgba(217,168,104,.1); border-color: rgba(217,168,104,.3); }
+    html[data-theme=candle] #rightSidebar .rs-build-group:hover { background: rgba(217,168,104,.2); border-color: rgba(217,168,104,.55); }
+    html[data-theme=candle] #rightSidebar .rs-build-group .rs-build-group-ico { background: rgba(217,168,104,.25); color: #f6eddc; }
+    html[data-theme=candle] #rightSidebar .rs-empty { color: #b7a488; }
+
+    /* ===== 烛夜私语 氛围层(薄雾/暗角,纯 CSS)。旧粒子 / 流体着色器特效层已整体移除(参考 git 历史) ===== */
+    #candleFxMist, #candleFxVignette { position: fixed; inset: 0; pointer-events: none; display: none; z-index: 0; }
+    html[data-theme=candle] #candleFxMist,
+    html[data-theme=candle] #candleFxVignette { display: block; }
+    #candleFxMist { background: radial-gradient(60% 50% at 78% 18%, rgba(217,168,104,.14), transparent 70%), radial-gradient(55% 45% at 18% 82%, rgba(242,231,214,.10), transparent 72%); opacity: calc(.4 + var(--pulse, 0) * .45); animation: candleMistDrift 26s ease-in-out infinite alternate; mix-blend-mode: screen; }
+    @keyframes candleMistDrift { from { transform: translate3d(-2%, -1%, 0) scale(1.05); } to { transform: translate3d(2%, 1%, 0) scale(1.12); } }
+    #candleFxVignette { background: radial-gradient(120% 95% at 50% 45%, transparent 56%, rgba(10,6,2,.55) 100%); }
+    @media (prefers-reduced-motion: reduce) { #candleFxMist { animation: none; } }
+  </style>
+  <style>
+    /* === 设置分栏（参考 Proma 左分类 · 桌面左侧竖排 / 移动端顶部横向滚动标签） === */
+    /* 2026-10-04: 顶部补 2px 内边距。横滚容器的 overflow-y:hidden 裁剪边正好压在按钮顶沿,
+       亚像素取整会把按钮最顶 1-2 行削掉 —— 玻璃主题下未激活按钮描边近白、底色极浅,
+       圆角顶端的渐细像素被削后圆角就"消失"成平头(截图放大肉眼可见)。留出余量后裁剪边远离按钮。 */
+    .settings-cat-nav { display: flex; gap: 5px; margin: 4px 0 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 2px 0; }
+    .settings-cat-nav::-webkit-scrollbar { display: none; }
+    .settings-cat-nav .scn-item { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; line-height: 1; white-space: nowrap; padding: 8px 12px; border: 1px solid var(--border, #2a2a2a); border-radius: 10px; background: rgba(127,127,127,.06); color: inherit; opacity: .58; cursor: pointer; transition: background .15s, opacity .15s, border-color .15s, transform .1s; }
+    .settings-cat-nav .scn-item svg { width: 14px; height: 14px; flex: none; display: block; }
+    .settings-cat-nav .scn-item:hover { opacity: .88; background: rgba(127,127,127,.12); transform: translateY(-1px); }
+    .settings-cat-nav .scn-item:active { transform: translateY(0) scale(.97); }
+    .settings-cat-nav .scn-item.active { opacity: 1; background: rgba(127,127,127,.18); border-color: rgba(127,127,127,.48); box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
+    .set-cat { display: none; }
+    .set-cat.active { display: block; }
+    /* 4.83 面板协调化(手机端): 分类按钮加高到 ≥36px 触摸目标;说明小字 11px 在手机上过小统一 12px;
+       smallbtn 触摸目标同步加高 */
+    @media (max-width: 768px) {
+      .settings-cat-nav .scn-item { padding: 10px 14px; }
+      #settings .smallbtn { min-height: 34px; padding-top: 6px; padding-bottom: 6px; }
+      #settingsHeader .hint, #settings .settings-tip, #settings .settings-tip span, #settings .settings-warn { font-size: 12px; }
+      #settings .card p { font-size: 12.5px; }
+    }
+    /* settingsHeader top row */
+    #settingsHeader .sh-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+    #settingsHeader .sh-close { width: 30px; height: 30px; flex: none; border-radius: 9px; border: none; background: rgba(127,127,127,.1); color: inherit; opacity: .5; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: opacity .15s, background .15s; padding: 0; }
+    #settingsHeader .sh-close:hover { opacity: 1; background: rgba(127,127,127,.22); }
+    @media (min-width: 721px) {
+      .settings-shell { display: flex; align-items: flex-start; gap: 20px; }
+      .settings-cat-nav { flex: 0 0 152px; flex-direction: column; gap: 3px; overflow-x: visible; margin: 0; position: sticky; top: 0; align-self: flex-start; padding-right: 4px; border-right: 1px solid rgba(127,127,127,.1); }
+      .settings-cat-nav .scn-item { width: 100%; justify-content: flex-start; }
+      .settings-cat-body { flex: 1 1 auto; min-width: 0; }
+    }
+    /* 2026-09-12 / 4.70: 设置面板布局补强。给动态注入卡提供统一的双列表单、小型列表和按钮行样式；
+       主要服务「模型 API」里的候选池 / 自定义直连 / 自定义定价，避免新增卡片各自写内联布局。 */
+    #settings .settings-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 12px;
+      margin-top: 10px;
+    }
+    #settings .settings-grid-2 label {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 0;
+    }
+    #settings .settings-grid-2 label > span {
+      font-size: 11px;
+      color: var(--muted, #888);
+      line-height: 1.35;
+    }
+    #settings .settings-grid-2 input,
+    #settings .settings-grid-2 select,
+    #settings .settings-grid-2 textarea {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    /* 2026-10-04: 网格输入框补统一观感。旁卡(自定义直连/生成参数)的输入框都带内联样式,
+       定价卡漏了 → 裸渲染成浏览器默认白底方角 Arial 灰框,和周围卡片画风不一致。
+       观感对齐生成参数卡(浅灰底,玻璃主题下 --border 是近白色,不能只靠描边区分输入框);
+       几何值对齐下方 #settings .card input[type="number"] 规则(8px 圆角/6-10 内边距/13px),
+       保证同卡内 text 与 number 输入框观感一致。 */
+    #settings .settings-grid-2 input,
+    #settings .settings-grid-2 select,
+    #settings .settings-grid-2 textarea {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border, #333);
+      background: rgba(127, 127, 127, .08);
+      color: inherit;
+      font-family: inherit;
+      font-size: 13px;
+    }
+    #settings .settings-mini-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 10px;
+      max-height: 180px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #settings .settings-mini-list button {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+      padding: 7px 9px;
+      border: 1px solid rgba(127,127,127,.16);
+      border-radius: 8px;
+      background: rgba(127,127,127,.055);
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    #settings .settings-mini-list button:hover {
+      background: rgba(127,127,127,.11);
+      border-color: rgba(127,127,127,.28);
+    }
+    #settings .settings-mini-list button span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+    #settings .settings-mini-list button small {
+      flex: 0 0 auto;
+      color: var(--muted, #888);
+      font-size: 10.5px;
+      white-space: nowrap;
+    }
+    #settings #setModelApiSlot .card {
+      margin-bottom: 12px;
+    }
+    @media (max-width: 640px) {
+      #settings .settings-grid-2 { grid-template-columns: 1fr; gap: 8px; }
+      #settings .settings-mini-list { max-height: 140px; }
+      #settings .settings-mini-list button { align-items: flex-start; flex-direction: column; gap: 3px; }
+      #settings .settings-mini-list button small { white-space: normal; }
+    }
+  </style>
+  <!-- 2026-06-15 Settings UI 精修 v2: pill 开关 / 卡片交互 / 面板动画 / smallbtn 反馈 / 行分隔 / 分组标题 / 输入框美化 -->
+  <style>
+    /* —— Pill 开关 · 全主题覆盖 —— */
+    #settings .toggle { align-items: center; gap: 10px; }
+    #settings .toggle input[type="checkbox"] {
+      appearance: none; -webkit-appearance: none; transform: none;
+      width: 34px; height: 19px; border-radius: 10px; flex: 0 0 34px;
+      cursor: pointer; position: relative; vertical-align: middle;
+      background: rgba(127,127,127,.18); border: 1.5px solid rgba(127,127,127,.28);
+      transition: background .22s, border-color .22s, box-shadow .22s;
+    }
+    #settings .toggle input[type="checkbox"]::after {
+      content: ""; position: absolute; left: 2.5px; top: 2.5px;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: rgba(255,255,255,.4); box-shadow: 0 1px 3px rgba(0,0,0,.3);
+      transition: transform .22s cubic-bezier(.34,1.56,.64,1), background .22s;
+    }
+    #settings .toggle input[type="checkbox"]:checked {
+      background: rgba(255,255,255,.24); border-color: rgba(255,255,255,.6);
+    }
+    #settings .toggle input[type="checkbox"]:checked::after {
+      transform: translateX(15px); background: #fff; box-shadow: 0 1px 5px rgba(0,0,0,.4);
+    }
+    #settings .toggle input[type="checkbox"]:focus-visible { outline: 2px solid rgba(127,127,127,.55); outline-offset: 2px; }
+    /* glass */
+    html[data-theme="glass"] #settings .toggle input[type="checkbox"] { background: rgba(15,30,60,.1); border-color: rgba(15,30,60,.22); }
+    html[data-theme="glass"] #settings .toggle input[type="checkbox"]::after { background: #a0adbc; }
+    html[data-theme="glass"] #settings .toggle input[type="checkbox"]:checked { background: #3f6f8f; border-color: #3f6f8f; }
+    html[data-theme="glass"] #settings .toggle input[type="checkbox"]:checked::after { background: #fff; transform: translateX(15px); }
+    /* candle */
+    html[data-theme="candle"] #settings .toggle input[type="checkbox"] { background: rgba(217,168,104,.15); border-color: rgba(217,168,104,.28); }
+    html[data-theme="candle"] #settings .toggle input[type="checkbox"]::after { background: rgba(242,231,214,.55); }
+    html[data-theme="candle"] #settings .toggle input[type="checkbox"]:checked { background: #d9a868; border-color: #d9a868; }
+    html[data-theme="candle"] #settings .toggle input[type="checkbox"]:checked::after { background: #f6eddc; transform: translateX(15px); }
+    /* light */
+    html[data-scheme="light"]:not([data-theme]) #settings .toggle input[type="checkbox"] { background: #e8e6e1; border-color: #d0ceca; }
+    html[data-scheme="light"]:not([data-theme]) #settings .toggle input[type="checkbox"]::after { background: #9b9a97; }
+    html[data-scheme="light"]:not([data-theme]) #settings .toggle input[type="checkbox"]:checked { background: #37352f; border-color: #37352f; }
+    html[data-scheme="light"]:not([data-theme]) #settings .toggle input[type="checkbox"]:checked::after { background: #fff; transform: translateX(15px); }
+    /* —— toggle label 可点 —— */
+    #settings .toggle label { cursor: pointer; line-height: 1.4; }
+    /* —— Card h4 去全大写 + 增大字号 —— */
+    #settings .card h4 {
+      text-transform: none !important; letter-spacing: .01em !important;
+      font-size: 14px !important; color: #ddd !important;
+      margin-bottom: 6px; font-weight: 600;
+    }
+    html[data-theme="glass"] #settings .card h4 { color: #1a1f2e !important; }
+    html[data-theme="candle"] #settings .card h4 { color: #f2e7d6 !important; }
+    html[data-scheme="light"]:not([data-theme]) #settings .card h4 { color: #37352f !important; }
+    /* —— smallbtn 交互精修 —— */
+    #settings .smallbtn {
+      transition: background .15s, border-color .15s, transform .1s, box-shadow .15s, color .15s;
+      font-weight: 500;
+    }
+    #settings .smallbtn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,.22); }
+    #settings .smallbtn:active:not(:disabled) { transform: scale(.96) translateY(0); box-shadow: none; }
+    /* 卡片悬停背景暗化已移除:设置面板的卡是展示容器而非按钮,hover 变色没必要 */
+    /* —— 面板 open 动画 —— */
+    @keyframes settingsFadeIn { from { opacity: 0; transform: scale(.97) translateY(8px); } to { opacity: 1; transform: none; } }
+    #settings { animation: settingsFadeIn .22s cubic-bezier(.22,1,.36,1); }
+      appearance: none; -webkit-appearance: none; transform: none; margin: 0;
+      width: 15px; height: 15px; border-radius: 50%; flex: 0 0 15px;
+      border: 1.5px solid rgba(127,127,127,.42); background: transparent;
+      position: relative; cursor: pointer; transition: border-color .15s;
+    }
+      content: ""; position: absolute; inset: 3px;
+      background: #fff; border-radius: 50%;
+    }
+    /* —— settings 桌面竖排分隔线颜色跟主题 —— */
+    html[data-theme="glass"] .settings-cat-nav { border-right-color: rgba(15,30,60,.1); }
+    html[data-theme="candle"] .settings-cat-nav { border-right-color: rgba(217,168,104,.18); }
+    html[data-scheme="light"]:not([data-theme]) .settings-cat-nav { border-right-color: #ececea; }
+    /* —— 孤儿卡 emoji h4 降级：image-embed/portrait/quota 注入的卡 h4 若含 emoji 前缀，强制 emoji 字体走系统 emoji —— */
+    #settingsImageSlot .card h4 { font-family: inherit; }
+
+    /* ───────────────────────────────────────
+       设置面板深度精修——行分隔 / 卡片 / 输入框 / 标题语法
+       ─────────────────────────────────────── */
+    /* rowline: 去掉虚线改实线分隔 + 减少上下间距 */
+    #settings .rowline {
+      border-top: 1px solid rgba(127,127,127,.1) !important;
+      padding: 9px 0 3px;
+    }
+    #settings .rowline:first-of-type { border-top: none !important; padding-top: 3px; }
+    /* 2026-10-04: 行内多项(长标签+下拉+按钮)在任意宽度都允许换行 —— 窄宽度时改为折行,
+       不再把中文标签挤压成竖排字(原先只有手机端 ≤640px 有同规则,这里提升为全局兜底) */
+    #settings .rowline { flex-wrap: wrap; }
+    html[data-theme="glass"] #settings .rowline { border-top-color: rgba(15,30,60,.07) !important; }
+    html[data-theme="candle"] #settings .rowline { border-top-color: rgba(217,168,104,.1) !important; }
+    html[data-scheme="light"]:not([data-theme]) #settings .rowline { border-top-color: #ededeb !important; }
+
+    /* 卡片左侧强调色条（hover 时出现）*/
+    #settings .card { position: relative; overflow: hidden; }
+    #settings .card::before {
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+      width: 3px; border-radius: 0 2px 2px 0;
+      background: rgba(127,127,127,.3); opacity: 0;
+      transition: opacity .2s;
+    }
+    /* 左侧色条 hover 出现已移除 */
+
+    /* 2026-10-04: 输入类控件统一底色 + 字体。各卡(自定义直连/候选池/自驱叙事/Agent/发图/技能/图像…)的
+       内联样式普遍只写 background:transparent,玻璃主题下描边又是近白色 → 输入框整体"隐形"只剩裸文字。
+       统一补浅灰底(所有主题都可见,与生成参数卡/定价卡一致),并让字体继承面板字体(此前落回 Arial)。
+       !important 用于压过各卡内联的 transparent;不动 checkbox/radio/range/file(各有专用样式)。 */
+    #settings input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+    #settings select,
+    #settings textarea {
+      background: rgba(127, 127, 127, .08) !important;
+      font-family: inherit;
+      color: inherit;
+    }
+    /* 说明框(.settings-tip)用的是同一种灰底,只靠底色输入框会和它"撞色"分不清 →
+       给输入框一条固定中灰描边(所有主题都可见,明暗通吃),说明框保持无边框色块。
+       描边只在非聚焦态生效(:not(:focus)) —— 聚焦高亮交还给上面的 focus 规则,
+       本规则的 !important 不会把它压掉。 */
+    #settings input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(:focus),
+    #settings select:not(:focus),
+    #settings textarea:not(:focus) {
+      border-color: rgba(127, 127, 127, .45) !important;
+    }
+
+    /* 输入框 focus 状态 */
+    #settings input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):focus,
+    #settings select:focus,
+    #settings textarea:focus {
+      outline: none;
+      border-color: rgba(127,127,127,.55) !important;
+      box-shadow: 0 0 0 3px rgba(127,127,127,.1) !important;
+    }
+    html[data-theme="glass"] #settings input:focus, html[data-theme="glass"] #settings select:focus, html[data-theme="glass"] #settings textarea:focus {
+      border-color: #3f6f8f !important; box-shadow: 0 0 0 3px rgba(63,111,143,.14) !important;
+    }
+    html[data-theme="candle"] #settings input:focus, html[data-theme="candle"] #settings select:focus, html[data-theme="candle"] #settings textarea:focus {
+      border-color: #d9a868 !important; box-shadow: 0 0 0 3px rgba(217,168,104,.15) !important;
+    }
+
+    /* 卡片内 select/number 输入框统一圈圆角 */
+    #settings .card select,
+    #settings .card input[type="number"] {
+      border-radius: 8px; font-size: 13px;
+      padding: 6px 10px; outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+
+    /* settings 标题 h3 美化 */
+    #settingsHeader h3 {
+      font-size: 16px !important; font-weight: 700 !important;
+      letter-spacing: -.01em !important;
+    }
+
+    /* 分组标题左色条颜色跟主题绑定 */
+    html[data-theme="glass"] #settings .settings-group-title::before { background: #3f6f8f; }
+    html[data-theme="candle"] #settings .settings-group-title::before { background: #d9a868; }
+
+    /* btns 排列 wrap 对齐 */
+    #settings .btns { align-items: center; flex-wrap: wrap; }
+
+    /* 最终关闭按鈕简洁化 */
+    #settingsFooter { margin-top: 14px !important; padding-top: 12px !important; }
+
+    /* 2026-09-12 Android App 设置面板滚动终版兜底：
+       Android WebView 对「遮罩内固定面板 + 内层滚动」容易吞手势；网页端已正常，所以 App 端改成最稳的遮罩层滚动。
+       #settingsMask 负责整页上下滚动，#settings 不再自己截断/嵌套滚动；分类栏继续 sticky 在面板顶部。 */
+    @media (max-width: 768px) {
+      html.android-app #settingsMask {
+        position: fixed !important;
+        inset: 0 !important;
+        align-items: flex-start !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
+        padding-top: calc(max(env(safe-area-inset-top), 42px) + 12px) !important;
+        padding-bottom: calc(env(safe-area-inset-bottom) + 18px) !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+        overscroll-behavior: contain !important;
+        touch-action: pan-y pan-x !important;
+      }
+      html.android-app #settings {
+        display: block !important;
+        width: min(760px, 94vw) !important;
+        height: auto !important;
+        max-height: none !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        box-sizing: border-box !important;
+        margin: 0 auto !important;
+      }
+      html.android-app #settings .settings-shell,
+      html.android-app #settings .settings-cat-body {
+        display: block !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+      }
+      html.android-app #settings .settings-cat-nav {
+        position: static !important;
+        top: auto !important;
+        z-index: auto !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+        touch-action: pan-x pan-y !important;
+      }
+      html.android-app #settings .set-cat.active {
+        min-height: 0 !important;
+      }
+    }
+
+  </style>
+</head>
+<body>
+<!-- 4.3 双侧栏布局:.app-shell grid 包左侧栏 + #app(中) + 右侧栏 -->
+<!-- 桌面 ≥1024px:三列 240/auto/240 常驻;手机 <1024px:左栏变 ☰ 抽屉,右栏隐藏 -->
+<div class="app-shell">
+
+  <!-- ══ 左侧栏:按钮入口 + 未来扩展槽 ══ -->
+  <!-- DOM 只一份,桌面常驻可见 / 手机 transform translateX(-102%) 隐藏,body.drawer-open 时滑出 -->
+  <aside class="left-sidebar" id="leftSidebar" aria-label="侧边面板">
+    <div class="sidebar-header">
+      <span class="sidebar-title">面板</span>
+      <button class="iconbtn sidebar-close mobile-only" id="sidebarCloseBtn" aria-label="关闭菜单">✕</button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <!-- ══ 模式 & 操作:单/多人场景切换 ══ -->
+      <div class="sidebar-section-title">模式</div>
+      <!-- 2026-09-14:「新对话」按钮已移除 —— 功能与左栏「对话」分组里的「+ 新建会话」完全重复。
+           (注:旧版这里是清空全部历史的假按钮;会话系统重做后新建入口统一收敛到「对话」列表顶部) -->
+      <button class="sidebar-btn topbar-toggle" id="multiAgentToggle" title="单人 / 多人场景模式。多人模式下:角色面板出现「场景成员」管理区,卡库出现 +场景 按钮;输入框上方出现发言者选择条;AI 看到其他角色的发言但只代表自己。">
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="2.7"/><path d="M3.5 18.5a5.5 5.5 0 0 1 11 0"/><path d="M16 6.2a2.7 2.7 0 0 1 0 5.2"/><path d="M17 13.2a5.5 5.5 0 0 1 3.5 5.3"/></svg></span>
+        <span class="sidebar-btn-label">多智能体</span>
+      </button>
+      <!-- 4.69 Agent 模式:从顶栏移至左侧栏「模式」分区,与多智能体并列(互斥);顶栏空间有限,放侧栏语义也更清晰 -->
+      <button class="sidebar-btn" id="agentModeBtn" title="Agent 模式：接入 AgentKernel 工具链，AI 自主调用工具解决复杂任务（与多智能体互斥）">
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M9 11V7a3 3 0 0 1 6 0v4"/><circle cx="12" cy="16" r="1.2"/></svg></span>
+        <span class="sidebar-btn-label">Agent 模式</span>
+      </button>
+      <div class="sidebar-divider"></div>
+      <!-- ══ 工作台:独立工作页,新标签打开,不影响主聊天 ══ -->
+      <div class="sidebar-section-title">工作台</div>
+      <!-- 创作工作台入口:独立 /studio/ 写故事→一键抽成角色卡+设定集 -->
+      <a class="sidebar-btn" id="studioBtn" href="/tools/studio/" target="_blank" rel="noopener" title="创作工坊:写故事 → 一键抽成角色卡 + 设定集(独立页,新标签打开)">
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l4-1 9.6-9.6a2 2 0 0 0-2.8-2.8L5.4 16z"/><path d="M13.5 6.3l4.2 4.2"/></svg></span>
+        <span class="sidebar-btn-label">创作工坊</span>
+      </a>
+      <a class="sidebar-btn" id="writeStudioBtn" href="/tools/write/" target="_blank" rel="noopener" title="文档式写作台:左大纲右正文,选中文字浮起 AI 续写 / 扩写 / 润色(独立页,新标签打开)">
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3.5h7L18.5 8v12.5H7z"/><path d="M14 3.5V8h4.5"/><path d="M9.5 12.5h6M9.5 15.5h6M9.5 18h3.5"/></svg></span>
+        <span class="sidebar-btn-label">写作台</span>
+      </a>
+      <a class="sidebar-btn" id="codingStudioBtn" href="/tools/flow/" target="_blank" rel="noopener" title="节点工作台:拖拽式可视化工作流(节点 = AI 工具 / GIS 处理 / 文本处理),不止于代码;洪都演示平台复用同一引擎(独立页,新标签打开)">
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 8l-4 4 4 4"/><path d="M15 8l4 4-4 4"/><path d="M13.2 5l-2.4 14"/></svg></span>
+        <span class="sidebar-btn-label">节点工作台</span>
+      </a>
+      <a class="sidebar-btn" id="codeIdeBtn" href="/tools/coding/" target="_blank" rel="noopener" title="代码台:浏览器内轻量 IDE — 在线建项目存 IndexedDB、文件树管理、AI 生成/改写文件、一键导出 zip(独立页,新标签打开)">
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M8 10l-2.2 2.2L8 14.4"/><path d="M13 9.5l-2 5.5"/></svg></span>
+        <span class="sidebar-btn-label">代码台</span>
+      </a>
+      <!-- 2026-06-30 音频工作台入口(原「配音朗读」/reader/,改名 /audio/):本地文本/粘贴 → GPT-SoVITS 逐句朗读,后续并入语音识别/导出/音色(仅桌面 App 有本机语音服务时可发声);与其他工作台同款新标签打开 -->
+      <a class="sidebar-btn" id="audioStudioBtn" href="/tools/audio/" target="_blank" rel="noopener" title="音频工作台:文本朗读(粘贴/选文件 → GPT-SoVITS),后续含语音识别/导出/音色(独立页,新标签打开;需桌面 App + 本机语音服务)">
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span>
+        <span class="sidebar-btn-label">音频工作台</span>
+      </a>
+
+      <div class="sidebar-divider"></div>
+      <!-- ══ 资源 & 设置:内容 / 外观 / 数据,按需打开 ══ -->
+      <div class="sidebar-section-title">资源</div>
+      <button class="sidebar-btn" id="characterBtn" title="角色卡:选择 / 管理 RP 角色">
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.3"/><path d="M5.5 19.5a6.5 6.5 0 0 1 13 0"/></svg></span>
+        <span class="sidebar-btn-label">角色卡</span>
+      </button>
+
+
+
+
+
+
+
+      <button class="sidebar-btn" id="imageStudioModalBtn" title="图像(生/改):文生图 / 改图工坊" onclick="window.__image&&window.__image.open()">
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.2a8.8 8.8 0 0 0 0 17.6c1.4 0 2-1 2-1.9 0-1.2 1-2 2.1-2H18a3 3 0 0 0 3-3c0-4.9-4-8.7-9-8.7z"/><circle cx="8" cy="11" r="1.1"/><circle cx="12" cy="8" r="1.1"/><circle cx="16" cy="10.5" r="1.1"/></svg></span>
+        <span class="sidebar-btn-label">图像(生/改)</span>
+      </button>
+
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section-title">对话工具</div>
+      <!-- 2026-09-14:「文件上传」已由输入框回形针完全覆盖、「多开聊天」已由左栏「对话」列表取代,两个按钮一并移除 -->
+
+      <div class="sidebar-divider"></div>
+      <!-- 2026-06-06 桌面版下载入口:指向 GitHub Releases 最新版页,GitHub 自动展示当版 NSIS .exe;放侧栏底部与 GitHub 同组。注:tauri-action 安装包文件名带版本号,故指向 /releases/latest 页,而非某个固定文件名直链(后者发新版会 404) -->
+      <a class="sidebar-btn" id="downloadDesktopBtn" href="https://github.com/MaxChen12114/OwnChat/releases/latest" target="_blank" rel="noopener" title="下载 Windows 桌面版(OwnChat · NSIS .exe,双击安装)">
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v9.5"/><path d="M8 10l4 4 4-4"/><path d="M5 18.5h14"/></svg></span>
+        <span class="sidebar-btn-label">下载桌面版</span>
+      </a>
+      <!-- GitHub 开源地址:外链,放侧栏最底部(非功能入口) -->
+      <a class="sidebar-btn" id="githubBtn" href="https://github.com/MaxChen12114/OwnChat" target="_blank" rel="noopener" title="GitHub 开源地址">
+        <span class="sidebar-btn-icon">
+          <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+          </svg>
+        </span>
+        <span class="sidebar-btn-label">GitHub</span>
+      </a>
+
+      <div id="appVersionTagHome" title="">OwnChat · v4.71</div>
+    </nav>
+  </aside>
+
+  <!-- 抽屉遮罩(仅手机可见) -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+
+  <!-- ══ 中间:原 #app 块不动(仅顶栏 markup 重写) ══ -->
+  <div id="app">
+    <div id="topbar">
+      <div class="topbar-shell">
+        <div class="topbar-scroll" id="topbarScroll">
+          <div class="topbar-inner">
+
+            <!-- ☰ 抽屉切换(仅手机):手机点它打开左侧抽屉 -->
+            <button class="iconbtn mobile-only" id="menuToggle" aria-label="菜单" title="打开面板"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+
+            <!-- 模式切换:免费(NVIDIA) / 快速(DeepSeek官方) -->
+            <button class="iconbtn" id="modeToggle" title="切换免费/快速模式"></button>
+
+            <!-- 4.8 左 spacer 把 model pill 推到中间(桌面生效;移动端 CSS 隐藏) -->
+            <span class="topbar-spacer-left"></span>
+
+            <div class="pill model-pill">
+              <label for="modelSel" class="model-label">Model</label>
+              <select id="modelSel"></select>
+            </div>
+
+            <!-- 💰 inline 直显 费用:桌面/手机都扫一眼可见,不再收进 popover -->
+            <span id="costDisplay" class="topbar-cost-inline" title="今日 / 总计费用(仅快速模式计费)"></span>
+
+
+            <span class="topbar-spacer"></span>
+
+
+            <!-- app.js 已绑定 #personaToggle 事件,DOM 仅换位,不动逻辑(textContent 切 😈 / 😇) -->
+
+            <button class="iconbtn" id="personaToggle" title="内置人格 / 自定义提示词切换" aria-label="内置/自定义"></button>
+
+            <!-- ☁️ 云同步实时状态(仅桌面显示;手机顶栏空间紧不显) -->
+            <div id="syncStatusIndicator" class="desktop-only" title="云同步状态">
+              <span class="sync-dot sync-idle"></span><span class="sync-text">同步</span>
+            </div>
+            <button class="iconbtn" id="settingsBtn" title="Settings · 外观风格 / 本地历史 / 自定义模板"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="history">
+      <div class="chat" id="chat">
+        <!-- 2026-06-08 欢迎页 DOM(应用端独有·可关闭):放 #chat 内,#bottom-spacer 之上;有消息时由 html.chat-empty 撤销而隐藏。复用参考稿 .empty-state 语言 -->
+        <div id="ownchatWelcome" aria-label="欢迎">
+          <button class="ow-close" id="owCloseBtn" title="关闭欢迎页" aria-label="关闭欢迎页"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          <span class="ow-logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l1.6 5.3 5.3 1.6-5.3 1.6L12 17.3l-1.6-5.3L5.1 10.4l5.3-1.6z"/></svg></span>
+          <h2 class="ow-title" id="owGreeting">你好</h2>
+          <p class="ow-sub">今天想聊点什么？</p>
+          <div class="ow-grid">
+            <button class="ow-card" data-prompt="帮我写一段角色扮演的开场白，设定有趣一点。"><span class="ow-card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l4-1 9.6-9.6a2 2 0 0 0-2.8-2.8L5.4 16z"/><path d="M13.5 6.3l4.2 4.2"/></svg></span><span>写一段开场白</span></button>
+            <button class="ow-card" data-prompt="推荐几个有趣的角色设定，给我灵感。"><span class="ow-card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.3"/><path d="M5.5 19.5a6.5 6.5 0 0 1 13 0"/></svg></span><span>推荐角色设定</span></button>
+            <button class="ow-card" data-prompt="给我讲一个引人入胜的小故事。"><span class="ow-card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h7L18 8v12.5H6.5z"/><path d="M13.5 3.5V8H18"/><path d="M9 12h6M9 15h5"/></svg></span><span>讲个故事</span></button>
+            <button class="ow-card" data-prompt="随便陪我聊聊天吧。"><span class="ow-card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.3a7.7 7.7 0 0 1-11 6.96L4 19.5l1.26-5.34A7.7 7.7 0 1 1 20.5 11.3z"/></svg></span><span>陪我聊聊天</span></button>
+          </div>
+        </div>
+        <div id="bottom-spacer"></div>
+      </div>
+    </div>
+
+    <div class="input-floating">
+      <!-- 4.26 ⑦：思考按钮并入下方输入框内联，composer-toolbar 留空兜底（鱼缸 mode row 等若挂这里仍可用；:empty 时 CSS 隐藏不占位） -->
+      <div class="composer-toolbar"></div>
+      <div class="input-inner" id="composer">
+        <button class="chip-btn" id="composerAttachBtn" title="上传图片/文本/代码：图片走多模态视觉，文本/代码会随消息发送；Word/PDF 暂不支持直接解析" aria-label="上传文件">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.2l-8.8 8.8a5.2 5.2 0 0 1-7.4-7.4l8.8-8.8a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l8.1-8.1"/></svg>
+        </button>
+        <input type="file" id="composerAttachInput" accept="image/*,.txt,.text,.md,.markdown,.json,.csv,.log,.yml,.yaml,.xml,.html,.css,.js,.ts,.jsx,.tsx,.vue,.py,.rb,.go,.rs,.java,.c,.h,.cpp,.cs,.php,.sh,.sql" multiple style="display:none" />
+        <button class="chip-btn" id="thinkToggle" title="DeepSeek V4 思考模式开关(仅快速模式生效)" aria-pressed="false">
+          <svg class="think-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.4 5.1 5.1 1.4-5.1 1.4L12 16l-1.4-5.1L5.5 9.5l5.1-1.4z"/><path d="M19 14.5l.6 2 2 .6-2 .6-.6 2-.6-2-2-.6 2-.6z"/></svg>
+          <span class="think-label">思考</span>
+        </button>
+        <textarea id="msg" rows="1" placeholder="Message..."></textarea>
+        <button id="sendBtn" title="发送" aria-label="发送">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 11.5L21 3l-8.5 18-2.5-7.5L3 11.5z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="settingsMask">
+      <div id="settings" style="max-height:85vh;display:flex;flex-direction:column;overflow:hidden;">
+        <div id="settingsHeader">
+          <div class="sh-top">
+            <h3>设置</h3>
+            <button class="sh-close" onclick="var c=document.getElementById('closeSettings');if(c)c.click();" title="关闭设置" aria-label="关闭设置"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          </div>
+          <div class="hint">本地数据保存在浏览器；启用云同步后也会上传到你的 Cloudflare KV</div>
+        </div>
+
+        <div class="settings-shell" style="flex:1 1 auto;min-height:0;overflow-y:auto;">
+        <nav class="settings-cat-nav" role="tablist" aria-label="设置分类">
+          <button type="button" class="scn-item active" data-cat="account" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 19a6.5 6.5 0 0 1 13 0"/></svg>账号</button>
+          <button type="button" class="scn-item" data-cat="appearance" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg>外观</button>
+          <button type="button" class="scn-item" data-cat="chat" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.3a7.7 7.7 0 0 1-11 6.96L4 19.5l1.26-5.34A7.7 7.7 0 1 1 20.5 11.3z"/></svg>对话</button>
+          <button type="button" class="scn-item" data-cat="agent" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="6.5" width="14" height="11" rx="2.4"/><path d="M9.5 10.5v2.5M14.5 10.5v2.5"/><path d="M12 3.5v3M8 21h8"/></svg>Agent</button>
+          <button type="button" class="scn-item" data-cat="skill" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L4.5 13.5H11l-1 8.5 8.5-11.5H12z"/></svg>技能</button>
+          <button type="button" class="scn-item" data-cat="image" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M4 17.5l5-5 3.2 3.2 3.2-3.8 4.1 5"/></svg>发图</button>
+          <button type="button" class="scn-item" data-cat="modelapi" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2v6M15 2v6"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v5"/></svg>模型 API</button>
+          <button type="button" class="scn-item" data-cat="voice" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>语音</button>
+          <button type="button" class="scn-item" data-cat="dev" role="tab" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 7L3.5 12l5 5"/><path d="M15.5 7l5 5-5 5"/></svg>开发者</button>
+          <button type="button" class="scn-item" data-cat="advanced" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h8M16 7h4M4 12h2M10 12h10M4 17h6M14 17h6"/><circle cx="14" cy="7" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="12" cy="17" r="2"/></svg>高级</button>
+        </nav>
+        <div class="settings-cat-body">
+
+        <div class="set-cat active" data-cat="account">
+        <div class="settings-group-title">账号 · 数据 · 同步</div>
+        <!-- 4.70 M1: 账号分类卡 DOM 移出 → settings.js mountAuthCard()(+后续云同步卡) 注入此槽 -->
+        <div id="setAccountSlot"></div>
+
+        <!-- 云同步卡 DOM 已移出 → settings.js mountSyncCard() 注入 #setAccountSlot(Auth 卡之后) -->
+
+        <!-- 本地对话记忆卡已移出 → settings.js mountLocalHistoryCard() 注入 #setChatSlot -->
+
+        </div><!-- /set-cat account -->
+
+        <div class="set-cat" data-cat="appearance">
+        <div class="settings-group-title">外观 · 界面</div>
+        <!-- 4.70 M1: 顶栏组件卡 DOM 已移出 index.html → settings.js mountTopbarCostCard() 注入此槽 -->
+        <div id="setAppearanceTopSlot"></div>
+        <div id="setAppearanceThemeSlot"></div>
+
+        </div><!-- /set-cat appearance -->
+
+        <div class="set-cat" data-cat="chat">
+        <div class="settings-group-title">对话 · 玩法</div>
+        <!-- 4.70 M1: 对话分类卡(互动模式 + 显示设置)DOM 已移出 → settings.js mountChatModeCard()/mountDisplayCard() 注入此槽 -->
+        <div id="setChatSlot"></div>
+
+
+
+        </div><!-- /set-cat chat -->
+
+        <!-- 2026-09-14 Agent 独立分类:工具集档位 / 最大轮数 / 工作模式 都归这里 -->
+        <div class="set-cat" data-cat="agent">
+        <div class="settings-group-title">Agent · 工作模式</div>
+        <!-- settings.js mountAgentToolsCard() 注入此槽 -->
+        <div id="setAgentSlot"></div>
+        </div><!-- /set-cat agent -->
+
+        <div class="set-cat" data-cat="skill">
+        <div class="settings-group-title">技能 · Skill（Agent）</div>
+        <!-- 2026-06-24 Skill 系统独立分类:skills.js mountCard() 注入 #setSkillSlot(原挂 #setChatSlot,因「对话」分类卡过多而拆出独立「技能」标签)。
+     2026-10-06: 分类改名「技能 · Skill（Agent）」——技能只在 agent 模式挂载,名字里点明,免得以为是聊天用的。 -->
+        <div id="setSkillSlot"></div>
+        </div><!-- /set-cat skill -->
+
+        <div class="set-cat" data-cat="image">
+        <div class="settings-group-title">发图 · 图像</div>
+        <!-- 2026-05-29 微信发图(实验):chat-image.js 配套设置卡 -->
+        <div id="setImageChatSlot"></div>
+
+          <div id="settingsImageSlot"></div>
+        </div><!-- /set-cat image -->
+
+        <!-- 2026-06-24 模型 API 独立分类:外接模型 API 的统一入口(横切关注点,不属于任何单个玩法)。settings.js 把以下卡都注入 #setModelApiSlot:
+             · 聊天模型直连(原 BYO,原挂 #setChatSlot/「对话」)
+             · 图像 API Key(Gitee,原挂 #settingsImageSlot/「发图」)
+             以后接生图/各类外接模型 API 都归这,不再往各玩法 tab 里塞。注:本地 TTS 是本机服务(GPT-SoVITS,无外接端点/Key),不属此类,留在「语音」tab。 -->
+        <div class="set-cat" data-cat="modelapi">
+        <div class="settings-group-title">模型 API · 外接模型</div>
+        <div id="setModelApiSlot"></div>
+        </div><!-- /set-cat modelapi -->
+
+        <!-- voice tab 内容区 + slot。mountVoiceCards() → getVoiceSlot() 依赖 #settingsVoiceSlot;本地 GPT-SoVITS 是本机服务、非外接 API,故独立留此 tab。initCatNav() 在非 Tauri 环境自动隐藏 voice tab,故网页版不可见,只有桌面 App 才会展示。 -->
+        <div class="set-cat" data-cat="voice">
+        <div class="settings-group-title">语音 · TTS</div>
+        <div id="settingsVoiceSlot"></div>
+        </div><!-- /set-cat voice -->
+
+        <div class="set-cat" data-cat="dev" data-dev-only>
+        <div class="settings-group-title" data-dev-only>开发者</div>
+        <!-- 开发者工具卡 + 一键导出卡已移出 → settings.js mountDevCard() 注入此槽 -->
+        <div id="setDevSlot"></div>
+        </div><!-- /set-cat dev -->
+
+        <div class="set-cat" data-cat="advanced">
+        <div class="settings-group-title">记录 · 高级</div>
+        <div id="setCostSlot"></div>
+
+        <!-- 自定义人物模板卡已移出 → settings.js mountPersonaCard() 注入 #setChatSlot -->
+
+        </div><!-- /set-cat advanced -->
+        </div><!-- /settings-cat-body -->
+        </div><!-- /settings-shell -->
+
+        <div id="appVersionTag" title="">OwnChat · v4.71 · build 20261007</div>
+        <!-- 4.18 (fix): 关闭按钮平铺在 settings 末尾 (文档流末尾,不 sticky 占位)。原 closeSettings 在 data-dev-only 卡内会跟卡一起被普通模式隐藏导致退不出 settings,故拆出独立 rowline 放最后 -->
+        <div class="rowline" id="settingsFooter" style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(127,127,127,.18);justify-content:flex-end;">
+          <div></div>
+          <div class="btns">
+            <button class="smallbtn" id="closeSettings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>关闭设置</button>
+          </div>
+        </div>
+
+        <script>
+          (function(){
+            var settings=document.getElementById('settings');
+            var tag=document.getElementById('appVersionTag');
+            var footer=document.getElementById('settingsFooter');
+            function moveToEnd(){
+              if(!settings)return;
+              if(tag&&tag.parentNode===settings)settings.appendChild(tag);
+              if(footer&&footer.parentNode===settings)settings.appendChild(footer);
+            }
+            var sb=document.getElementById('settingsBtn');
+            if(sb)sb.addEventListener('click',function(){setTimeout(moveToEnd,80);});
+            setTimeout(moveToEnd,1500);
+            setTimeout(moveToEnd,3000);
+          })();
+        </script>
+      </div>
+    </div>
+
+  </div>
+  <!-- /#app -->
+
+  <!-- ══ 右侧栏:4.41-ui 标签化(群聊控制台 / 图像),避免图像快捷面板挤占、遮挡多智能体控制台 ══ -->
+  <!-- #fishbowlSlot 仍由 multi-agent.js 挂载(id 不变);图像面板由 image-quickgen.js 注入 #imageSlot(保留 .sidebar-slot-placeholder 类,选择器零改动)。两 tab 各自独立滚动,永不重叠 -->
+  <aside class="right-sidebar" id="rightSidebar" aria-label="侧辅面板">
+    <div class="sidebar-header rs-header">
+      <div class="rs-tabs" role="tablist" aria-label="右侧面板切换">
+        <button class="rs-tab active" data-rs-tab="fishbowl" role="tab" aria-selected="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h16a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-9l-4.5 3.5V16.5H4A1.5 1.5 0 0 1 2.5 15V7A1.5 1.5 0 0 1 4 5.5z"/><circle cx="8.5" cy="11" r="1"/><circle cx="12" cy="11" r="1"/><circle cx="15.5" cy="11" r="1"/></svg>
+          <span>群聊</span><span class="rs-dot" aria-hidden="true"></span>
+        </button>
+        <button class="rs-tab" data-rs-tab="image" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><circle cx="8.8" cy="9.8" r="1.6"/><path d="M4.5 17l4.8-4.3 3.2 2.8 3-2.5 4 3.5"/></svg>
+          <span>图像</span><span class="rs-dot" aria-hidden="true"></span>
+        </button>
+        <button class="rs-tab" data-rs-tab="status" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5h16"/><path d="M7.5 19.5v-5.5"/><path d="M12 19.5V6.5"/><path d="M16.5 19.5v-8.5"/></svg>
+          <span>状态</span><span class="rs-dot" aria-hidden="true"></span>
+        </button>
+      </div>
+    </div>
+    <div class="rs-body">
+      <section class="rs-panel active" data-rs-panel="fishbowl" role="tabpanel">
+        <!-- 4.59: 微信群聊从左侧栏「模式」迁到群聊控制台:它本质是「建群」动作而非常驻模式,且桌面端控制台空置,正好补位。唯一建跨世界群入口走 window.__wechatGroup.open() -->
+        <button type="button" class="rs-build-group" id="wgConsoleBuildBtn" title="把不同世界观的角色拉进同一个群,自动接话产生戏剧效果(基于多人模式 + 微信连发)" onclick="window.__wechatGroup&&window.__wechatGroup.open()">
+          <span class="rs-build-group-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.8 16.5L4 19V7.5A2 2 0 0 1 6 5.5h9A2 2 0 0 1 17 7.5v6A2 2 0 0 1 15 15.5H8z"/><circle cx="8" cy="10.5" r="1"/><circle cx="11.5" cy="10.5" r="1"/><circle cx="15" cy="10.5" r="1"/></svg></span>
+          <span class="rs-build-group-tx"><b>建微信群聊</b><small>拉不同世界观的角色进同一个群</small></span>
+        </button>
+        <div id="fishbowlSlot" class="sidebar-slot"></div>
+        <div class="rs-empty" id="fishbowlEmptyHint">还没有进行中的群聊。点上方「建微信群聊」拉角色进群，或开启顶栏「多智能体」手动编排发言。</div>
+      </section>
+      <section class="rs-panel" data-rs-panel="image" role="tabpanel" hidden>
+        <div id="imageSlot" class="sidebar-slot-placeholder"></div>
+      </section>
+      <!-- 2026-09-14 UI第二轮:状态面板(上下文容量/最近请求/系统状态),status-panel.js 双挂载之一 -->
+      <section class="rs-panel" data-rs-panel="status" role="tabpanel" hidden>
+        <div id="statusPanelDesktop"></div>
+      </section>
+    </div>
+  </aside>
+
+</div>
+<!-- /.app-shell -->
+
+<!-- ══ 4.4 手机底部标签条(仅 <1024px 显示;桌面端 display:none)· 2026-09-14 UI第二轮重构为四 tab:鱼缸/图像(形象+场景合并,由 image-quickgen.js 注入并解禁)/状态(status-panel.js 注入)/智能 ══ -->
+<nav class="mobile-bottom-tabs" id="mobileBottomTabs" aria-label="底部面板切换">
+  <button class="mobile-tab-btn" data-tab="fishbowl" title="点击显示/隐藏群聊控制台（默认隐藏避免遮挡消息）">
+    <span class="mobile-tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h16a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-9l-4.5 3.5V16.5H4A1.5 1.5 0 0 1 2.5 15V7A1.5 1.5 0 0 1 4 5.5z"/><circle cx="8.5" cy="11" r="1"/><circle cx="12" cy="11" r="1"/><circle cx="15.5" cy="11" r="1"/></svg></span>
+    <span class="mobile-tab-label">鱼缸</span>
+  </button>
+  <button class="mobile-tab-btn" data-tab="image" title="角色形象 / 场景图 · 一键生成 / 改图(图像工坊已上线)" disabled>
+    <span class="mobile-tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2.2"/><circle cx="8" cy="10" r="1.4"/><path d="M4.5 16.5l4.5-4 3 2.5 3.2-3 4.3 4"/></svg></span>
+    <span class="mobile-tab-label">图像</span>
+  </button>
+  <button class="mobile-tab-btn" data-tab="status" title="上下文容量 / 最近请求 / 系统状态">
+    <span class="mobile-tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5h16"/><path d="M7.5 19.5v-5.5"/><path d="M12 19.5V6.5"/><path d="M16.5 19.5v-8.5"/></svg></span>
+    <span class="mobile-tab-label">状态</span>
+  </button>
+  <button class="mobile-tab-btn" id="mobileAgentTab" data-tab="agent" title="Agent 模式 · 工具链自主任务">
+    <span class="mobile-tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="9" r="3.5"/><path d="M8.5 9h-2M17.5 9h-2"/><path d="M10 13.5c-3.5.5-6 2.5-6 5h16c0-2.5-2.5-4.5-6-5"/><path d="M10.5 6.5l-.8-1.5M13.5 6.5l.8-1.5"/></svg></span>
+    <span class="mobile-tab-label">Agent</span>
+  </button>
+</nav>
+<button id="mobileTabsRestoreBtn" type="button" aria-label="恢复底部功能栏" title="恢复底部功能栏">▦</button>
+<div class="mobile-tab-panel" id="mobileTabPanel-image" data-tab="image">角色形象 / 场景图 · 加载中…</div>
+<div class="mobile-tab-panel" id="mobileTabPanel-status" data-tab="status">状态 · 加载中…</div>
+<div class="mobile-tab-panel" id="mobileTabPanel-agent" data-tab="agent" style="top:0;padding:0;overflow:hidden;background:var(--bg,#15161a);">
+  <div id="__mobileAgentPlaceholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;color:var(--muted,#888);font-size:13px;line-height:1.6;text-align:center;padding:0 24px;">
+    <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.4"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M9 11V7a3 3 0 0 1 6 0v4"/><circle cx="12" cy="16" r="1.2"/></svg>
+    <span style="opacity:.55">点左侧「Agent 模式」开启<br>或在左侧栏点「Agent 模式」按钮</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  var tabs = document.querySelectorAll('.mobile-tab-btn');
+  var panels = document.querySelectorAll('.mobile-tab-panel');
+  var restoreBtn = document.getElementById('mobileTabsRestoreBtn');
+  if (restoreBtn) restoreBtn.addEventListener('click', function(){
+    try { localStorage.setItem('cfw_mobile_bottom_tabs_v1', '1'); } catch(e) {}
+    document.documentElement.classList.remove('hide-mobile-tabs');
+    var t = document.getElementById('mobileBottomTabsToggle');
+    if (t) t.checked = true;
+  });
+  if (!tabs.length) return;
+  tabs.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      if (btn.disabled) return;
+      var t = btn.getAttribute('data-tab');
+      // 4.8 鱼缸 tab 是 toggle：点击在 body.fishbowl-shown 上切换(CSS 控制面板 display)
+      // 4.47 形象/场景/摘要 tab 也改 toggle：点已激活的 tab = 再点一下折叠收起面板，与鱼缸一致
+      if (t === 'fishbowl') {
+        var on = !btn.classList.contains('active');
+        btn.classList.toggle('active', on);
+        document.body.classList.toggle('fishbowl-shown', on);
+        if (on) {
+          // 鱼缸打开同时关掉其他 tab 面板
+          tabs.forEach(function(b){ if (b !== btn) b.classList.remove('active'); });
+          panels.forEach(function(p){ p.classList.remove('active'); });
+        }
+        return;
+      }
+      // 非鱼缸 tab：点已激活的 = 折叠收起(再点隐藏面板)；否则切到该 tab 并顺手关鱼缸
+      if (btn.classList.contains('active')) {
+        btn.classList.remove('active');
+        panels.forEach(function(p){ p.classList.remove('active'); });
+        document.body.classList.remove('fishbowl-shown');
+        return;
+      }
+      tabs.forEach(function(b){ b.classList.toggle('active', b === btn); });
+      panels.forEach(function(p){
+        p.classList.toggle('active', p.getAttribute('data-tab') === t);
+      });
+      document.body.classList.remove('fishbowl-shown');
+    });
+  });
+})();
+</script>
+
+
+<!-- ══ 4.3 抽屉切换逻辑(手机 ☰ 点开 / 遮罩点关 / ESC 点关 / 点抽屉内按钮后自动关) ══ -->
+<script>
+(function(){
+  var body = document.body;
+  var menuBtn = document.getElementById('menuToggle');
+  var closeBtn = document.getElementById('sidebarCloseBtn');
+  var backdrop = document.getElementById('sidebarBackdrop');
+  var sidebar = document.getElementById('leftSidebar');
+  if (!menuBtn || !sidebar) return;
+  function open(){ body.classList.add('drawer-open'); }
+  function close(){ body.classList.remove('drawer-open'); }
+  menuBtn.addEventListener('click', open);
+  if (closeBtn) closeBtn.addEventListener('click', close);
+  if (backdrop) backdrop.addEventListener('click', close);
+  // 手机上点抽屉里任意可用按钮后自动关闭,避免点完还要手动 ✕
+  sidebar.addEventListener('click', function(e){
+    if (!window.matchMedia('(max-width: 1023px)').matches) return;
+    var t = e.target.closest('.sidebar-btn:not([disabled]),.sidebar-close');
+    if (!t) return;
+    if (t.id === 'sidebarCloseBtn') return; // 已独立处理
+    setTimeout(close, 60);
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && body.classList.contains('drawer-open')) close();
+  });
+})();
+</script>
+
+<!-- ══ 4.3 同步状态实时显示(订阅 __sync 事件 + 兜底定时刷新) ══ -->
+<script>
+(function(){
+  function fmt(sec){
+    if (sec < 60) return sec + '秒前';
+    if (sec < 3600) return Math.floor(sec/60) + '分前';
+    if (sec < 86400) return Math.floor(sec/3600) + '小时前';
+    return Math.floor(sec/86400) + '天前';
+  }
+  function refresh(){
+    var ind = document.getElementById('syncStatusIndicator');
+    if (!ind) return;
+    var sync = window.__sync;
+    var enabled = false;
+    try {
+      if (sync && typeof sync.syncEnabled === 'function') enabled = !!sync.syncEnabled();
+      else if (sync && typeof sync.isEnabled === 'function') enabled = !!sync.isEnabled();
+      else enabled = localStorage.getItem('cfw_sync_enabled_v1') === '1';
+    } catch(e){}
+    if (!enabled) {
+      ind.innerHTML = '<span class="sync-dot sync-off"></span><span class="sync-text">未启用</span>';
+      ind.title = '云同步未启用(点右上角设置开启)';
+      return;
+    }
+    var status = null;
+    try { status = (sync && typeof sync.getStatus === 'function' && sync.getStatus()) || null; } catch(e){}
+    var cls = 'sync-ok', txt = '已同步', title = '云同步已启用';
+    if (status) {
+      if (status.state === 'pushing' || status.state === 'pulling' || status.state === 'syncing' || status.busy) {
+        cls = 'sync-active'; txt = '同步中';
+      } else if (status.state === 'error' || status.error) {
+        cls = 'sync-error'; txt = '错误';
+        title = String(status.error || status.message || '同步错误');
+      } else {
+        var ts = status.lastPushAt || status.lastSyncAt || status.lastAt || 0;
+        if (ts) {
+          var sec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+          txt = fmt(sec);
+          title = '上次同步 ' + new Date(ts).toLocaleString();
+        }
+      }
+    } else {
+      var lp = parseInt(localStorage.getItem('cfw_sync_last_push_v1') || '0', 10);
+      if (lp > 0) {
+        var s2 = Math.max(0, Math.floor((Date.now() - lp) / 1000));
+        txt = fmt(s2);
+        title = '上次推送 ' + new Date(lp).toLocaleString();
+      } else {
+        txt = '等待中'; cls = 'sync-idle';
+      }
+    }
+    ind.innerHTML = '<span class="sync-dot ' + cls + '"></span><span class="sync-text">' + txt + '</span>';
+    ind.title = title;
+  }
+  if (window.__sync && typeof window.__sync.onStatus === 'function') {
+    try { window.__sync.onStatus(refresh); } catch(e){}
+  }
+  // 2026-10-05(A-4): 删掉 'sync:status' 监听 —— sync.js 的通知走 __sync.onStatus 回调
+  // 注册表(从不 dispatch 这个事件),此行永不触发;上一行已是正确接线,纯冗余。
+  window.addEventListener('storage', function(e){ if (e.key && e.key.indexOf('cfw_sync_') === 0) refresh(); });
+  setInterval(refresh, 15000);
+  setTimeout(refresh, 200);
+  setTimeout(refresh, 1500);
+  setTimeout(refresh, 4000);
+})();
+</script>
+
+<!-- ══ 4.41-ui 右侧栏标签切换(群聊控制台 / 图像):避免图像快捷面板挤占、遮挡多智能体控制台 ══ -->
+<script>
+(function(){
+  var rs = document.getElementById('rightSidebar');
+  if (!rs) return;
+  var tabs = rs.querySelectorAll('.rs-tab');
+  var panels = rs.querySelectorAll('.rs-panel');
+  var slot = document.getElementById('fishbowlSlot');
+  function activate(name){
+    tabs.forEach(function(t){
+      var on = t.getAttribute('data-rs-tab') === name;
+      t.classList.toggle('active', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) t.classList.remove('has-activity');
+    });
+    panels.forEach(function(p){
+      var on = p.getAttribute('data-rs-panel') === name;
+      p.classList.toggle('active', on);
+      if (on) p.removeAttribute('hidden'); else p.setAttribute('hidden', '');
+    });
+  }
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){ activate(t.getAttribute('data-rs-tab')); });
+  });
+  // 群聊控制台一旦挂进 #fishbowlSlot 就自动切到「群聊」tab,否则会被图像面板挡住看不见
+  if (slot){
+    var was = slot.childElementCount > 0;
+    try {
+      var mo = new MutationObserver(function(){
+        var now = slot.childElementCount > 0;
+        if (now && !was) activate('fishbowl');
+        else if (now){
+          var ft = rs.querySelector('.rs-tab[data-rs-tab="fishbowl"]');
+          if (ft && !ft.classList.contains('active')) ft.classList.add('has-activity');
+        }
+        was = now;
+      });
+      mo.observe(slot, { childList: true });
+    } catch(e){}
+  }
+  // 顶栏「多智能体」按钮:点完(若控制台已挂出)顺手切到群聊 tab
+  var mab = document.getElementById('multiAgentToggle');
+  if (mab) mab.addEventListener('click', function(){
+    setTimeout(function(){ if (slot && slot.childElementCount > 0) activate('fishbowl'); }, 80);
+  });
+  // 初始 tab:默认「群聊」(桌面常驻);空群聊时也停在群聊面板看引导提示,不再默认跳图像
+  activate('fishbowl');
+})();
+</script>
+
+<!-- 4.62: 「建微信群聊」入口仅在「多智能体」模式下显示(它本质是多人建群动作)。未开多智能体时隐藏按钮,提示先在顶栏切到多智能体。监听 multi-agent.js 的 multi-agent:changed 事件实时同步。 -->
+<script>
+(function(){
+  function isMultiOn(){
+    try {
+      if (window.__multi && window.__multi.isMulti) return !!window.__multi.isMulti();
+      return localStorage.getItem('tavern_multi_agent_mode_v1') === 'multi';
+    } catch(e){ return false; }
+  }
+  function sync(){
+    var btn = document.getElementById('wgConsoleBuildBtn');
+    var hint = document.getElementById('fishbowlEmptyHint');
+    if (!btn) return;
+    var on = isMultiOn();
+    btn.style.display = on ? '' : 'none';
+    if (hint) hint.textContent = on
+      ? '还没有进行中的群聊。点上方「建微信群聊」拉角色进群，或在群聊控制台里手动编排发言。'
+      : '群聊在「多智能体」模式下开启：点左侧「单智能体」切到「多智能体」，再来这里建群 / 编排发言。';
+  }
+  window.addEventListener('multi-agent:changed', sync);
+  document.addEventListener('DOMContentLoaded', sync);
+  sync();
+  setTimeout(sync, 300);
+})();
+</script>
+
+<!-- PWA Service Worker 注册:网络优先(在线永远拿最新、部署即生效;仅离线时回退缓存外壳),不缓存 /api /sync /img /config.js。SW 文件未上线时注册失败仅静默 warn,不影响现有功能 -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw.js').catch(function (e) { console.warn('SW register failed', e); });
+    });
+  }
+</script>
+<!-- 脚本加载顺序:鉴权 → 同步 → 基础模块 → app.js 主应用 → 面板 UI 模块 → 交互增强 -->
+<!-- auth.js 必须最早加载:它拦截全局 fetch,给 /sync 和 /api/* 自动注入 Authorization header -->
+<script src="/js/text/core/auth.js"></script>
+<!-- 4.17: dev.js 必须在 auth.js 后、其他模块前。它 monkey-patch fetch 抓 /api/chat payload,需要包裹 auth.js 的 Authorization 注入 -->
+<script src="/js/text/core/dev.js"></script>
+<!-- 2026-09-14 UI第一轮:统一反馈组件(toast/confirm,自注入样式,零依赖)。运行时才被调用,位置宽松;各模块旧 toast 缺失它时自动回退原实现 -->
+<script src="/shared/feedback.js"></script>
+<!-- 4.37: 改回加载 Worker 动态下发的 /config.js。clientConfigJs() 生成纯 window.APP_* 赋值(无 export),且 worker 路由早于静态资源命中,以 src/config.js 为唯一模型源。
+       重组目录时误把带 ESM export 的服务端 config 放到了 /js/text/core/config.js,classic <script> 读到 export 即抛 SyntaxError 中断 → window.APP_MODELS_FREE 未赋值 → 模型下拉空。 -->
+<script src="/config.js"></script>
+<script src="/js/text/data/character.js"></script>
+<!-- 4.49 P2 世界书数据层:LS tavern_lorebook_v1,随 sync.js 自动上云;须在 app.js 前加载供发送时筛条目 -->
+<script src="/js/text/data/lorebook.js"></script>
+<script src="/js/text/engine/multi-agent.js"></script>
+<script src="/js/text/ui/theme.js"></script>
+<!-- sync.js 在 app.js 之前:启动时如已启用云同步会先 pull,避免 app.js init 读到老数据 -->
+<script src="/js/text/data/sync.js"></script>
+<!-- 2026-09-14 UI第一轮:富文本渲染库(marked 解析 + marked-highlight 解析期代码高亮 + highlight.js 常用语言包 + DOMPurify 消毒),供 app.js renderMarkdownSafe 富路径使用。
+     全部带 SRI 完整性校验,任一加载失败/缺失时 app.js 自动回退原手写渲染器,功能零损失。
+     注意:marked/marked-highlight 故意用官方未压缩文件 —— jsDelivr 动态压缩产物随其 Terser 版本变化,配 SRI 会随机失效(官方文件字节恒定,配 SRI 安全)。 -->
+<script crossorigin="anonymous" integrity="sha384-Jy8qDMspJASzATgFngF2ompIKy0StbCcvuTE65mxDm/E0/YSIF6Ndc+5V7bbwRcw" src="https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.umd.js"></script>
+<script crossorigin="anonymous" integrity="sha384-wjfDDhOPPdjtva8vWBhWeVprSpmxisEu5aYT3q1JyACqXpdKpo3PWZTMVq24MBix" src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/highlight.min.js"></script>
+<script crossorigin="anonymous" integrity="sha384-BjBE0bY2PIGsLgdqaC1+iwO397c7jxwJdNszWabXYxrbMXBTS9QCPxXJElH8xOE/" src="https://cdn.jsdelivr.net/npm/marked-highlight@2.2.4/lib/index.umd.js"></script>
+<script crossorigin="anonymous" integrity="sha384-uUMu9JDY09vBzRf9SPcK2VgUj+W/70J6Soc+Dded5P474ElQ63iv9j5N3DE7Kp3N" src="https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.min.js"></script>
+<!-- 2026-09-14 附件统一层(window.__attach):待发状态 / 文本 chip / 图片卡片+灯箱 / 图片 Blob 存 IndexedDB。
+     被 chat-extras.js 写入、被 app.js 与 chat-ux.js 读取。零依赖自注入 CSS。
+     必须排在 app.js 之前:app.js 的 init() 是同步执行(文件末尾),会立刻还原历史会话并渲染附件,
+     晚于它加载则 __attach 尚不存在,刷新后附件 chip 就渲染不出来。 -->
+<script src="/js/text/ui/attachments.js"></script>
+<!-- 2026-09-14 Agent 轮次步骤卡片(仅 Agent 模式生效):把工具调用渲染成可折叠卡片(名称/参数/状态/耗时/结果),
+     摆在气泡上方;实时与历史还原共用同一套 DOM。零依赖自注入 CSS,须在 app.js 之前(还原历史时会用到) -->
+<script src="/js/text/ui/agent-steps.js"></script>
+<!-- 2026-09-14 Agent 文件工作区(IndexedDB,按会话隔离)+ 文件工具(list/read/write/edit/delete/export)。
+     由 app.js 构建 Agent registry 时调 __agentWorkspace.defineTools 注册。零依赖,须在 app.js 之前 -->
+<script src="/js/text/data/agent-workspace.js"></script>
+<script src="/js/text/engine/app.js"></script>
+  <script src="/js/text/ui/settings.js"></script>
+<!-- 网页内核(魂)· 工具调用内核 SDK。agent-kernel.js 用 ESM export,必须 type="module"(classic <script> 读到 export 会抛 SyntaxError → window.AgentKernel 不挂载);它底部仍会挂 globalThis.AgentKernel 供非模块代码取用。tools.js 是 IIFE,挂 window.OwnChatTools,仅在 buildRegistry() 运行时才取 AgentKernel,故 classic 加载、顺序无碍。app.js 的 agent 模式分支在「发送」时按需调用 window.AgentKernel.runAgentLoop + window.OwnChatTools.buildRegistry({onImage})。须在 app.js 之后。 -->
+<script type="module" src="/shared/agent-kernel.js"></script>
+<script src="/shared/tools.js"></script>
+<!-- 2026-06-16 Agent-Reach Skill 模块:fetch_page(Jina Reader) / web_search / search_bilibili / search_github / read_rss;须在 tools.js 之后(buildRegistry 调用时会取 AgentReach.defineTools) -->
+<script src="/shared/agent-reach.js"></script>
+<!-- 4.70 本地能力:local_env / local_list_dir / local_read_file / local_write_file / local_run_command。只桌面端注册;
+     门控分层(2026-10-05 如实修订,旧版写的"agent-tests/ + node --permission"是被废弃的窄版方案,从未上线):
+     ① 文件类:Rust 侧 canonicalize + 组件级 starts_with,限用户在设置里选的**工作目录**;
+     ② local_run_command:无 Rust 沙箱(工作目录只是 cwd),spawn 前弹**原生确认框**(页面无法伪造),
+        工具环境经清洗(键名含 KEY/PASSWORD/SECRET/TOKEN 的不传);
+     ③ 闸门:前端确认卡 + 工作模式(confirm/auto/plan/full),与原生框是两层独立防线。
+     命令已在 build.rs 登记并在 capabilities/remote.json 授权(未登记/未授权则远程页调不到)。
+     本地工具集刻意不含 read_file → read_text_file 这类**无门控路径**:read_text_file 在 Rust 侧不限
+     工作目录,接上等于给 agent 任意文件读取。 -->
+<script src="/shared/agent-local-tools.js"></script>
+<!-- 2026-10-06 氛围音导演:标签协议 [[amb:id|音量]]/[[mus:…]]/[[voice:…]] + set_ambient 工具 + 导演系统提示。
+     执行落在 theme.js 的 window.__ambient 双轨混音器；本文件只在调用时读它，加载顺序无要求 -->
+<script src="/shared/ambient-tools.js"></script>
+<!-- 2026-06-18 环境感知 / 自检:self_diagnostics(环境快照 + 加载完整性 + 联网逐环节自检,联网委托 AgentReach.diagnose)。须在 agent-reach.js 之后,只读探测 -->
+<script src="/shared/env-context.js"></script>
+<!-- 4.69 Agent 控制台渲染器:渲染 runAgentLoop 事件流 → 右栏 Agent tab;提供 mountAgentConsole(container,{autoApprove}) → {onEvent,ensurePermission,clear,root} -->
+<script type="module" src="/shared/agent-console.js"></script>
+<!-- 2026-06-24 Skill 系统(window.__skills)·全局能力层(归 /shared/):纯 Markdown SKILL.md 加载器。
+     2026-10-06: 改成三级渐进披露 —— 只有「名称 + 描述」目录挂进 agent 模式的系统提示(app.js 的 agent 装配点),
+     正文由 load_skill 工具按需取;普通对话不再注入技能正文。管理面 = 设置·技能分类(#setSkillSlot)。 -->
+<script src="/shared/skills.js"></script>
+<!-- 本地语音 TTS(应用端独有):tts.js 自注入 🔊 朗读按钮,调本地 GPT-SoVITS(经 Tauri http_request 代理打到 127.0.0.1:9880,端口可在设置改 cfw_tts_port_v1)。IIFE 自执行 + MutationObserver 监听 .row.ai 注入按钮,无依赖;网页版无 window.__TAURI__ 时静默不启用。放 shared 这组末尾即可。 -->
+<script src="https://cdn.jsdelivr.net/npm/resonance-audio/build/resonance-audio.min.js"></script>
+<script src="/shared/tts.js"></script>
+<!-- 鱼缸引擎 V3:必须在 app.js 之后(依赖 window.__app.sendOne / abortCurrent / injectModeratorMsg) -->
+<script src="/js/text/engine/fishbowl-engine.js"></script>
+<!-- 微信群聊(打包层):一键建群入口 + 微信群头部皮肤;复用 multi-agent + fishbowl + app.js(发言人气泡/@/自动接力) + wechat 风格。须在 app.js + fishbowl-engine 之后 -->
+<script src="/js/text/engine/wechat-group.js"></script>
+<script src="/js/text/ui/cost-log-ui.js"></script>
+<!-- 2026-05-29 微信发图 文本侧编排(raw):配合图像侧 window.__chatImage 契约,契约未上线走 mock -->
+<!-- 2026-05-29 image side chat-photo contract (raw): provides window.__chatImage; load before chat-image.js -->
+<script src="/shared/image-common.js"></script>
+<script src="/js/image/core/image-chat.js"></script>
+<script src="/js/image/core/chat-image.js"></script>
+<script src="/js/text/ui/chat-ux.js"></script>
+<!-- 选项分支芯片条(window.__choices):解析 [选项]…[/选项] → 输入框上方可点芯片;autopilot 半自动暂停出口也用它。依赖 #msg + #chat,放 chat-ux.js 之后 -->
+<script src="/js/text/ui/choices.js"></script>
+<!-- 2026-09-14 UI第二轮:状态面板(上下文容量/最近请求/系统状态)· 桌面右栏第三 tab + 手机底栏双挂载。依赖 app.js/角色/世界书/技能/同步模块均已就绪 -->
+<script src="/js/text/ui/status-panel.js"></script>
+<!-- 自驱引擎(window.__autopilot):单角色叙事自驱循环,与鱼缸同辈。运行时依赖 app.js sendOne/abortCurrent + __fishbowl(互斥) + choices.js(暂停出口) + tts.js whenIdle(读完再续),均已先加载 -->
+<script src="/js/text/engine/autopilot.js"></script>
+<!-- 4.64 对话工具(保留输入框回形针 + 聊天同步冲突面板;左栏文件上传/多开聊天按钮已移除)。依赖 window.__app 会话 hooks,须在 app.js 之后 -->
+<script src="/js/text/ui/chat-extras.js"></script>
+<!-- 2026-09-14 左栏常驻会话列表:参与角色头像 + 会话名 + 最后消息预览 + 相对时间,点击切换、⋯ 重命名/删除。依赖 __app 会话 CRUD -->
+<script src="/js/text/ui/conv-list.js"></script>
+<!-- 2026-09-14 左栏分组折叠:运行时把 .sidebar-section-title 及其后按钮包成可折叠分组(不改 HTML 模板)。须在 conv-list.js 之后,才能把「对话」分组一并纳入 -->
+<script src="/js/text/ui/sidebar-groups.js"></script>
+<!-- 4.7 提示词编辑器（Prompt Editor，原 Unlimited Editor）：3-tab Modal · LS+IDB 混合存储 -->
+<script src="/js/text/ui/prompt-editor.js"></script>
+
+<script src="/js/image/gen/image-embed.js"></script>
+<script src="/js/image/gen/image-quickgen.js"></script>
+<script src="/js/image/store/image-gallery.js"></script>
+<!-- 2026-05-30 图像额度每日计数(单设备本地估算):fetch 层拦截 /img/v1 生成端点按张数累加今日用量 + Settings 计数卡 -->
+<script src="/js/image/quota/image-quota.js"></script>
+<!-- 2026-05-30 角色立绘桥接:读角色卡拼提示词→z-image 出半身立绘→一键设为发图基准图 + 全局画风设置 -->
+<script src="/js/image/gen/image-portrait.js"></script>
+<!-- 2026-05-30 提示词缓存去重:包 fetch 拦截重复生图,命中复用不计额度;须在 image-quota 之后加载 -->
+<script src="/js/image/store/image-cache.js"></script>
+<!-- 2026-05-30 纯本地画廊闭环:fetch 观察生图/改图→存 IndexedDB,每张设基准/插入/再改;须在 image-cache 之后加载 -->
+<script src="/js/image/store/image-album.js"></script>
+<!-- 2026-05-30 表情差分包:基于基准图 Qwen-Edit 只改表情,依赖 image-chat 的 editImage -->
+<script src="/js/image/gen/image-expressions.js"></script>
+<!-- 2026-05-30 角色头像:以基准图裁近景头像(可选表情),存 cfw_char_avatar_v1+发 avatar:changed -->
+<script src="/js/image/gen/image-avatar.js"></script>
+<!-- 4.9 删除 4.6 折叠 IIFE:原本手机默认 .fishbowl-side-panel.collapsed 只显 header 一条,与 4.8 鱼缸 tab toggle 冲突,导致打开关闭都会有「留一条 header」挡住思考按钮。改为完全靠 4.8 body.fishbowl-shown 切换整个面板 display,不留任何残影。.collapsed CSS 规则保留为 dead code(无 JS 加 class 不生效)。 -->
+<!-- 2026-09-12 手机端思考强度归一化:从按钮状态/本地配置提取 low|medium|high,写入 data-mobile-effort。未知则移除,只显示图标。 -->
+<script>
+(function(){
+  var MAP = {
+    low: "low", weak: "low", "低": "low", "弱": "low",
+    medium: "medium", mid: "medium", auto: "medium", normal: "medium", "中": "medium", "默认": "medium",
+    high: "high", strong: "high", "高": "high", "强": "high"
+  };
+  function pick(v){
+    v = String(v || "").trim();
+    if (!v) return "";
+    if (MAP[v]) return MAP[v];
+    var l = v.toLowerCase();
+    if (MAP[l]) return MAP[l];
+    if (/low|weak|低|弱/.test(l)) return "low";
+    if (/medium|mid|auto|normal|中|默认/.test(l)) return "medium";
+    if (/high|strong|高|强/.test(l)) return "high";
+    return "";
+  }
+  function syncThinkEffort(){
+    var b = document.getElementById("thinkToggle");
+    if (!b) return;
+    var src = b.getAttribute("data-effort") || b.getAttribute("data-thinking-effort") || b.dataset.effort || b.dataset.thinkingEffort || "";
+    if (!src) {
+      try { src = localStorage.getItem("cfw_thinking_effort_v1") || localStorage.getItem("cfw_think_effort_v1") || ""; } catch(e) {}
+    }
+    if (!src) src = (b.getAttribute("title") || "") + " " + (b.getAttribute("aria-label") || "");
+    var v = pick(src);
+    if (b.classList.contains("active") && v) b.setAttribute("data-mobile-effort", v);
+    else b.removeAttribute("data-mobile-effort");
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", syncThinkEffort); else syncThinkEffort();
+  // 4.82: 删掉 500ms 常驻轮询(该函数读的两个 LS key 全项目无写入方,轮询纯空转),改事件驱动:
+  //   ① 点击 thinkToggle 后 40ms 校准一次; ② toggle 的 title/aria-label/effort 属性被其它模块改写时随变化校准。
+  document.addEventListener("click", function(e){ if (e.target && e.target.closest && e.target.closest("#thinkToggle")) setTimeout(syncThinkEffort, 40); }, true);
+  (function(){
+    var _tt = document.getElementById("thinkToggle");
+    if (_tt) new MutationObserver(syncThinkEffort).observe(_tt, { attributes: true, attributeFilter: ["title", "aria-label", "data-effort", "data-thinking-effort", "class"] });
+  })();
+})();
+</script>
+<!-- 2026-09-12 Android App 壳运行时兜底:首次带 ?shell=android 进入后写入本地标记;之后即使从未适配工具页返回 / 或 bfcache 恢复导致 query 丢失,仍强制恢复 android-app class。 -->
+<script>
+(function(){
+  function markAndroidApp(){
+    try {
+      var sp = new URLSearchParams(location.search || "");
+      if (sp.get("shell") === "android") localStorage.setItem("cfw_android_app_shell_v1", "1");
+      if (sp.get("shell") === "android" || localStorage.getItem("cfw_android_app_shell_v1") === "1") {
+        document.documentElement.classList.add("android-app");
+      }
+    } catch(e) {}
+  }
+  markAndroidApp();
+  window.addEventListener("pageshow", markAndroidApp);
+  window.addEventListener("focus", markAndroidApp);
+  document.addEventListener("visibilitychange", markAndroidApp);
+  // 顶栏刷新键已移除：网页端不需要，App 端避免挤占顶栏。
+})();
+</script>
+<!-- 2026-06-08 欢迎页逻辑(应用端独有):观察 #chat 是否为空切 html.chat-empty;卡片填输入框聚焦(不自动发送);✕ 关闭写 LS。桌面再判定一次(Tauri 全局可能晚于 head 早脚本注入) -->
+<script>
+(function(){
+  var html = document.documentElement;
+  try { if (window.__TAURI__ || window.__TAURI_INTERNALS__ || window.isTauri || window.__TAURI_METADATA__ || /Tauri/i.test(navigator.userAgent) || location.protocol === 'tauri:' || location.hostname === 'tauri.localhost') html.classList.add('is-desktop'); } catch(e){}
+  var wrap = document.getElementById('ownchatWelcome');
+  var chat = document.getElementById('chat');
+  if (!wrap || !chat) return;
+  try { var h = new Date().getHours(); var g = h < 5 ? '夜深了' : h < 11 ? '上午好' : h < 13 ? '中午好' : h < 18 ? '下午好' : '晚上好'; var ge = document.getElementById('owGreeting'); if (ge) ge.textContent = g; } catch(e){}
+  function refresh(){
+    var n = 0, kids = chat.children;
+    for (var i=0;i<kids.length;i++){ var el = kids[i]; if (el.id === 'bottom-spacer' || el.id === 'ownchatWelcome') continue; n++; }
+    html.classList.toggle('chat-empty', n === 0);
+  }
+  try { new MutationObserver(refresh).observe(chat, { childList: true }); } catch(e){}
+  refresh(); setTimeout(refresh, 400); setTimeout(refresh, 1500);
+  wrap.addEventListener('click', function(e){
+    var card = e.target.closest('.ow-card'); if (!card) return;
+    var p = card.getAttribute('data-prompt') || '';
+    var ta = document.getElementById('msg');
+    if (ta) { ta.value = p; ta.dispatchEvent(new Event('input', { bubbles: true })); ta.focus(); }
+  });
+  var cb = document.getElementById('owCloseBtn');
+  if (cb) cb.addEventListener('click', function(){ try { localStorage.setItem('cfw_welcome_dismissed_v1', '1'); } catch(e){} html.classList.add('welcome-dismissed'); });
+})();
+</script>
+<script>
+(function(){
+  function init(){
+    var nav = document.querySelector('.settings-cat-nav');
+    if(!nav) return;
+    var items = Array.prototype.slice.call(nav.querySelectorAll('.scn-item'));
+    var panels = Array.prototype.slice.call(document.querySelectorAll('#settings .set-cat'));
+    if(!items.length || !panels.length) return;
+    var LS = 'cfw_settings_cat_v1';
+    function show(cat){
+      var hit = false;
+      panels.forEach(function(p){ var on = p.getAttribute('data-cat') === cat; p.classList.toggle('active', on); if(on) hit = true; });
+      items.forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-cat') === cat); });
+      if(hit){ try{ localStorage.setItem(LS, cat); }catch(e){} var s = document.getElementById('settings'); var sh = document.querySelector('.settings-shell'); var m = document.getElementById('settingsMask'); if(s) s.scrollTop = 0; if(sh) sh.scrollTop = 0; if(m) m.scrollTop = 0; }
+      return hit;
+    }
+    function firstVisible(){ for(var i=0;i<items.length;i++){ if(items[i].offsetParent !== null) return items[i].getAttribute('data-cat'); } return items[0].getAttribute('data-cat'); }
+    items.forEach(function(b){ b.addEventListener('click', function(){ show(b.getAttribute('data-cat')); }); });
+    var saved = null; try{ saved = localStorage.getItem(LS); }catch(e){}
+    if(!saved || !show(saved)) show(firstVisible());
+    function onOpen(){ setTimeout(function(){ var cur = nav.querySelector('.scn-item.active'); if(!cur || cur.offsetParent === null) show(firstVisible()); var s = document.getElementById('settings'); var sh = document.querySelector('.settings-shell'); var m = document.getElementById('settingsMask'); if(s) s.scrollTop = 0; if(sh) sh.scrollTop = 0; if(m) m.scrollTop = 0; }, 0); }
+    ['settingsBtn'].forEach(function(id){ var el = document.getElementById(id); if(el) el.addEventListener('click', onOpen); });
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>
+<!-- 2026-06-15 settings 动态注入卡重定向: image-embed / image-portrait 等脚本用 settings.appendChild(card) 把卡挂到 #settings 根, 跑到 .settings-shell 外面变成 "永远可见的孤儿卡"。这里监听 #settings 直接子节点的新增, 把孤儿卡全部移入 #settingsImageSlot(发图·图像分类), 使其受 tab 系统管控 -->
+<script>
+// 2026-10-05: 兜底观察器。原本它承载着「角色头像」「表情差分包」两张卡的实际归属 ——
+// 那两张卡 append 到 #settings 根、靠这里被扫进「发图」类目(歪打正着而非显式归属);
+// 现在它们已各自显式挂进 #settingsImageSlot,本观察器不再被任何卡依赖,保留作兜底:
+// 将来谁再往 #settings 根 append,卡会被搬进发图类目,而不是静默落在面板底部。
+(function(){
+  var settings = document.getElementById('settings');
+  var slot = document.getElementById('settingsImageSlot');
+  if (!settings || !slot) return;
+  var shell = settings.querySelector('.settings-shell');
+  var SKIP_IDS = { settingsHeader: 1, appVersionTag: 1, settingsFooter: 1 };
+  function isOrphan(node){
+    if (!node || node.nodeType !== 1) return false;
+    if (SKIP_IDS[node.id]) return false;
+    if (node === shell) return false;
+    return node.parentNode === settings && !(shell && shell.contains(node));
+  }
+  // 初始扫(image-embed 等可能在此脚本之前已 appendChild)
+  Array.prototype.slice.call(settings.children).forEach(function(child){
+    if (isOrphan(child)) slot.appendChild(child);
+  });
+  // 持续监听后续注入
+  var ob = new MutationObserver(function(muts){
+    muts.forEach(function(m){
+      m.addedNodes.forEach(function(n){ if (isOrphan(n)) slot.appendChild(n); });
+    });
+  });
+  ob.observe(settings, { childList: true });
+  // 打开设置时再扫一次(万一有脚本在 settingsBtn click 后才注入)
+  var sb = document.getElementById('settingsBtn');
+  if (sb) sb.addEventListener('click', function(){
+    setTimeout(function(){
+      Array.prototype.slice.call(settings.children).forEach(function(child){
+        if (isOrphan(child)) slot.appendChild(child);
+      });
+    }, 120);
+  });
+})();
+</script>
+<!-- 4.71 Agent 模式 UI:左侧栏按钮 + 互斥多智能体 + 桌面右栏/移动端底部 Agent tab 双端挂载 -->
+<script>
+(function(){
+  var LS_AGENT = 'cfw_agent_mode_v1';
+  var LS_MULTI = 'tavern_multi_agent_mode_v1';
+  var btn = null, multiBtn = null, fishbowlTab = null, fishbowlSlot = null, emptyHint = null;
+  var mobileAgentTabEl = null, mobileAgentPanel = null;
+
+  function isAgentOn(){ return localStorage.getItem(LS_AGENT) === '1'; }
+  function isMobile(){ return window.matchMedia('(max-width: 1023px)').matches; }
+
+  function updateBtnUI(){
+    if (!btn) return;
+    var on = isAgentOn();
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.title = on ? 'Agent 模式：开启（点击关闭）' : 'Agent 模式（点击开启）';
+    // 移动端 tab 激活态由 mountAgentPanel/unmountAgentPanel 管理。
+    // 不在此同步：否则 updateBtnUI 给 tab 加了 active，用户再点 tab 时底部 tab 脚本会判断已激活→打折而非展开。
+  }
+
+  // 创建并返回 agent console wrapper（挂到 container 上）
+  function createConsoleIn(container, consoleKey){
+    var ph = document.getElementById('__mobileAgentPlaceholder');
+    if (ph) ph.style.display = 'none';
+    container.innerHTML = '';
+    var wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display:flex;flex-direction:column;height:100%;min-height:0;';
+    container.appendChild(wrapper);
+    if (window.mountAgentConsole && typeof window.mountAgentConsole === 'function') {
+      var r = window.mountAgentConsole(wrapper, { autoApprove: false });
+      window[consoleKey] = r;
+    } else {
+      wrapper.innerHTML = '<div style="padding:16px;font-size:12px;color:#888;line-height:1.7;display:flex;align-items:flex-start;gap:8px;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" style="flex:none;margin-top:1px"><rect x="1" y="5" width="12" height="8" rx="1.5"/><path d="M4 5V3a3 3 0 0 1 6 0v2"/><circle cx="7" cy="9" r="1"/></svg><span>Agent 控制台加载中，请稍候或刷新重试。</span></div>';
+      window[consoleKey] = null;
+    }
+  }
+
+  // Bug2 fix: suppressTabActivation=true 时不自动 click 底部 Agent tab（启动恢复场景）
+  // 防止 Tauri 窄窗口（<1024px 触发移动端布局）在页面打开时 Agent panel 全屏覆盖聊天区。
+  function mountAgentPanel(suppressTabActivation){
+    if (window.__agentConsole && window.__agentConsole.root) return; // 已挂载
+
+    if (isMobile()) {
+      // ── 移动端：挂入底部 Agent 面板 ──
+      if (!mobileAgentPanel) return;
+      createConsoleIn(mobileAgentPanel, '__agentConsole');
+      // 手机端开启 Agent 只挂载控制台，不自动激活全屏 Agent 面板；
+      // 避免点左侧「Agent 模式」后直接弹出面板挡住聊天。用户需要查看时再点底部 Agent tab。
+      if (!suppressTabActivation && mobileAgentTabEl) {
+        mobileAgentTabEl.classList.remove('active');
+      }
+    } else {
+      // ── 桌面端：挂入右侧栏 fishbowlSlot ──
+      if (!fishbowlSlot) return;
+      if (fishbowlTab) { var sp = fishbowlTab.querySelector('span:not(.rs-dot)'); if (sp) sp.textContent = '活动'; }
+      if (emptyHint) emptyHint.style.display = 'none';
+      var wrapper = document.createElement('div');
+      wrapper.id = '__agentConsoleRoot';
+      wrapper.style.cssText = 'display:flex;flex-direction:column;height:100%;min-height:0;';
+      fishbowlSlot.innerHTML = '';
+      fishbowlSlot.removeAttribute('style');
+      fishbowlSlot.className = 'sidebar-slot';
+      fishbowlSlot.appendChild(wrapper);
+      if (window.mountAgentConsole && typeof window.mountAgentConsole === 'function') {
+        var r = window.mountAgentConsole(wrapper, { autoApprove: false });
+        window.__agentConsole = r;
+      } else {
+        wrapper.innerHTML = '<div style="padding:16px;font-size:12px;color:#888;line-height:1.7;display:flex;align-items:flex-start;gap:8px;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" style="flex:none;margin-top:1px"><rect x="1" y="5" width="12" height="8" rx="1.5"/><path d="M4 5V3a3 3 0 0 1 6 0v2"/><circle cx="7" cy="9" r="1"/></svg><span>Agent 控制台加载中，或刷新重试</span></div>';
+      }
+      // 切到群聊(Agent) tab
+      var ft = document.querySelector('.rs-tab[data-rs-tab="fishbowl"]');
+      if (ft && !ft.classList.contains('active')) ft.click();
+    }
+  }
+
+  function unmountAgentPanel(){
+    // 桌面端清理
+    if (fishbowlTab) { var sp = fishbowlTab.querySelector('span:not(.rs-dot)'); if (sp && sp.textContent === '活动') sp.textContent = '群聊'; }
+    if (emptyHint) emptyHint.style.display = '';
+    if (fishbowlSlot) {
+      fishbowlSlot.innerHTML = '';
+      fishbowlSlot.removeAttribute('style');
+      fishbowlSlot.className = 'sidebar-slot';
+    }
+    // 移动端清理
+    if (mobileAgentPanel) {
+      mobileAgentPanel.innerHTML = '';
+      // 恢复 placeholder
+      var ph = document.createElement('div');
+      ph.id = '__mobileAgentPlaceholder';
+      ph.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;color:var(--muted,#888);font-size:13px;line-height:1.6;text-align:center;padding:0 24px;';
+      ph.innerHTML = '<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.4"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M9 11V7a3 3 0 0 1 6 0v4"/><circle cx="12" cy="16" r="1.2"/></svg><span style="opacity:.55">点左侧「Agent 模式」开启<br>或在左侧栏点「Agent 模式」按钮</span>';
+      mobileAgentPanel.appendChild(ph);
+    }
+    if (mobileAgentTabEl) mobileAgentTabEl.classList.remove('active');
+    // 关闭移动端面板(若当前激活)
+    var panels = document.querySelectorAll('.mobile-tab-panel');
+    panels.forEach(function(p){ if (p.getAttribute('data-tab') === 'agent') p.classList.remove('active'); });
+    window.__agentConsole = null;
+  }
+
+  // 2026-09-14:html.agent-mode 供 CSS 切换 Agent 模式的视觉(AI 输出平铺、去气泡)
+  function syncAgentClass(on){
+    try { document.documentElement.classList.toggle('agent-mode', !!on); } catch(e) {}
+  }
+  function applyAgentMode(on){
+    localStorage.setItem(LS_AGENT, on ? '1' : '0');
+    syncAgentClass(on);
+    if (on) {
+      // 互斥：关掉多智能体
+      if (localStorage.getItem(LS_MULTI) === 'multi') {
+        localStorage.setItem(LS_MULTI, 'single');
+        var ma = document.getElementById('multiAgentToggle');
+        if (ma) ma.dispatchEvent(new CustomEvent('force-off', { bubbles: true }));
+        window.dispatchEvent(new CustomEvent('multi-agent:changed'));
+      }
+      mountAgentPanel();
+    } else {
+      unmountAgentPanel();
+    }
+    updateBtnUI();
+  }
+
+  function init(){
+    btn = document.getElementById('agentModeBtn');
+    multiBtn = document.getElementById('multiAgentToggle');
+    fishbowlTab = document.querySelector('.rs-tab[data-rs-tab="fishbowl"]');
+    fishbowlSlot = document.getElementById('fishbowlSlot');
+    emptyHint = document.getElementById('fishbowlEmptyHint');
+    mobileAgentTabEl = document.getElementById('mobileAgentTab');
+    mobileAgentPanel = document.getElementById('mobileTabPanel-agent');
+
+    if (btn) btn.addEventListener('click', function(){ applyAgentMode(!isAgentOn()); });
+
+    // 移动端 Agent tab 点击：未开启时顺手开启 Agent 模式
+    if (mobileAgentTabEl) {
+      mobileAgentTabEl.addEventListener('click', function(){
+        if (!isAgentOn()) {
+          // 只有用户亲自点底部 Agent tab 时，才开启 Agent 并展示面板。
+          // 左侧「Agent 模式」按钮只切工作模式，不再自动弹出全屏面板。
+          setTimeout(function(){
+            localStorage.setItem(LS_AGENT, '1');
+            if (!window.__agentConsole || !window.__agentConsole.root) mountAgentPanel(true);
+            mobileAgentTabEl.classList.add('active');
+            var p = document.getElementById('mobileTabPanel-agent');
+            if (p) p.classList.add('active');
+            updateBtnUI();
+          }, 20);
+        }
+      });
+    }
+
+    // 互斥：多智能体开启 → 关 Agent
+    if (multiBtn) {
+      multiBtn.addEventListener('click', function(){
+        setTimeout(function(){
+          if (localStorage.getItem(LS_MULTI) === 'multi' && isAgentOn()) {
+            localStorage.setItem(LS_AGENT, '0');
+            unmountAgentPanel();
+            updateBtnUI();
+          }
+        }, 80);
+      });
+    }
+    updateBtnUI();
+    if (isAgentOn()) { syncAgentClass(true); setTimeout(function(){ mountAgentPanel(true); }, 600); } // suppressTabActivation=true：启动恢复不自动激活全屏 tab
+  }
+
+  var _agentInited = false;
+  function safeInit(){ if (_agentInited) return; _agentInited = true; init(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', safeInit); else safeInit();
+  setTimeout(safeInit, 400);
+})();
+</script>
+<!-- 4.82: 已删除原「Dev 一键导出按钮逻辑」内联脚本 —— 它绑定的 #devExportBtn/#devExportStatus 从未被任何代码创建,
+     整段是死代码;开发者面板的 localStorage 导出由 dev.js 自挂载卡(exportCfwLsBtn 等)提供,功能不受影响。 -->
+</body>
+</html>

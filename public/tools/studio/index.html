@@ -1,0 +1,123 @@
+<!doctype html>
+<!-- 路径: public/studio/index.html （创作工坊 · /studio/） -->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>创作工坊 · OwnChat</title>
+<script>
+  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/theme.css) */
+  (function(){try{
+    var t=localStorage.getItem('cfw_theme_v1')||'minimal';
+    if(t&&t!=='minimal')document.documentElement.setAttribute('data-theme',t);
+    var s=localStorage.getItem('my-theme');
+    if(s==='light'||s==='dark')document.documentElement.setAttribute('data-scheme',s);
+  }catch(e){}})();
+</script>
+<link rel="stylesheet" href="/shared/theme.css" />
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-main">
+    <div class="topbar-left">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.2L19 10l-5.1 1.8L12 17l-1.9-5.2L5 10l5.1-1.8z"/><path d="M19 14.5l.8 2.1 2.1.8-2.1.8-.8 2.1-.8-2.1-2.1-.8 2.1-.8z"/></svg>
+      </div>
+      <div class="brand-txt">
+        <div class="h1">创作工坊</div>
+        <div class="sub">写故事 → 图文配图 → 一键抽出角色卡与世界观</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <a class="top-icon-btn" href="/" aria-label="返回主站" title="返回主站">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        <span>返回主站</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <div class="tab-panel" id="tabStudio">
+    <section class="card">
+      <div class="phead">
+        <span class="step">1</span>
+        <span class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>
+        <h2>写故事</h2>
+      </div>
+      <p class="card-desc">填一句灵感种子，或留空让 AI 自由发挥。挑个模型，生成一段有人物、有画面感的故事。</p>
+      <textarea id="seed" class="textarea seed" rows="3" placeholder="给个种子设定/灵感，比如：末世废土里开二手书店的冷面女孩，和总来蹭书的机械义体少年……（留空也行，AI 自由发挥）"></textarea>
+      <div class="row toolbar">
+        <div class="field">
+          <label class="field-label" for="model">模型</label>
+          <select id="model" class="input narrow"></select>
+        </div>
+        <span class="spacer"></span>
+        <button id="gen" class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9z"/><path d="M19 14l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"/></svg> 生成故事</button>
+        <button id="stop" class="btn ghost" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> 停止</button>
+      </div>
+      <details class="prompt-box">
+        <summary><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg> 提示词设置（高级）</summary>
+        <div class="prompt-inner">
+          <div class="fld"><label>创作提示词（写故事用）</label><textarea id="sysStory" rows="4"></textarea></div>
+          <div class="fld"><label>解析提示词（抽角色 + 设定集用）</label><textarea id="sysExtract" rows="6"></textarea></div>
+          <div class="row"><button id="promptReset" class="btn ghost small"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v3.5h-3.5"/></svg> 恢复默认</button><span id="promptHint" class="hint inline"></span></div>
+        </div>
+      </details>
+      <textarea id="story" class="textarea story" rows="14" placeholder="AI 写的故事会出现在这里，可自由编辑后再解析……"></textarea>
+    </section>
+
+    <section class="card">
+      <div class="phead">
+        <span class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.2"/><circle cx="8.5" cy="10" r="1.7"/><path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4"/></svg></span>
+        <h2>图文融合（可选）</h2>
+      </div>
+      <p class="card-desc">把上面的故事按段落排版，给想配图的段落单独点「配图」，图就插在那段下面，最后可复制或导出一篇图文混排稿。配图用「图像工坊」标签里填入的 API Key。</p>
+      <div class="row">
+        <button id="fuse" class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg> 排版配图</button>
+        <button id="fuseCopy" class="btn ghost" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg> 复制图文</button>
+        <button id="fuseExport" class="btn ghost" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg> 导出 HTML</button>
+        <span id="fuseHint" class="hint inline"></span>
+      </div>
+      <div id="fuseView" class="fuse-view"></div>
+    </section>
+
+    <section class="card">
+      <div class="phead">
+        <span class="step">2</span>
+        <span class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 4.5-9 4.5-9-4.5L12 3z"/><path d="M3 12l9 4.5L21 12"/><path d="M3 16.5L12 21l9-4.5"/></svg></span>
+        <h2>解析为角色 + 设定集</h2>
+      </div>
+      <p class="card-desc">把上面的故事拆成可聊天的角色卡和设定集条目，生成后可逐字段编辑。</p>
+      <div class="row">
+        <button id="extract" class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 4.5-9 4.5-9-4.5L12 3z"/><path d="M3 12l9 4.5L21 12"/><path d="M3 16.5L12 21l9-4.5"/></svg> 解析这段故事</button>
+        <span id="exhint" class="hint inline"></span>
+      </div>
+      <div id="result" class="result"></div>
+    </section>
+
+    <section class="card" id="savePanel" hidden>
+      <div class="phead">
+        <span class="step">3</span>
+        <span class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h7"/></svg></span>
+        <h2>保存到酒馆</h2>
+      </div>
+      <p class="card-desc">勾选要留下的角色和设定集条目，保存后回到主站即可直接选用。</p>
+      <div class="row">
+        <button id="save" class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h7"/></svg> 保存勾选项</button>
+        <a class="btn ghost" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 去聊天</a>
+        <span id="savehint" class="hint inline"></span>
+      </div>
+    </section>
+  </div>
+
+</main>
+
+<div id="toast" class="toast" hidden></div>
+<script src="/config.js"></script>
+<!-- 2026-09-14 UI第一轮:统一反馈组件(toast/confirm,自注入样式),须在 app.js 前 -->
+<script src="/shared/feedback.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>

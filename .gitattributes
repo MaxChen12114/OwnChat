@@ -1,0 +1,19 @@
+# 4.82: shell 脚本强制 LF —— 本仓库 core.autocrlf=true,默认会在检出时把文本转成 CRLF,
+# 导致 tools/*.sh 在 Git Bash 下报 "bad interpreter" / "\r: command not found"。
+*.sh text eol=lf
+# 签名密钥等二进制/敏感文件不做任何行尾转换
+*.key binary
+*.key.pub binary
+
+# 4.71: 基座文本(.md / .txt)强制 LF —— 它们是**文本内容本体**,不是普通源码。
+# 本仓库 core.autocrlf=true,若被检出成 CRLF,gen-prompts.mjs 读到的就是 CRLF,
+# 生成的底座会平白多出一堆 \r(原底座文本是以 JS 模板字符串存的,规范规定 CRLF 归一为 LF,所以原文是纯 LF),
+# 等于红线文本被悄悄改动。行尾必须锁死,不随平台/编辑器漂移。
+src/prompts/bases/*.md text eol=lf
+src/prompts/bases/*.txt text eol=lf
+# 文件夹底座的内部文件同样锁 LF（一整个子目录 = 一套多文件底座）
+src/prompts/bases/**/*.md text eol=lf
+src/prompts/bases/**/*.txt text eol=lf
+
+# 4.84: 氛围音 mp3 入库 —— 二进制,禁止任何行尾转换
+*.mp3 binary

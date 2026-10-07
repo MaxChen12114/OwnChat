@@ -1,0 +1,82 @@
+/* public/shared/theme.css — 卫星页(工作页)统一主题层 · 唯一真相来源
+   ─────────────────────────────────────────────────────────────────
+   作用: 让 studio / coding / write / flow / audio 五个工作页与主站主题跟随。
+   主题来源: localStorage `cfw_theme_v1`(minimal/glass/candle)
+             + `my-theme`(light/dark), 由各页 <head> 内的主题引导脚本在首屏前
+             写到 <html data-theme / data-scheme> 上 —— 与主站 theme.js 同一套键。
+   令牌家族(三族并存,按页取用):
+     · --panel 家族: coding / write / flow
+     · --card / --accent 家族: studio
+     · 通用: --bg / --border / --text / --muted / --danger
+   修改令牌值 = 改所有工作页;新增主题 = 加一个 [data-theme=…] 块。 */
+
+/* ═══ minimal · 暗色(默认) ═══ */
+:root{
+  --bg:#0b0b0b; --panel:#141414; --panel2:#1a1a1a; --panel3:#222222;
+  --border:#26262b; --text:#ececec; --muted:#9a9a9a;
+  --ac:#cfcfcf; --ac-soft:rgba(207,207,207,.14); --ac-strong:#e8e8e8; --danger:#e8607d; --ac-contrast:#10131a;
+  /* studio 族别名 */
+  --card:#141414; --card-2:#101010; --border-soft:#2a2a2a; --line:#1d1d20;
+  --accent:#cfcfcf; --accent-2:#e0e0e0; --accent-3:#b8b8b8;
+  --accent-soft:rgba(207,207,207,.14); --accent-border:rgba(207,207,207,.4);
+  --input-bg:#0e0e11; --input-border:#2d2d32; --btn-bg:#1a1a1a; --btn-bg-hover:#232329;
+  --grad:linear-gradient(135deg,#dcdcdc,#bcbcbc);
+  --radius:10px; --radius-sm:7px;
+}
+
+/* ═══ minimal · 日间(Notion 风,对齐主站 data-scheme=light) ═══ */
+[data-scheme="light"]:not([data-theme]){
+  --bg:#ffffff; --panel:#fbfbfa; --panel2:#f7f7f5; --panel3:#efefec;
+  --border:#e9e9e7; --text:#37352f; --muted:#787774;
+  --ac:#2383e2; --ac-soft:rgba(35,131,226,.10); --ac-strong:#1a73d1; --danger:#b3261e; --ac-contrast:#ffffff;
+  --card:#fbfbfa; --card-2:#ffffff; --border-soft:#e3e3e0; --line:#ececea;
+  --accent:#2383e2; --accent-2:#1a73d1; --accent-3:#4a90d9;
+  --accent-soft:rgba(35,131,226,.10); --accent-border:rgba(35,131,226,.35);
+  --input-bg:#ffffff; --input-border:#e3e3e0; --btn-bg:#ffffff; --btn-bg-hover:#f1f1ef;
+  --grad:linear-gradient(135deg,#4a90d9,#2383e2);
+}
+
+/* ═══ glass · 晴空竹屋(亮色毛玻璃) ═══ */
+[data-theme="glass"]{
+  --bg:#f4f7f6; --panel:rgba(255,255,255,.86); --panel2:rgba(255,255,255,.66); --panel3:rgba(255,255,255,.5);
+  --border:rgba(15,30,60,.12); --text:#1a1f2e; --muted:#6b7b84;
+  --ac:#3f6f8f; --ac-soft:rgba(63,111,143,.12); --ac-strong:#345d7c; --danger:#dc2626; --ac-contrast:#ffffff;
+  --card:rgba(255,255,255,.86); --card-2:rgba(255,255,255,.6); --border-soft:rgba(15,30,60,.14); --line:rgba(15,30,60,.08);
+  --accent:#3f6f8f; --accent-2:#345d7c; --accent-3:#6f9bb5;
+  --accent-soft:rgba(63,111,143,.10); --accent-border:rgba(63,111,143,.35);
+  --input-bg:rgba(255,255,255,.8); --input-border:rgba(15,30,60,.14); --btn-bg:rgba(255,255,255,.9); --btn-bg-hover:#ffffff;
+  --grad:linear-gradient(135deg,#3f6f8f,#6f9bb5);
+}
+
+/* ═══ candle · 烛夜私语(暗金) ═══ */
+[data-theme="candle"]{
+  --bg:#171009; --panel:rgba(40,28,18,.55); --panel2:rgba(40,28,18,.4); --panel3:rgba(40,28,18,.3);
+  --border:rgba(217,168,104,.18); --text:#f2e7d6; --muted:#8a7a6a;
+  --ac:#d9a868; --ac-soft:rgba(217,168,104,.14); --ac-strong:#f2e7d6; --danger:#ffb0c0; --ac-contrast:#171009;
+  --card:rgba(40,28,18,.55); --card-2:rgba(20,13,8,.6); --border-soft:rgba(217,168,104,.28); --line:rgba(217,168,104,.12);
+  --accent:#d9a868; --accent-2:#f2e7d6; --accent-3:#b0885a;
+  --accent-soft:rgba(217,168,104,.12); --accent-border:rgba(217,168,104,.4);
+  --input-bg:rgba(20,13,8,.6); --input-border:rgba(217,168,104,.25); --btn-bg:rgba(40,28,18,.5); --btn-bg-hover:rgba(217,168,104,.22);
+  --grad:linear-gradient(135deg,#d9a868,#f2e7d6);
+}
+
+/* ═══ 公共基线(所有卫星页一致的小件) ═══ */
+html{color-scheme:dark}
+[data-scheme="light"]{color-scheme:light}[data-theme="candle"]{color-scheme:dark}
+body{-webkit-font-smoothing:antialiased}
+::selection{background:var(--ac-soft)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:6px}
+::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+
+/* ── 主题引导脚本(各页 <head> 内联,须在样式表之前;贴这段即可跟随主站主题):
+<script>
+(function(){try{
+  var t=localStorage.getItem("cfw_theme_v1")||"minimal";
+  if(t&&t!=="minimal")document.documentElement.setAttribute("data-theme",t);
+  var s=localStorage.getItem("my-theme");
+  if(s==="light"||s==="dark")document.documentElement.setAttribute("data-scheme",s);
+}catch(e){}})();
+</script>
+*/

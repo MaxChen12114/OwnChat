@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<!-- 路径: public/coding/index.html （代码台 · 浏览器内轻量 IDE · /coding/） -->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>代码台 · OwnChat</title>
+<script>
+  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/theme.css) */
+  (function(){try{
+    var t=localStorage.getItem("cfw_theme_v1")||"minimal";
+    if(t&&t!=="minimal")document.documentElement.setAttribute("data-theme",t);
+    var s=localStorage.getItem("my-theme");
+    if(s==="light"||s==="dark")document.documentElement.setAttribute("data-scheme",s);
+  }catch(e){}})();
+</script>
+<link rel="stylesheet" href="/shared/theme.css" />
+<style>
+  /* 主题令牌统一来自 /shared/theme.css(跟随主站主题),本页不再自定义 :root */
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; }
+  body { background:var(--bg); color:var(--text); font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; display:flex; flex-direction:column; overflow:hidden; }
+  .topbar { display:flex; align-items:center; gap:10px; padding:9px 14px; border-bottom:1px solid var(--border); background:var(--panel); flex:none; }
+  .brand { font-weight:700; font-size:15px; letter-spacing:.02em; white-space:nowrap; }
+  .brand small { color:var(--muted); font-weight:400; font-size:12px; margin-left:8px; }
+  .tb-spacer { flex:1; }
+  .proj-sel { background:var(--panel2); border:1px solid var(--border); color:var(--text); font:inherit; font-size:13px; padding:6px 9px; border-radius:8px; max-width:200px; }
+  .proj-sel:focus { outline:none; border-color:var(--ac); }
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:9px; border:1px solid var(--border); background:var(--panel2); color:var(--text); font:inherit; font-size:13px; cursor:pointer; transition:background .15s,border-color .15s; white-space:nowrap; }
+  .btn:hover { background:var(--ac-soft); }
+  .btn svg { width:15px; height:15px; flex:none; }
+  .btn.primary { background:var(--ac); border-color:var(--ac); color:var(--ac-contrast); }
+  .btn.primary:hover { filter:brightness(1.08); }
+  .btn.icon { padding:6px 8px; }
+  .btn[disabled] { opacity:.45; cursor:default; }
+  .top-link { color:var(--muted); text-decoration:none; font-size:13px; padding:6px 10px; border-radius:9px; white-space:nowrap; }
+  .top-link:hover { color:var(--text); background:var(--panel2); }
+  .workspace { flex:1; display:flex; min-height:0; }
+  /* 文件树 */
+  .tree-pane { width:232px; flex:none; border-right:1px solid var(--border); background:var(--panel); display:flex; flex-direction:column; min-height:0; }
+  .tree-head { display:flex; align-items:center; gap:6px; padding:8px 10px; border-bottom:1px solid var(--border); }
+  .tree-head .title { font-size:11px; font-weight:700; color:var(--muted); flex:1; letter-spacing:.04em; }
+  .tree-head .btn { padding:4px 7px; font-size:12px; }
+  .tree-scroll { flex:1; overflow-y:auto; padding:6px 4px 14px; }
+  .tnode { display:flex; align-items:center; gap:5px; padding:4px 8px; border-radius:7px; cursor:pointer; font-size:13px; color:var(--text); user-select:none; }
+  .tnode:hover { background:var(--panel2); }
+  .tnode.active { background:var(--ac-soft); color:var(--ac-contrast); }
+  .tnode .tw { width:13px; height:13px; flex:none; color:var(--muted); display:inline-flex; }
+  .tnode .tw svg { width:13px; height:13px; }
+  .tnode .nm { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tnode .del { opacity:0; color:var(--muted); padding:0 2px; border:none; background:none; cursor:pointer; font-size:13px; }
+  .tnode:hover .del { opacity:.6; }
+  .tnode .del:hover { opacity:1; color:var(--danger); }
+  .tree-empty { color:var(--muted); font-size:12px; line-height:1.7; padding:16px 12px; text-align:center; }
+  /* 编辑器 */
+  .editor-pane { flex:1; display:flex; flex-direction:column; min-width:0; min-height:0; }
+  .ed-head { display:flex; align-items:center; gap:10px; padding:7px 14px; border-bottom:1px solid var(--border); background:var(--panel); flex:none; }
+  .ed-path { font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:var(--text); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ed-dot { width:7px; height:7px; border-radius:50%; background:var(--ac); flex:none; opacity:0; }
+  .ed-dot.on { opacity:1; }
+  .ed-head .btn { padding:4px 9px; font-size:12px; }
+  .ed-tabs { display:flex; gap:2px; padding:4px 8px 0; background:var(--panel); border-bottom:1px solid var(--border); overflow-x:auto; scrollbar-width:none; flex:none; }
+  .ed-tabs:empty { display:none; }
+  .ed-tabs::-webkit-scrollbar { display:none; }
+  .ed-tab { display:inline-flex; align-items:center; gap:6px; padding:6px 9px; font-size:12px; color:var(--muted); border:1px solid transparent; border-bottom:none; border-radius:8px 8px 0 0; cursor:pointer; white-space:nowrap; max-width:170px; user-select:none; }
+  .ed-tab .nm { overflow:hidden; text-overflow:ellipsis; }
+  .ed-tab:hover { color:var(--text); background:var(--panel2); }
+  .ed-tab.active { color:var(--text); background:var(--bg); border-color:var(--border); }
+  .ed-tab.dirty .nm::after { content:" \2022"; color:var(--ac); }
+  .ed-tab .x { opacity:.5; font-size:14px; line-height:1; }
+  .ed-tab .x:hover { opacity:1; color:var(--danger); }
+  .ed-wrap { flex:1; position:relative; min-height:0; }
+  .ed-pre, #editor { position:absolute; inset:0; margin:0; border:none; padding:14px 16px; font:13px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; tab-size:2; -moz-tab-size:2; white-space:pre; overflow:auto; }
+  .ed-pre { z-index:1; background:var(--bg); color:var(--text); pointer-events:none; overflow:hidden; }
+  .ed-pre code { font:inherit; white-space:inherit; display:block; }
+  #editor { z-index:2; resize:none; background:transparent; color:transparent; caret-color:var(--text); outline:none; }
+  #editor::selection { background:var(--ac-soft); }
+  .t-comment { color:#6b7089; font-style:italic; }
+  .t-string { color:#9ece6a; }
+  .t-number { color:#e0af68; }
+  .t-keyword { color:#bb9af7; }
+  .ed-empty { position:absolute; inset:0; z-index:3; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:var(--muted); font-size:13px; line-height:1.7; text-align:center; pointer-events:none; background:var(--bg); }
+  /* AI 条 */
+  .ai-bar { flex:none; border-top:1px solid var(--border); background:var(--panel); padding:9px 12px; display:flex; flex-direction:column; gap:8px; }
+  .ai-row { display:flex; align-items:center; gap:8px; }
+  .ai-row .lbl { font-size:11px; color:var(--muted); }
+  .ai-sel { background:var(--panel2); border:1px solid var(--border); color:var(--text); font:inherit; font-size:12px; padding:5px 8px; border-radius:7px; }
+  .ai-sel:focus { outline:none; border-color:var(--ac); }
+  .ai-status { font-size:11px; color:var(--ac); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ai-input { display:flex; gap:8px; align-items:flex-end; }
+  #aiPrompt { flex:1; background:var(--panel2); border:1px solid var(--border); border-radius:9px; color:var(--text); font:inherit; font-size:13px; padding:8px 10px; resize:vertical; min-height:38px; max-height:160px; }
+  #aiPrompt:focus { outline:none; border-color:var(--ac); }
+
+  .pane-toggle { display:none; }
+  /* —— 移动端适配（重构：顶栏换行 + 上下堆叠 + 文件树可折叠 + 资金条独占一行） —— */
+  @media (max-width: 720px) {
+    .topbar { flex-wrap:nowrap; justify-content:flex-start; gap:8px; padding:8px 10px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+    .topbar::-webkit-scrollbar { display:none; }
+    .topbar > * { flex:none; }
+    .brand { font-size:14px; }
+    .brand small { display:none; }
+    .proj-sel { max-width:42vw; font-size:12px; }
+    .tb-spacer { display:none; }
+    .btn { padding:6px 9px; }
+    .top-link { padding:6px 8px; }
+    .pane-toggle { display:inline-flex; }
+    .workspace { flex-direction:column; }
+    .tree-pane { width:100%; flex:none; max-height:30vh; border-right:none; border-bottom:1px solid var(--border); }
+    body.tree-collapsed .tree-pane { display:none; }
+    .editor-pane { flex:1; min-height:0; }
+    .ed-head { flex-wrap:wrap; gap:6px 8px; }
+    #editor, .ed-pre { white-space:pre-wrap; word-break:break-word; }
+    .ai-bar { padding:8px 10px calc(8px + env(safe-area-inset-bottom)); }
+    .ai-row { flex-wrap:wrap; }
+  }
+  /* —— 新建/保存文件弹窗 + 运行预览面板 —— */
+  .modal-mask, .run-mask { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; z-index:60; padding:20px; }
+  .modal-mask[hidden], .run-mask[hidden] { display:none; }
+  .modal { width:380px; max-width:92vw; background:var(--panel2); border:1px solid var(--border); border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:13px; box-shadow:0 18px 50px rgba(0,0,0,.5); }
+  .modal-title { font-weight:700; font-size:15px; }
+  .modal-field { display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--muted); }
+  .modal-field input, .modal-field select { background:var(--panel); border:1px solid var(--border); color:var(--text); font:inherit; font-size:13px; padding:8px 10px; border-radius:8px; }
+  .modal-field input:focus, .modal-field select:focus { outline:none; border-color:var(--ac); }
+  .modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:2px; }
+  .ai-check { display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--muted); cursor:pointer; white-space:nowrap; user-select:none; }
+  .ai-check input { accent-color:var(--ac); margin:0; }
+  .spec-modal { width:560px; }
+  .modal-sub { font-size:12px; color:var(--muted); line-height:1.55; }
+  .spec-text { width:100%; min-height:240px; max-height:55vh; background:var(--panel); border:1px solid var(--border); color:var(--text); font:12.5px/1.65 ui-monospace,Menlo,Consolas,monospace; padding:10px 12px; border-radius:8px; resize:vertical; }
+  .spec-text:focus { outline:none; border-color:var(--ac); }
+  .run-win { width:min(1000px,94vw); height:min(80vh,720px); background:var(--panel); border:1px solid var(--border); border-radius:14px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 18px 50px rgba(0,0,0,.5); }
+  .run-head { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--border); background:var(--panel2); flex:none; }
+  .run-title { font-weight:700; font-size:13px; white-space:nowrap; }
+  .run-body { flex:1; display:flex; min-height:0; }
+  #runFrame { flex:1; border:none; background:#fff; min-width:0; }
+  .run-console { width:300px; flex:none; border-left:1px solid var(--border); background:var(--bg); overflow-y:auto; padding:8px 10px; font:12px/1.6 ui-monospace,Menlo,Consolas,monospace; }
+  .rc-line { white-space:pre-wrap; word-break:break-word; padding:2px 0; border-bottom:1px solid rgba(255,255,255,.04); }
+  .rc-log { color:var(--text); }
+  .rc-info { color:var(--ac); }
+  .rc-warn { color:#e0af68; }
+  .rc-error { color:var(--danger); }
+  .btn.run { color:#9ece6a; border-color:rgba(158,206,106,.45); }
+  .btn.run:hover { background:rgba(158,206,106,.12); }
+  .btn.run svg { color:#9ece6a; }
+  @media (max-width:720px){ .modal { width:340px; } .run-win { width:96vw; height:86vh; } .run-body { flex-direction:column; } .run-console { width:100%; height:36%; border-left:none; border-top:1px solid var(--border); } }
+</style>
+</head>
+<body class="tree-collapsed">
+  <header class="topbar">
+    <button class="btn icon pane-toggle" id="paneToggle" title="展开/收起文件树" onclick="document.body.classList.toggle('tree-collapsed')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+    <span class="brand">代码台<small>浏览器内轻量 IDE · IndexedDB</small></span>
+    <select class="proj-sel" id="projSel" title="切换项目"></select>
+    <button class="btn icon" id="newProjBtn" title="新建项目">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="btn icon" id="renameProjBtn" title="重命名项目">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19l9.5-9.5a2 2 0 0 0-2.8-2.8L2 16v3z"/><path d="M11.5 7.5l3 3"/></svg>
+    </button>
+    <button class="btn icon" id="delProjBtn" title="删除项目">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5h15"/><path d="M9 6.5V5.2A1.7 1.7 0 0 1 10.7 3.5h2.6A1.7 1.7 0 0 1 15 5.2V6.5"/><path d="M6.8 6.5l.7 12.2a1.8 1.8 0 0 0 1.8 1.7h5.4a1.8 1.8 0 0 0 1.8-1.7l.7-12.2"/></svg>
+    </button>
+    <span class="tb-spacer"></span>
+    <button class="btn icon" id="importBtn" title="导入 zip 为新项目">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11.5"/><path d="M8 11.5l4 4 4-4"/><path d="M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14"/></svg>
+    </button>
+    <input type="file" id="importInput" accept=".zip,application/zip" hidden />
+    <button class="btn primary" id="exportBtn" title="把整个项目打包成 zip 下载">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V4"/><path d="M8 8l4-4 4 4"/><path d="M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14"/></svg>导出 zip
+    </button>
+    <a class="top-link" href="/" title="返回主站">返回主站</a>
+  </header>
+
+  <div class="workspace">
+    <aside class="tree-pane">
+      <div class="tree-head">
+        <span class="title">文件</span>
+        <button class="btn icon" id="newFileBtn" title="新建文件">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 4H7a1.5 1.5 0 0 0-1.5 1.5v13A1.5 1.5 0 0 0 7 20h10a1.5 1.5 0 0 0 1.5-1.5V9z"/><path d="M13.5 4v5H18.5"/><path d="M12 12v5M9.5 14.5h5"/></svg>
+        </button>
+        <button class="btn icon" id="newFolderBtn" title="新建文件夹">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7A1.5 1.5 0 0 1 5 5.5h4l2 2.2h8A1.5 1.5 0 0 1 20.5 9v8.5A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M12 11.5v4M10 13.5h4"/></svg>
+        </button>
+      </div>
+      <div class="tree-scroll" id="tree"></div>
+    </aside>
+
+    <main class="editor-pane">
+      <div class="ed-head">
+        <span class="ed-dot" id="edDot" title="未保存改动"></span>
+        <span class="ed-path" id="edPath">未打开文件</span>
+        <button class="btn run" id="runBtn" title="运行 / 预览（HTML · CSS · JS）">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5v14l12-7z"/></svg>运行
+        </button>
+        <button class="btn" id="renameFileBtn" title="重命名当前文件" disabled>重命名</button>
+        <button class="btn" id="delFileBtn" title="删除当前文件" disabled>删除</button>
+      </div>
+      <div class="ed-tabs" id="edTabs"></div>
+      <div class="ed-wrap">
+        <pre class="ed-pre" id="edPre" aria-hidden="true"><code id="edHL"></code></pre>
+        <textarea id="editor" spellcheck="false" placeholder="" disabled></textarea>
+        <div class="ed-empty" id="edEmpty">从左侧打开或新建一个文件开始编辑</div>
+      </div>
+      <div class="ai-bar">
+        <div class="ai-row">
+          <span class="lbl">AI</span>
+          <select class="ai-sel" id="aiTarget" title="AI 结果落到哪里">
+            <option value="new">生成到新文件</option>
+            <option value="replace">覆盖当前文件</option>
+            <option value="insert">在光标处插入</option>
+            <option value="project">整个项目 · AI 自管文件</option>
+          </select>
+          <select class="ai-sel" id="aiModel" title="模型"></select>
+          <label class="ai-check" id="twoPassWrap" title="先让 AI 把需求扩写成详细规格，确认/编辑后再生成代码（默认关）"><input type="checkbox" id="twoPass" />两段式</label>
+          <span class="ai-status" id="aiStatus"></span>
+        </div>
+        <div class="ai-input">
+          <textarea id="aiPrompt" rows="1" placeholder="描述要生成或修改的代码，回车发送（Shift+Enter 换行）…"></textarea>
+          <button class="btn primary" id="aiRunBtn" title="让 AI 生成/改写">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3.2l1.4 5.4L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4z"/></svg>生成
+          </button>
+          <button class="btn" id="aiStopBtn" title="停止" hidden>停止</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-mask" id="fileModalMask" hidden>
+    <div class="modal">
+      <div class="modal-title" id="fileModalTitle">新建文件</div>
+      <label class="modal-field">
+        <span>文件名 / 路径（可带目录，如 src/app.js）</span>
+        <input type="text" id="fileModalName" placeholder="未命名" autocomplete="off" />
+      </label>
+      <label class="modal-field">
+        <span>语言</span>
+        <select id="fileModalLang"></select>
+      </label>
+      <div class="modal-actions">
+        <button class="btn" id="fileModalCancel">取消</button>
+        <button class="btn primary" id="fileModalOk">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="specModalMask" hidden>
+    <div class="modal spec-modal">
+      <div class="modal-title">确认 / 编辑规格</div>
+      <div class="modal-sub">AI 已把需求扩写成规格，可直接编辑；不想改就直接点「生成代码」。</div>
+      <textarea id="specText" class="spec-text" spellcheck="false"></textarea>
+      <div class="modal-actions">
+        <button class="btn" id="specCancel">取消</button>
+        <button class="btn primary" id="specOk">生成代码</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="run-mask" id="runMask" hidden>
+    <div class="run-win">
+      <div class="run-head">
+        <span class="run-title">运行 · 预览</span>
+        <select class="ai-sel" id="runEntry" title="入口文件"></select>
+        <button class="btn icon" id="runRefresh" title="重新运行">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-.5 4"/><path d="M20 5v6h-6"/></svg>
+        </button>
+        <span class="tb-spacer"></span>
+        <button class="btn icon" id="runClose" title="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+        </button>
+      </div>
+      <div class="run-body">
+        <iframe id="runFrame" sandbox="allow-scripts allow-modals" referrerpolicy="no-referrer"></iframe>
+        <div class="run-console" id="runConsole"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script src="/tools/coding/app.js"></script>
+</body>
+</html>

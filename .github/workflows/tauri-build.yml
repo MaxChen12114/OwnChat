@@ -1,0 +1,176 @@
+name: Build Tauri App
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "app-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Generate Tauri icons
+        run: npx --yes @tauri-apps/cli@2 icon public/assets/icon-512.png -o src-tauri/icons
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Build & publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: app-v__VERSION__
+          releaseName: "OwnChat v__VERSION__"
+          releaseBody: "Windows 桌面安装包(NSIS),下载 .exe 双击安装即可。"
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free up disk space (只删与 Android/Rust 构建无关的大体积预装工具,绝不碰 Android SDK/NDK,避免重漏前一轮的 NDK not found)
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/share/boost
+          docker system prune -af --volumes || true
+          df -h
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Generate Tauri icons
+        run: npx --yes @tauri-apps/cli@2 icon public/assets/icon-512.png -o src-tauri/icons
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install src-tauri npm deps (Gradle 的 npm run tauri 依赖这个)
+        run: npm install
+        working-directory: src-tauri
+
+      - name: Init Android project
+        run: npx --yes @tauri-apps/cli@2 android init
+
+      - name: Patch AndroidManifest (windowSoftInputMode=adjustResize)
+        run: |
+          # 修复"键盘弹出遮挡底部输入框": wry 生成的模板不带 windowSoftInputMode,
+          # 系统默认 adjustUnspecified/adjustPan → WebView 不随键盘收缩,position:fixed 的
+          # composer 被整体盖住(web 层的 interactive-widget/--kb 补偿在这种模式下也无从感知键盘)。
+          # adjustResize = 键盘弹出时窗口收缩 → WebView 视口缩小 → 输入框自动浮到键盘上方。
+          python3 - <<'PY'
+          import re
+          p = "src-tauri/gen/android/app/src/main/AndroidManifest.xml"
+          s = open(p, encoding="utf-8").read()
+          if "android:windowSoftInputMode=" in s:
+              s = re.sub(r'android:windowSoftInputMode="[^"]*"', 'android:windowSoftInputMode="adjustResize"', s)
+          else:
+              s = s.replace("<activity", '<activity\n            android:windowSoftInputMode="adjustResize"', 1)
+          open(p, "w", encoding="utf-8").write(s)
+          print("patched:", "android:windowSoftInputMode=\"adjustResize\"" in s)
+          PY
+
+      - name: Patch MainActivity (IME insets → 键盘弹出时 WebView 让位)
+        run: |
+          # 2026-10-04 根因修复: Android 15 / targetSdk 35 的 edge-to-edge 下, windowSoftInputMode=adjustResize
+          # 会被系统忽略; 且 Android WebView 的 visualViewport 不随键盘变化、也不认 interactive-widget 视口指令
+          # —— 网页层完全无法感知键盘(所以之前 meta + --kb 兜底在 App 里全部失灵)。
+          # 唯一可靠解: 原生层把 IME inset 作为 decorView 底部内边距 → WebView 随之缩短 →
+          # 网页里 position:fixed 的输入框自然浮到键盘上方。键盘收起时内边距归零, 不改变常态外观。
+          # 注意: gen/android 由 `android init` 现场生成, 此补丁必须每次构建都重新施加(与 manifest 补丁同理)。
+          python3 - <<'PY'
+          import glob, re, sys
+
+          hits = glob.glob("src-tauri/gen/android/app/src/main/java/**/MainActivity.kt", recursive=True)
+          if not hits:
+              sys.exit("!! MainActivity.kt not found (tauri android init 生成路径变了?)")
+          p = hits[0]
+          s = open(p, encoding="utf-8").read()
+          if "WindowInsetsCompat.Type.ime()" in s:
+              print("MainActivity insets patch: already applied ->", p)
+          else:
+              if "androidx.core.view.ViewCompat" not in s:
+                  s = re.sub(r'(^package[^\n]*\n)',
+                             r'\1\nimport androidx.core.view.ViewCompat\nimport androidx.core.view.WindowInsetsCompat\n',
+                             s, count=1, flags=re.M)
+              block = '\n' + '\n'.join([
+                  '    // [键盘让位] 虚拟键盘弹出时把底部内边距设为 IME 高度(WebView 缩短, fixed 输入框自动上浮);',
+                  '    // 键盘收起归零, 不影响常态布局。Android <11 由系统 adjustResize 负责, 此处 ime=0 不重复补偿。',
+                  '    ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, insets ->',
+                  '      val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom',
+                  '      view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, if (ime > 0) ime else 0)',
+                  '      insets',
+                  '    }',
+                  '    ViewCompat.requestApplyInsets(window.decorView)',
+              ]) + '\n'
+              m = re.search(r'super\.onCreate\(savedInstanceState\)', s)
+              if not m:
+                  sys.exit("!! MainActivity.kt 里找不到 super.onCreate(savedInstanceState), 模板结构变了, 请人工检查后再打补丁")
+              i = m.end()
+              s = s[:i] + block + s[i:]
+              open(p, "w", encoding="utf-8").write(s)
+              print("MainActivity insets patch applied ->", p)
+              print("check:", "WindowInsetsCompat.Type.ime()" in s)
+
+          g = "src-tauri/gen/android/app/build.gradle.kts"
+          gs = open(g, encoding="utf-8").read()
+          if "androidx.core" not in gs:
+              gs = gs.replace("dependencies {",
+                              'dependencies {\n    implementation("androidx.core:core:1.13.1")', 1)
+              open(g, "w", encoding="utf-8").write(gs)
+              print("build.gradle.kts: added androidx.core:core (ViewCompat 依赖)")
+          else:
+              print("build.gradle.kts: androidx.core already present")
+          PY
+
+      - name: Build APK (debug signing, verify pipeline first)
+        run: npx --yes @tauri-apps/cli@2 android build --apk --debug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ownchat-android
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk

@@ -1,0 +1,19 @@
+name = "ownchat"
+main = "src/worker.js"
+compatibility_date = "2026-03-11"
+
+# 构建步骤：扫 src/prompts/bases/ 生成基座注册表（改基座文件后自动生效），再跑一道真语法门。
+[build]
+command = "node scripts/gen-prompts.mjs && node scripts/check-syntax.mjs"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+# 这些前缀必须先进 worker 才有机会处理（API / 动态 config / 旧书签重定向 / 工具页）
+run_worker_first = ["/api/*", "/config.js", "/write", "/write/*", "/coding", "/coding/*", "/flow", "/flow/*", "/studio", "/studio/*", "/audio", "/audio/*", "/image", "/image/*"]
+
+# 云同步用的 KV：先创建再把 id 填进来
+#   wrangler kv namespace create TAVERN_SYNC
+[[kv_namespaces]]
+binding = "TAVERN_SYNC"
+id = "<在这里填 wrangler kv namespace create 打印出来的 id>"

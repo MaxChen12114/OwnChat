@@ -1,0 +1,15 @@
+{
+  "name": "OwnChat",
+  "short_name": "OwnChat",
+  "description": "OwnChat · 数据留在自己手里的 AI 创作平台",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#15161A",
+  "theme_color": "#15161A",
+  "icons": [
+    { "src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

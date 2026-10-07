@@ -1,0 +1,14 @@
+{
+  "name": "ownchat-tauri-src",
+  "private": true,
+  "version": "1.0.0",
+  "description": "src-tauri stub package.json — Tauri Android Gradle build (rustBuildArm64Debug) shells out to npm expecting a package.json next to tauri.conf.json even though this project has no beforeBuildCommand/frontend build step (frontendDist is a static folder). Without this file the build fails with ENOENT. 2026-09-12 补充: Rust 编译成功后, Gradle 的 rustBuildArm64Debug 任务还会在这个目录跑一次 `npm run tauri ...`(Tauri v2 Android 构建流程内置的资源同步步骤, 与 beforeBuildCommand 无关, 始终会执行), 缺 tauri 脚本会报 'Missing script: tauri' 并让整个 APK 构建失败 —— 因此这里必须提供一个指向 tauri CLI 的 tauri 脚本, 并把 @tauri-apps/cli 声明为依赖, 否则 npm run tauri 仍然解析不到命令。",
+  "scripts": {
+    "build": "echo no-op: static frontendDist, nothing to build",
+    "dev": "echo no-op: static frontendDist, nothing to build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

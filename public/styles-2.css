@@ -1,0 +1,1877 @@
+/* ══════════════════════════════════════════════════
+ 提示词编辑器（Prompt Editor）· 唯一 CSS 来源
+ 2026-10-06: 弹窗打开时锁背景滚动（JS 一直在切 body.ue-open，这条规则在样式搬家时漏掉了）
+ - .ue-preset-row.ue-has-drag：指令模块行多一列拖拽抓手（5 列）；角色与设定集行保持 4 列
+ - .ue-preset-name：显示名 + 仓库文件名小字（纵向 flex，只有库条目带 file，自建条目没有）
+ - .ue-char-line：角色行的「头像 + 名字 + 当前」留在同一行（.ue-preset-name 是纵向列）
+ - .ue-pgroup-arrow：分组头箭头折叠态旋转（原先用 ▸ ▾ 两个字符）
+ ═════════════════════════════════════════════════ */
+
+body.ue-open { overflow: hidden; }
+/* 2026-10-06: 图像工坊(body.img-open 由 image-embed.js 一直有切但无规则)同款滚动锁 */
+body.img-open { overflow: hidden; }
+.ue-preset-row.ue-has-drag { grid-template-columns: auto auto minmax(110px, 220px) 1fr auto; }
+.ue-preset-drag { display: inline-flex; align-items: center; cursor: grab; opacity: .35; }
+.ue-preset-drag:hover { opacity: .8; }
+.ue-preset-row.dragging { opacity: .5; }
+.ue-preset-name { display: flex; flex-direction: column; gap: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.ue-preset-name .ue-preset-file { font-size: 10.5px; font-weight: 400; opacity: .45; font-family: ui-monospace, Menlo, Consolas, monospace; }
+.ue-char-line { display: flex; align-items: center; min-width: 0; }
+.ue-char-line > * { flex: none; }
+.ue-preset-preview em { font-style: normal; opacity: .45; }
+.ue-pgroup-arrow svg { transition: transform .15s ease; }
+.ue-pgroup-arrow.folded svg { transform: rotate(0deg); }
+.ue-pgroup-arrow:not(.folded) svg { transform: rotate(90deg); }
+
+/* ══════════════════════════════════════════════════
+ Phase 4 阶段 11 · 鱼缸 V3(侧栏化 + 二分视觉 + ended 态保留)
+ - .fishbowl-side-panel：右侧悬浮控制台(≥1024px) / 底部条形(<1024px)
+ - body[data-chat-mode="roast"]：吐槽姬视觉(AI 偶左奇右,隐藏 user)
+ - body[data-chat-mode="group"]：群聊视觉(AI 左,user 右,默认)
+ - .row.moderator：主持人/旁白介入居中样式
+ ═════════════════════════════════════════════════ */
+
+.fishbowl-side-panel {
+ position: fixed;
+ right: 16px;
+ top: 100px;
+ width: 240px;
+ max-height: calc(100vh - 200px);
+ overflow-y: auto;
+ padding: 14px;
+ background: rgba(20, 20, 20, 0.92);
+ border: 1px solid rgba(127, 127, 127, .24);
+ border-radius: 16px;
+ box-shadow: 0 4px 24px rgba(0, 0, 0, .4);
+ z-index: 8;
+ display: flex;
+ flex-direction: column;
+ gap: 10px;
+ font-size: 12px;
+ backdrop-filter: blur(10px);
+ -webkit-backdrop-filter: blur(10px);
+}
+
+.fb-side-header {
+ font-size: 13px;
+ font-weight: 600;
+ color: inherit;
+ display: flex;
+ align-items: center;
+ gap: 7px;
+ border-bottom: 1px solid rgba(127, 127, 127, .2);
+ padding-bottom: 8px;
+}
+
+.fb-side-modes,
+.fb-side-actions {
+ display: flex;
+ gap: 5px;
+ flex-wrap: wrap;
+}
+.fb-side-modes .chip-btn,
+.fb-side-actions .chip-btn {
+ font-size: 11px;
+ padding: 4px 9px;
+}
+.fb-cmd-btn.fb-primary {
+ background: rgba(127, 127, 127, .2);
+ border-color: rgba(127, 127, 127, .5);
+ color: inherit;
+ font-weight: 600;
+}
+.fb-cmd-btn.fb-primary:hover:not(:disabled) {
+ background: rgba(127, 127, 127, .3);
+}
+
+.fb-side-status {
+ display: flex;
+ flex-direction: column;
+ gap: 5px;
+ padding: 8px 10px;
+ background: rgba(127, 127, 127, .1);
+ border: 1px solid rgba(127, 127, 127, .22);
+ border-radius: 10px;
+ font-size: 11.5px;
+ color: var(--muted);
+}
+.fb-side-status .fb-state-line {
+ font-weight: 600;
+ color: inherit;
+ font-size: 12px;
+ display: flex;
+ align-items: center;
+ gap: 6px;
+}
+.fb-side-status b { color: #eaeaea; }
+
+.fb-side-ended {
+ display: flex;
+ flex-direction: column;
+ gap: 5px;
+ padding: 10px 12px;
+ background: rgba(127, 127, 127, .14);
+ border: 1px solid rgba(127, 127, 127, .4);
+ border-radius: 10px;
+ font-size: 11.5px;
+ color: inherit;
+}
+.fb-side-ended .fb-ended-title {
+ font-size: 13px;
+ font-weight: 700;
+ color: inherit;
+ display: flex;
+ align-items: center;
+ gap: 6px;
+}
+.fb-side-ended .fb-ended-line { color: #c8c8c8; }
+.fb-side-ended .fb-ended-line b { color: #fff; }
+.fb-side-ended .fb-ended-reason {
+ font-size: 10.5px;
+ color: #888;
+ font-style: italic;
+ margin-top: 2px;
+}
+
+/* Glass 主题 */
+html[data-theme="glass"] .fishbowl-side-panel {
+ background: rgba(255, 255, 255, .94);
+ border: 1px solid rgba(63, 111, 143, .25);
+ box-shadow: 0 4px 24px rgba(60, 90, 120, .18);
+ color: #1a1f2e;
+}
+html[data-theme="glass"] .fb-side-header { color: #345d7c; border-bottom-color: rgba(63, 111, 143, .25); }
+html[data-theme="glass"] .fb-side-status {
+ background: rgba(63, 111, 143, .10);
+ border-color: rgba(63, 111, 143, .35);
+ color: #4a5160;
+}
+html[data-theme="glass"] .fb-side-status .fb-state-line { color: #345d7c; }
+html[data-theme="glass"] .fb-side-status b { color: #1a1f2e; }
+html[data-theme="glass"] .fb-side-ended {
+ background: linear-gradient(135deg, rgba(63, 111, 143, .18), rgba(79, 136, 168, .12));
+ border-color: rgba(63, 111, 143, .55);
+ color: #345d7c;
+}
+html[data-theme="glass"] .fb-side-ended .fb-ended-title { color: #b88a14; }
+html[data-theme="glass"] .fb-side-ended .fb-ended-line { color: #4a5160; }
+html[data-theme="glass"] .fb-side-ended .fb-ended-line b { color: #1a1f2e; }
+html[data-theme="glass"] .fb-side-ended .fb-ended-reason { color: #8a9098; }
+html[data-theme="glass"] .fb-cmd-btn.fb-primary {
+ background: rgba(184, 138, 20, .15);
+ border-color: rgba(184, 138, 20, .42);
+ color: #b88a14;
+}
+
+/* candle 主题 */
+html[data-theme="candle"] .fishbowl-side-panel {
+ background: rgba(20, 13, 8, .92);
+ border: 1px solid rgba(217, 168, 104, .35);
+ box-shadow: 0 4px 24px rgba(0,0,0,.55), 0 0 40px rgba(217, 168, 104, .12);
+ color: #f2e7d6;
+}
+html[data-theme="candle"] .fb-side-header { color: #f2e7d6; border-bottom-color: rgba(217, 168, 104, .25); }
+html[data-theme="candle"] .fb-side-status {
+ background: rgba(217, 168, 104, .14);
+ border-color: rgba(217, 168, 104, .35);
+ color: #a89a8a;
+}
+html[data-theme="candle"] .fb-side-status .fb-state-line { color: #f2e7d6; }
+html[data-theme="candle"] .fb-side-status b { color: #f2e7d6; }
+html[data-theme="candle"] .fb-side-ended {
+ background: linear-gradient(135deg, rgba(217, 168, 104, .28), rgba(242, 231, 214, .14));
+ border-color: rgba(217, 168, 104, .6);
+ color: #f2e7d6;
+}
+html[data-theme="candle"] .fb-side-ended .fb-ended-title { color: #FFD270; }
+html[data-theme="candle"] .fb-side-ended .fb-ended-line { color: #a89a8a; }
+html[data-theme="candle"] .fb-side-ended .fb-ended-line b { color: #fff; }
+html[data-theme="candle"] .fb-side-ended .fb-ended-reason { color: #8a606a; }
+
+/* ─── 移动端降级：<1024px 侧栏变底部条形 ─── */
+@media (max-width: 1023px) {
+ .fishbowl-side-panel {
+ position: fixed;
+ right: 0;
+ left: 0;
+ top: auto;
+ bottom: calc(var(--composer-gap) + 96px);
+ width: auto;
+ max-width: var(--content-max);
+ max-height: none;
+ margin: 0 auto;
+ padding: 8px 12px;
+ border-radius: 12px;
+ flex-direction: row;
+ flex-wrap: wrap;
+ align-items: center;
+ gap: 6px;
+ font-size: 11px;
+ }
+ .fb-side-header {
+ border-bottom: none;
+ padding-bottom: 0;
+ padding-right: 8px;
+ font-size: 12px;
+ }
+ .fb-side-modes,
+ .fb-side-actions {
+ gap: 4px;
+ }
+ .fb-side-status,
+ .fb-side-ended {
+ flex: 1 1 100%;
+ flex-direction: row;
+ gap: 10px;
+ padding: 6px 10px;
+ flex-wrap: wrap;
+ font-size: 11px;
+ }
+ .fb-side-status .fb-state-line {
+ font-size: 11.5px;
+ }
+ .fb-side-ended .fb-ended-title { font-size: 12px; }
+ .fb-side-ended .fb-ended-reason { flex: 1 1 100%; }
+}
+
+/* ─── 超窄屏：<640px 多行紧凑 + 头像缩小 ─── */
+@media (max-width: 640px) {
+ .fishbowl-side-panel {
+ bottom: calc(var(--composer-gap) + 84px);
+ padding: 6px 10px;
+ }
+ .fb-side-modes,
+ .fb-side-actions {
+ flex: 1 1 100%;
+ justify-content: flex-start;
+ }
+ .fb-side-modes .chip-btn,
+ .fb-side-actions .chip-btn {
+ font-size: 10.5px;
+ padding: 3px 8px;
+ }
+ .row.ai .avatar { width: 28px; height: 28px; flex-basis: 28px; font-size: 11px; }
+ .row.ai .content { max-width: 90vw; }
+}
+
+/* ════ body[data-chat-mode] 二分视觉 ════ */
+
+/* 吐槽姬 mode：隐藏空 user 行 + AI 右侧发言 mirror 翻转 */
+body[data-chat-mode="roast"] .row.user:not(.moderator) {
+ display: none;
+}
+body[data-chat-mode="roast"] .row.ai.side-right {
+ flex-direction: row-reverse;
+ /* 4.42-fix: row-reverse 下主轴反向,flex-end=左边。要气泡贴右须用 flex-start(主轴起点=右)。
+ 原先用 flex-end 导致右侧发言人气泡反而贴最左、流式时从左往右推错位 */
+ justify-content: flex-start;
+}
+body[data-chat-mode="roast"] .row.ai.side-right .content {
+ align-items: flex-end;
+}
+body[data-chat-mode="roast"] .row.ai.side-right .meta {
+ text-align: right;
+}
+
+/* 主持人/旁白介入行：居中虚线框 + 斜体 + 隐藏头像 */
+.row.moderator {
+ justify-content: center !important;
+ margin: 14px 0;
+}
+.row.moderator .avatar { display: none; }
+.row.moderator .content {
+ max-width: min(560px, 75vw);
+ align-items: center;
+}
+.row.moderator .meta {
+ text-align: center;
+ color: var(--muted);
+ font-weight: 600;
+ font-size: 11px;
+ letter-spacing: .5px;
+ text-transform: uppercase;
+}
+.row.moderator .bubble {
+ background: rgba(127, 127, 127, .12);
+ border: 1px dashed rgba(127, 127, 127, .4);
+ color: inherit;
+ font-size: 13px;
+ font-style: italic;
+ text-align: center;
+ padding: 10px 16px;
+ border-radius: 12px;
+}
+
+html[data-theme="glass"] .row.moderator .meta { color: #4f88a8; }
+html[data-theme="glass"] .row.moderator .bubble {
+ background: rgba(63, 111, 143, .10);
+ border-color: rgba(63, 111, 143, .42);
+ color: #345d7c;
+}
+html[data-theme="candle"] .row.moderator .meta { color: #f2e7d6; }
+html[data-theme="candle"] .row.moderator .bubble {
+ background: rgba(217, 168, 104, .14);
+ border-color: rgba(217, 168, 104, .45);
+ color: #f2e7d6;
+}/* ════════════════════════════════════════════════════════════
+ Phase 4 阶段 4.3 · 双侧栏布局(dual-sidebar)
+ - 桌面 ≥1024px:左栏 240px(常驻,按钮入口) + 中间聊天(自适应) + 右栏 240px(鱼缸+扩展槽)
+ - 手机 <1024px:顶栏 inline 横滑核心 5 项;左侧栏变 ☰ 抽屉;右侧栏隐藏(鱼缸沿用 V3 底部条)
+ - 顶栏精简:☰(仅手机) + mode + Model + 💰inline + [spacer] + ☁️同步(仅桌面) + ⚙️
+ ════════════════════════════════════════════════════════════ */
+
+.app-shell {
+ height: 100%;
+ width: 100%;
+ display: grid;
+ grid-template-columns: 240px minmax(0, 1fr) 240px;
+ grid-template-rows: 100%;
+}
+
+.left-sidebar, .right-sidebar {
+ height: 100vh;
+ overflow-y: auto;
+ background: #0c0c0c;
+ border-right: 1px solid #1a1a1a;
+ display: flex;
+ flex-direction: column;
+ gap: 4px;
+ padding: 14px 12px 20px;
+ z-index: 7;
+}
+.right-sidebar { border-right: none; border-left: 1px solid #1a1a1a; }
+
+.sidebar-header {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ font-size: 11px;
+ color: #888;
+ letter-spacing: .4px;
+ text-transform: uppercase;
+ padding: 4px 6px 6px;
+ border-bottom: 1px dashed #1f1f1f;
+ margin-bottom: 6px;
+}
+.sidebar-close {
+ width: 28px !important;
+ height: 28px !important;
+ flex: 0 0 28px !important;
+ font-size: 14px !important;
+}
+.sidebar-section-title {
+ font-size: 10.5px;
+ color: #666;
+ letter-spacing: .4px;
+ text-transform: uppercase;
+ padding: 8px 6px 4px;
+}
+.sidebar-divider {
+ height: 1px;
+ background: #1f1f1f;
+ margin: 6px 4px;
+}
+.sidebar-nav {
+ display: flex;
+ flex-direction: column;
+ gap: 4px;
+}
+
+.sidebar-btn {
+ width: 100% !important;
+ height: auto !important;
+ min-height: 38px;
+ border-radius: 10px !important;
+ padding: 8px 10px !important;
+ display: flex !important;
+ align-items: center;
+ justify-content: flex-start !important;
+ gap: 10px;
+ font-size: 13px !important;
+ flex: 0 0 auto !important;
+ text-align: left;
+ text-decoration: none;
+ cursor: pointer;
+}
+.sidebar-btn-icon {
+ font-size: 16px;
+ width: 22px;
+ text-align: center;
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ flex: 0 0 22px;
+}
+.sidebar-btn-icon svg { display: block; }
+.sidebar-btn-label {
+ flex: 1;
+ white-space: nowrap;
+ overflow: hidden;
+ text-overflow: ellipsis;
+ font-size: 13px;
+}
+.sidebar-btn-disabled, .sidebar-btn[disabled] {
+ opacity: .42;
+ cursor: not-allowed;
+ pointer-events: none;
+}
+
+.sidebar-slot-placeholder {
+ font-size: 11px;
+ color: #666;
+ font-style: italic;
+ padding: 8px 6px;
+ text-align: center;
+}
+
+#fishbowlSlot {
+ display: flex;
+ flex-direction: column;
+ gap: 8px;
+ min-height: 0;
+}
+#fishbowlSlot:empty::before {
+ content: "多智能体多人模式 + 场景≥2 时,群聊控制台显示在这里";
+ font-size: 11px;
+ color: #666;
+ font-style: italic;
+ padding: 8px 6px;
+ text-align: center;
+ display: block;
+}
+
+/* 桌面端 fishbowl 入侧栏 slot:取消 fixed 定位 */
+.fishbowl-side-panel.in-slot {
+ position: static;
+ right: auto;
+ top: auto;
+ bottom: auto;
+ left: auto;
+ width: auto;
+ max-height: none;
+ margin: 0;
+ z-index: auto;
+ box-shadow: none;
+}
+
+.sidebar-backdrop {
+ position: fixed;
+ inset: 0;
+ background: rgba(0, 0, 0, .55);
+ backdrop-filter: blur(2px);
+ -webkit-backdrop-filter: blur(2px);
+ z-index: 19;
+ opacity: 0;
+ pointer-events: none;
+ transition: opacity .25s ease;
+}
+body.drawer-open .sidebar-backdrop {
+ opacity: 1;
+ pointer-events: auto;
+}
+
+#menuToggle { font-size: 18px; }
+
+/* 同步状态指示器 */
+#syncStatusIndicator {
+ display: inline-flex;
+ align-items: center;
+ gap: 6px;
+ font-size: 12px;
+ color: #888;
+ padding: 6px 10px;
+ border-radius: 999px;
+ border: 1px solid #2a2a2a;
+ background: #101010;
+ white-space: nowrap;
+ flex: 0 0 auto;
+ cursor: default;
+}
+.sync-dot {
+ width: 8px;
+ height: 8px;
+ border-radius: 999px;
+ background: #555;
+ flex: 0 0 8px;
+}
+.sync-dot.sync-ok { background: #4ade80; box-shadow: 0 0 6px rgba(74, 222, 128, .5); }
+.sync-dot.sync-active { background: #60a5fa; animation: sync-pulse 1s ease-in-out infinite; }
+.sync-dot.sync-error { background: #ef4444; }
+.sync-dot.sync-idle { background: #888; }
+.sync-dot.sync-off { background: #444; }
+.sync-text { font-variant-numeric: tabular-nums; }
+@keyframes sync-pulse {
+ 0%, 100% { opacity: 1; }
+ 50% { opacity: .4; }
+}
+
+/* ─── 工具类(响应式显隐) ─── */
+.mobile-only { display: none !important; }
+.desktop-only { display: inline-flex; }
+
+@media (max-width: 1023px) {
+ .mobile-only { display: inline-flex !important; }
+ .desktop-only { display: none !important; }
+}
+
+/* ── 2026-06-07 手机端 UI 重构:滚动自动隐藏顶栏/底栏(配合 app.js setupScrollHide 切 body.nav-hidden)。只在手机生效,桌面不动 ── */
+@media (max-width: 1023px) {
+ #topbar { transition: transform .25s ease; will-change: transform; }
+ #mobileBottomTabs { transition: transform .25s ease; will-change: transform; }
+ /* 4.78: 用户要求顶栏常驻不折叠(手机滚动时不再上滑隐藏,从根上消除收起后残留的空白占位条);底栏仍随滚动隐藏 */
+ body.nav-hidden #topbar { transform: none; }
+ body.nav-hidden #mobileBottomTabs { transform: translateY(110%); }
+ /* 手机端顶栏不显示 inline 费用(太挤;费用看设置/费用日志) */
+ #topbar #costDisplay { display: none !important; }
+}
+
+/* ─── Glass 主题覆盖（极光靛蓝/紫调） ─── */
+html[data-theme="glass"] .left-sidebar,
+html[data-theme="glass"] .right-sidebar {
+ background: rgba(248, 250, 255, .80);
+ border-color: rgba(255, 255, 255, .55);
+ backdrop-filter: blur(20px) saturate(180%);
+ -webkit-backdrop-filter: blur(20px) saturate(180%);
+ box-shadow: inset 0 0 0 1px rgba(255,255,255,.4);
+}
+html[data-theme="glass"] .sidebar-header,
+html[data-theme="glass"] .sidebar-section-title { color: #64748b; border-bottom-color: rgba(255,255,255,.5); }
+html[data-theme="glass"] .sidebar-divider { background: rgba(255,255,255,.42); }
+html[data-theme="glass"] .sidebar-slot-placeholder,
+html[data-theme="glass"] #fishbowlSlot:empty::before { color: #94a3b8; }
+html[data-theme="glass"] #syncStatusIndicator { background: rgba(255,255,255,.75); border-color: rgba(255,255,255,.6); color: #475569; }
+
+/* ─── candle 烛夜私语 主题覆盖 ─── */
+html[data-theme="candle"] .left-sidebar,
+html[data-theme="candle"] .right-sidebar {
+ background: rgba(20, 13, 8, .88);
+ border-color: rgba(217, 168, 104, .18);
+ backdrop-filter: blur(10px);
+ -webkit-backdrop-filter: blur(10px);
+}
+html[data-theme="candle"] .sidebar-header,
+html[data-theme="candle"] .sidebar-section-title { color: #a89a8a; border-bottom-color: rgba(217,168,104,.18); }
+html[data-theme="candle"] .sidebar-divider { background: rgba(217,168,104,.15); }
+html[data-theme="candle"] .sidebar-slot-placeholder,
+html[data-theme="candle"] #fishbowlSlot:empty::before { color: #8a606a; }
+html[data-theme="candle"] #syncStatusIndicator { background: rgba(40,28,18,.45); border-color: rgba(217,168,104,.22); color: #f2e7d6; }
+
+/* ─── 输入框桌面端避开两侧栏 ─── */
+@media (min-width: 1024px) {
+ .input-floating {
+ left: 240px;
+ right: 240px;
+ width: auto;
+ }
+
+ .topbar-shell { max-width: none; }
+}
+
+/* ─── 手机端:左栏变抽屉 + 右栏隐藏 + topbar 不被遮挡 ─── */
+@media (max-width: 1023px) {
+ .app-shell {
+ display: block;
+ height: 100%;
+ }
+ .left-sidebar {
+ position: fixed;
+ top: 0;
+ left: 0;
+ height: 100vh;
+ width: min(82vw, 320px);
+ transform: translateX(-102%);
+ transition: transform .28s ease;
+ z-index: 20;
+ box-shadow: 0 0 40px rgba(0, 0, 0, .55);
+ border-right: 1px solid #1f1f1f;
+ }
+ body.drawer-open .left-sidebar {
+ transform: translateX(0);
+ }
+ .right-sidebar {
+ display: none;
+ }
+}
+
+/* ────────────────────────────────────────
+ 4.3 顶栏重设(覆盖旧 4.2.3 collapse 设计)
+ —— 不动旧注释/旧 .topbar-collapse 样式(dead code),靠 cascade 后定义胜出
+ ──────────────────────────────────────── */
+
+.topbar-scroll {
+ width: 100%;
+ overflow-x: auto;
+ overflow-y: visible;
+ scrollbar-width: none;
+}
+.topbar-scroll::-webkit-scrollbar { display: none; }
+
+.topbar-inner {
+ width: 100%;
+ display: flex;
+ align-items: center;
+ justify-content: flex-start;
+ gap: 10px;
+ flex-wrap: nowrap;
+}
+
+.topbar-spacer {
+ flex: 1 1 auto;
+ min-width: 0;
+}
+
+/* 💰 inline 直显(取代 4.2.3 的 details>summary popover) */
+#costDisplay.topbar-cost-inline {
+ display: inline-flex;
+ align-items: center;
+ font-size: 13.5px;
+ color: #cfcfcf;
+ white-space: nowrap;
+ font-variant-numeric: tabular-nums;
+ padding: 7px 12px;
+ border-radius: 999px;
+ border: 1px solid #2a2a2a;
+ background: #101010;
+ flex: 0 0 auto;
+}
+#costDisplay.topbar-cost-inline:empty { display: none; }
+html[data-theme="glass"] #costDisplay.topbar-cost-inline {
+ background: rgba(255,255,255,.8);
+ border-color: rgba(15,30,60,.08);
+ color: #1a1f2e !important;
+}
+html[data-theme="candle"] #costDisplay.topbar-cost-inline {
+ background: rgba(40,28,18,.45);
+ border-color: rgba(217,168,104,.22);
+ color: #f2e7d6 !important;
+}/* 手机端顶栏 inline 横滑(恢复 hotfix-1 之前体验) */
+@media (max-width: 768px) {
+ .topbar-inner {
+ flex-wrap: nowrap;
+ width: max-content;
+ min-width: 100%;
+ gap: 6px;
+ -webkit-overflow-scrolling: touch;
+ }
+}
+
+
+
+/* ─── 4.4-A 顶栏统一高度 ─── */
+#topbar .iconbtn,
+#topbar #modeToggle,
+#topbar .pill.model-pill,
+#topbar #costDisplay.topbar-cost-inline,
+#topbar #syncStatusIndicator {
+ height: 34px;
+ min-height: 34px;
+}
+#topbar .iconbtn { width: 34px; flex: 0 0 34px; font-size: 17px; padding: 0; }
+#topbar #modeToggle { width: auto; min-width: 34px; padding: 0 12px; font-size: 13px; }
+#topbar .pill.model-pill { padding: 0 10px 0 12px; gap: 8px; }
+#topbar .pill.model-pill select { height: 26px; padding: 0 8px; min-width: 160px; }
+#topbar #costDisplay.topbar-cost-inline {
+ padding: 0 14px;
+ line-height: 32px;
+ font-weight: 600;
+}
+#topbar #syncStatusIndicator { padding: 0 12px; line-height: 32px; }
+
+/* ─── 4.4-B 侧栏按钮分主题配色(取代默认灰) ─── */
+.sidebar-btn {
+ background: #141414;
+ border: 1px solid #2a2a2a;
+ color: #e0e0e0;
+}
+.sidebar-btn:hover:not([disabled]) {
+ background: #1c1c1c;
+ border-color: #3a3a3a;
+ color: #fff;
+}
+.sidebar-btn.active {
+ background: rgba(140, 100, 220, .18);
+ border-color: rgba(140, 100, 220, .55);
+ color: #d4b3ff;
+}
+.sidebar-btn-disabled,
+.sidebar-btn[disabled] {
+ background: #0f0f0f;
+ border-color: #1a1a1a;
+ color: #5a5a5a;
+ opacity: 1;
+}
+.sidebar-btn-disabled .sidebar-btn-label,
+.sidebar-btn[disabled] .sidebar-btn-label { color: inherit; }
+
+/* Glass 侧栏按钮 */
+html[data-theme="glass"] .sidebar-btn {
+ background: rgba(255,255,255,.82);
+ border: 1px solid rgba(15,30,60,.1);
+ color: #1a1f2e;
+ box-shadow: 0 1px 3px rgba(60,90,120,.08);
+}
+html[data-theme="glass"] .sidebar-btn:hover:not([disabled]) {
+ background: #fff;
+ border-color: rgba(79,136,168,.4);
+ color: #1a1f2e;
+ transform: translateY(-1px);
+ box-shadow: 0 4px 12px rgba(79,136,168,.18);
+}
+html[data-theme="glass"] .sidebar-btn.active {
+ background: linear-gradient(135deg, rgba(79,136,168,.14), rgba(63,111,143,.14));
+ border-color: rgba(79,136,168,.55);
+ color: #345d7c;
+}
+html[data-theme="glass"] .sidebar-btn-disabled,
+html[data-theme="glass"] .sidebar-btn[disabled] {
+ background: rgba(248,250,253,.65);
+ border-color: rgba(15,30,60,.06);
+ color: #8a9098;
+}
+
+/* candle 侧栏按钮(暗底带暖金描边) */
+html[data-theme="candle"] .sidebar-btn {
+ background: rgba(40,28,18,.6);
+ border: 1px solid rgba(217,168,104,.28);
+ color: #f2e7d6;
+ box-shadow: 0 1px 3px rgba(0,0,0,.3), inset 0 1px 0 rgba(217,168,104,.08);
+}
+html[data-theme="candle"] .sidebar-btn:hover:not([disabled]) {
+ background: rgba(217,168,104,.20);
+ border-color: rgba(217,168,104,.6);
+ color: #fff;
+ transform: translateY(-1px);
+ box-shadow: 0 4px 14px rgba(217,168,104,.32);
+}
+html[data-theme="candle"] .sidebar-btn.active {
+ background: linear-gradient(135deg, rgba(217,168,104,.35), rgba(242,231,214,.22));
+ border-color: rgba(217,168,104,.75);
+ color: #fff;
+ box-shadow: 0 0 0 1px rgba(217,168,104,.35) inset, 0 4px 14px rgba(217,168,104,.35);
+}
+html[data-theme="candle"] .sidebar-btn-disabled,
+html[data-theme="candle"] .sidebar-btn[disabled] {
+ background: rgba(23,16,9,.5);
+ border-color: rgba(217,168,104,.15);
+ color: #8a7a6a;
+ opacity: 1;
+}
+
+/* 4.4-C 卡片立体感强化(candle) */
+html[data-theme="candle"] .card {
+ box-shadow: 0 2px 10px rgba(0,0,0,.18), inset 0 1px 0 rgba(217,168,104,.06);
+}html[data-theme="candle"] .left-sidebar,
+html[data-theme="candle"] .right-sidebar {
+ box-shadow: inset 0 0 40px rgba(217,168,104,.06);
+}
+/* 4.82: 删掉 4.4-C/4.5-A 的剪影装饰规则(功能已移除,见 styles.css 同名清理注释) */
+
+/* ─── 4.4-E 手机底部标签条 · 2026-09-14 UI第二轮重构:悬浮胶囊 dock ───
+   左右留边、圆角悬浮、脱离底边;当前项填充胶囊高亮 + 微光晕。
+   样式单一来源(原 index.html head 精致化层已收敛至此);滚动隐藏(body.nav-hidden)与
+   桌面硬隐藏(index.html head)机制不变。 */
+.mobile-bottom-tabs { display: none; }
+.mobile-tab-panel { display: none; }
+
+@media (max-width: 1023px) {
+ /* 2026-09-14 UI第二轮:--composer-gap 是聊天区底部留白的计算输入(app.js updateSpacer: 输入框高 + gap + extra),
+   底栏改悬浮 dock 后输入框整体上移 18px(66→84),gap 同步 56→76 才能保持「最后一条消息」仍露出在输入框之上。
+   --dock-h/--dock-gap 供面板/鱼缸上抬定位复用。 */
+ :root { --composer-gap: 76px; --dock-h: 58px; --dock-gap: 10px; }
+
+ .mobile-bottom-tabs {
+ display: flex;
+ position: fixed;
+ left: var(--dock-gap); right: var(--dock-gap);
+ bottom: calc(var(--dock-gap) + env(safe-area-inset-bottom, 0px));
+ height: var(--dock-h);
+ align-items: stretch;
+ background: var(--bubble-ai, rgba(20,20,20,.92));
+ border: 1px solid var(--border, #26262a);
+ border-radius: 18px;
+ box-shadow: 0 10px 30px rgba(0,0,0,.38);
+ backdrop-filter: saturate(150%) blur(14px);
+ -webkit-backdrop-filter: saturate(150%) blur(14px);
+ z-index: 9;
+ padding: 5px;
+ box-sizing: border-box;
+ }
+ .mobile-tab-btn {
+ flex: 1;
+ border: none;
+ background: transparent;
+ color: var(--muted, #9a9a9a);
+ cursor: pointer;
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ justify-content: center;
+ gap: 3px;
+ padding: 4px 2px;
+ margin: 0 2px;
+ min-height: 44px;
+ border-radius: 13px;
+ transition: color .18s, background .18s, box-shadow .18s;
+ font-family: inherit;
+ }
+ .mobile-tab-icon { line-height: 1; }
+ .mobile-tab-icon svg { width: 20px; height: 20px; display: block; }
+ .mobile-tab-label { font-size: 10.5px; line-height: 1; letter-spacing: .02em; }
+ .mobile-tab-btn:hover:not(:disabled) { color: inherit; background: rgba(127,127,127,.10); }
+ .mobile-tab-btn.active {
+ /* 填充胶囊高亮 + 微光晕(inset ring 不占布局空间,切换无跳动) */
+ color: inherit;
+ background: rgba(127,127,127,.18);
+ box-shadow: inset 0 0 0 1px rgba(127,127,127,.25), 0 0 16px rgba(127,127,127,.15);
+ }
+ .mobile-tab-btn:disabled { cursor: not-allowed; opacity: .35; }
+
+ /* 面板弹出位置适配悬浮 dock(dock 高 + 上下间距) */
+ .fishbowl-side-panel { bottom: calc(var(--dock-h) + var(--dock-gap) * 2 + var(--composer-gap) + 56px); }
+ .mobile-tab-panel.active {
+ display: block;
+ position: fixed;
+ left: var(--dock-gap); right: var(--dock-gap);
+ bottom: calc(var(--dock-h) + var(--dock-gap) * 2 + env(safe-area-inset-bottom, 0px));
+ max-height: min(62vh, 560px);
+ overflow-y: auto;
+ -webkit-overflow-scrolling: touch;
+ padding: 14px;
+ background: var(--bubble-ai, rgba(20,20,20,.96));
+ border: 1px solid var(--border, #26262a);
+ border-radius: 18px;
+ box-shadow: 0 12px 36px rgba(0,0,0,.4);
+ backdrop-filter: saturate(150%) blur(14px);
+ -webkit-backdrop-filter: saturate(150%) blur(14px);
+ z-index: 8;
+ font-size: 13px;
+ color: inherit;
+ text-align: left;
+ font-style: normal;
+ }
+}
+
+html[data-theme="glass"] .mobile-bottom-tabs {
+ background: rgba(255,255,255,.9);
+ border-color: rgba(15,30,60,.10);
+ box-shadow: 0 10px 30px rgba(15,30,60,.12);
+}
+html[data-theme="glass"] .mobile-tab-btn { color: #6a7280; }
+html[data-theme="glass"] .mobile-tab-btn.active {
+ color: #345d7c;
+ background: rgba(63,111,143,.16);
+ box-shadow: inset 0 0 0 1px rgba(63,111,143,.4), 0 0 16px rgba(63,111,143,.18);
+}
+html[data-theme="glass"] .mobile-tab-panel.active {
+ background: rgba(255,255,255,.97);
+ color: #6a7280;
+ border-color: rgba(15,30,60,.10);
+}
+
+html[data-theme="candle"] .mobile-bottom-tabs {
+ background: rgba(20,13,8,.94);
+ border-color: rgba(217,168,104,.28);
+ box-shadow: 0 10px 30px rgba(217,168,104,.14);
+}
+html[data-theme="candle"] .mobile-tab-btn { color: #8a7a6a; }
+html[data-theme="candle"] .mobile-tab-btn.active {
+ color: #f2e7d6;
+ background: rgba(217,168,104,.24);
+ box-shadow: inset 0 0 0 1px rgba(217,168,104,.55), 0 0 16px rgba(217,168,104,.2);
+}
+html[data-theme="candle"] .mobile-tab-panel.active {
+ background: rgba(20,13,8,.97);
+ color: #a89a8a;
+ border-color: rgba(217,168,104,.22);
+}/* ════════════════════════════════════════════════════════════
+ Phase 4 阶段 4.5 · 顶栏二次修整 + 剪影避让 + 自定义按钮入顶栏
+ 用户反馈定位:
+ - 剪影在 1024-1200px 之间挡住发送键(@1024 right:240px 不够避开 composer)
+ - modeToggle 文字看不全(width:auto 但 4.4-A 的 #topbar .iconbtn { flex: 0 0 34px } 把宽度压回 34px)
+ - 自定义模式开关从左侧栏拿到顶栏圆按钮(放 sync 左侧)
+ - cost / mode 文字对比度兜底提亮
+ ════════════════════════════════════════════════════════════ */
+
+/* 4.5-B modeToggle 文字被 4.4-A flex 卡死:override flex auto + 加粗 */
+#topbar #modeToggle {
+ flex: 0 0 auto !important;
+ font-weight: 600;
+ letter-spacing: .3px;
+ line-height: 1;
+}
+
+/* 4.5-C cost / model-label 对比度兜底提亮 */
+#topbar #costDisplay.topbar-cost-inline { color: #eaeaea; }
+#topbar .model-label { color: #eaeaea; font-weight: 500; }
+
+
+#topbar #personaToggle {
+ width: auto;
+ height: 34px;
+ min-width: 34px;
+ flex: 0 0 auto;
+ border-radius: 9px;
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ font-size: 17px;
+ padding: 0 11px;
+ white-space: nowrap;
+ cursor: pointer;
+ border: 1px solid #2a2a2a;
+ background: #101010;
+ color: #fff;
+ font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Symbol", sans-serif;
+ line-height: 1;
+ transition: background-color .2s, border-color .2s, box-shadow .2s, transform .15s;
+}
+#topbar #personaToggle:hover {
+ transform: translateY(-1px);
+ background: #1a1a1a;
+ box-shadow: 0 4px 14px rgba(140,100,220,.28);
+}
+
+html[data-theme="glass"] #topbar #personaToggle {
+ background: rgba(255,255,255,.82);
+ border-color: rgba(15,30,60,.1);
+ color: #1a1f2e;
+ box-shadow: 0 2px 8px rgba(60,90,120,.07);
+}
+html[data-theme="glass"] #topbar #personaToggle:hover {
+ background: #fff;
+ box-shadow: 0 4px 14px rgba(63,111,143,.28);
+}
+html[data-theme="candle"] #topbar #personaToggle {
+ background: rgba(40,28,18,.55);
+ border-color: rgba(217,168,104,.32);
+ color: #f2e7d6;
+}
+html[data-theme="candle"] #topbar #personaToggle:hover {
+ background: rgba(217,168,104,.28);
+ border-color: rgba(217,168,104,.6);
+ box-shadow: 0 4px 14px rgba(217,168,104,.42);
+}/* ═══════════════════════════════════════════════
+ Phase 4 阶段 4.6 · 顶栏 cost 占位 + 手机鱼缸可折叠
+ - A: 免费模式 #costDisplay 为空时用「💰 —」占位，不再 display:none 留下丑陆空白
+ - B: 手机鱼缸控制台点击 header 折叠/展开，默认手机上折叠仅示 header + chip
+ ═══════════════════════════════════════════════ */
+
+/* 4.6-A 免费模式 cost 占位（不再留空） */
+/* 2026-10-04: 空态占位废止 —— app.js 现已保证费用区永远有内容(免费模式显示「免费模式 · 不计费」),
+   :empty 只剩刷新首帧的一瞬:旧规则会先闪一个「💰 —」占位符再被费用文字覆盖(肉眼可见的 emoji 闪现)。
+   改为空态直接隐藏,首帧不再出现任何占位。 */
+#topbar #costDisplay.topbar-cost-inline:empty {
+ display: none !important;
+}
+
+
+@media (max-width: 768px) {
+ /* 收掉横滑容器,三分区铺满整条 */
+ #topbar #topbarScroll,
+ #topbar .topbar-scroll { overflow-x: visible; }
+ #topbar .topbar-inner {
+ flex-wrap: nowrap;
+ width: 100%;
+ min-width: 0;
+ gap: 8px;
+ align-items: center;
+ }
+ /* 中间模型胶囊吃掉富余空间并居中,两端控件固定不挤压 */
+ #topbar .pill.model-pill {
+ flex: 1 1 auto;
+ min-width: 0;
+ justify-content: center;
+ }
+ #topbar .pill.model-pill select {
+ width: 100%;
+ min-width: 0;
+ max-width: 220px;
+ }
+ /* 「Model」文字标签手机隐藏 */
+ #topbar .model-label { display: none !important; }
+ /* 费用彻底不进手机顶栏(连 4.6-A 空占位一起) */
+ #topbar #costDisplay,
+ #topbar #costDisplay.topbar-cost-inline,
+ #topbar #costDisplay.topbar-cost-inline:empty { display: none !important; }
+}
+/* 2026-10-04: 「💰 —」空态占位符已删除(空态改隐藏,见上方 4.6-A 注释;这是刷新闪 emoji 的根源) */
+
+/* 4.10 删除 4.6-B 鱼缸控制台折叠 CSS：折叠态让 panel 只显 header 「一条」遮思考按钮，与 4.8-A body.fishbowl-shown 整体 toggle 冲突。完全删掉 .collapsed 规则 + ▾ icon + cursor pointer。由 4.8-A display:none/flex 兜底（手机点鱼缸 tab 直接整面板隐藏，无任何残影）。 */
+
+/* ═══════════════════════════════════════════════
+ 提示词编辑器（Prompt Editor）· 唯一 CSS 来源
+ - 2026-10-06：原先这里一份、prompt-editor.js 又自我注入一份（带 !important），两处值还不一样；
+   现在只留这一份（搬进来的是运行时那份较新的规则）。改样式只改这里，别再往 JS 里塞 <style>。
+ - 主题配色见下方 Glass / candle 段。
+ ═══════════════════════════════════════════════ */
+#unlimitedEditorMask { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(8,8,12,.66); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+#unlimitedEditorMask.open { display: flex; }
+#unlimitedEditor { --ue-accent: var(--ue-tab-accent, rgba(180,180,180,.75)); --ue-accent-soft: color-mix(in srgb, var(--ue-tab-accent, rgba(180,180,180,.75)) 16%, transparent); display: flex; flex-direction: column; width: min(880px, 96vw); max-height: 90vh; overflow: hidden; background: var(--bg, #0f0f12); color: inherit; border: 1px solid rgba(127,127,127,.3); border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+@keyframes uePopIn { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+#unlimitedEditorMask.open #unlimitedEditor { animation: uePopIn .22s ease; }
+#unlimitedEditor .ue-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; flex-shrink: 0; border-bottom: 1px solid rgba(127,127,127,.2); background: linear-gradient(135deg, var(--ue-accent-soft), transparent 72%); }
+#unlimitedEditor .ue-title { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+#unlimitedEditor .ue-title svg { color: var(--ue-accent); }
+#unlimitedEditor .ue-badge { font-size: 11px; font-weight: 500; opacity: .7; padding: 2px 8px; border: 1px solid currentColor; border-radius: 999px; }
+#unlimitedEditor .ue-close { width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(127,127,127,.3); background: transparent; color: inherit; cursor: pointer; font-size: 15px; line-height: 1; flex: 0 0 auto; }
+#unlimitedEditor .ue-close:hover { background: rgba(255,80,80,.14); color: #ff7777; border-color: #ff7777; }
+#unlimitedEditor .ue-tabs { display: flex !important; flex-wrap: nowrap !important; flex-shrink: 0; gap: 6px; padding: 14px 16px 12px; overflow-x: auto !important; border-bottom: 1px solid rgba(127,127,127,.15); -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+#unlimitedEditor .ue-tabs::-webkit-scrollbar { display: none; }
+#unlimitedEditor .ue-tab { display: inline-flex !important; align-items: center; justify-content: center; gap: 6px; flex: 0 0 auto !important; white-space: nowrap !important; padding: 8px 16px; margin-bottom: 0 !important; border: 1px solid transparent; border-radius: 10px; background: rgba(127,127,127,.07); color: inherit; cursor: pointer; font-size: 13px; line-height: 1.2; opacity: .6; transition: background .15s, opacity .15s, border-color .15s, box-shadow .15s; }
+#unlimitedEditor .ue-tab:hover { opacity: 1; background: rgba(127,127,127,.1); }
+#unlimitedEditor .ue-tab.active { opacity: 1; border-color: var(--ue-accent); background: var(--ue-accent-soft); color: var(--ue-accent); font-weight: 600; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+#unlimitedEditor .ue-tab.active svg { color: var(--ue-accent); }
+#unlimitedEditor .ue-tab-icon { font-size: 15px; flex: 0 0 auto; }
+#unlimitedEditor .ue-tab-label { display: inline !important; flex: 0 0 auto; }
+#unlimitedEditor .ue-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 20px; }
+#unlimitedEditor .ue-panel-icon { color: var(--ue-accent); }
+#unlimitedEditor .ue-panel-name { font-size: 18px; font-weight: 700; letter-spacing: .2px; }
+#unlimitedEditor .ue-panel-head { display: flex; align-items: center; gap: 9px; padding-bottom: 12px; margin-bottom: 2px; border-bottom: 1px solid rgba(127,127,127,.14); }
+#unlimitedEditor .ue-panel-desc { font-size: 12.5px; line-height: 1.65; opacity: .62; margin: 12px 0 2px; max-width: 760px; }
+#unlimitedEditor .ue-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid rgba(127,127,127,.2); background: rgba(127,127,127,.04); }
+#unlimitedEditor .ue-footer-hint { font-size: 11px; opacity: .55; }
+#unlimitedEditor .ue-btn-ghost { padding: 6px 14px; border-radius: 8px; border: 1px solid rgba(127,127,127,.3); background: transparent; color: inherit; cursor: pointer; font-size: 13px; }
+#unlimitedEditor .ue-btn-ghost:hover { background: rgba(127,127,127,.15); }
+@media (max-width: 640px) { #unlimitedEditorMask { padding: 0; } #unlimitedEditor { width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; border: none; } #unlimitedEditor .ue-header { padding: 12px 14px; } #unlimitedEditor .ue-tabs { padding: 10px 12px 8px; } #unlimitedEditor .ue-body { padding: 12px 14px 16px; } #unlimitedEditor .ue-tab { padding: 8px 13px; } }
+.ue-toolbar { display: flex; flex-wrap: wrap; gap: 10px; row-gap: 10px; align-items: center; margin: 16px 0 14px; padding: 10px 12px; border-radius: 12px; background: rgba(127,127,127,.04); border: 1px solid rgba(127,127,127,.1); }
+.ue-toolbar-spacer { flex: 1; }
+.ue-count { font-size: 12px; opacity: .65; }
+.ue-btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 9px; border: 1px solid rgba(127,127,127,.3); background: rgba(127,127,127,.06); color: inherit; cursor: pointer; font-size: 13px; line-height: 1.3; opacity: .9; }
+.ue-btn:hover { opacity: 1; background: rgba(127,127,127,.12); }
+.ue-btn-primary { border-color: var(--ue-accent); background: var(--ue-accent); color: #fff; opacity: 1; }
+.ue-btn-primary:hover { background: var(--btn-bg-hover, var(--ue-accent)); }
+.ue-preset-list { display: flex; flex-direction: column; gap: 9px; margin: 10px 0 18px; }
+.ue-preset-row { display: grid; grid-template-columns: auto minmax(110px, 200px) 1fr auto; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 13px; background: rgba(127,127,127,.05); border: 1px solid rgba(127,127,127,.16); transition: border-color .16s, background .16s, box-shadow .16s, transform .16s; }
+.ue-preset-row:hover { background: rgba(127,127,127,.09); border-color: rgba(127,127,127,.28); box-shadow: 0 4px 16px rgba(0,0,0,.1); transform: translateY(-1px); }
+.ue-preset-row.enabled { border-color: var(--ue-accent); box-shadow: inset 3px 0 0 var(--ue-accent); background: var(--ue-accent-soft); }
+.ue-preset-tog { display: flex; align-items: center; gap: 8px; cursor: pointer; min-width: 0; }
+.ue-preset-preview { font-size: 12px; opacity: .65; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ue-preset-ops { display: flex; gap: 4px; }
+.ue-mini { padding: 2px 8px; font-size: 13px; line-height: 1.2; border-radius: 6px; border: 1px solid rgba(127,127,127,.3); background: transparent; color: inherit; cursor: pointer; }
+.ue-mini:hover { background: rgba(127,127,127,.18); }
+.ue-mini.danger:hover { background: rgba(255, 80, 80, .15); color: #ff7777; border-color: #ff7777; }
+.ue-empty { padding: 28px 16px; text-align: center; opacity: .55; font-size: 13px; border: 1px dashed rgba(127,127,127,.3); border-radius: 10px; }
+.ue-editor-slot:empty { display: none; }
+.ue-preset-drag { cursor: grab; opacity: .4; font-size: 15px; user-select: none; }
+.ue-preset-row.dragging { opacity: .4; }
+.ue-preset-row.dragover { border-color: currentColor; box-shadow: 0 -2px 0 currentColor inset; }
+.ue-pgroup-head { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; padding: 6px 8px; border-radius: 8px; background: rgba(127,127,127,.1); cursor: pointer; user-select: none; }
+.ue-pgroup-arrow { width: 14px; opacity: .7; }
+.ue-pgroup-name { font-weight: 600; font-size: 13px; }
+.ue-pgroup-count { font-size: 11px; opacity: .6; background: rgba(127,127,127,.2); border-radius: 10px; padding: 1px 7px; }
+.ue-pgroup-del { margin-left: auto; }
+.ue-pgroup-body { display: flex; flex-direction: column; gap: 6px; padding-left: 6px; border-left: 2px solid rgba(127,127,127,.18); margin-bottom: 6px; }
+.ue-editor-card { margin-top: 10px; padding: 14px; border-radius: 10px; background: rgba(127,127,127,.08); border: 1px solid var(--ue-accent); box-shadow: 0 6px 24px rgba(0,0,0,.12); }
+.ue-editor-head { color: var(--ue-accent); }
+.ue-editor-head { font-weight: 600; margin-bottom: 10px; font-size: 14px; }
+.ue-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.ue-field > span { font-size: 12px; opacity: .7; }
+.ue-input, .ue-textarea { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(127,127,127,.35); background: rgba(0,0,0,.15); color: inherit; font: inherit; box-sizing: border-box; }
+.ue-input:focus, .ue-textarea:focus { outline: none; border-color: var(--ue-accent); box-shadow: 0 0 0 3px var(--ue-accent-soft); }
+.ue-textarea { resize: vertical; min-height: 100px; }
+.ue-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.55; }
+.ue-editor-foot { display: flex; gap: 8px; margin-top: 8px; }
+/* 2026-10-06: 头像从独立网格列改成内联在名字里（角色行与指令模块行同构，只差一条拖拽抓手） */
+.ue-char-ava { font-size: 16px; margin-right: 5px; }
+.ue-char-cur { font-size: 10px; padding: 0 6px; border-radius: 8px; border: 1px solid currentColor; opacity: .8; margin-left: 4px; }
+.ue-char-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 640px) {
+  .ue-toolbar { gap: 7px; }
+  .ue-toolbar .ue-btn { flex: 1 1 calc(50% - 4px); justify-content: center; padding: 9px 8px; }
+  .ue-toolbar-spacer { display: none; }
+  .ue-count { flex: 1 1 100%; text-align: center; order: 9; }
+  .ue-mini { padding: 5px 11px; font-size: 14px; }
+  .ue-preset-row { grid-template-columns: 1fr; gap: 6px; padding: 12px 13px; }
+  .ue-preset-preview { white-space: normal; -webkit-line-clamp: 2; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+  .ue-preset-ops { justify-content: flex-end; }
+  .ue-char-grid2 { grid-template-columns: 1fr; }
+}
+
+/* Glass */
+html[data-theme="glass"] #unlimitedEditor {
+ background: rgba(255,255,255,.97);
+ border: 1px solid rgba(15,30,60,.1);
+ color: #1a1f2e;
+ box-shadow: 0 30px 80px rgba(60,90,120,.28);
+}
+html[data-theme="glass"] .ue-title { color: #1a1f2e; }
+html[data-theme="glass"] .ue-header,
+html[data-theme="glass"] .ue-footer {
+ background: rgba(248,250,253,.92);
+ border-color: rgba(15,30,60,.08);
+}
+html[data-theme="glass"] .ue-tabs {
+ background: rgba(255,255,255,.95);
+ border-bottom-color: rgba(15,30,60,.08);
+}
+html[data-theme="glass"] .ue-tab { color: #6a7280; }
+html[data-theme="glass"] .ue-tab:hover { color: #1a1f2e; background: rgba(15,30,60,.04); }
+html[data-theme="glass"] .ue-tab.active {
+ background: #fff;
+ border-color: rgba(15,30,60,.1);
+ color: #1a1f2e;
+ border-bottom-color: #fff;
+}
+html[data-theme="glass"] .ue-body { background: #fff; }
+html[data-theme="glass"] .ue-panel-name { color: #1a1f2e; }
+html[data-theme="glass"] .ue-panel-desc { color: #4a5160; }
+html[data-theme="glass"] .ue-close,
+html[data-theme="glass"] .ue-btn-ghost {
+ background: rgba(255,255,255,.9);
+ border-color: rgba(15,30,60,.12);
+ color: #1a1f2e;
+}
+html[data-theme="glass"] .ue-close:hover,
+html[data-theme="glass"] .ue-btn-ghost:hover { background: #fff; }
+html[data-theme="glass"] .ue-footer-hint { color: #6a7280; }
+html[data-theme="glass"] .ue-badge {
+ background: rgba(63,111,143,.14);
+ color: #345d7c;
+ border-color: rgba(63,111,143,.42);
+}
+
+/* candle */
+html[data-theme="candle"] #unlimitedEditor {
+ background: rgba(20,13,8,.97);
+ border: 1px solid rgba(217,168,104,.32);
+ color: #f2e7d6;
+ box-shadow: 0 30px 80px rgba(0,0,0,.7), 0 0 60px rgba(217,168,104,.18);
+}
+html[data-theme="candle"] .ue-title { color: #f2e7d6; }
+html[data-theme="candle"] .ue-header,
+html[data-theme="candle"] .ue-footer {
+ background: rgba(23,16,9,.95);
+ border-color: rgba(217,168,104,.22);
+}
+html[data-theme="candle"] .ue-tabs {
+ background: rgba(20,13,8,.95);
+ border-bottom-color: rgba(217,168,104,.22);
+}
+html[data-theme="candle"] .ue-tab { color: #a89a8a; }
+html[data-theme="candle"] .ue-tab:hover { color: #f2e7d6; background: rgba(217,168,104,.15); }
+html[data-theme="candle"] .ue-tab.active {
+ background: rgba(40,28,18,.6);
+ border-color: rgba(217,168,104,.32);
+ color: #f2e7d6;
+ border-bottom-color: rgba(40,28,18,.6);
+}
+html[data-theme="candle"] .ue-body { background: rgba(40,28,18,.4); }
+html[data-theme="candle"] .ue-panel-name { color: #f2e7d6; }
+html[data-theme="candle"] .ue-panel-desc { color: #a89a8a; }
+html[data-theme="candle"] .ue-close,
+html[data-theme="candle"] .ue-btn-ghost {
+ background: rgba(40,28,18,.55);
+ border-color: rgba(217,168,104,.32);
+ color: #f2e7d6;
+}
+html[data-theme="candle"] .ue-close:hover,
+html[data-theme="candle"] .ue-btn-ghost:hover { background: rgba(217,168,104,.25); }
+html[data-theme="candle"] .ue-footer-hint { color: #8a7a6a; }
+html[data-theme="candle"] .ue-badge {
+ background: rgba(217,168,104,.22);
+ color: #f2e7d6;
+ border-color: rgba(217,168,104,.5);
+}
+
+/* 手机端 modal 适配 */
+@media (max-width: 768px) {
+ #unlimitedEditorMask { padding: 10px; }
+ #unlimitedEditor { max-height: 92vh; }
+ .ue-header { padding: 10px 14px; }
+ .ue-title { font-size: 14px; }
+ .ue-tabs { padding: 6px 8px 0; }
+ .ue-tab { font-size: 12px; padding: 7px 10px; }
+ .ue-tab-label { display: none; } /* 手机仅图标节省横向空间 */
+ .ue-tab-icon { font-size: 16px; }
+ .ue-body { padding: 14px 16px; }
+ .ue-panel-name { font-size: 15px; }
+ .ue-panel-desc { font-size: 12.5px; }
+ .ue-footer { padding: 8px 12px; }
+ .ue-footer-hint { display: none; }
+}
+
+/* ═══════════════════════════════════════════════
+ 2026-10-06 · 图像工坊(img-*)四主题覆盖
+ 与上方 ue-* 同构:工坊本体样式在 image-embed.js 运行时注入,强调色统一走 --ue-tab-accent;
+ 这里只做亮色主题的面板底/描边修正与各主题细节,与编辑器视觉完全同语言。
+ ═══════════════════════════════════════════════ */
+
+/* Glass */
+html[data-theme="glass"] .img-studio {
+ background: rgba(255,255,255,.97);
+ border: 1px solid rgba(15,30,60,.1);
+ color: #1a1f2e;
+ box-shadow: 0 30px 80px rgba(60,90,120,.28);
+}
+html[data-theme="glass"] .img-header { background: rgba(248,250,253,.92); border-bottom-color: rgba(15,30,60,.08); }
+html[data-theme="glass"] .img-tabs { background: rgba(255,255,255,.6); border-bottom-color: rgba(15,30,60,.08); }
+html[data-theme="glass"] .img-tab { color: #6a7280; }
+html[data-theme="glass"] .img-tab:hover { color: #1a1f2e; background: rgba(15,30,60,.05); }
+html[data-theme="glass"] .img-tab.active { background: #fff; border-color: rgba(15,30,60,.12); color: #1a1f2e; }
+html[data-theme="glass"] .img-close,
+html[data-theme="glass"] .img-btn:not(.img-btn-primary) { background: rgba(255,255,255,.9); border-color: rgba(15,30,60,.12); color: #1a1f2e; }
+html[data-theme="glass"] .img-close:hover { background: #fff; }
+html[data-theme="glass"] .img-input,
+html[data-theme="glass"] .img-textarea { background: rgba(15,30,60,.04); border-color: rgba(15,30,60,.14); }
+html[data-theme="glass"] .img-btn-primary { color: #fff; }
+html[data-theme="glass"] .img-badge-ver { color: #345d7c; border-color: rgba(63,111,143,.42); }
+
+/* candle */
+html[data-theme="candle"] .img-studio {
+ background: rgba(20,13,8,.97);
+ border: 1px solid rgba(217,168,104,.32);
+ color: #f2e7d6;
+ box-shadow: 0 30px 80px rgba(0,0,0,.7), 0 0 60px rgba(217,168,104,.18);
+}
+html[data-theme="candle"] .img-header { background: rgba(23,16,9,.95); border-bottom-color: rgba(217,168,104,.22); }
+html[data-theme="candle"] .img-tabs { background: rgba(20,13,8,.6); border-bottom-color: rgba(217,168,104,.22); }
+html[data-theme="candle"] .img-tab { color: #a89a8a; }
+html[data-theme="candle"] .img-tab:hover { color: #f2e7d6; background: rgba(217,168,104,.15); }
+html[data-theme="candle"] .img-tab.active { background: rgba(40,28,18,.6); border-color: rgba(217,168,104,.4); color: #f2e7d6; }
+html[data-theme="candle"] .img-input,
+html[data-theme="candle"] .img-textarea { background: rgba(20,13,8,.6); border-color: rgba(217,168,104,.28); }
+html[data-theme="candle"] .img-close,
+html[data-theme="candle"] .img-btn:not(.img-btn-primary) { background: rgba(40,28,18,.55); border-color: rgba(217,168,104,.32); color: #f2e7d6; }
+html[data-theme="candle"] .img-close:hover { background: rgba(217,168,104,.25); }
+
+/* ═══════════════════════════════
+ Phase 4 阶段 4.8 · UI 三件套
+ - A: 移动端鱼缸面板默认 hidden,点鱼缸 tab 才 toggle 显示
+ - B: 顶栏 .topbar-spacer-left + 原 spacer 夹住 model pill,桌面居中
+ - C: 移动端 tab 54→46px / composer 瘦身 / 思考按钮缩
+ ═══════════════════════════════ */
+
+/* 4.8-A 移动端鱼缸默认 hidden,toggle on 才显示 */
+@media (max-width: 1023px) {
+ .fishbowl-side-panel { display: none !important; }
+ body.fishbowl-shown .fishbowl-side-panel { display: flex !important; }
+}
+
+/* 4.8-B 顶栏 model 居中：left-spacer（mode后）+ 原 spacer（cost后）夹住 */
+.topbar-spacer-left {
+ flex: 1 1 auto;
+ min-width: 0;
+}
+@media (max-width: 1023px) {
+ /* 手机端把左右两个 spacer 都隐藏。原仅隐 .topbar-spacer-left,遗漏了 .topbar-spacer(flex:1 1 auto 的撑开空 span) → 手机顶栏中段残留一条与背景同色的空白「占位条」(费用栏手机已隐藏,spacer 失去存在意义)。手机不需 spacer 居中:model-pill 自身 flex:1 已能填满,一并隐藏消除多余空条。 */
+ .topbar-spacer-left,
+ .topbar-spacer { display: none; }
+}
+
+/* 4.8-C 移动端瘦身一揽子(2026-09-14 UI第二轮:底栏尺寸/间距已由上方悬浮胶囊 dock 块统一接管,此处仅保留 composer 瘦身) */
+@media (max-width: 1023px) {
+ .input-inner { padding: 7px 10px; border-radius: 18px; }
+ textarea#msg { padding: 4px 4px 4px 8px; font-size: 15px; }
+ button#sendBtn { width: 34px; height: 34px; flex-basis: 34px; }
+ button#sendBtn svg { width: 16px; height: 16px; }
+
+ .composer-toolbar { margin-bottom: 4px; gap: 6px; }
+ .chip-btn { padding: 4px 9px; font-size: 11px; }
+ #thinkToggle { padding: 3px 8px; }
+
+ #bottom-spacer { height: 100px; }
+}
+
+.bubble {
+ font-size: var(--chat-font-size);
+ font-family: var(--chat-font-family);
+}
+
+/* 隐藏消息行操作按钮 + token 统计数字(一起隐 — 干净聊天场景不需要看 prompt/completion/累计) */
+html.hide-msg-actions .my-action-btns,
+html.hide-msg-actions .stats {
+ display: none !important;
+}
+
+/* candle msg-action-btn 升级:原 rgba(40,28,18,.45) 背景过暗看不出主题 */
+html[data-theme="candle"] .msg-action-btn {
+ background: rgba(217, 168, 104, .14);
+ border: 1px solid rgba(217, 168, 104, .42);
+ color: #f2e7d6;
+}
+html[data-theme="candle"] .msg-action-btn:hover {
+ background: rgba(217, 168, 104, .32);
+ color: #f2e7d6;
+ border-color: rgba(217, 168, 104, .7);
+ box-shadow: 0 2px 8px rgba(217, 168, 104, .25);
+}
+
+/* ═══════════════════════════════
+ Phase 4 阶段 4.18 · 微信模式 typing 动画
+ - .wechat-typing: 流式期间「正在输入···」呼吸动画 (4 主题)
+ (4.82: 删掉 .settings-footer 整套规则(含 4 主题覆盖) —— 实际 DOM 用的是
+  <div class="rowline" id="settingsFooter">,该 class 全项目零引用,4.18 时代遗留)
+ ═══════════════════════════════ */
+
+.bubble.wechat-typing {
+ color: #888;
+ font-style: italic;
+ letter-spacing: 1px;
+ animation: wechat-typing-pulse 1.2s ease-in-out infinite;
+}
+@keyframes wechat-typing-pulse {
+ 0%, 100% { opacity: .55; }
+ 50% { opacity: 1; }
+}
+html[data-theme="glass"] .bubble.wechat-typing { color: #6a7280; }
+html[data-theme="candle"] .bubble.wechat-typing { color: #f2e7d6; }/* ═══════════════════════════════
+ Phase 4 阶段 4.26 · ⑦ 思考按钮并入输入框（内联）
+ - composer-toolbar 不再单独占一行：空时隐藏
+ - #thinkToggle 移入 .input-inner，作为输入框内左侧小药丸，与发送键左右呼应
+ - 颜色沿用 .chip-btn 各主题规则（这里只调几何尺寸/对齐），active 态仍由 .chip-btn.active 接管
+ ═══════════════════════════════ */
+.composer-toolbar:empty { display: none; margin: 0; }
+.input-inner #thinkToggle {
+ align-self: center;
+ flex: 0 0 auto;
+ margin: 0;
+ padding: 5px 11px;
+ font-size: 12px;
+ line-height: 1.2;
+}
+@media (max-width: 1023px) {
+ .input-inner #thinkToggle { padding: 4px 9px; font-size: 11px; }
+}
+
+/* ═══════════════════════════════
+ Phase 4 阶段 4.27 · 全局视觉打磨 v1（提设计感，尊重各主题气质）
+ 思路：真正“没设计感”的是基底结构层（minimal 纯平色块），而这层被所有主题共享。
+ 本版：基底提质（气泡层次/头像立体/字体渲染/输入框质感）+ 全主题通用（选区/聚焦环按各自 accent）。
+ 不动任何一个主题已调好的配色（他们的 .bubble/.pill 等特异度更高，会覆盖本基底规则）。
+ ═══════════════════════════════ */
+
+/* —— 全主题通用：更清晰的字体渲染 —— */
+html, body {
+ -webkit-font-smoothing: antialiased;
+ -moz-osx-font-smoothing: grayscale;
+ text-rendering: optimizeLegibility;
+}
+
+/* —— minimal 基底气泡：纯平 → 微层次 + AI/user 微渐变（主题会各自覆盖） —— */
+.bubble {
+ box-shadow: 0 1px 2px rgba(0,0,0,.25), 0 3px 10px rgba(0,0,0,.12);
+}
+.bubble.ai {
+ background: linear-gradient(180deg, #181818, #121212);
+ border-color: #272727;
+}
+.bubble.user {
+ background: linear-gradient(180deg, #242424, #1b1b1b);
+ border-color: #303030;
+}
+
+/* —— 头像：描边光晕 + 轻微立体（全主题通用，主题只换背景色） —— */
+.avatar {
+ box-shadow: 0 2px 6px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+/* —— 顶栏胶囊/图标按钮：基底微立体（主题设了 box-shadow 的会覆盖） —— */
+.pill, .iconbtn {
+ box-shadow: 0 1px 2px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+/* —— meta 时间戳/名签：字距与字重精修（全主题继承，颜色随主题） —— */
+.meta {
+ font-size: 11.5px;
+ letter-spacing: .2px;
+ font-weight: 500;
+ opacity: .92;
+}
+
+/* —— minimal 发送键：纯平 → 微渐变 + 质感阴影（主题覆盖其渐变） —— */
+button#sendBtn {
+ background: linear-gradient(180deg, #474747, #343434);
+ box-shadow: 0 2px 8px rgba(0,0,0,.32);
+}
+
+/* —— 文本选区：各主题用自己的强调色 —— */
+::selection { background: rgba(140,120,230,.32); }
+html[data-theme="glass"] ::selection { background: rgba(63,111,143,.22); }
+html[data-theme="candle"] ::selection { background: rgba(217,168,104,.34); color: #fff; }/* —— 输入框聚焦环：各主题随 accent（聚焦时才亮） —— */
+.input-inner:focus-within {
+ border-color: rgba(140,120,230,.5);
+ box-shadow: 0 10px 30px rgba(0,0,0,.45), 0 0 0 3px rgba(140,120,230,.14);
+}
+html[data-theme="glass"] .input-inner:focus-within {
+ border-color: rgba(79,136,168,.5);
+ box-shadow: 0 12px 40px rgba(60,90,120,.14), 0 0 0 3px rgba(79,136,168,.14);
+}
+html[data-theme="candle"] .input-inner:focus-within {
+ border-color: rgba(217,168,104,.6);
+ box-shadow: 0 10px 28px rgba(217,168,104,.22), 0 0 0 3px rgba(217,168,104,.16);
+}/* —— 发送键发光按主题 accent（hover），minimal 走中性高光 —— */
+button#sendBtn:hover { box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+
+
+
+/* ─── minimal = Notion 风（平 / 锐 / 克制） ─── */
+html:not([data-theme]):not([data-scheme="dark"]) .bubble {
+ background: #1a1a1a;
+ border: 1px solid #262626;
+ border-radius: 10px;
+ box-shadow: none;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .bubble.ai { background: #161616; }
+html:not([data-theme]):not([data-scheme="dark"]) .bubble.user { background: #232323; }
+html:not([data-theme]):not([data-scheme="dark"]) .input-inner { border-radius: 13px; box-shadow: 0 2px 12px rgba(0,0,0,.32); }
+html:not([data-theme]):not([data-scheme="dark"]) button#sendBtn { background: #2c2c2c; box-shadow: none; }
+html:not([data-theme]):not([data-scheme="dark"]) button#sendBtn:hover { background: #383838; box-shadow: none; transform: none; }
+html:not([data-theme]):not([data-scheme="dark"]) .input-inner:focus-within {
+ border-color: #4a5160;
+ box-shadow: 0 2px 12px rgba(0,0,0,.35), 0 0 0 3px rgba(120,130,150,.12);
+}
+html:not([data-theme]):not([data-scheme="dark"]) .avatar { box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+html:not([data-theme]):not([data-scheme="dark"]) ::selection { background: rgba(120,130,150,.28); }
+
+/* ─── glass = 动态设计网页感（玻璃 + 缓动 + 浮起） ─── */
+@keyframes glass-bg-drift {
+ 0%, 100% { background-position: 0% 0%, 100% 0%, 50% 100%, 0 0; }
+ 50% { background-position: 25% 18%, 72% 28%, 42% 82%, 0 0; }
+}
+html[data-theme="glass"] body {
+ background-size: 200% 200%, 200% 200%, 200% 200%, auto;
+ animation: glass-bg-drift 26s ease-in-out infinite;
+}
+html[data-theme="glass"] .bubble {
+ border-radius: 24px;
+ transition: transform .28s ease, box-shadow .28s ease;
+}
+html[data-theme="glass"] .row:hover .bubble {
+ transform: translateY(-2px);
+ box-shadow: 0 10px 28px rgba(60,90,120,.16);
+}
+html[data-theme="glass"] .iconbtn:hover,
+html[data-theme="glass"] .sidebar-btn:hover:not([disabled]) {
+ transform: translateY(-2px);
+}
+@media (prefers-reduced-motion: reduce) {
+ html[data-theme="glass"] body { animation: none; }
+}
+/* ↑ 4.28 minimal+glass 气质 ↑ */
+
+
+/* 注：不覆盖 .bubble box-shadow——保留 --pulse 心跳呼吸这个招牌效果 */
+html[data-theme="candle"] .bubble {
+ transition-duration: .45s;
+}
+html[data-theme="candle"] .bubble.ai { border-radius: 22px 22px 22px 7px; }
+html[data-theme="candle"] .bubble.user { border-radius: 22px 22px 7px 22px; }
+html[data-theme="candle"] .meta {
+ font-style: italic;
+ letter-spacing: .5px;
+}
+html[data-theme="candle"] .input-inner:focus-within {
+ box-shadow: 0 0 0 3px rgba(217,168,104,.30), 0 8px 30px rgba(217,168,104,.22);
+}
+
+/* ↑ 4.28 candle 气质 ↑ */
+
+/* ═══════════════════════════════
+ Phase 4 阶段 4.29 · 极简主题 = 纯白 Notion 风（大改：深色 → 白底亮色）
+ 目标：让极简与三个深色/亮色主题拉开最大差距 —— 干净、克制、Notion 原生白。
+ 实现：html:not([data-theme]):not([data-scheme="dark"]) 命中 minimal（theme.js 对 minimal removeAttribute），
+ 系统性覆盖 token + 所有基底深色硬编码（顶栏/气泡/输入/弹窗/侧栏/移动 tab…）。
+ Notion 调色板：底 #fff · 次面 #fbfbfa · 灰块 #f7f7f5 · 字 #37352f · 次字 #787774
+ · 描边 #e9e9e7 · 强调蓝 #2383e2
+ 分 A/B/C 三段落地（A=主聊天+顶栏+输入，B=弹窗/表单，C=侧栏/移动/杂项）
+ ════════════════════════════════ */
+
+/* —— 4.29-A token + 主聊天 / 顶栏 / 输入 —— */
+html:not([data-theme]):not([data-scheme="dark"]) {
+ --bg: #ffffff;
+ --border: #e9e9e7;
+ --muted: #787774;
+ --bubble-ai: #f7f7f5;
+ --bubble-user: #37352f;
+ --input-bg: #ffffff;
+ --input-border: #e3e3e0;
+ --btn-bg: #2383e2;
+ --btn-bg-hover: #1a73d1;
+}
+html:not([data-theme]):not([data-scheme="dark"]) body { color: #37352f; }
+
+html:not([data-theme]):not([data-scheme="dark"]) #topbar {
+ background: linear-gradient(to bottom, rgba(255,255,255,.92), rgba(255,255,255,.7));
+ border-bottom: 1px solid #e9e9e7;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .pill,
+html:not([data-theme]):not([data-scheme="dark"]) .iconbtn {
+ background: #ffffff;
+ border: 1px solid #e9e9e7;
+ color: #37352f;
+ box-shadow: 0 1px 2px rgba(15,15,15,.04);
+}
+html:not([data-theme]):not([data-scheme="dark"]) .iconbtn:hover { background: #f1f1ef; }
+html:not([data-theme]):not([data-scheme="dark"]) select { background:#fff; color:#37352f; border:1px solid #e3e3e0; }
+html:not([data-theme]):not([data-scheme="dark"]) select option { background:#fff; color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) #topbar .model-label { color:#787774; font-weight:500; }
+html:not([data-theme]):not([data-scheme="dark"]) #topbar #costDisplay.topbar-cost-inline {
+ background:#fff; border:1px solid #e9e9e7; color:#37352f;
+}
+html:not([data-theme]):not([data-scheme="dark"]) #topbar #personaToggle {
+ background:#fff; border:1px solid #e9e9e7; color:#37352f;
+}
+html:not([data-theme]):not([data-scheme="dark"]) #topbar #personaToggle:hover {
+ background:#f1f1ef; box-shadow:0 2px 8px rgba(35,131,226,.18);
+}
+html:not([data-theme]):not([data-scheme="dark"]) #syncStatusIndicator {
+ background:#fff; border:1px solid #e9e9e7; color:#787774;
+}
+
+html:not([data-theme]):not([data-scheme="dark"]) .avatar { box-shadow: 0 1px 2px rgba(15,15,15,.08); }
+html:not([data-theme]):not([data-scheme="dark"]) .avatar.bot {
+ background: linear-gradient(135deg, #f1f1ef, #e3e3e0);
+ border:1px solid #e9e9e7; color:#37352f;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .avatar.human {
+ background: linear-gradient(135deg, #e6e6e3, #d6d6d2);
+ border:1px solid #e9e9e7; color:#37352f;
+}
+
+html:not([data-theme]):not([data-scheme="dark"]) .bubble {
+ background:#f7f7f5; border:1px solid #e9e9e7; border-radius:10px;
+ box-shadow:none; color:#37352f;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .bubble.ai { background:#f7f7f5; color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .bubble.user { background:#37352f; color:#fff; border-color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .meta,
+html:not([data-theme]):not([data-scheme="dark"]) .stats { color:#787774; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .input-inner {
+ background:#fff; border:1px solid #e3e3e0; border-radius:13px;
+ box-shadow: 0 4px 16px rgba(15,15,15,.08);
+}
+html:not([data-theme]):not([data-scheme="dark"]) textarea#msg { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) textarea#msg::placeholder { color:#9b9a97; }
+html:not([data-theme]):not([data-scheme="dark"]) .input-inner:focus-within {
+ border-color:#2383e2;
+ box-shadow: 0 4px 16px rgba(15,15,15,.10), 0 0 0 3px rgba(35,131,226,.16);
+}
+html:not([data-theme]):not([data-scheme="dark"]) button#sendBtn { background:#2383e2; color:#fff; box-shadow:none; }
+html:not([data-theme]):not([data-scheme="dark"]) button#sendBtn:hover {
+ background:#1a73d1; box-shadow:0 2px 8px rgba(35,131,226,.3); transform:translateY(-1px);
+}
+
+html:not([data-theme]):not([data-scheme="dark"]) .chip-btn { background:#fff; border:1px solid #e9e9e7; color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .chip-btn:hover:not(:disabled) { background:#f1f1ef; color:#37352f; border-color:#e3e3e0; }
+html:not([data-theme]):not([data-scheme="dark"]) .chip-btn.active { background: rgba(35,131,226,.12); border-color: rgba(35,131,226,.42); color:#1a73d1; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .reasoning-block { background:#fbfbfa; border-color:#e9e9e7; color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .reasoning-block .reasoning-text { border-top-color:#ececea; color:#787774; }
+
+html:not([data-theme]):not([data-scheme="dark"]) ::selection { background: rgba(35,131,226,.18); }
+html:not([data-theme]):not([data-scheme="dark"]) ::-webkit-scrollbar-thumb { background: rgba(55,53,47,.18); }
+/* —— 4.29-A 结束 —— */
+
+/* —— 4.29-B 弹窗 / 表单 / 角色面板 / 费用 / 主题选项 (4.82: 摘除组内 preset-* 死选择器) —— */
+html:not([data-theme]):not([data-scheme="dark"]) #settingsMask,
+html:not([data-theme]):not([data-scheme="dark"]) .char-panel-mask,
+html:not([data-theme]):not([data-scheme="dark"]) #unlimitedEditorMask { background: rgba(15,15,15,.32); }
+
+html:not([data-theme]):not([data-scheme="dark"]) #settings,
+html:not([data-theme]):not([data-scheme="dark"]) .char-panel,
+html:not([data-theme]):not([data-scheme="dark"]) #unlimitedEditor {
+ background:#fff; border:1px solid #e9e9e7; color:#37352f;
+ box-shadow: 0 30px 80px rgba(15,15,15,.16);
+}
+html:not([data-theme]):not([data-scheme="dark"]) #settingsHeader h3,
+html:not([data-theme]):not([data-scheme="dark"]) .char-panel-header h3,
+html:not([data-theme]):not([data-scheme="dark"]) .char-current-name,
+html:not([data-theme]):not([data-scheme="dark"]) .ue-title,
+html:not([data-theme]):not([data-scheme="dark"]) .ue-panel-name { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) #settingsHeader .hint,
+html:not([data-theme]):not([data-scheme="dark"]) .char-section-title,
+html:not([data-theme]):not([data-scheme="dark"]) .ue-panel-desc,
+html:not([data-theme]):not([data-scheme="dark"]) .ue-footer-hint { color:#787774; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .card { background:#fbfbfa; border:1px solid #e9e9e7; box-shadow:none; }
+html:not([data-theme]):not([data-scheme="dark"]) .card h4 { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .card p { color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .rowline { border-top-color:#ececea; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .smallbtn { background:#fff; border:1px solid #e3e3e0; color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .smallbtn:hover { background:#f1f1ef; }
+html:not([data-theme]):not([data-scheme="dark"]) .smallbtn.danger { background:#fdf0ef; border-color:rgba(220,38,38,.25); color:#b91c1c; }
+html:not([data-theme]):not([data-scheme="dark"]) .smallbtn.danger:hover { background:#fbe3e1; }
+
+html:not([data-theme]):not([data-scheme="dark"]) #customPrompt,
+html:not([data-theme]):not([data-scheme="dark"]) .char-input,
+html:not([data-theme]):not([data-scheme="dark"]) .char-textarea {
+ background:#fff; border:1px solid #e3e3e0; color:#37352f;
+}
+html:not([data-theme]):not([data-scheme="dark"]) #customPrompt:focus,
+html:not([data-theme]):not([data-scheme="dark"]) .char-input:focus,
+html:not([data-theme]):not([data-scheme="dark"]) .char-textarea:focus {
+ border-color:#2383e2; box-shadow:0 0 0 3px rgba(35,131,226,.14);
+}
+
+html:not([data-theme]):not([data-scheme="dark"]) .char-rel-btn { background:#fff; border-color:#e9e9e7; color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .char-rel-btn:hover { background:#f1f1ef; color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .char-rel-btn.active { background:#2383e2; border-color:#2383e2; color:#fff; }
+html:not([data-theme]):not([data-scheme="dark"]) .char-item { background:#fff; border:1px solid #e9e9e7; }
+html:not([data-theme]):not([data-scheme="dark"]) .char-item:hover { background:#fbfbfa; border-color:#d8d8d4; }
+html:not([data-theme]):not([data-scheme="dark"]) .char-item.active { background:#eef5fd; border-color:#2383e2; box-shadow:0 0 0 2px rgba(35,131,226,.18); }
+html:not([data-theme]):not([data-scheme="dark"]) .char-item-name { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .char-item-btn { background:#fff; color:#787774; border:1px solid #e9e9e7; }
+html:not([data-theme]):not([data-scheme="dark"]) .char-item-btn:hover { background:#f1f1ef; color:#37352f; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .theme-option { background:#fff; border:1px solid #e9e9e7; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-option:hover { background:#fbfbfa; border-color:#d8d8d4; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-option input[type="radio"] { border-color:#c4c4c0; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-option input[type="radio"]:checked { border-color:#2383e2; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-option input[type="radio"]:checked::after { background:#2383e2; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-option input[type="radio"]:checked ~ .theme-text .theme-title { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-title { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-sub { color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-swatch { border-color:#e9e9e7; }
+
+/* (4.82: 删掉日间段的 preset-item/preset-name/preset-preview 死规则,同主清理) */
+html:not([data-theme]):not([data-scheme="dark"]) .cost-cell { background:#fbfbfa; border:1px solid #e9e9e7; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-cell.total { background:#eef5fd; border-color:rgba(35,131,226,.42); }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-label { color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-val { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-sub { color:#9b9a97; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-details { background:#fbfbfa; border-color:#e9e9e7; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-details summary { color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-details summary:hover { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-row { border-bottom-color:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-date,
+html:not([data-theme]):not([data-scheme="dark"]) .cost-amt { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-meta,
+html:not([data-theme]):not([data-scheme="dark"]) .cost-empty { color:#787774; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .msg-action-btn { background:#fff; border:1px solid #e9e9e7; color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .msg-action-btn:hover { background:#f1f1ef; color:#37352f; border-color:#e3e3e0; }
+/* —— 4.29-B 结束 —— */
+
+/* —— 4.29-C 侧栏 / 移动底栏 / 提示词编辑器内部 / 设置 footer —— */
+html:not([data-theme]):not([data-scheme="dark"]) .left-sidebar,
+html:not([data-theme]):not([data-scheme="dark"]) .right-sidebar { background:#fbfbfa; border-color:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-header,
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-section-title { color:#787774; border-bottom-color:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-divider { background:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-slot-placeholder,
+html:not([data-theme]):not([data-scheme="dark"]) #fishbowlSlot:empty::before { color:#9b9a97; }
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-btn { background:#fff; border:1px solid #e9e9e7; color:#37352f; box-shadow:none; }
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-btn:hover:not([disabled]) { background:#f1f1ef; border-color:#d8d8d4; color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-btn.active { background:#eef5fd; border-color:rgba(35,131,226,.5); color:#1a73d1; }
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-btn-disabled,
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-btn[disabled] { background:#fbfbfa; border-color:#ececea; color:#b0afab; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .mobile-bottom-tabs { background: rgba(255,255,255,.92); border-color:#e3e2de; box-shadow: 0 10px 30px rgba(15,15,15,.10); }
+html:not([data-theme]):not([data-scheme="dark"]) .mobile-tab-btn { color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .mobile-tab-btn.active { color:#1a73d1; background: rgba(35,131,226,.12); box-shadow: inset 0 0 0 1px rgba(35,131,226,.4), 0 0 16px rgba(35,131,226,.14); }
+html:not([data-theme]):not([data-scheme="dark"]) .mobile-tab-panel.active { background: rgba(255,255,255,.97); color:#37352f; border-color:#e3e2de; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .ue-header,
+html:not([data-theme]):not([data-scheme="dark"]) .ue-footer { background:#fbfbfa; border-color:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-tabs { background:#fff; border-bottom-color:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-tab { color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-tab:hover { color:#37352f; background:#f1f1ef; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-tab.active { background:#fff; border-color:#e9e9e7; color:#37352f; border-bottom-color:#fff; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-body { background:#fff; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-close,
+html:not([data-theme]):not([data-scheme="dark"]) .ue-btn-ghost { background:#fff; border:1px solid #e3e3e0; color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-close:hover,
+html:not([data-theme]):not([data-scheme="dark"]) .ue-btn-ghost:hover { background:#f1f1ef; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-badge { background: rgba(35,131,226,.12); color:#1a73d1; border-color: rgba(35,131,226,.4); }
+
+/* —— 4.29-C 结束 —— */
+
+/* —— 4.29-D 鱼缸控制台 / 主持人行 / 多智能体按钮（浅紫字→深字） —— */
+/* (4.82: 删掉 .fishbowl-bar 浅色覆盖 —— 该 class 的 DOM 已被 .fishbowl-side-panel 取代,零引用) */
+html:not([data-theme]):not([data-scheme="dark"]) .fishbowl-side-panel {
+ background: rgba(255,255,255,.96); border-color: rgba(35,131,226,.25);
+ box-shadow: 0 4px 24px rgba(15,15,15,.12); color:#37352f;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-header { color:#1a73d1; border-bottom-color:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-status {
+ background: rgba(35,131,226,.08); border-color: rgba(35,131,226,.3); color:#787774;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-status .fb-state-line { color:#1a73d1; }
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-status b { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-ended {
+ background:#eef5fd; border-color: rgba(35,131,226,.5); color:#1a73d1;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-ended .fb-ended-title { color:#9a7212; }
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-ended .fb-ended-line { color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-ended .fb-ended-line b { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-ended .fb-ended-reason { color:#9b9a97; }
+html:not([data-theme]):not([data-scheme="dark"]) .fb-cmd-btn.fb-primary {
+ background: rgba(184,138,20,.14); border-color: rgba(184,138,20,.42); color:#9a7212;
+}
+
+html:not([data-theme]):not([data-scheme="dark"]) .row.moderator .meta { color:#1a73d1; }
+html:not([data-theme]):not([data-scheme="dark"]) .row.moderator .bubble {
+ background: rgba(35,131,226,.08); border-color: rgba(35,131,226,.42); color:#1a73d1;
+}
+
+html:not([data-theme]):not([data-scheme="dark"]) #multiAgentToggle.active {
+ background: rgba(35,131,226,.12); color:#1a73d1;
+ border-color: rgba(35,131,226,.5);
+ box-shadow: 0 0 0 1px rgba(35,131,226,.25) inset;
+}
+/* —— 4.29 minimal-light 完 —— */
+
+/* —— 4.30 角色在场感:头像呼吸微动 —— */
+@media (prefers-reduced-motion: no-preference) {
+ @keyframes avatarBreathe {
+ 0%, 100% { transform: scale(1); }
+ 50% { transform: scale(1.028); }
+ }
+ .avatar {
+ animation: avatarBreathe 4.6s ease-in-out infinite;
+ }
+
+ html[data-theme="candle"] .avatar {
+ transform: scale(calc(1 + var(--pulse, 0) * 0.07));
+ transition: transform .09s linear;
+ }
+}
+/* —— 4.30 完 —— */
+
+/* —— 4.31 白天黑夜维度:日/夜切换控件(主题无关,适配明暗) —— */
+.scheme-toggle-row { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; }
+.scheme-toggle-row .stg-label { font-size: 12px; color: var(--muted, #888); letter-spacing: .04em; }
+.scheme-seg { display: inline-flex; border: 1px solid var(--input-border, var(--border, #ccc)); border-radius: 9px; overflow: hidden; }
+.scheme-seg button { appearance: none; -webkit-appearance: none; border: 0; background: transparent; color: var(--muted, #888); font: inherit; font-size: 12px; line-height: 1; padding: 7px 13px; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.scheme-seg button + button { border-left: 1px solid var(--input-border, var(--border, #ccc)); }
+.scheme-seg button:hover { background: rgba(127,127,127,.10); }
+.scheme-seg button.active { color: inherit; font-weight: 600; background: rgba(127,127,127,.16); }
+/* —— 4.31 完 —— */
+
+/* ══════ 4.32 主题风格强化（玻璃/蜜桃/少女 更鲜明）══════ */
+/* —— Glass (4.32 精化) · 高级毛玻璃动效 —— */
+/* 保留光泽光晓，更新为靓蓝/紫罗兰调色 */
+@keyframes glassFloat32 { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+@keyframes glassSheen32 { 0%{background-position:-160% 0} 100%{background-position:260% 0} }
+html[data-theme="glass"] .bubble{ border-radius:20px 20px 20px 6px; border:1px solid rgba(255,255,255,.60); box-shadow:0 8px 32px rgba(60,80,180,.12), inset 0 1px 0 rgba(255,255,255,.80); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); }
+html[data-theme="glass"] .bubble.user{ border-radius:20px 20px 6px 20px; position:relative; overflow:hidden; }
+/* user 气泡光泽: 光带更细、更克制 */
+html[data-theme="glass"] .bubble.user::after{ content:""; position:absolute; inset:0; background:linear-gradient(115deg,transparent 28%,rgba(255,255,255,.28) 46%,transparent 64%); background-size:220% 100%; animation:glassSheen32 9s ease-in-out infinite; pointer-events:none; }
+/* 头像浮动 */
+html[data-theme="glass"] .avatar{ animation:glassFloat32 6s ease-in-out infinite; box-shadow:0 4px 16px rgba(80,80,220,.18); }
+html[data-theme="glass"] .meta{ letter-spacing:.4px; font-weight:500; }
+@media (prefers-reduced-motion: reduce){ html[data-theme="glass"] .bubble.user::after, html[data-theme="glass"] .avatar{ animation:none; } }
+/* GLASS32-END */
+
+/* —— candle 烛夜私语 · 温柔夜色 —— */
+html[data-theme="candle"] .bubble{ border-radius:26px 26px 26px 10px; transition:transform .5s cubic-bezier(.22,1,.36,1), box-shadow .5s ease; }
+html[data-theme="candle"] .bubble.user{ border-radius:26px 26px 10px 26px; }
+html[data-theme="candle"] .bubble.ai:hover{ transform:translateY(-2px) scale(1.012); box-shadow:0 calc(6px + var(--pulse)*10px) calc(20px + var(--pulse)*26px) rgba(255,70,105,calc(.18 + var(--pulse)*.34)); }
+html[data-theme="candle"] .meta{ font-style:italic; letter-spacing:.6px; }
+html[data-theme="candle"] .row.user .meta{ background:linear-gradient(90deg,#d9a868,#f2e7d6); -webkit-background-clip:text; background-clip:text; color:transparent; font-weight:600; }
+html[data-theme="candle"] .avatar.bot{ box-shadow:0 0 calc(8px + var(--pulse)*22px) rgba(217,168,104,calc(.25 + var(--pulse)*.5)); }
+@media (prefers-reduced-motion: reduce){ html[data-theme="candle"] .bubble{ transition:none; } }
+/* PEACH32-END */
+
+/* —— 少女 · 二次元贴纸派 —— */
+/* —— 4.32 完 —— */
+
+/* ── 提示词编辑器 tab accent：各主题强调色（--ue-tab-accent）── */
+html:not([data-theme]):not([data-scheme="dark"]) { --ue-tab-accent: #2383e2; }
+html:not([data-theme])[data-scheme="dark"] { --ue-tab-accent: #a78bfa; }
+html[data-theme="glass"] { --ue-tab-accent: #3f6f8f; }
+html[data-theme="candle"] { --ue-tab-accent: #d9a868; }/* ══════════ 2026-09-14 UI第一轮:富文本渲染(marked + highlight.js)主题化样式 ══════════
+   富路径输出包在 .md-body 容器里(renderMarkdownRich);legacy 路径无此容器不受影响。
+   气泡本体是 white-space:pre-wrap,md-body 恢复 normal 让 marked 的块级排版正常折叠。 */
+.bubble .md-body { white-space: normal; }
+.bubble .md-body p { margin: 0 0 .6em; }
+.bubble .md-body > :last-child { margin-bottom: 0; }
+.bubble .md-body ul, .bubble .md-body ol { margin: .4em 0 .6em; padding-left: 1.4em; }
+.bubble .md-body li { margin: 2px 0; }
+.bubble .md-body blockquote { margin: .5em 0; padding: 2px 12px; border-left: 3px solid var(--border); color: var(--muted,#9a9a9a); }
+.bubble .md-body h1, .bubble .md-body h2, .bubble .md-body h3, .bubble .md-body h4 { margin: 10px 0 4px; line-height: 1.3; }
+/* 链接:theme token,四主题 + 亮色自适配 */
+:root { --link: #7fb3d5; }
+html[data-scheme="light"]:not([data-theme]) { --link: #0969da; }
+.bubble .md-body a { color: var(--link); text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+
+/* 代码高亮 token 配色:跟随主题令牌体系。默认(暗)取 One Dark 系;亮色 scheme 取 GitHub 系。
+   底色沿用 4.75 的 .bubble pre rgba(127,127,127,.12),不改背景,四主题自动融入。 */
+:root {
+  --hl-comment: #7a8290; --hl-keyword: #c678dd; --hl-string: #98c379; --hl-number: #d19a66;
+  --hl-func: #61afef; --hl-attr: #e5c07b; --hl-type: #56b6c2; --hl-meta: #abb2bf;
+}
+html[data-scheme="light"]:not([data-theme]) {
+  --hl-comment: #8a919c; --hl-keyword: #8250df; --hl-string: #0a7d32; --hl-number: #b3541e;
+  --hl-func: #0550ae; --hl-attr: #953800; --hl-type: #1b7c83; --hl-meta: #57606a;
+}
+.bubble pre code.hljs { display: block; background: none; padding: 0; color: inherit; }
+.bubble .hljs-comment, .bubble .hljs-quote { color: var(--hl-comment); font-style: italic; }
+.bubble .hljs-keyword, .bubble .hljs-selector-tag, .bubble .hljs-literal, .bubble .hljs-doctag, .bubble .hljs-name { color: var(--hl-keyword); }
+.bubble .hljs-string, .bubble .hljs-regexp, .bubble .hljs-addition { color: var(--hl-string); }
+.bubble .hljs-number, .bubble .hljs-symbol, .bubble .hljs-bullet, .bubble .hljs-link { color: var(--hl-number); }
+.bubble .hljs-title, .bubble .hljs-title.function_, .bubble .hljs-function .hljs-title { color: var(--hl-func); }
+.bubble .hljs-attr, .bubble .hljs-attribute, .bubble .hljs-variable, .bubble .hljs-template-variable, .bubble .hljs-params { color: var(--hl-attr); }
+.bubble .hljs-type, .bubble .hljs-built_in, .bubble .hljs-builtin-name, .bubble .hljs-title.class_, .bubble .hljs-class .hljs-title { color: var(--hl-type); }
+.bubble .hljs-meta, .bubble .hljs-selector-id, .bubble .hljs-selector-class { color: var(--hl-meta); }
+.bubble .hljs-deletion { color: #e8607d; }
+.bubble .hljs-emphasis { font-style: italic; }
+.bubble .hljs-strong { font-weight: 700; }
+.bubble .hljs-section { font-weight: 600; }
+/* ══════════ 2026-09-14 UI第一轮 完 ══════════ */
+
+/* ══════════ 2026-09-14 Agent 模式视觉:平铺输出 + 运行中收敛控制 ══════════ */
+
+/* 操作按钮改用线性 SVG 图标(原来用裸文本符号 ■ / ↺,而该按钮的字体栈把 emoji 字体排在首位,
+   U+25A0/U+21BA 在 Segoe UI Emoji 里有 emoji 呈现 → 会被渲染成廉价 emoji)。
+   标签文字仍用正文字体,图标单独定尺寸,基线对齐靠 flex。 */
+.msg-action-btn { display: inline-flex; align-items: center; gap: 5px; }
+.msg-action-btn svg { width: 13px; height: 13px; display: block; flex: none; }
+
+/* 运行中只留「停止」:其余操作与统计行等整轮跑完再出现 ——
+   否则多轮 agent(每轮都有工具往返)里按钮和统计会反复闪现,像是每回一次都重建一遍。 */
+.row[data-streaming="1"] .my-action-btns > button:not(.my-stop-btn) { display: none !important; }
+.row[data-streaming="1"] .stats { display: none !important; }
+
+/* Agent 模式:AI 回复保留正常玻璃气泡(4.83 按用户要求撤销"平铺"设计 ——
+   平铺在 minimal 暗色下尚可,在 glass/亮色主题下文字直接贴底、可读性差且观感像方形色块)。
+   仅保留:回复区加宽 + meta 减淡;用户消息气泡不受影响。 */
+html.agent-mode #chat .row.ai .content { max-width: min(940px, 94%) !important; }
+html.agent-mode #chat .row.ai .meta { opacity: .7; }
+/* 思考折叠块与正文同为气泡形态,风格统一(不再单独去气泡) */
+.row[data-agent-process="1"] .reasoning-block .reasoning-text { border-top-color: rgba(127,127,127,.18); }
+/* 有「过程面板」的行:思考已经并进面板顶部,再显示独立折叠块就是同一段文字出现两次。
+   用行标记而不是 :has() —— Tauri 的 WebView 版本不一定支持 :has()。 */
+.row[data-agent-process="1"] .reasoning-block { display: none !important; }
+/* ══════════ 2026-09-14 Agent 模式视觉 完 ══════════ */
+
+/* ══════════ 2026-09-14 消息操作条改「纯图标」+ 长用户消息折叠 ══════════ */
+
+/* 操作按钮:去掉边框/底色,只留图标,悬停才出反馈(对齐 ZCode 的消息操作条);
+   原实现带文字标签("重试/删除/复制")又宽又吵。文字放进 title/aria-label 做提示与无障碍。 */
+.msg-action-btn.icon-only {
+  border: none; background: transparent; color: var(--muted, #888);
+  padding: 5px; border-radius: 8px; line-height: 0;
+}
+.msg-action-btn.icon-only svg { width: 15px; height: 15px; display: block; }
+.msg-action-btn.icon-only:hover { color: inherit; background: rgba(127,127,127,.14); border: none; }
+.msg-action-btn.icon-only.ok { color: #5ec98a; }
+/* 亮色/glass 主题对 .msg-action-btn 有更高特异性的覆盖(白底+描边),这里一并钉掉,否则图标按钮在日间模式下又变回"按钮" */
+html[data-scheme="light"]:not([data-theme]) .msg-action-btn.icon-only,
+html[data-theme="glass"] .msg-action-btn.icon-only {
+  border: none; background: transparent; color: #787774;
+}
+html[data-theme="glass"] .msg-action-btn.icon-only { color: #64748b; }
+html[data-scheme="light"]:not([data-theme]) .msg-action-btn.icon-only:hover,
+html[data-theme="glass"] .msg-action-btn.icon-only:hover { background: rgba(127,127,127,.16); color: inherit; }
+
+/* 长用户消息折叠:超过阈值收起 → 底部渐隐 + 居中展开箭头 */
+.uc-wrap { position: relative; }
+.uc-wrap.folded .uc-inner {
+  max-height: 188px; overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, #000 58%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 58%, transparent 100%);
+}
+.uc-toggle {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 20px; margin: 5px auto 0; padding: 0;
+  border: none; border-radius: 8px; background: rgba(127,127,127,.16);
+  color: inherit; cursor: pointer; opacity: .7;
+}
+.uc-toggle:hover { opacity: 1; background: rgba(127,127,127,.26); }
+.uc-toggle svg { width: 12px; height: 12px; transition: transform .18s ease; }
+.uc-wrap:not(.folded) ~ .uc-toggle svg { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .uc-toggle svg { transition: none; } }
+/* ══════════ 2026-09-14 消息操作条 完 ══════════ */

@@ -1,0 +1,68 @@
+OwnChat · 内置氛围音素材来源（CREDITS）
+
+除 [气息] voice-breath.mp3（原有内置音，来源未记录）外，全部音轨来自 freesound.org，均为 Creative Commons 0（CC0 / 公有领域）授权：
+可自由使用、修改、商用与再分发，无需署名。此文件仅作出处记录与致谢。
+入库时按「环境 / 气息 / 音乐」三层整理，文件名一律中性化（amb- / voice- / mus- 前缀）。
+
+[环境] amb-cafe-1.mp3
+      https://freesound.org/s/382314/  "Ambience-cafe001.wav by samyi"  by samyi  — CC0
+[环境] amb-cafe-2.mp3
+      https://freesound.org/s/516435/  "cafe-ambience.m4a by wolfdoctor"  by wolfdoctor  — CC0
+[环境] amb-city-1.mp3
+      https://freesound.org/s/332785/  "city ambience, pedestrian subway, at entrance, night, distant traffic, trains and railway station announcements - Stereo preview.wav by be_a_hero_not_a_patriot"  by be_a_hero_not_a_patriot  — CC0
+[环境] amb-city-2.mp3
+      https://freesound.org/s/332784/  "city ambience, pedestrian subway, inside, 20m from entrance, night, distant traffic, trains and railway station announcements, distant pedestrian crossing beeps - Stereo preview.wav by be_a_hero_not_a_patriot"  by be_a_hero_not_a_patriot  — CC0
+[环境] amb-clock-1.mp3
+      https://freesound.org/s/511967/  "Clock Ticks (Loopable!) by se2001"  by se2001  — CC0
+[环境] amb-clock-2.mp3
+      https://freesound.org/s/813355/  "1min Clock Ticking - CC0 by bulkmoerls"  by bulkmoerls  — CC0
+[环境] amb-forest-1.mp3
+      https://freesound.org/s/751465/  "Crickets chirping in the Night at the Forest 001 by Borgory"  by Borgory  — CC0
+[环境] amb-forest-2.mp3
+      https://freesound.org/s/453862/  "crickets night forest with 2 sharp close cicadas back and forth.flac by kyles"  by kyles  — CC0
+[环境] amb-frogs-1.mp3
+      https://freesound.org/s/868747/  "Night Frogs, Toads and Ibijau at Caiman Pond - Kwa Nature Reserve, French Guiana by felix.blume"  by felix.blume  — CC0
+[环境] amb-frogs-2.mp3
+      https://freesound.org/s/135561/  "Toads and frogs are singing at night in the pond, in the center of the small village of Diafarabe, on the Niger river. (Africa, Mali) by felix.blume"  by felix.blume  — CC0
+[环境] amb-hearthfire.mp3
+      https://freesound.org/s/836535/  "Hearthfire (Louder) by SilverIllusionist"  by SilverIllusionist  — CC0
+[环境] amb-pendulum-1.mp3
+      https://freesound.org/s/683106/  "pendulum clock twelve strokes.wav by BellaRegiz"  by BellaRegiz  — CC0
+[环境] amb-pendulum-2.mp3
+      https://freesound.org/s/657259/  "Old Clock Tic Tock Pendulum by Tom_Kaszuba"  by Tom_Kaszuba  — CC0
+[环境] amb-rain-1.mp3
+      https://freesound.org/s/869851/  "Rain_Hitting_Window_9 by SignatureSoundsOrg"  by SignatureSoundsOrg  — CC0
+[环境] amb-rain-2.mp3
+      https://freesound.org/s/158692/  "Distant Thunder and Rain from Half Open Window 1.aif by RutgerMuller"  by RutgerMuller  — CC0
+[环境] amb-tavern-1.mp3
+      https://freesound.org/s/868858/  "Cayenne Market Ambience from the Entrance - Wednesday Morning, French Guiana by felix.blume"  by felix.blume  — CC0
+[环境] amb-tavern-2.mp3
+      https://freesound.org/s/640254/  "geroezemoes.wav by gecop"  by gecop  — CC0
+[环境] amb-wind-1.mp3
+      https://freesound.org/s/637563/  "forest boreal light wind breeze through leaves +close loud birds.flac by kyles"  by kyles  — CC0
+[环境] amb-wind-2.mp3
+      https://freesound.org/s/331510/  "WinterWindThroughDryOakLeavesPlusGeeseDec21st201541hz.WAV by kvgarlic"  by kvgarlic  — CC0
+[气息] voice-breath.mp3
+      原有内置氛围音（仓库内置的呼吸垫，11s / 22.05kHz 循环；经 ffmpeg 转码，来源未记录）。
+      2026-10-06 由 /assets/lewd-ambient.mp3 迁移而来并中性化命名；不进 freesound 清单。
+[音乐] mus-guitar-reverb.mp3
+      https://freesound.org/s/773830/  "Reverby Irregular Guitar Loop by larsn.wav"  by larsn.wav  — CC0
+[音乐] mus-late-piano.mp3
+      https://freesound.org/s/570349/  "Late Jazz Piano Pure.wav by szegvari"  by szegvari  — CC0
+[音乐] mus-lofi-1.mp3
+      https://freesound.org/s/840001/  "Sad &amp; Relaxing Lo-fi Melody Loop (87 BPM) by Jadis0x"  by Jadis0x  — CC0
+[音乐] mus-lofi-2.mp3
+      https://freesound.org/s/520554/  "lofi loop 9 by deleted_user_11009121"  by deleted_user_11009121  — CC0
+[音乐] mus-piano-cinematic.mp3
+      https://freesound.org/s/668907/  "Free Cinematic Emotional Piano [92bpm] [D Major] by deadrobotmusic"  by deadrobotmusic  — CC0
+[音乐] mus-piano-emotional1.mp3
+      https://freesound.org/s/491284/  "Emotional Piano 001 (D#-90) by Xinematix"  by Xinematix  — CC0
+[音乐] mus-piano-emotional3.mp3
+      https://freesound.org/s/491281/  "Emotional Piano 004 (D#m-80) by Xinematix"  by Xinematix  — CC0
+[音乐] mus-piano-emotional5.mp3
+      https://freesound.org/s/491285/  "Emotional Piano 005 (Am-80) by Xinematix"  by Xinematix  — CC0
+[音乐] mus-piano-summernight.mp3
+      https://freesound.org/s/577844/  "Summer night piano solo by szegvari"  by szegvari  — CC0
+
+注：以上音轨均为 freesound 预览转码（hq mp3，约 128kbps）。循环播放由前端 Web Audio 处理，
+如需替换/新增，请保持 CC0 或等价可公开分发授权并在此登记。

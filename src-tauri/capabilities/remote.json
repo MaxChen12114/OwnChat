@@ -1,0 +1,43 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "remote-your-domain",
+  "description": "授予远程站点 your-domain.example 访问 IPC / 全局 Tauri API 的能力（Phase 0 地基）",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["https://your-domain.example", "https://*.your-domain.example"]
+  },
+  "permissions": [
+    "core:default",
+    "allow-ping",
+    "allow-open-external",
+    "allow-read-text-file",
+    "allow-import-text-file",
+    "allow-export-text-file",
+    "allow-get-storage-dir",
+    "allow-set-storage-dir",
+    "allow-pick-storage-dir",
+    "allow-open-storage-dir",
+    "allow-kv-set",
+    "allow-kv-get",
+    "allow-kv-list",
+    "allow-kv-delete",
+    "allow-http-request",
+    "allow-http-request-stream",
+    "allow-tts-get-config",
+    "allow-tts-set-config",
+    "allow-tts-start",
+    "allow-tts-stop",
+    "allow-tts-pick-dir",
+    "allow-tts-list-models",
+    "allow-tts-pick-file",
+    "allow-tts-pick-files",
+    "allow-agent-workdir-get",
+    "allow-agent-workdir-pick",
+    "allow-agent-workdir-set",
+    "allow-local-list-dir",
+    "allow-local-read-file",
+    "allow-local-write-file",
+    "allow-local-run-command",
+    "allow-local-env-info"
+  ]
+}

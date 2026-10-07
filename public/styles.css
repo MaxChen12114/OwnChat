@@ -1,0 +1,1928 @@
+/* 路径: public/styles.css （酒馆主站样式 · 区别于 studio/image 各自的 styles.css） */
+/* styles.css — text-next 改动版（Phase 4 阶段 4 主题系统已落地：minimal 默认 + html[data-theme="glass"] 覆盖） */
+* { box-sizing: border-box; }
+
+:root {
+  --ag-surface: rgba(127,127,127,.10); --ag-hover: rgba(127,127,127,.07); --ag-border: rgba(127,127,127,.30); /* 4.83: agent 面板主题化令牌 */
+  --bg: #0b0b0b;
+  --border: #222;
+  --muted: #9a9a9a;
+  --bubble-ai: #141414;
+  --bubble-user: #2a2a2a; /* 极简·暗: 比背景 #0b0b0b / AI #141414 明显浅一档, 中性灰不带蓝 */
+  --input-bg: #2d2d2d;
+  --input-border: #444;
+  --btn-bg: #3b3b3b;
+  --btn-bg-hover: #4a4a4a;
+  --composer-gap: 18px;
+  --spacer-extra: 28px;
+  --content-max: 760px;
+  --content-side: 14px;
+  /* 2026-06-08 字体按 Notion 标准统一: 给 --chat-font-family 兜底一套系统无衬线字体栈。
+     原本无默认值 → var() 解析失败 → 整站回退浏览器默认衬线体(桌面看着杂乱不优雅)。
+     用户在「显示设置」选自定义字体时, 仍由 html 行内样式覆盖本默认; 选「系统默认」则回落到这套栈。 */
+  --chat-font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+/* ════════════════════════════════════════════════════════════
+   极简主题 · 日间(白)  ——  html[data-scheme="light"] 覆盖层
+   仅作用于「极简」(minimal, 即 <html> 无 data-theme)。
+   默认 + 夜间(data-scheme="dark")仍走 :root 暗色; 玻璃/蜜桃/禁忌(带 data-theme)完全不受影响。
+   全部选择器特异性 > 对应基础规则, 故插入位置不影响生效。
+   ════════════════════════════════════════════════════════════ */
+html[data-scheme="light"]:not([data-theme]) {
+  --ag-surface: rgba(255,255,255,.62); --ag-hover: rgba(255,255,255,.5); --ag-border: #e3e3e0; /* 4.83 */
+  --bg: #ffffff;
+  --border: #ececea;
+  --muted: #787774;
+  --bubble-ai: #f7f7f5;
+  --bubble-user: #f1f0ee; /* 极简·亮: Notion 中性暖灰, 去掉蓝感 */
+  --input-bg: #ffffff;
+  --input-border: #e3e2e0;
+  --btn-bg: #37352f;
+  --btn-bg-hover: #2a2925;
+  color-scheme: light;
+}
+html[data-scheme="light"]:not([data-theme]),
+html[data-scheme="light"]:not([data-theme]) body { background: var(--bg); color: #37352f; }
+
+/* 顶栏(结构沿用现部署, 仅换配色) */
+html[data-scheme="light"]:not([data-theme]) #topbar {
+  background: linear-gradient(to bottom, rgba(255,255,255,.92), rgba(255,255,255,.65));
+  border-bottom: 1px solid #ececea;
+}
+html[data-scheme="light"]:not([data-theme]) .pill { background: #f7f7f5; border-color: #e6e6e3; }
+html[data-scheme="light"]:not([data-theme]) .iconbtn { background: transparent; border-color: transparent; color: #5f5e5b; }
+html[data-scheme="light"]:not([data-theme]) .iconbtn:hover { background: #efedea; color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .model-label { color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) select { background: #ffffff; color: #37352f; border-color: #e0dfdc; }
+html[data-scheme="light"]:not([data-theme]) select option { background: #ffffff; color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) #costDisplay.topbar-cost-inline { background: #f7f7f5; border-color: #e6e6e3; color: #37352f; }
+
+/* 头像 / 元信息 */
+html[data-scheme="light"]:not([data-theme]) .avatar.bot { background: radial-gradient(circle at 30% 30%, #e9e9e7, #d3d1cb); color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .avatar.human { background: radial-gradient(circle at 30% 30%, #dce7f7, #c5d4ec); color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .stats { color: #9b9a97; }
+
+/* 输入区 */
+html[data-scheme="light"]:not([data-theme]) .input-inner { background: #ffffff; border-color: #e3e2e0; box-shadow: 0 8px 30px rgba(0,0,0,.16); }
+html[data-scheme="light"]:not([data-theme]) textarea#msg { color: #37352f; color-scheme: light; }
+html[data-scheme="light"]:not([data-theme]) textarea#msg::placeholder { color: #b3b1ac; opacity: 1; }
+/* 2026-06-08 撤掉日间发送键的蓝色硬覆盖: 极简是中性无强调色主题, 发送键应跟随主题 -> 回落到 html:not([data-theme]) 的中性灰 #333(与夜间一致), 不再注入品牌蓝 */
+
+/* 设置面板 / 弹窗 */
+html[data-scheme="light"]:not([data-theme]) #settingsMask,
+html[data-scheme="light"]:not([data-theme]) .char-panel-mask { background: rgba(15,15,15,.28); }
+html[data-scheme="light"]:not([data-theme]) #settings,
+html[data-scheme="light"]:not([data-theme]) .char-panel { background: #ffffff; border-color: #ececea; box-shadow: 0 8px 28px rgba(15,15,15,.10); }
+html[data-scheme="light"]:not([data-theme]) #settingsHeader h3 { color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) #settingsHeader .hint { color: #9b9a97; }
+html[data-scheme="light"]:not([data-theme]) .card { background: #f7f7f5; border-color: #ececea; }
+html[data-scheme="light"]:not([data-theme]) .card h4 { color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .card p { color: #787774; }
+/* 卡片不再「浮起」: 盖掉 index.html 内联的按钮式 hover 升起阴影(0 6px 22px), 改成 Notion 风格平面反馈(只换底色/描边, 不抬起) */
+html[data-scheme="light"]:not([data-theme]) #settings .card { box-shadow: none; }
+/* 分组标题: #c8c8c8 在白底近乎隐形 -> 可读灰; 左侧色条由遗留紫 #9aa3ff -> Notion 蓝 */
+html[data-scheme="light"]:not([data-theme]) #settings .settings-group-title { color: #787774; }
+html[data-scheme="light"]:not([data-theme]) #settings .settings-group-title::before { background: #2383e2; }
+html[data-scheme="light"]:not([data-theme]) .rowline { border-top-color: #ececea; }
+html[data-scheme="light"]:not([data-theme]) .smallbtn { background: #f3f3f1; border-color: #e3e2e0; color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .smallbtn:hover { background: #e9e9e6; }
+html[data-scheme="light"]:not([data-theme]) .smallbtn.danger { background: #fdf0ee; border-color: #f3c9c2; color: #b3261e; }
+html[data-scheme="light"]:not([data-theme]) .smallbtn.danger:hover { background: #fbe3df; }
+html[data-scheme="light"]:not([data-theme]) #customPrompt { background: #ffffff; border-color: #e3e2e0; color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) #customPrompt:focus { border-color: #2383e2; }
+
+/* 外观风格 radio 卡 */
+html[data-scheme="light"]:not([data-theme]) .theme-option { background: #f7f7f5; border-color: #ececea; }
+html[data-scheme="light"]:not([data-theme]) .theme-option:hover { background: #efedea; border-color: #e0dfdc; }
+html[data-scheme="light"]:not([data-theme]) .theme-option input[type="radio"] { border-color: #c4c3bf; }
+/* 选中态: 基础规则写死夜间值(圆点 #9aa3ff 紫 / 选中标题 #fff 白), 日间漏改 -> 白底下紫点 off-brand、白标题直接隐形。补 Notion 蓝圆点 + 深灰标题 */
+html[data-scheme="light"]:not([data-theme]) .theme-option input[type="radio"]:checked { border-color: #2383e2; }
+html[data-scheme="light"]:not([data-theme]) .theme-option input[type="radio"]:checked::after { background: #2383e2; }
+html[data-scheme="light"]:not([data-theme]) .theme-option input[type="radio"]:checked ~ .theme-text .theme-title { color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .theme-title { color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .theme-sub { color: #787774; }
+
+/* 角色面板 */
+html[data-scheme="light"]:not([data-theme]) .char-panel-header h3,
+html[data-scheme="light"]:not([data-theme]) .char-current-name { color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .char-section-title { color: #787774; }
+html[data-scheme="light"]:not([data-theme]) .char-label { color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .char-rel-btn { background: #f3f3f1; border-color: #e3e2e0; color: #787774; }
+html[data-scheme="light"]:not([data-theme]) .char-rel-btn:hover { color: #37352f; background: #e9e9e6; }
+html[data-scheme="light"]:not([data-theme]) .char-rel-btn.active { background: #37352f; border-color: #37352f; color: #fff; }
+html[data-scheme="light"]:not([data-theme]) .char-item { background: #f7f7f5; border-color: #ececea; }
+html[data-scheme="light"]:not([data-theme]) .char-item:hover { background: #efedea; border-color: #e0dfdc; }
+html[data-scheme="light"]:not([data-theme]) .char-item.active { background: #eef4fc; border-color: #2383e2; box-shadow: 0 0 0 2px rgba(35,131,226,.18); }
+html[data-scheme="light"]:not([data-theme]) .char-item-name { color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .char-item-btn { background: #ffffff; color: #37352f; border: 1px solid #e3e2e0; }
+html[data-scheme="light"]:not([data-theme]) .char-input,
+html[data-scheme="light"]:not([data-theme]) .char-textarea { background: #ffffff; border-color: #e3e2e0; color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .char-input:focus,
+html[data-scheme="light"]:not([data-theme]) .char-textarea:focus { border-color: #2383e2; }
+
+/* 快捷 chip / 思考块 / 消息操作 */
+html[data-scheme="light"]:not([data-theme]) .chip-btn { background: #f3f3f1; border-color: #e3e2e0; color: #787774; }
+html[data-scheme="light"]:not([data-theme]) .chip-btn:hover:not(:disabled) { background: #e9e9e6; color: #37352f; border-color: #dcdbd7; }
+html[data-scheme="light"]:not([data-theme]) .chip-btn.active { background: #eef4fc; border-color: rgba(35,131,226,.5); color: #1a6fc4; }
+html[data-scheme="light"]:not([data-theme]) .reasoning-block { background: #f7f7f5; border-color: #ececea; color: #787774; }
+html[data-scheme="light"]:not([data-theme]) .reasoning-block summary:hover { color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .reasoning-block .reasoning-text { border-top-color: #ececea; color: #6f6e6b; }
+html[data-scheme="light"]:not([data-theme]) .msg-action-btn { background: #f3f3f1; border-color: #e3e2e0; color: #787774; }
+html[data-scheme="light"]:not([data-theme]) .msg-action-btn:hover { background: #e9e9e6; color: #37352f; border-color: #dcdbd7; }
+
+/* 费用日志 (4.82: 删掉日间段的 preset-* 死选择器,同主清理) */
+html[data-scheme="light"]:not([data-theme]) .cost-cell { background: #f7f7f5; border-color: #ececea; }
+html[data-scheme="light"]:not([data-theme]) .cost-cell.total { background: #eef4fc; border-color: rgba(35,131,226,.4); }
+html[data-scheme="light"]:not([data-theme]) .cost-label { color: #787774; }
+html[data-scheme="light"]:not([data-theme]) .cost-val { color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .cost-sub { color: #9b9a97; }
+html[data-scheme="light"]:not([data-theme]) .cost-details { background: #f7f7f5; border-color: #ececea; }
+html[data-scheme="light"]:not([data-theme]) .cost-details summary { color: #787774; }
+html[data-scheme="light"]:not([data-theme]) .cost-details summary:hover { color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .cost-row { border-bottom-color: #ececea; }
+html[data-scheme="light"]:not([data-theme]) .cost-date { color: #787774; }
+html[data-scheme="light"]:not([data-theme]) .cost-amt { color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .cost-meta,
+html[data-scheme="light"]:not([data-theme]) .cost-empty { color: #9b9a97; }
+
+/* 双侧栏 */
+html[data-scheme="light"]:not([data-theme]) .left-sidebar,
+html[data-scheme="light"]:not([data-theme]) .right-sidebar { background: #fbfbfa; border-color: #ececea; }
+html[data-scheme="light"]:not([data-theme]) .right-sidebar { border-left-color: #ececea; }
+html[data-scheme="light"]:not([data-theme]) .sidebar-header { color: #787774; border-bottom-color: #ececea; }
+html[data-scheme="light"]:not([data-theme]) .sidebar-section-title { color: #9b9a97; }
+html[data-scheme="light"]:not([data-theme]) .sidebar-divider { background: #ececea; }
+html[data-scheme="light"]:not([data-theme]) .sidebar-slot-placeholder,
+html[data-scheme="light"]:not([data-theme]) #fishbowlSlot:empty::before { color: #9b9a97; }
+html[data-scheme="light"]:not([data-theme]) #syncStatusIndicator { background: #f7f7f5; border-color: #e6e6e3; color: #787774; }
+/* sidebar-btn 置于 .iconbtn 之后, 等特异性靠源序胜出 => 透明底导航样式 */
+html[data-scheme="light"]:not([data-theme]) .sidebar-btn { background: transparent; color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .sidebar-btn:hover { background: #efedea; }
+
+/* 鱼缸控制台 / 主持人行 */
+html[data-scheme="light"]:not([data-theme]) .fishbowl-side-panel { background: rgba(255,255,255,.96); border-color: #e0dfdc; box-shadow: 0 4px 24px rgba(15,15,15,.1); color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .fb-side-header { color: #37352f; border-bottom-color: #ececea; }
+html[data-scheme="light"]:not([data-theme]) .fb-side-status { background: #f7f7f5; border-color: #ececea; color: #787774; }
+html[data-scheme="light"]:not([data-theme]) .fb-side-status .fb-state-line,
+html[data-scheme="light"]:not([data-theme]) .fb-side-status b { color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .fb-side-ended { background: #eef4fc; border-color: rgba(35,131,226,.4); color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .fb-side-ended .fb-ended-line { color: #787774; }
+html[data-scheme="light"]:not([data-theme]) .fb-side-ended .fb-ended-line b { color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .fb-side-ended .fb-ended-reason { color: #9b9a97; }
+html[data-scheme="light"]:not([data-theme]) .fb-cmd-btn.fb-primary { background: #37352f; border-color: #37352f; color: #fff; }
+html[data-scheme="light"]:not([data-theme]) .row.moderator .meta { color: #787774; }
+html[data-scheme="light"]:not([data-theme]) .row.moderator .bubble { background: #f1f1ef; border-color: #dcdbd7; color: #37352f; }
+
+/* 滚动条 */
+html[data-scheme="light"]:not([data-theme]) ::-webkit-scrollbar-thumb { background: #d8d6d0; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: #eaeaea;
+  /* 4.16: 字体走 --chat-font-family CSS var,全局生效(顶栏 / 侧栏 / Settings / 输入框 / 聊天区 / 角色卡)。
+     切字体不再只改聊天气泡,所有界面文字统一变化。 */
+  font-family: var(--chat-font-family);
+}
+
+body { overflow-x: hidden; }
+
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+#topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: linear-gradient(to bottom, rgba(11,11,11,.92), rgba(11,11,11,.65));
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #151515;
+}
+
+.topbar-shell {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 10px var(--content-side);
+}
+
+.topbar-scroll {
+  /* v3 顶栏 overflow 修复：原本的 overflow-x:auto + overflow-y:hidden 是为了手机横滑，但会裁掉 .topbar-popover 下拉 —— 点 ⋯ / 💰 看不到面板。
+     桌面端单行 nowrap 不需 scroll；手机端改用 flex-wrap: wrap 自然换行（见 @media 768px）。*/
+  width: 100%;
+}
+
+.topbar-inner {
+  /* 4.36:桌面也允许换行。溢出折叠菜单(.topbar-collapse)早已废弃、不在 DOM,nowrap 会把 Model 下拉挤出左边裁掉。改 wrap 兜底:挤不下就换行,绝不裁切;配合 .model-pill 可收缩,通常仍保持单行。 */
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #2a2a2a;
+  background: #101010;
+  flex: 0 0 auto;
+}
+
+.model-pill { min-width: 0; flex: 0 1 auto; overflow: hidden; }
+/* 4.36 修复:模型下拉可收缩 + 不再被裁切。顶栏按钮多(尤其开发者模式多 ⏸🛠)挤窄时,旧 min-width:260px 不收缩 → 整块溢出到左边被裁 → 模型下拉消失。 */
+.model-pill .model-label { flex: 0 0 auto; }
+.model-pill select { min-width: 90px; flex: 1 1 auto; }
+
+.model-label {
+  font-size: 13px;
+  color: #cfcfcf;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+select {
+  background: #0f0f0f;
+  color: #fff;
+  border: 1px solid #333;
+  border-radius: 10px;
+  padding: 6px 10px;
+  outline: none;
+  min-width: 180px;
+  flex: 0 0 auto;
+}
+select option { background: #0f0f0f; color: #fff; }
+
+.iconbtn {
+  width: 38px;
+  height: 38px;
+  /* 2026-06-08 顶栏图标键对齐参考稿: 透明扁平 + 圆角方形(仅改外观, 尺寸/布局不动 -> 不影响换行防裁切)。玻璃/蜂桃/禁忌各自重填背景, 不受影响 */
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #cfcfcf;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: .15s;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Symbol", sans-serif;
+  flex: 0 0 38px;
+}
+.iconbtn:hover { background: rgba(255,255,255,.07); color: #fff; }
+
+/* modeToggle 按钮稍宽一些，容纳文字 */
+#modeToggle {
+  width: auto;
+  min-width: 38px;
+  padding: 0 10px;
+  font-size: 13px;
+  flex: 0 0 auto;
+}
+
+
+
+#topbar .iconbtn:not(#personaToggle):not(#modeToggle) { width: 34px; height: 34px; flex-basis: 34px; border-radius: 9px; }
+#topbar .pill { height: 34px; border-radius: 9px; padding: 0 12px; }
+#topbar #personaToggle,
+#topbar #modeToggle { height: 34px; border-radius: 9px; width: auto; min-width: 0; padding: 0 11px; flex: 0 0 auto; white-space: nowrap; }
+#topbar #syncStatusIndicator { height: 34px; border-radius: 9px; }
+
+#topbar #personaToggle,
+#topbar #modeToggle { background: #101010; border: 1px solid #2a2a2a; }
+#topbar #personaToggle:hover,
+#topbar #modeToggle:hover { background: rgba(255,255,255,.06); border-color: #3a3a3a; }
+/* light(极简·日):盖掉 light .iconbtn 的透明 */
+html[data-scheme="light"]:not([data-theme]) #topbar #personaToggle,
+html[data-scheme="light"]:not([data-theme]) #topbar #modeToggle { background: #f7f7f5; border-color: #e6e6e3; }
+html[data-scheme="light"]:not([data-theme]) #topbar #personaToggle:hover,
+html[data-scheme="light"]:not([data-theme]) #topbar #modeToggle:hover { background: #efedea; border-color: #e0dfdc; }
+/* glass(玻璃) */
+html[data-theme="glass"] #topbar #personaToggle,
+html[data-theme="glass"] #topbar #modeToggle { background: rgba(255,255,255,.8); border-color: rgba(15,30,60,.08); }
+/* candle(烛夜私语) */
+html[data-theme="candle"] #topbar #personaToggle,
+html[data-theme="candle"] #topbar #modeToggle { background: rgba(40,28,18,.45); border-color: rgba(217,168,104,.22); }
+/* ③ 费用栏两态等宽(桌面 200px 居中;手机解除 min-width 避免顶栏换行挤压) */
+#topbar #costDisplay.topbar-cost-inline { display: inline-flex; align-items: center; justify-content: center; height: 34px; min-width: 0; flex: 0 0 auto; padding: 0 12px; border-radius: 9px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: visible; }
+@media (max-width: 768px) { #topbar #costDisplay.topbar-cost-inline { min-width: 0; } }
+
+#history {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /* 4.83: 阻断滚动链 —— 聊天区滑到底后手势不再传给 document,
+     防止把文档流里意外可见的元素(如曾泄漏的状态面板)拖进视口 */
+  overscroll-behavior: contain;
+  display: flex;
+  justify-content: center;
+  padding: 18px 0;
+}
+
+.chat {
+  width: 100%;
+  max-width: var(--content-max);
+  padding: 0 16px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  margin: 12px 0;
+  align-items: flex-start;
+}
+.row.ai  { justify-content: flex-start; }
+.row.user { justify-content: flex-end; }
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  font-weight: 700;
+  font-size: 13px;
+  user-select: none;
+  border: 1px solid var(--border);
+}
+.avatar.bot   { background: radial-gradient(circle at 30% 30%, #3a3a3a, #161616); }
+.avatar.human { background: radial-gradient(circle at 30% 30%, #404040, #1b1b1b); }
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: min(640px, 78vw);
+}
+
+.meta {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0 4px;
+}
+
+.bubble {
+  padding: 12px 14px;
+  border-radius: 16px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--border);
+}
+.bubble.ai   { background: var(--bubble-ai); }
+.bubble.user { background: var(--bubble-user); }
+
+/* 4.75 气泡内 Markdown 内容溢出修复(renderMarkdownSafe 产出 <pre>/<code>/<table>/<img>):
+   原先无任何规则 → <pre> 默认 white-space:pre 不换行,长代码/宽表格直接"挤出气泡"。
+   思考开/Agent 模式走 innerHTML markdown,思考关走 textContent → 这就是"渲染不同"的来源。
+   现给气泡内 markdown 元素加约束:代码块内部横向滚动、表格可滚、图片缩放,统统不再溢出气泡。
+   颜色用 var(--border) + rgba(127,127,127) → 四主题自动适配。 */
+.bubble > *:first-child { margin-top: 0; }
+.bubble > *:last-child  { margin-bottom: 0; }
+.bubble pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: rgba(127,127,127,.12);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-width: 100%;
+  overflow-x: auto;          /* 长代码在气泡内横滚,不外溢 */
+  white-space: pre;
+  -webkit-overflow-scrolling: touch;
+}
+.bubble pre code { white-space: pre; background: none; border: 0; padding: 0; font-size: 12.5px; }
+.bubble code {
+  background: rgba(127,127,127,.16);
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: .92em;
+  word-break: break-word;
+}
+.bubble .md-table {
+  display: block;            /* 让宽表格能横向滚动而非撑破气泡 */
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: .92em;
+}
+.bubble .md-table th,
+.bubble .md-table td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+.bubble .md-h { margin: 10px 0 4px; line-height: 1.3; }
+.bubble img { max-width: 100%; height: auto; border-radius: 8px; }
+.bubble hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+
+.row.user .content  { align-items: flex-end; }
+.row.user .meta     { text-align: right; }
+
+.stats {
+  font-size: 12px;
+  color: #7f7f7f;
+  padding: 0 4px;
+  line-height: 1.3;
+}
+
+#bottom-spacer { width: 100%; height: 180px; }
+
+.input-floating {
+  position: fixed;
+  bottom: var(--composer-gap);
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  /* 2026-06-08 边距对齐参考稿: 响应式留白交给容器 padding(min16/7%/max64), 内部 .input-inner / .composer-toolbar 只需 max-width:760 + margin:0 auto 居中; 旧写法 width:100% + 两侧 clamp margin 会溢出/居中漂移 */
+  padding: 0 clamp(16px, 7%, 64px);
+}
+
+.input-inner {
+  pointer-events: auto;
+  width: 100%;
+  max-width: var(--content-max);
+  /* 2026-06-08 居中改走 margin:0 auto(留白由父级 .input-floating 的 padding 提供), 圆角 18px 接近 Notion 方圆感 */
+  margin: 0 auto;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 18px;
+  padding: 10px 10px 10px 16px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  /* 2026-06-08 阴影力度对齐参考稿(极简明暗两态统一 0 8px 30px .16, 比原来 .45 更轻盈、更 Notion) */
+  box-shadow: 0 8px 30px rgba(0,0,0,.16);
+}
+
+textarea#msg {
+  flex: 1;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #fff;
+  font-size: 15px;
+  max-height: 200px;
+  /* 横向内边距交给 .input-inner(左 16) + 收发按钮 gap, textarea 自身只留上下 7px */
+  padding: 7px 0;
+}
+/* 2026-06-04 输入框占位符清晰度:极简(夜间)主题显式给中性灰占位色 + 声明深色控件,避免移动端浏览器(Edge/Chrome 暗色)默认占位色过暗看不清。桌面端原本就清楚,这条主要拉平移动端观感 */
+textarea#msg { color-scheme: dark; }
+html:not([data-theme]) textarea#msg::placeholder { color: #8f8f8f; opacity: 1; }
+
+button#sendBtn {
+  border: none;
+  color: #fff;
+  background: var(--btn-bg);
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .2s ease, transform .15s ease, box-shadow .2s ease;
+  flex: 0 0 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+button#sendBtn svg { width: 18px; height: 18px; transform: translateX(-1px); }
+button#sendBtn:hover { background: var(--btn-bg-hover); transform: translateY(-1px); }
+button#sendBtn:active { transform: scale(.93); }
+button#sendBtn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+/* 4.59 极简送信按钮:统一中性灰圆钮(去掉非极简残留的彩色/光晕),与线性图标语言一致。
+   仅极简(无 data-theme)生效;glass/candle 各自的彩色 sendBtn 不受影响。!important 兜底盖过明暗 scheme 层。 */
+html:not([data-theme]) button#sendBtn {
+  background: #333 !important;
+  background-image: none !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+html:not([data-theme]) button#sendBtn:hover { background: #444 !important; transform: translateY(-1px); }
+html:not([data-theme]) button#sendBtn:disabled { background: #333 !important; }
+
+/* Settings */
+#settingsMask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  padding: 16px;
+}
+
+#settings {
+  width: min(760px, 92vw);
+  border: 1px solid #2a2a2a;
+  background: #0f0f0f;
+  border-radius: 18px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.6);
+  padding: 18px 20px;
+}
+
+#settingsHeader {
+  /* 4.83: 改列向 —— 旧版行向 flex 让长 hint 与标题挤在同一行,窄屏下"设置"被压成 1 字宽竖排 */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+#settingsHeader h3 { margin: 0; font-size: 15px; font-weight: 600; color: #eaeaea; letter-spacing: .3px; }
+#settingsHeader .hint { font-size: 11.5px; color: #8a8a8a; }
+
+.card {
+  border: 1px solid #242424;
+  background: #101010;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin: 12px 0;
+}
+.card h4 {
+  margin: 0 0 6px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #c8c8c8;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+}
+.card p  { margin: 0 0 10px 0; font-size: 12.5px; color: #a8a8a8; line-height: 1.6; }
+
+.rowline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0 4px;
+  border-top: 1px dashed #1f1f1f;
+}
+.rowline:first-of-type { border-top: none; padding-top: 4px; }
+
+.toggle { display: flex; align-items: center; gap: 10px; user-select: none; }
+.toggle input { transform: scale(1.1); }
+
+.btns { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.smallbtn {
+  /* 4.83 面板按钮协调化: 补 font-family(旧版缺省走 UA 字体,与页面 PingFang 不一致),
+     字号/字重与分类导航(12.5px/600)对齐,内边距加大(手机端触摸目标) */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #2a2a2a;
+  background: #141414;
+  color: #d8d8d8;
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap; /* 窄宽度下按钮文字不再折行(如「清空对话」被拆成两行) */
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.smallbtn:hover { background: #1b1b1b; }
+.smallbtn.danger { border-color: #3a1f1f; background: #1a0f0f; }
+.smallbtn.danger:hover { background: #241010; }
+
+/* ════════════════════════════════════════════════════════════
+   这些类此前在 styles.css 无规则 → 图标/文字松散、对齐飘; 且卡内说明常用
+   写死灰(#999/#888…), 在亮色主题(极简亮/玻璃/少女)下对比不足。统一改走
+   主题变量(--muted / --border), 一条基底规则四主题自动适配。
+   ════════════════════════════════════════════════════════════ */
+.settings-tip,
+.settings-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.55;
+  border: 1px solid var(--border);
+  background: rgba(127, 127, 127, .08);
+  color: var(--muted);
+}
+.settings-tip svg,
+.settings-warn svg {
+  width: 14px; height: 14px;
+  flex: 0 0 14px;
+  margin-top: 1px;
+  opacity: .8;
+}
+.settings-tip b,
+.settings-warn b { color: inherit; font-weight: 600; }
+/* warn 用暖琥珀区分语义("会消耗 token"等告警), 暗亮主题皆可读 */
+.settings-warn {
+  border-color: rgba(212, 160, 23, .38);
+  background: rgba(212, 160, 23, .10);
+  color: #c79320;
+}
+
+
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--muted);
+  transition: border-color .15s ease, background-color .15s ease, color .15s ease;
+}
+/* 选中态用 :has() 让整颗胶囊高亮; 不支持的浏览器仅不高亮, 不影响功能 */
+  border-color: currentColor;
+  background: rgba(127, 127, 127, .14);
+  color: inherit;
+}
+
+#customPrompt {
+  width: 100%;
+  min-height: 160px;
+  resize: vertical;
+  border-radius: 12px;
+  background: #0f0f0f;
+  border: 1px solid #2f2f2f;
+  color: #fff;
+  padding: 10px;
+  outline: none;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* —— 外观风格 radio 卡（Settings → Visual Theme）—— */
+.theme-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #2a2a2a;
+  background: #141414;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease;
+  user-select: none;
+}
+.theme-option:hover { background: #1a1a1a; border-color: #3a3a3a; }
+.theme-option input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1.5px solid #555;
+  background: transparent;
+  margin: 0;
+  flex: 0 0 16px;
+  position: relative;
+  cursor: pointer;
+}
+.theme-option input[type="radio"]:checked { border-color: #eaeaea; }
+.theme-option input[type="radio"]:checked::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  background: #eaeaea;
+  border-radius: 999px;
+}
+.theme-option input[type="radio"]:checked ~ .theme-text .theme-title { color: #fff; }
+.theme-swatch {
+  width: 44px;
+  height: 30px;
+  border-radius: 8px;
+  flex: 0 0 44px;
+  border: 1px solid #2a2a2a;
+}
+.theme-swatch-minimal {
+  background: linear-gradient(135deg, #ffffff 0%, #f1f1ef 100%);
+  border: 1px solid #e3e3e0;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.6);
+}
+.theme-swatch-glass {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(150,197,230,.95), transparent 60%),
+    radial-gradient(circle at 80% 30%, rgba(214,178,138,.9), transparent 55%),
+    radial-gradient(circle at 50% 90%, rgba(158,196,170,.9), transparent 60%),
+    #f4f7f6;
+  border-color: rgba(15,30,60,.08);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.4);
+}
+.theme-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.theme-title { font-size: 13px; color: #cfcfcf; font-weight: 600; line-height: 1.2; }
+.theme-sub   { font-size: 11px; color: #8a8a8a; line-height: 1.3; }
+
+/* ─── 氛围音卡(双轨混音器)：环境 amb × 音乐 mus ─── */
+.amb-layer { margin-top: 12px; }
+.amb-layer + .amb-layer { border-top: 1px solid rgba(127,127,127,.1); padding-top: 12px; }
+.amb-layer-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.amb-layer-name { font-size: 12.5px; font-weight: 600; opacity: .85; }
+.amb-vol { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted, #8a8a8a); margin: 0; }
+.amb-vol input[type="range"] { width: 108px; }
+.amb-vol-val { font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
+.amb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.amb-chip {
+  font: inherit; font-size: 12px; line-height: 1; white-space: nowrap;
+  padding: 6px 10px; border-radius: 999px; cursor: pointer;
+  background: rgba(127,127,127,.06); border: 1px solid var(--border, rgba(127,127,127,.25));
+  color: inherit; opacity: .62;
+  transition: background .15s, opacity .15s, border-color .15s, transform .1s;
+}
+.amb-chip:hover { opacity: .9; background: rgba(127,127,127,.13); transform: translateY(-1px); }
+.amb-chip:active { transform: translateY(0) scale(.97); }
+.amb-chip.active { opacity: 1; background: rgba(127,127,127,.2); border-color: rgba(127,127,127,.5); }
+/* 播放中的轨前置一个小呼吸点,用主题强调色,和普通 hover 区分 */
+.amb-chip.active::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  margin-right: 6px; background: var(--ue-tab-accent, currentColor); vertical-align: 1px;
+  animation: ambPulse 1.6s ease-in-out infinite;
+}
+@keyframes ambPulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+@media (max-width: 768px) {
+  .amb-chip { padding: 8px 12px; }
+  .amb-vol input[type="range"] { width: 84px; }
+}
+
+@media (max-width: 480px) {
+  .theme-options { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --composer-gap: 12px;
+    --content-side: 10px;
+  }
+  .topbar-shell { padding: 8px var(--content-side); }
+  .topbar-inner {
+    /* 手机端：允许 wrap 到第二行（不再用横向 scroll，避免裁掉 popover）。由于顶栏已用 💰 / ⋯ 处理收纳，手机上极端情况才会换一行。*/
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .iconbtn { width: 36px; height: 36px; flex: 0 0 36px; font-size: 17px; }
+  .pill { padding: 7px 10px; }
+  .model-pill { min-width: 220px; }
+  .model-label { font-size: 12px; }
+  select { min-width: 130px; font-size: 15px; }
+  .chat { padding: 0 12px; }
+  .avatar { width: 30px; height: 30px; flex-basis: 30px; font-size: 12px; }
+  /* 4.78 手机聊天框超出屏幕修复:原 86vw 未扣除头像(30)+gap(10)+.chat 左右 padding(24),
+     窄屏下总宽>100vw 被 body overflow-x:hidden 裁掉 → 气泡超出屏幕。改按可用宽度算 + min-width:0 保证 flex 可收缩(配合已有 .bubble pre/table/img overflow 规则,markdown 不再外溢)。 */
+  .content { max-width: calc(100vw - 84px); min-width: 0; }
+  textarea#msg { font-size: 16px; }
+  .input-inner { border-radius: 20px; }
+  /* 2026-06-04 手机端极简(夜间)输入框:底色调亮一档 + 描边更清晰,贴纯黑背景也能一眼看清输入区,观感对齐桌面 */
+  html:not([data-theme]) .input-inner {
+    background: #353535;
+    border-color: #585858;
+    box-shadow: 0 8px 24px rgba(0,0,0,.55);
+  }
+  html:not([data-theme]) textarea#msg { color: #fff; }
+  html:not([data-theme]) textarea#msg::placeholder { color: #a8a8a8; opacity: 1; }
+  button#sendBtn { width: 38px; height: 38px; flex-basis: 38px; }
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+
+/* ─── 角色面板 ─── */
+.char-panel-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  z-index: 10;
+  padding: 60px 16px 16px;
+  overflow-y: auto;
+}
+
+.char-panel {
+  width: min(520px, 94vw);
+  border: 1px solid #2a2a2a;
+  background: #0f0f0f;
+  border-radius: 18px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.6);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.char-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.char-panel-header h3 { margin: 0; font-size: 16px; }
+
+.char-close-btn {
+  width: 32px !important;
+  height: 32px !important;
+  flex: 0 0 32px !important;
+  font-size: 16px !important;
+}
+
+.char-section-title {
+  margin: 14px 0 8px;
+  font-size: 13px;
+  color: #9a9a9a;
+  font-weight: 600;
+}
+
+.char-card-current { margin: 0 0 4px 0 !important; }
+
+.char-current-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.char-avatar-large { font-size: 32px; line-height: 1; flex: 0 0 auto; }
+/* 4.60 头像图:有图角色在面板大头像处显示成圆形图片(applyAvatarEl 加 .has-avatar-img + 背景图,需显式尺寸否则塌成 0 高) */
+.char-avatar-large.has-avatar-img { width: 46px; height: 46px; border-radius: 999px; background-color: #1a1a1a; }
+.char-current-name { font-size: 15px; font-weight: 600; }
+
+.char-relation-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.char-rel-btn {
+  border: 1px solid #2a2a2a;
+  background: #141414;
+  color: #888;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: .15s;
+}
+.char-rel-btn:hover { color: #ccc; background: #1e1e1e; }
+.char-rel-btn.active { border-color: #4a4a4a; background: #222; color: #fff; }
+
+.char-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.char-item {
+  border: 1px solid #2a2a2a;
+  background: #111;
+  border-radius: 12px;
+  padding: 12px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  transition: .15s;
+  text-align: center;
+}
+.char-item:hover { background: #161616; border-color: #3a3a3a; }
+.char-item.active { border-color: #555; background: #1a1a1a; box-shadow: 0 0 0 2px rgba(255,255,255,.08); }
+
+.char-item-avatar { font-size: 26px; line-height: 1; }
+/* 4.60 头像图:角色卡网格缩略图,有图显示圆形图片(同样需显式尺寸,emoji 态不受影响) */
+.char-item-avatar.has-avatar-img { width: 52px; height: 52px; border-radius: 999px; background-color: #1a1a1a; }
+.char-item-name { font-size: 12px; color: #ccc; }
+
+.char-item-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: none;
+  gap: 2px;
+}
+.char-item:hover .char-item-actions { display: flex; }
+
+.char-item-btn {
+  border: none;
+  background: rgba(0,0,0,.5);
+  color: #ccc;
+  border-radius: 6px;
+  padding: 2px 5px;
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.char-item-btn:hover { background: rgba(255,255,255,.1); }
+
+.char-edit-form { display: flex; flex-direction: column; gap: 4px; }
+
+.char-label {
+  font-size: 13px;
+  color: #cfcfcf;
+  margin-top: 10px;
+  display: block;
+}
+
+.char-input {
+  width: 100%;
+  background: #0f0f0f;
+  border: 1px solid #2f2f2f;
+  color: #fff;
+  border-radius: 10px;
+  padding: 8px 10px;
+  outline: none;
+  font-size: 14px;
+}
+.char-input:focus { border-color: #444; }
+
+.char-textarea {
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  border-radius: 10px;
+  background: #0f0f0f;
+  border: 1px solid #2f2f2f;
+  color: #fff;
+  padding: 10px;
+  outline: none;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.char-textarea:focus { border-color: #444; }
+
+.char-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+/* ─── 底部输入区上方工具栏（思考模式等快捷开关）─── */
+.input-floating {
+  flex-direction: column;
+  align-items: center;
+}
+
+.composer-toolbar {
+  pointer-events: auto;
+  width: 100%;
+  max-width: var(--content-max);
+  /* 与 .input-inner 对齐: 留白同样交给父级 padding, 这里只居中 */
+  margin: 0 auto 6px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.chip-btn {
+  border: 1px solid #2a2a2a;
+  background: rgba(20, 20, 20, 0.85);
+  color: #b8b8b8;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: .15s;
+  white-space: nowrap;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Symbol", sans-serif;
+}
+.chip-btn:hover:not(:disabled) {
+  background: rgba(35, 35, 35, 0.95);
+  color: #fff;
+  border-color: #3a3a3a;
+}
+.chip-btn.active {
+  background: rgba(80, 70, 160, 0.35);
+  border-color: rgba(140, 120, 230, 0.55);
+  color: #fff;
+}
+.chip-btn:disabled {
+  cursor: not-allowed;
+}
+
+/* ─── AI 回复中的思考过程折叠块 ─── */
+.reasoning-block {
+  background: rgba(30, 30, 30, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #9a9a9a;
+}
+.reasoning-block summary {
+  cursor: pointer;
+  user-select: none;
+  font-weight: 500;
+  outline: none;
+  list-style: none;
+}
+.reasoning-block summary::-webkit-details-marker { display: none; }
+.reasoning-block summary::before {
+  content: "";
+  display: inline-block;
+  width: 0; height: 0;
+  border-style: solid;
+  border-width: 4.5px 0 4.5px 7px;
+  border-color: transparent transparent transparent currentColor;
+  opacity: .62;
+  margin-right: 7px;
+  vertical-align: middle;
+  transition: transform .18s cubic-bezier(.22,1,.36,1);
+  flex: none;
+}
+.reasoning-block[open] summary::before {
+  transform: rotate(90deg);
+}
+.reasoning-block summary:hover { color: #ccc; }
+.reasoning-block .reasoning-text {
+  margin-top: 8px;
+  padding: 8px 0 4px;
+  border-top: 1px dashed #2f2f2f;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.55;
+  color: #888;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* ════════════════════════════════════════════════
+   Phase 4 阶段 4 · 主题系统（minimal ↔ glass）
+   minimal = 默认（保留原 :root 深色）
+   glass   = html[data-theme="glass"] 覆盖
+   ══════════════════════════════════════════════ */
+
+/* —— 全局过渡（两主题共用，切换更顺滑）—— */
+html, body { transition: background-color .3s ease, color .3s ease; }
+.bubble, .iconbtn, .pill, .input-inner, .char-panel, #settings,
+button#sendBtn, .chip-btn, .smallbtn, .char-input, .char-textarea,
+#customPrompt, select, .char-item, .char-rel-btn, .reasoning-block {
+  transition: background-color .2s ease, border-color .2s ease,
+              color .2s ease, box-shadow .2s ease, transform .15s ease;
+}
+.iconbtn:active { transform: scale(.92); }
+
+/* —— Glass 主题：高级毛玻璃（晴空竹屋 · 天青 × 竹绿 × 原木 × 青瓦）—— */
+/* 灵感：日式竹屋园林 — 晴空下的原木檐廊与青瓦(参考图:天蓝/原木/竹绿/青瓦)。
+   背景：雾白底 + 四色晕渲（晴空蓝/竹叶绿/原木暖/青瓦青）
+   强调色：蓝染青（取代原紫色，素雅去俗套） */
+html[data-theme="glass"] {
+  --ag-surface: rgba(255,255,255,.46); --ag-hover: rgba(255,255,255,.55); --ag-border: rgba(15,30,60,.14); /* 4.83 */
+  --bg: #f4f7f6;
+  --border: rgba(255, 255, 255, .65);
+  --muted: #6b7b84;
+  --bubble-ai: rgba(255, 255, 255, .86);
+  --bubble-user: #3f6f8f;
+  --input-bg: rgba(255, 255, 255, .86);
+  --input-border: rgba(255, 255, 255, .70);
+  --btn-bg: linear-gradient(135deg, #3a6485, #4a7f9f);
+  --btn-bg-hover: linear-gradient(135deg, #315570, #3f6f8f);
+}
+
+html[data-theme="glass"] body {
+  /* 三色晕渲：薰衣草（左上）× 薄荷绿（右上）× 琥珀粉（底部）× 樱花（左下） */
+  background:
+    radial-gradient(ellipse 1500px 900px at 3% -2%,
+      rgba(150, 197, 230, .55), transparent 55%),
+    radial-gradient(ellipse 1100px 700px at 96% 6%,
+      rgba(158, 196, 170, .40), transparent 55%),
+    radial-gradient(ellipse 1200px 650px at 52% 102%,
+      rgba(214, 178, 138, .42), transparent 55%),
+    radial-gradient(ellipse 750px 550px at 1% 94%,
+      rgba(150, 186, 189, .32), transparent 50%),
+    radial-gradient(ellipse 600px 400px at 85% 88%,
+      rgba(150, 197, 230, .22), transparent 50%),
+    #f4f7f6;
+  background-attachment: fixed;
+  color: #24333d;
+}
+
+html[data-theme="glass"] #topbar {
+  background: linear-gradient(to bottom,
+    rgba(255,255,255,.72) 0%,
+    rgba(255,255,255,.48) 100%);
+  backdrop-filter: blur(24px) saturate(200%) brightness(1.04);
+  -webkit-backdrop-filter: blur(24px) saturate(200%) brightness(1.04);
+  border-bottom: 1px solid rgba(255,255,255,.55);
+  box-shadow: 0 1px 0 rgba(70,110,140,.10);
+}
+
+html[data-theme="glass"] .pill,
+html[data-theme="glass"] .iconbtn {
+  background: rgba(255, 255, 255, .78);
+  border: 1px solid rgba(255, 255, 255, .62);
+  color: #1e293b;
+  box-shadow: 0 2px 12px rgba(70, 110, 140, .10), inset 0 1px 0 rgba(255,255,255,.8);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+}
+html[data-theme="glass"] .iconbtn:hover {
+  background: rgba(255,255,255,.92);
+  box-shadow: 0 6px 20px rgba(60,105,135,.18), inset 0 1px 0 rgba(255,255,255,.9);
+  transform: translateY(-1px);
+}
+html[data-theme="glass"] #costDisplay { color: #6a7280 !important; }
+html[data-theme="glass"] .model-label { color: #4a5160; }
+html[data-theme="glass"] select {
+  background: transparent;
+  color: #1a1f2e;
+  border: 1px solid rgba(15, 30, 60, .12);
+}
+html[data-theme="glass"] select option { background: #fff; color: #1a1f2e; }
+
+html[data-theme="glass"] .avatar.bot {
+  background: linear-gradient(135deg, #c3d9e8, #e3edf2);
+  border: 1px solid rgba(15, 30, 60, .06);
+  color: #1a1f2e;
+}
+html[data-theme="glass"] .avatar.human {
+  background: linear-gradient(135deg, #dcc6a8, #efe0cb);
+  border: 1px solid rgba(15, 30, 60, .06);
+  color: #1a1f2e;
+}
+
+html[data-theme="glass"] .bubble {
+  border-radius: 20px;
+  /* AI 气泡：经典毛玻璃 —— 高透明白底 + 白色顶部反射线 + 柔和阴影 */
+  border: 1px solid rgba(255, 255, 255, .6);
+  box-shadow: 0 8px 28px rgba(60, 95, 120, .10), inset 0 1px 0 rgba(255,255,255,.75);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+}
+html[data-theme="glass"] .bubble.ai { background: rgba(255, 255, 255, .78); color: #1e293b; }
+html[data-theme="glass"] .bubble.user {
+  /* User 气泡：蓝染青（取自参考图的天色/青瓦） */
+  background: linear-gradient(145deg, #35566f 0%, #3f6f8f 45%, #4f88a8 100%);
+  color: #fff;
+  border-color: rgba(63, 111, 143, .45);
+  box-shadow: 0 8px 28px rgba(63, 111, 143, .30), inset 0 1px 0 rgba(255,255,255,.22);
+}
+html[data-theme="glass"] .meta,
+html[data-theme="glass"] .stats { color: #64748b; }
+
+html[data-theme="glass"] .input-inner {
+  background: rgba(255, 255, 255, .82);
+  border: 1px solid rgba(255, 255, 255, .68);
+  box-shadow:
+    0 16px 48px rgba(60, 95, 120, .15),
+    inset 0 1px 0 rgba(255,255,255,.9),
+    inset 0 -1px 0 rgba(70,110,140,.06);
+  backdrop-filter: blur(28px) saturate(200%) brightness(1.02);
+  -webkit-backdrop-filter: blur(28px) saturate(200%) brightness(1.02);
+}
+html[data-theme="glass"] textarea#msg { color: #1a1f2e; }
+html[data-theme="glass"] textarea#msg::placeholder { color: #9aa0ac; }
+
+html[data-theme="glass"] button#sendBtn {
+  background: linear-gradient(145deg, #35566f 0%, #3f6f8f 55%, #4f88a8 100%);
+  box-shadow: 0 4px 16px rgba(63, 111, 143, .42), inset 0 1px 0 rgba(255,255,255,.18);
+}
+html[data-theme="glass"] button#sendBtn:hover {
+  background: linear-gradient(145deg, #2c4a60 0%, #35566f 55%, #3f6f8f 100%);
+  box-shadow: 0 8px 28px rgba(63, 111, 143, .55), inset 0 1px 0 rgba(255,255,255,.22);
+  transform: translateY(-1px) scale(1.04);
+}
+
+html[data-theme="glass"] .chip-btn {
+  background: rgba(255, 255, 255, .72);
+  border: 1px solid rgba(255, 255, 255, .55);
+  color: #475569;
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  box-shadow: 0 2px 8px rgba(70,110,140,.08), inset 0 1px 0 rgba(255,255,255,.7);
+}
+html[data-theme="glass"] .chip-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,.9);
+  color: #1e293b;
+  border-color: rgba(255,255,255,.8);
+  box-shadow: 0 4px 14px rgba(60,105,135,.15);
+}
+html[data-theme="glass"] .chip-btn.active {
+  background: linear-gradient(135deg, rgba(63,111,143,.20), rgba(79,136,168,.15));
+  border-color: rgba(63, 111, 143, .52);
+  color: #345d7c;
+  box-shadow: 0 2px 12px rgba(63,111,143,.20);
+}
+
+/* —— 弹窗 / 面板 —— */
+html[data-theme="glass"] #settingsMask,
+html[data-theme="glass"] .char-panel-mask {
+  background: rgba(15, 30, 60, .22);
+  backdrop-filter: blur(6px);
+}
+html[data-theme="glass"] #settings,
+html[data-theme="glass"] .char-panel {
+  background: rgba(255, 255, 255, .96);
+  border: 1px solid rgba(15, 30, 60, .08);
+  color: #1a1f2e;
+  box-shadow: 0 30px 80px rgba(60, 90, 120, .22);
+}
+html[data-theme="glass"] #settingsHeader h3,
+html[data-theme="glass"] .char-panel-header h3,
+html[data-theme="glass"] .char-current-name { color: #1a1f2e; }
+html[data-theme="glass"] #settingsHeader .hint,
+html[data-theme="glass"] .char-section-title { color: #6a7280; }
+html[data-theme="glass"] .card {
+  background: rgba(248, 250, 253, .8);
+  border: 1px solid rgba(15, 30, 60, .06);
+}
+html[data-theme="glass"] .card h4 { color: #1a1f2e; }
+html[data-theme="glass"] .card p { color: #6a7280; }
+html[data-theme="glass"] .rowline { border-top-color: rgba(15, 30, 60, .06); }
+
+html[data-theme="glass"] .smallbtn {
+  background: rgba(255, 255, 255, .9);
+  border: 1px solid rgba(15, 30, 60, .12);
+  color: #1a1f2e;
+}
+html[data-theme="glass"] .smallbtn:hover { background: #fff; }
+html[data-theme="glass"] .smallbtn.danger {
+  background: rgba(254, 242, 242, .9);
+  border-color: rgba(220, 38, 38, .25);
+  color: #b91c1c;
+}
+html[data-theme="glass"] .smallbtn.danger:hover { background: #fee2e2; }
+
+html[data-theme="glass"] #customPrompt,
+html[data-theme="glass"] .char-input,
+html[data-theme="glass"] .char-textarea {
+  background: rgba(248, 250, 253, .85);
+  border: 1px solid rgba(15, 30, 60, .1);
+  color: #1a1f2e;
+}
+html[data-theme="glass"] #customPrompt:focus,
+html[data-theme="glass"] .char-input:focus,
+html[data-theme="glass"] .char-textarea:focus {
+  border-color: #3f6f8f;
+  box-shadow: 0 0 0 3px rgba(79, 136, 168, .14);
+}
+
+html[data-theme="glass"] .char-rel-btn {
+  background: rgba(255, 255, 255, .8);
+  border-color: rgba(15, 30, 60, .1);
+  color: #6a7280;
+}
+html[data-theme="glass"] .char-rel-btn:hover { background: #fff; color: #1a1f2e; }
+html[data-theme="glass"] .char-rel-btn.active {
+  background: linear-gradient(135deg, #3a6485, #4a7f9f);
+  border-color: #3a6485;
+  color: #fff;
+}
+
+html[data-theme="glass"] .char-item {
+  background: rgba(255, 255, 255, .82);
+  border: 1px solid rgba(15, 30, 60, .08);
+}
+html[data-theme="glass"] .char-item:hover {
+  background: #fff;
+  border-color: rgba(79, 136, 168, .35);
+  box-shadow: 0 4px 14px rgba(60, 90, 120, .1);
+  transform: translateY(-1px);
+}
+html[data-theme="glass"] .char-item.active {
+  background: linear-gradient(135deg, rgba(63,111,143,.08), rgba(79,136,168,.06));
+  border-color: #3f6f8f;
+  box-shadow: 0 0 0 2px rgba(79, 136, 168, .18);
+}
+html[data-theme="glass"] .char-item-name { color: #4a5160; }
+html[data-theme="glass"] .char-item-btn {
+  background: rgba(255, 255, 255, .9);
+  color: #4a5160;
+  border: 1px solid rgba(15, 30, 60, .1);
+}
+html[data-theme="glass"] .char-item-btn:hover { background: #fff; color: #1a1f2e; }
+
+html[data-theme="glass"] .reasoning-block {
+  background: rgba(248, 250, 253, .88);
+  border-color: rgba(15, 30, 60, .08);
+  color: #6a7280;
+}
+html[data-theme="glass"] .reasoning-block summary:hover { color: #1a1f2e; }
+html[data-theme="glass"] .reasoning-block .reasoning-text {
+  border-top-color: rgba(15, 30, 60, .08);
+  color: #4a5160;
+}
+
+html[data-theme="glass"] ::-webkit-scrollbar-thumb {
+  background: rgba(15, 30, 60, .18);
+}
+
+/* —— Glass · 外观风格 radio 卡覆盖 —— */
+html[data-theme="glass"] .theme-option {
+  background: rgba(255, 255, 255, .82);
+  border: 1px solid rgba(15, 30, 60, .08);
+}
+html[data-theme="glass"] .theme-option:hover {
+  background: #fff;
+  border-color: rgba(15, 30, 60, .14);
+}
+html[data-theme="glass"] .theme-option input[type="radio"] {
+  border-color: rgba(15, 30, 60, .35);
+}
+html[data-theme="glass"] .theme-option input[type="radio"]:checked { border-color: #3f6f8f; }
+html[data-theme="glass"] .theme-option input[type="radio"]:checked::after { background: #3f6f8f; }
+html[data-theme="glass"] .theme-option input[type="radio"]:checked ~ .theme-text .theme-title { color: #1a1f2e; }
+html[data-theme="glass"] .theme-title { color: #1a1f2e; }
+html[data-theme="glass"] .theme-sub   { color: #6a7280; }
+html[data-theme="glass"] .theme-swatch { border-color: rgba(15, 30, 60, .12); }
+
+/* 4.82: 已删除「Phase 4 阶段 6 · 提示词预设库」整套样式(preset-list/preset-item/preset-toggle/
+   preset-name/preset-preview/preset-actions/#presetEdit* 及 glass 主题覆盖,约 180 行) ——
+   旧 presets-ui.js 已退役,现功能由 prompt-editor.js 的 ue-preset-* 自带样式接管,这些类全项目零引用。 */
+
+/* ════════════════════
+   Phase 4 阶段 7 · 费用日志（Cost Log）
+   ════════════════════ */
+
+.cost-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.cost-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 6px;
+  border: 1px solid #2a2a2a;
+  background: #141414;
+  border-radius: 10px;
+  min-width: 0;
+}
+.cost-cell.total {
+  background: linear-gradient(135deg, rgba(80,70,160,.22), rgba(60,90,180,.22));
+  border-color: rgba(140,120,230,.35);
+}
+
+.cost-label { font-size: 10.5px; color: #8a8a8a; white-space: nowrap; letter-spacing: .2px; }
+.cost-val   { font-size: 14px; font-weight: 600; color: #eaeaea; font-variant-numeric: tabular-nums; }
+.cost-sub   { font-size: 10px; color: #777; }
+
+.cost-details {
+  margin: 4px 0 6px;
+  border: 1px solid #242424;
+  border-radius: 10px;
+  background: #0f0f0f;
+}
+.cost-details summary {
+  cursor: pointer;
+  user-select: none;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #b8b8b8;
+  outline: none;
+  list-style: none;
+}
+.cost-details summary::-webkit-details-marker { display: none; }
+.cost-details summary::before {
+  content: "";
+  display: inline-block;
+  width: 0; height: 0;
+  border-style: solid;
+  border-width: 4px 0 4px 6.5px;
+  border-color: transparent transparent transparent currentColor;
+  opacity: .6;
+  margin-right: 6px;
+  vertical-align: middle;
+  transition: transform .18s cubic-bezier(.22,1,.36,1);
+}
+.cost-details[open] summary::before { transform: rotate(90deg); }
+.cost-details summary:hover { color: #fff; }
+
+/* 4.82: 选择器由 .cost-daily-list 改名为 .cost-daily —— cost-log-ui.js 实际生成的是 .cost-daily,
+   旧选择器与 DOM 互相错过导致样式从未生效 */
+.cost-daily {
+  padding: 4px 12px 10px;
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cost-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 8px;
+  font-size: 12px;
+  border-bottom: 1px dashed #1f1f1f;
+}
+.cost-row:last-child { border-bottom: none; }
+.cost-date { color: #b8b8b8; font-variant-numeric: tabular-nums; }
+.cost-amt  { color: #eaeaea; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cost-meta { color: #777; font-size: 11px; text-align: right; }
+
+.cost-empty {
+  font-size: 12px;
+  color: #888;
+  padding: 8px 4px;
+  text-align: center;
+  font-style: italic;
+}
+
+@media (max-width: 480px) {
+  .cost-summary { grid-template-columns: 1fr 1fr; }
+  .cost-row { grid-template-columns: auto 1fr; }
+  .cost-meta { grid-column: 1 / -1; text-align: left; }
+}
+
+/* —— Glass 主题覆盖 —— */
+html[data-theme="glass"] .cost-cell {
+  background: rgba(255, 255, 255, .82);
+  border: 1px solid rgba(15, 30, 60, .08);
+}
+html[data-theme="glass"] .cost-cell.total {
+  background: linear-gradient(135deg, rgba(63,111,143,.12), rgba(79,136,168,.10));
+  border-color: rgba(63, 111, 143, .40);
+}
+html[data-theme="glass"] .cost-label { color: #6a7280; }
+html[data-theme="glass"] .cost-val   { color: #1a1f2e; }
+html[data-theme="glass"] .cost-sub   { color: #8a9098; }
+html[data-theme="glass"] .cost-details {
+  background: rgba(248, 250, 253, .8);
+  border-color: rgba(15, 30, 60, .08);
+}
+html[data-theme="glass"] .cost-details summary { color: #4a5160; }
+html[data-theme="glass"] .cost-details summary:hover { color: #1a1f2e; }
+html[data-theme="glass"] .cost-row { border-bottom-color: rgba(15, 30, 60, .06); }
+html[data-theme="glass"] .cost-date { color: #4a5160; }
+html[data-theme="glass"] .cost-amt  { color: #1a1f2e; }
+html[data-theme="glass"] .cost-meta { color: #8a9098; }
+html[data-theme="glass"] .cost-empty { color: #8a9098; }
+
+/* ════════════════════
+   Phase 4 阶段 8 · 多智能体模式开关
+   ════════════════════ */
+/* #multiAgentToggle 沿用 .iconbtn 默认 38px 方形，不再 override 尺寸 */
+#multiAgentToggle.active {
+  background: rgba(127, 127, 127, .18);
+  color: inherit;
+  border-color: rgba(127, 127, 127, .45);
+  box-shadow: 0 0 0 1px rgba(127, 127, 127, .28) inset;
+}
+html[data-theme="glass"] #multiAgentToggle.active {
+  background: rgba(63, 111, 143, .14);
+  color: #345d7c;
+  border-color: rgba(63, 111, 143, .42);
+  box-shadow: 0 0 0 1px rgba(63, 111, 143, .22) inset;
+}
+/* #multiAgentToggle 在窄屏也沿用 .iconbtn mobile 36px */
+
+/* ════════════════════
+   消息行操作按钮（重试 / 删除 / 复制 / 停止）
+   chat-ux.js makeBtn 注入 .msg-action-btn class
+   ════════════════════ */
+.msg-action-btn {
+  border: 1px solid #2e2e2e;
+  background: #111;
+  color: #888;
+  border-radius: 10px;
+  padding: 4px 11px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color .15s, background .15s, border-color .15s;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Symbol", inherit;
+}
+.msg-action-btn:hover {
+  background: #1e1e1e;
+  color: #ccc;
+  border-color: #3a3a3a;
+}
+
+html[data-theme="glass"] .msg-action-btn {
+  background: rgba(255, 255, 255, .82);
+  border: 1px solid rgba(15, 30, 60, .1);
+  color: #4a5160;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+html[data-theme="glass"] .msg-action-btn:hover {
+  background: #fff;
+  color: #1a1f2e;
+  border-color: rgba(15, 30, 60, .2);
+  box-shadow: 0 2px 8px rgba(60, 90, 120, .08);
+}
+
+/* ═════════════════════════════════════
+   Phase 4 阶段 11 · 鱼缸 V2(Fishbowl V2)
+   - .fishbowl-mode-row: 顶部 chip 行(✏️ 编排 / 🔁 接龙 / 🎙️ 讨论)
+   - .avatar.bot.fishbowl-active: 当前发言者头像 pulse 动画
+   (4.82: 删掉 #costDisplay.cost-warn-* 三态预警规则 —— 该功能 UI 已不存在,全项目零引用;
+    .fishbowl-bar 状态条样式在 styles-2.css,同样已随 multi-agent 面板改版失效)
+   ═════════════════════════════════════ */
+
+@keyframes fishbowl-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(127, 127, 127, .55); }
+  50%      { box-shadow: 0 0 0 6px rgba(127, 127, 127, 0); }
+}
+.avatar.bot.fishbowl-active {
+  animation: fishbowl-pulse 1.4s ease-in-out infinite;
+  border-color: rgba(127, 127, 127, .8);
+}
+
+/* —— Glass 主题覆盖 —— */
+@keyframes fishbowl-pulse-glass {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, .5); }
+  50%      { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
+}
+html[data-theme="glass"] .avatar.bot.fishbowl-active {
+  animation-name: fishbowl-pulse-glass;
+  border-color: rgba(99, 102, 241, .7);
+}
+
+/* ════════════════════
+   Phase 4 阶段 8 · 多智能体模式开关
+   ════════════════════ */
+/* #multiAgentToggle 沿用 .iconbtn 默认 38px 方形，不再 override 尺寸 */
+#multiAgentToggle.active {
+  background: rgba(127, 127, 127, .18);
+  color: inherit;
+  border-color: rgba(127, 127, 127, .45);
+  box-shadow: 0 0 0 1px rgba(127, 127, 127, .28) inset;
+}
+html[data-theme="glass"] #multiAgentToggle.active {
+  background: rgba(63, 111, 143, .14);
+  color: #345d7c;
+  border-color: rgba(63, 111, 143, .42);
+  box-shadow: 0 0 0 1px rgba(63, 111, 143, .22) inset;
+}
+/* #multiAgentToggle 在窄屏也沿用 .iconbtn mobile 36px */
+
+/* ════════════════════
+   消息行操作按钮（重试 / 删除 / 复制 / 停止）
+   chat-ux.js makeBtn 注入 .msg-action-btn class
+   ════════════════════ */
+.msg-action-btn {
+  border: 1px solid #2e2e2e;
+  background: #111;
+  color: #888;
+  border-radius: 10px;
+  padding: 4px 11px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color .15s, background .15s, border-color .15s;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Symbol", inherit;
+}
+.msg-action-btn:hover {
+  background: #1e1e1e;
+  color: #ccc;
+  border-color: #3a3a3a;
+}
+
+html[data-theme="glass"] .msg-action-btn {
+  background: rgba(255, 255, 255, .82);
+  border: 1px solid rgba(15, 30, 60, .1);
+  color: #4a5160;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+html[data-theme="glass"] .msg-action-btn:hover {
+  background: #fff;
+  color: #1a1f2e;
+  border-color: rgba(15, 30, 60, .2);
+  box-shadow: 0 2px 8px rgba(60, 90, 120, .08);
+}
+
+/* ═════════════════════════════════════
+   Phase 4 阶段 11 · 鱼缸 V2(Fishbowl V2)
+   - .fishbowl-mode-row: 顶部 chip 行(✏️ 编排 / 🔁 接龙 / 🎙️ 讨论)
+   - .avatar.bot.fishbowl-active: 当前发言者头像 pulse 动画
+   (4.82: 删掉 #costDisplay.cost-warn-* 三态预警规则 —— 该功能 UI 已不存在,全项目零引用;
+    .fishbowl-bar 状态条样式在 styles-2.css,同样已随 multi-agent 面板改版失效)
+   ═════════════════════════════════════ */
+
+@keyframes fishbowl-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(127, 127, 127, .55); }
+  50%      { box-shadow: 0 0 0 6px rgba(127, 127, 127, 0); }
+}
+.avatar.bot.fishbowl-active {
+  animation: fishbowl-pulse 1.4s ease-in-out infinite;
+  border-color: rgba(127, 127, 127, .8);
+}
+
+/* —— Glass 主题覆盖 —— */
+@keyframes fishbowl-pulse-glass {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, .5); }
+  50%      { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
+}
+html[data-theme="glass"] .avatar.bot.fishbowl-active {
+  animation-name: fishbowl-pulse-glass;
+  border-color: rgba(99, 102, 241, .7);
+}
+
+/* ─── candle 烛夜私语 ─── */
+html[data-theme="candle"] {
+  --ag-surface: rgba(217,168,104,.10); --ag-hover: rgba(217,168,104,.07); --ag-border: rgba(217,168,104,.28); /* 4.83 */
+  --bg: #171009;
+  --border: rgba(217, 168, 104, .18);
+  --muted: #8a7a6a;
+  --bubble-ai: rgba(40, 28, 18, .55);
+  --bubble-user: #d9a868;
+  --input-bg: rgba(40, 28, 18, .42);
+  --input-border: rgba(217, 168, 104, .28);
+  --btn-bg: #d9a868;
+  --btn-bg-hover: #e8bd7c;
+}
+html[data-theme="candle"] body {
+  background:
+    radial-gradient(circle at 50% 30%,
+      rgba(217, 168, 104, calc(0.10 + var(--pulse) * 0.25)),
+      transparent 60%),
+    radial-gradient(circle at 50% 80%,
+      rgba(242, 231, 214, calc(0.06 + var(--pulse) * 0.14)),
+      transparent 55%),
+    #171009;
+  color: #f2e7d6;
+  background-attachment: fixed;
+}
+html[data-theme="candle"] #topbar {
+  background: linear-gradient(to bottom, rgba(20,13,8,.92), rgba(20,13,8,.65));
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(217, 168, 104, .12);
+}
+html[data-theme="candle"] .pill,
+html[data-theme="candle"] .iconbtn {
+  background: rgba(40, 28, 18, .45);
+  border: 1px solid rgba(217, 168, 104, .22);
+  color: #f2e7d6;
+  backdrop-filter: blur(6px);
+}
+html[data-theme="candle"] .iconbtn:hover {
+  background: rgba(217, 168, 104, .22);
+  border-color: rgba(217, 168, 104, .42);
+  box-shadow: 0 0 calc(8px + var(--pulse) * 16px) rgba(217, 168, 104, calc(.25 + var(--pulse) * .35));
+}
+html[data-theme="candle"] select {
+  background: rgba(20, 13, 8, .6);
+  color: #f2e7d6;
+  border: 1px solid rgba(217, 168, 104, .25);
+}
+html[data-theme="candle"] select option { background: #171009; color: #f2e7d6; }
+html[data-theme="candle"] #costDisplay { color: #8a7a6a !important; }
+html[data-theme="candle"] .model-label { color: #f2e7d6; }
+
+html[data-theme="candle"] .avatar.bot {
+  background: radial-gradient(circle at 30% 30%, #d9a868, #5a3a22);
+  border-color: rgba(217, 168, 104, .35);
+  color: #f2e7d6;
+}
+html[data-theme="candle"] .avatar.human {
+  background: radial-gradient(circle at 30% 30%, #f2e7d6, #a07a4e);
+  border-color: rgba(242, 231, 214, .35);
+  color: #171009;
+}
+
+html[data-theme="candle"] .bubble {
+  border: 1px solid rgba(217, 168, 104, .18);
+  border-radius: 20px;
+  box-shadow: 0 calc(2px + var(--pulse) * 8px) calc(14px + var(--pulse) * 22px)
+              rgba(217, 168, 104, calc(.10 + var(--pulse) * 0.28));
+  backdrop-filter: blur(6px);
+}
+html[data-theme="candle"] .bubble.ai {
+  background: rgba(40, 28, 18, .55);
+  color: #f2e7d6;
+}
+html[data-theme="candle"] .bubble.user {
+  background: linear-gradient(135deg, #d9a868, #f2e7d6);
+  color: #171009;
+  border-color: rgba(217, 168, 104, .55);
+}
+html[data-theme="candle"] .meta,
+html[data-theme="candle"] .stats { color: #8a7a6a; }
+
+html[data-theme="candle"] .input-inner {
+  background: rgba(40, 28, 18, .42);
+  border: 1px solid rgba(217, 168, 104, .28);
+  box-shadow: 0 10px calc(28px + var(--pulse) * 24px)
+              rgba(217, 168, 104, calc(.18 + var(--pulse) * 0.32));
+  backdrop-filter: blur(14px);
+}
+html[data-theme="candle"] textarea#msg { color: #f2e7d6; }
+html[data-theme="candle"] textarea#msg::placeholder { color: #8a606a; }
+
+html[data-theme="candle"] button#sendBtn {
+  background: linear-gradient(135deg, #d9a868, #f2e7d6);
+  color: #171009;
+  box-shadow: 0 calc(4px + var(--pulse) * 6px) calc(14px + var(--pulse) * 18px)
+              rgba(217, 168, 104, calc(.4 + var(--pulse) * 0.4));
+}
+html[data-theme="candle"] button#sendBtn:hover {
+  background: linear-gradient(135deg, #e8bd7c, #f2e7d6);
+}
+
+html[data-theme="candle"] .chip-btn {
+  background: rgba(40, 28, 18, .45);
+  border: 1px solid rgba(217, 168, 104, .22);
+  color: #f2e7d6;
+}
+html[data-theme="candle"] .chip-btn:hover:not(:disabled) {
+  background: rgba(217, 168, 104, .22);
+  border-color: rgba(217, 168, 104, .42);
+  color: #fff;
+}
+html[data-theme="candle"] .chip-btn.active {
+  background: rgba(217, 168, 104, .32);
+  border-color: rgba(217, 168, 104, .6);
+  color: #fff;
+}
+
+html[data-theme="candle"] #settingsMask,
+html[data-theme="candle"] .char-panel-mask {
+  background: rgba(8, 5, 2, .72);
+  backdrop-filter: blur(8px);
+}
+html[data-theme="candle"] #settings,
+html[data-theme="candle"] .char-panel {
+  background: rgba(20, 13, 8, .95);
+  border: 1px solid rgba(217, 168, 104, .22);
+  color: #f2e7d6;
+  box-shadow: 0 30px 80px rgba(0,0,0,.7), 0 0 60px rgba(217, 168, 104, .15);
+}
+html[data-theme="candle"] #settingsHeader h3,
+html[data-theme="candle"] .char-panel-header h3,
+html[data-theme="candle"] .char-current-name { color: #f2e7d6; }
+html[data-theme="candle"] #settingsHeader .hint,
+html[data-theme="candle"] .char-section-title { color: #a89a8a; }
+html[data-theme="candle"] .card {
+  background: rgba(40, 28, 18, .35);
+  border: 1px solid rgba(217, 168, 104, .15);
+}
+html[data-theme="candle"] .card h4 { color: #f2e7d6; }
+html[data-theme="candle"] .card p { color: #a89a8a; }
+html[data-theme="candle"] .rowline { border-top-color: rgba(217, 168, 104, .12); }
+
+html[data-theme="candle"] .smallbtn {
+  background: rgba(40, 28, 18, .5);
+  border: 1px solid rgba(217, 168, 104, .25);
+  color: #f2e7d6;
+}
+html[data-theme="candle"] .smallbtn:hover { background: rgba(217, 168, 104, .22); }
+html[data-theme="candle"] .smallbtn.danger {
+  background: rgba(140, 30, 50, .35);
+  border-color: rgba(220, 60, 90, .42);
+  color: #e8a58c;
+}
+
+html[data-theme="candle"] #customPrompt,
+html[data-theme="candle"] .char-input,
+html[data-theme="candle"] .char-textarea {
+  background: rgba(20, 13, 8, .7);
+  border: 1px solid rgba(217, 168, 104, .22);
+  color: #f2e7d6;
+}
+html[data-theme="candle"] #customPrompt:focus,
+html[data-theme="candle"] .char-input:focus,
+html[data-theme="candle"] .char-textarea:focus {
+  border-color: #d9a868;
+  box-shadow: 0 0 0 3px rgba(217, 168, 104, .18);
+}
+
+html[data-theme="candle"] .char-rel-btn {
+  background: rgba(40, 28, 18, .45);
+  border-color: rgba(217, 168, 104, .18);
+  color: #a89a8a;
+}
+html[data-theme="candle"] .char-rel-btn:hover { color: #f2e7d6; background: rgba(217, 168, 104, .22); }
+html[data-theme="candle"] .char-rel-btn.active {
+  background: linear-gradient(135deg, #d9a868, #f2e7d6);
+  border-color: #d9a868;
+  color: #171009;
+}
+
+html[data-theme="candle"] .char-item {
+  background: rgba(40, 28, 18, .35);
+  border: 1px solid rgba(217, 168, 104, .15);
+}
+html[data-theme="candle"] .char-item:hover {
+  background: rgba(40, 28, 18, .55);
+  border-color: rgba(217, 168, 104, .42);
+}
+html[data-theme="candle"] .char-item.active {
+  background: linear-gradient(135deg, rgba(217,168,104,.18), rgba(242,231,214,.12));
+  border-color: #d9a868;
+  box-shadow: 0 0 0 2px rgba(217, 168, 104, .25);
+}
+html[data-theme="candle"] .char-item-name { color: #f2e7d6; }
+html[data-theme="candle"] .char-item-btn {
+  background: rgba(40, 28, 18, .6);
+  color: #f2e7d6;
+  border: 1px solid rgba(217, 168, 104, .22);
+}
+
+html[data-theme="candle"] .reasoning-block {
+  background: rgba(40, 28, 18, .35);
+  border-color: rgba(217, 168, 104, .15);
+  color: #a89a8a;
+}
+html[data-theme="candle"] .reasoning-block .reasoning-text {
+  border-top-color: rgba(217, 168, 104, .15);
+  color: #8a7a6a;
+}
+
+html[data-theme="candle"] .theme-option {
+  background: rgba(40, 28, 18, .35);
+  border: 1px solid rgba(217, 168, 104, .18);
+}
+html[data-theme="candle"] .theme-option:hover { background: rgba(40, 28, 18, .55); }
+html[data-theme="candle"] .theme-option input[type="radio"] { border-color: rgba(217, 168, 104, .5); }
+html[data-theme="candle"] .theme-option input[type="radio"]:checked { border-color: #d9a868; }
+html[data-theme="candle"] .theme-option input[type="radio"]:checked::after { background: #d9a868; }
+html[data-theme="candle"] .theme-title { color: #f2e7d6; }
+html[data-theme="candle"] .theme-sub   { color: #a89a8a; }
+
+html[data-theme="candle"] ::-webkit-scrollbar-thumb { background: rgba(217, 168, 104, .3); }
+
+html[data-theme="candle"] .cost-cell {
+  background: rgba(40, 28, 18, .35);
+  border: 1px solid rgba(217, 168, 104, .18);
+}
+html[data-theme="candle"] .cost-cell.total {
+  background: linear-gradient(135deg, rgba(217,168,104,.22), rgba(242,231,214,.14));
+  border-color: rgba(217, 168, 104, .55);
+}
+html[data-theme="candle"] .cost-label { color: #a89a8a; }
+html[data-theme="candle"] .cost-val { color: #f2e7d6; }
+html[data-theme="candle"] .cost-details {
+  background: rgba(40, 28, 18, .35);
+  border-color: rgba(217, 168, 104, .15);
+}
+html[data-theme="candle"] .cost-details summary { color: #a89a8a; }
+html[data-theme="candle"] .cost-row { border-bottom-color: rgba(217, 168, 104, .12); }
+html[data-theme="candle"] .cost-date,
+html[data-theme="candle"] .cost-amt { color: #f2e7d6; }
+html[data-theme="candle"] .cost-meta,
+html[data-theme="candle"] .cost-empty { color: #8a7a6a; }
+
+html[data-theme="candle"] .msg-action-btn {
+  background: rgba(40, 28, 18, .45);
+  border: 1px solid rgba(217, 168, 104, .22);
+  color: #a89a8a;
+}
+html[data-theme="candle"] .msg-action-btn:hover {
+  background: rgba(217, 168, 104, .22);
+  color: #f2e7d6;
+  border-color: rgba(217, 168, 104, .55);
+}
+
+html[data-theme="candle"] #multiAgentToggle.active {
+  background: rgba(217, 168, 104, .25);
+  color: #f2e7d6;
+  border-color: rgba(217, 168, 104, .55);
+}
+
+/* ─── 慢呼吸 fallback animation：未启动音频时的视觉脉动 ─── */
+/* theme.js 启动 Web Audio API 后给 html 加 .pulse-on class，此时关闭 fallback */
+@keyframes candle-breathe {
+  0%, 100% { box-shadow: inset 0 0 280px rgba(217, 168, 104, 0.08); }
+  50%      { box-shadow: inset 0 0 280px rgba(217, 168, 104, 0.32); }
+}
+html[data-theme="candle"]:not(.pulse-on) body {
+  animation: candle-breathe 4.5s ease-in-out infinite;
+}
+/* ─── candle 主题的色卡缩略图（Settings radio 用） ─── */
+.theme-swatch-candle {
+  background:
+    radial-gradient(circle at 50% 24%, rgba(255,240,206,.95), rgba(217,168,104,.85) 24%, transparent 54%),
+    radial-gradient(circle at 20% 92%, rgba(242,231,214,.30), transparent 62%),
+    linear-gradient(160deg, #2a1e12 0%, #171009 74%);
+  border-color: rgba(217,168,104,.3);
+  box-shadow: inset 0 0 12px rgba(217,168,104,.26);
+}/* 4.82: 已删除旧版「人体剪影装饰」全套规则(约 80 行) ——
+   自绘点云/SVG 剪影功能已在 HTML 侧移除(index.html 注释可证),DOM 无该元素、JS 无引用,
+   全套规则零命中。需要找回参考 git 历史。 */

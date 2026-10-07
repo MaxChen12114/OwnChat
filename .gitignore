@@ -1,0 +1,55 @@
+# ===== Cloudflare Workers / Wrangler =====
+# 本地密钥（千万别提交！里面有 API key）
+.dev.vars
+.dev.vars.*
+
+# wrangler 本地缓存
+.wrangler/
+.mf/
+wrangler.toml.bak
+
+# ===== Node =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===== 构建产物 =====
+dist/
+build/
+.cache/
+
+# 两份提示词注册表：源 = src/prompts/bases/ 与 src/prompts/neutrals/ 下的 .md/.txt，
+# 由 scripts/gen-prompts.mjs 生成（wrangler dev/deploy 前自动跑）。
+# 不提交 —— 避免与文本源并存两份事实源而漂移。
+src/prompts/bases/index.js
+src/prompts/presets/index.js
+src/prompts/skills/index.js
+
+# ===== 编辑器 =====
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ===== 系统 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== 环境变量（其他常见命名）=====
+.env
+.env.*
+.env.local
+.env.*.local
+
+# 签名/证书类（安卓打包、桌面发布）
+keystore.properties
+*.jks
+*.keystore
+*.p12
+
+# ===== Tauri 签名密钥（私钥绝对不能提交！）=====
+ownchat.key
+*.key

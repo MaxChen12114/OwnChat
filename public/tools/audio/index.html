@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<!-- 路径: public/audio/index.html （音频工作台 · 朗读/识别/导出/音色 · /audio/；原 /reader/ 2026-06-30 改名） -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>音频工作台 · OwnChat</title>
+  <script>
+  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/theme.css) */
+  (function(){try{
+    var t=localStorage.getItem('cfw_theme_v1')||'minimal';
+    if(t&&t!=='minimal')document.documentElement.setAttribute('data-theme',t);
+    var s=localStorage.getItem('my-theme');
+    if(s==='light'||s==='dark')document.documentElement.setAttribute('data-scheme',s);
+  }catch(e){}})();
+</script>
+<link rel="stylesheet" href="/shared/theme.css" />
+<style>
+    /* 主题令牌统一来自 /shared/theme.css(跟随主站主题);本页组件一律平面+细边框,不再使用拟物阴影 */
+    :root{
+      --surface:var(--panel);
+      --accent:var(--ac); --accent-deep:var(--ac-strong); --accent2:var(--ac);
+      --accent-grad:linear-gradient(135deg, var(--ac), var(--ac-strong));
+      --radius:14px; --radius-sm:10px;
+      --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei','Segoe UI Emoji',sans-serif;
+    }
+    *{box-sizing:border-box;}
+    html,body{height:100%;margin:0;}
+    body{
+      background:var(--bg); color:var(--text); font-family:var(--sans);
+      line-height:1.6; -webkit-font-smoothing:antialiased;
+      display:flex; flex-direction:column; min-height:100dvh;
+    }
+    /* 顶栏 */
+    .topbar{ display:flex; align-items:center; gap:12px; padding:13px 18px; border-bottom:1px solid var(--border); background:var(--panel); }
+    .back{ display:inline-flex; align-items:center; gap:7px; text-decoration:none; color:var(--text); font-size:13px; font-weight:600;
+      white-space:nowrap; flex:none; padding:8px 13px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel2); transition:border-color .15s, background .15s; }
+    .back:hover{ border-color:var(--ac); background:var(--ac-soft); }
+    .brand{ width:32px; height:32px; flex:none; border-radius:9px; display:inline-flex; align-items:center; justify-content:center;
+      color:var(--ac-contrast,#fff); background:var(--accent-grad); }
+    .brand svg{ width:18px; height:18px; }
+    .title{ font-size:15.5px; font-weight:700; letter-spacing:.01em; white-space:nowrap; }
+    .title small{ color:var(--muted); font-weight:500; font-size:12px; margin-left:6px; }
+    .topbar-spacer{ flex:1; }
+    /* 主体 */
+    main{ flex:1; width:100%; max-width:860px; margin:0 auto; padding:8px 18px 28px; display:flex; flex-direction:column; gap:16px; min-height:0; }
+    .card{ border:1px solid var(--border); border-radius:var(--radius); padding:15px 17px; background:var(--panel); }
+    .row{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .grow{ flex:1; min-width:0; }
+    /* 降级提示条 */
+    #notice{ display:none; align-items:flex-start; gap:9px; padding:12px 14px; border-radius:var(--radius-sm); color:var(--text);
+      background:var(--panel2); border:1px solid var(--border); font-size:13px; line-height:1.6; margin:8px 18px 0; }
+    /* 按钮 */
+    .btn{ display:inline-flex; align-items:center; justify-content:center; gap:7px; cursor:pointer;
+      color:var(--text); font-size:13px; font-weight:600; font-family:inherit; padding:9px 15px; border-radius:var(--radius-sm);
+      border:1px solid var(--border); background:var(--panel2); transition:border-color .15s, background .15s, color .15s; }
+    .btn:hover:not(:disabled){ border-color:var(--ac); background:var(--ac-soft); }
+    .btn:disabled{ color:var(--muted); opacity:.55; cursor:not-allowed; }
+    .btn svg{ width:16px; height:16px; }
+    .btn.primary{ color:var(--ac-contrast,#fff); background:var(--accent-grad); border-color:transparent; }
+    .btn.primary:hover:not(:disabled){ filter:brightness(1.06); background:var(--accent-grad); border-color:transparent; }
+    .btn.is-on{ color:var(--accent-deep); border-color:var(--ac); background:var(--ac-soft); }
+    /* 播放控件区 */
+    .controls{ display:flex; align-items:center; justify-content:center; gap:14px; padding:16px; border-radius:var(--radius); }
+    .ctrl{ width:54px; height:54px; border-radius:50%; padding:0; }
+    .ctrl.play{ color:var(--ac-contrast,#fff); background:var(--accent-grad); border-color:transparent; }
+    .ctrl.play.is-on{ background:var(--accent-grad); opacity:.85; }
+    .ctrl.play:disabled{ color:var(--ac-contrast,#fff); opacity:.4; }
+    .ctrl svg{ width:22px; height:22px; }
+    /* 状态行 */
+    .meta{ display:flex; align-items:center; gap:10px; font-size:12.5px; color:var(--muted); flex-wrap:wrap; }
+    .meta .file{ color:var(--text); font-weight:600; }
+    #voiceStatus.warn{ color:var(--danger); }
+    /* 语速 */
+    .speed{ display:flex; align-items:center; gap:10px; font-size:12.5px; color:var(--muted); }
+    input[type=range]{ -webkit-appearance:none; appearance:none; height:6px; border-radius:4px; background:var(--border); outline:none; width:150px; }
+    input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:16px; height:16px; border-radius:50%; cursor:pointer;
+      background:var(--accent-grad); border:2px solid var(--panel); }
+    /* 文本舞台 */
+    .stage{ flex:1; min-height:200px; border-radius:var(--radius); padding:6px; display:flex; overflow:hidden;
+      border:1px solid var(--border); background:var(--panel); }
+    .text-input{ flex:1; width:100%; border:none; outline:none; resize:none; background:transparent;
+      font-family:inherit; font-size:15px; line-height:1.85; color:var(--text); padding:14px 16px; }
+    .text-input::placeholder{ color:var(--muted); }
+    .sentences{ flex:1; overflow-y:auto; padding:6px; }
+    .sent{ display:flex; align-items:flex-start; gap:10px; padding:9px 12px; margin:4px 4px; border-radius:var(--radius-sm); cursor:pointer; border:1px solid transparent; transition:border-color .15s, background .15s; }
+    .sent:hover{ background:var(--ac-soft); }
+    .sent.active{ color:var(--accent-deep); background:var(--ac-soft); border-color:var(--ac); }
+    .sent-no{ flex:none; min-width:24px; font-size:11px; font-weight:700; color:var(--muted); padding-top:3px; }
+    .sent.active .sent-no{ color:var(--accent); }
+    .sent-tx{ font-size:14px; line-height:1.7; word-break:break-word; }
+    .empty{ text-align:center; color:var(--muted); font-size:13px; padding:46px 16px; }
+    .progress{ font-size:12.5px; font-weight:600; color:var(--accent-deep); min-width:96px; text-align:center; }
+    /* toast */
+    #toast{ position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(20px); opacity:0; pointer-events:none;
+      max-width:80vw; padding:11px 18px; border-radius:10px; background:var(--panel); color:var(--text); font-size:13px;
+      border:1px solid var(--border); box-shadow:0 8px 22px rgba(0,0,0,.3); transition:opacity .2s, transform .2s; z-index:50; }
+    #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+    @media (max-width:600px){ main{ padding:8px 12px 24px; } .topbar{ padding:12px; } }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <a class="back" href="/" title="返回聊天">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      返回聊天
+    </a>
+    <span class="brand" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span>
+    <span class="title">音频工作台<small>朗读 · GPT-SoVITS</small></span>
+    <span class="topbar-spacer"></span>
+  </div>
+
+  <div id="notice">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="M12 9v4"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+    <span>本页的本地朗读需要在<b>桌面 App</b>内使用(依赖本机语音服务与文件访问)。网页版可浏览界面,但不能选文件/发声。</span>
+  </div>
+
+  <main>
+    <!-- 文件 + 语音设置 -->
+    <div class="card">
+      <div class="row">
+        <button class="btn" id="pickBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 4H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9.5z"/><path d="M13.5 4v5.5H19"/></svg>
+          选择文本文件
+        </button>
+        <button class="btn" id="clearBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/></svg>
+          重新输入
+        </button>
+        <button class="btn" id="asrBtn" title="选一个音频文件(wav/mp3 等),由本机语音服务的 ASR 转成文字填入编辑区(需 GPT-SoVITS api_v2)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          音频转文字
+        </button>
+        <button class="btn" id="exportTextBtn" title="把当前文本/逐句内容导出为 .txt">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M8 11l4 4 4-4"/><path d="M5 19h14"/></svg>
+          导出文本
+        </button>
+        <span class="meta grow"><span class="file" id="fileName">直接在下方粘贴文字，或选个文件</span></span>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <span class="meta grow" id="voiceStatus">检查中…</span>
+        <span class="speed">语速
+          <input type="range" id="speed" min="0.5" max="2" step="0.05" value="1" />
+          <span id="speedVal">1.0×</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- 中间:文本舞台 —— 默认可直接粘贴/输入;开始朗读后变逐句列表 -->
+    <div class="stage" id="stage">
+      <textarea id="textInput" class="text-input" placeholder="把要朗读的文字粘贴或输入到这里，然后点下方 ▶ 开始朗读…"></textarea>
+      <div class="sentences" id="sentenceList" hidden></div>
+    </div>
+
+    <!-- 播放控件 -->
+    <div class="controls">
+      <button class="btn ctrl" id="prevBtn" title="上一句" disabled>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 6h2v12H7zM20 6l-9 6 9 6z"/></svg>
+      </button>
+      <button class="btn ctrl play" id="playBtn" title="播放 / 继续" disabled>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <button class="btn ctrl" id="pauseBtn" title="暂停" disabled>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+      </button>
+      <button class="btn ctrl" id="stopBtn" title="停止" disabled>
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+      </button>
+      <button class="btn ctrl" id="nextBtn" title="下一句" disabled>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15 6h2v12h-2zM4 6l9 6-9 6z"/></svg>
+      </button>
+      <button class="btn ctrl" id="exportAudioBtn" title="导出当前音频为 .wav(编辑态=合成整段文本;朗读态=导出当前句)" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M8 11l4 4 4-4"/><path d="M5 19h14"/></svg>
+      </button>
+      <span class="progress" id="progressText">—</span>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+
+  <!-- 加载顺序:空间层 → tts 主体(空间层须在 tts 之前,tts 播放图依赖它) → reader 控制器 -->
+  <!-- 2026-09-14 UI第一轮:统一反馈组件(toast/confirm,自注入样式),须在 app.js 前 -->
+  <script src="/shared/feedback.js"></script>
+  <script src="/shared/tts.js"></script>
+  <script src="/tools/audio/app.js"></script>
+</body>
+</html>

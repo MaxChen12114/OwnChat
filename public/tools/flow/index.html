@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<!-- 路径: public/flow/index.html （节点工作台 · /flow/） -->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>节点工作台 · OwnChat</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow@0.0.59/dist/drawflow.min.css" />
+<script>
+  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/theme.css) */
+  (function(){try{
+    var t=localStorage.getItem("cfw_theme_v1")||"minimal";
+    if(t&&t!=="minimal")document.documentElement.setAttribute("data-theme",t);
+    var s=localStorage.getItem("my-theme");
+    if(s==="light"||s==="dark")document.documentElement.setAttribute("data-scheme",s);
+  }catch(e){}})();
+</script>
+<link rel="stylesheet" href="/shared/theme.css" />
+<style>
+  /* 主题令牌已抽到 /shared/theme.css（公共底座），此处不再重复定义 :root */
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; }
+  body { background:var(--bg); color:var(--text); font:14px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",Helvetica,Arial,sans-serif; display:flex; flex-direction:column; overflow:hidden; }
+  .topbar { display:flex; align-items:center; gap:12px; padding:10px 16px; border-bottom:1px solid var(--border); background:var(--panel); flex:none; }
+  .brand { font-weight:700; font-size:15px; letter-spacing:.02em; }
+  .brand small { color:var(--muted); font-weight:400; font-size:12px; margin-left:8px; }
+  .tb-spacer { flex:1; }
+  .count { font-size:12px; color:var(--muted); }
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:7px 12px; border-radius:9px; border:1px solid var(--border); background:var(--panel2); color:var(--text); font:inherit; font-size:13px; cursor:pointer; transition:background .15s,border-color .15s; }
+  .btn:hover { background:rgba(207,207,207,.10); }
+  .btn svg { width:15px; height:15px; }
+  .btn.primary { background:var(--ac); border-color:var(--ac); color:var(--ac-contrast); }
+  .btn.primary:hover { background:var(--ac-strong); }
+  .btn[disabled] { opacity:.45; cursor:default; }
+  .top-link { color:var(--muted); text-decoration:none; font-size:13px; padding:7px 10px; border-radius:9px; }
+  .top-link:hover { color:var(--text); background:var(--panel2); }
+  .workspace { flex:1; display:flex; min-height:0; }
+  .palette-pane { width:208px; flex:none; border-right:1px solid var(--border); background:var(--panel); overflow-y:auto; padding:12px 10px; }
+  .pal-hint { font-size:11px; line-height:1.6; color:var(--muted); background:var(--ac-soft); border:1px solid var(--border); border-radius:9px; padding:8px 10px; margin-bottom:12px; }
+  .pal-group { margin-bottom:14px; }
+  .pal-title { font-size:11px; font-weight:700; color:var(--muted); margin:0 2px 6px; }
+  .pal-item { display:block; width:100%; text-align:left; padding:8px 10px; margin-bottom:5px; border-radius:8px; border:1px solid var(--border); background:var(--panel2); color:var(--text); font:inherit; font-size:13px; cursor:pointer; transition:background .15s,border-color .15s; }
+  .pal-item:hover { background:rgba(207,207,207,.12); border-color:var(--ac); }
+  .canvas-pane { flex:1; position:relative; min-width:0; }
+  #canvas { position:absolute; inset:0; }
+  .cdn-warn { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:none; max-width:340px; text-align:center; color:var(--muted); font-size:13px; line-height:1.7; background:var(--panel2); border:1px solid var(--border); border-radius:12px; padding:18px 20px; }
+  .console-pane { position:relative; flex:none; height:172px; min-height:120px; border-top:1px solid var(--border); background:var(--panel); display:flex; flex-direction:column; }
+  .console-resize { height:7px; flex:none; cursor:row-resize; background:transparent; }
+  .console-resize:hover, .console-resize:active { background:var(--ac-soft); }
+  .console-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:5px 12px; border-bottom:1px solid var(--border); font-size:12px; color:var(--muted); }
+  .console-tabs { display:flex; gap:4px; }
+  .console-tab { background:transparent; border:none; color:var(--muted); font:inherit; font-size:12px; padding:4px 11px; border-radius:7px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+  .console-tab:hover { color:var(--text); }
+  .console-tab.active { background:var(--panel2); color:var(--text); }
+  .art-count { display:inline-block; min-width:16px; text-align:center; padding:0 5px; border-radius:9px; background:var(--ac-soft); color:var(--ac); font-size:11px; line-height:16px; }
+  .console-actions { display:flex; gap:6px; }
+  .console-head .btn { padding:4px 9px; font-size:12px; }
+  #console { flex:1; overflow-y:auto; padding:10px 14px; font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  .log-line { white-space:pre-wrap; word-break:break-word; padding:1px 0; color:var(--text); }
+  #artifacts { flex:1; overflow-y:auto; padding:12px 14px; display:flex; flex-direction:column; gap:12px; }
+  /* 修「输出台 / 产物 两个面板叠在一起」: #artifacts 的 display:flex 会盖过 [hidden] 属性自带的 display:none, 导致两块同时渲染重叠。显式让 [hidden] 生效, 任一时刻只显示一个。 */
+  #console[hidden], #artifacts[hidden] { display:none !important; }
+  .art-empty { color:var(--muted); font-size:12px; line-height:1.7; text-align:center; padding:18px 12px; }
+  .art-card { border:1px solid var(--border); border-radius:10px; background:var(--panel2); overflow:hidden; }
+  .art-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px 7px 12px; border-bottom:1px solid var(--border); }
+  .art-info { display:flex; align-items:baseline; gap:8px; min-width:0; }
+  .art-name { font-weight:600; font-size:12.5px; color:var(--text); word-break:break-all; }
+  .art-meta { font-size:11px; color:var(--muted); flex:none; }
+  .art-btns { display:flex; gap:6px; flex:none; }
+  .art-btns .btn { padding:3px 10px; font-size:12px; }
+  .art-code { margin:0; padding:10px 12px; max-height:320px; overflow:auto; font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; white-space:pre; color:var(--text); }
+  .drawflow { background:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1px); background-size:22px 22px; }
+  .drawflow .drawflow-node { background:var(--panel2); border:1px solid var(--border); border-radius:12px; color:var(--text); padding:0; width:248px; box-shadow:0 6px 22px rgba(0,0,0,.4); }
+  .drawflow .drawflow-node:hover { border-color:rgba(207,207,207,.42); }
+  .drawflow .drawflow-node.selected { border-color:var(--ac) !important; background:var(--panel2) !important; box-shadow:0 0 0 1px var(--ac), 0 0 0 5px var(--ac-soft), 0 10px 30px rgba(0,0,0,.5) !important; }
+  .drawflow .drawflow-node.selected .nd-head { color:var(--ac); border-bottom-color:rgba(207,207,207,.32); }
+  .drawflow .drawflow-node .input, .drawflow .drawflow-node .output { background:var(--panel); border:2px solid var(--ac); width:13px; height:13px; }
+  .drawflow .connection .main-path { stroke:var(--ac); stroke-width:2.4px; }
+  .nd { width:100%; }
+  .nd-head { font-weight:700; padding:9px 12px; border-bottom:1px solid var(--border); font-size:13.5px; }
+  .nd-desc { font-size:11px; color:var(--muted); padding:7px 12px 0; line-height:1.5; }
+  .nd-body { padding:9px 12px 10px; display:flex; flex-direction:column; gap:9px; }
+  .nd-field { display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--muted); }
+  .nd-field textarea, .nd-field input, .nd-field select { background:var(--panel); border:1px solid var(--border); border-radius:7px; color:var(--text); font:inherit; font-size:12px; padding:6px 8px; resize:vertical; }
+  .nd-field textarea:focus, .nd-field input:focus, .nd-field select:focus { outline:none; border-color:var(--ac); }
+  .nd-out { font-size:11px; color:var(--ac); padding:0 12px 10px; word-break:break-word; }
+  .nd-out:empty { display:none; }
+
+  .pane-toggle { display:none; }
+  /* —— 移动端适配（重构：顶栏换行 + 上下堆叠 + 节点面板可折叠 + 资金条独占一行） —— */
+  @media (max-width: 720px) {
+    .topbar { flex-wrap:nowrap; justify-content:flex-start; gap:8px; padding:8px 10px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+    .topbar::-webkit-scrollbar { display:none; }
+    .topbar > * { flex:none; }
+    .brand { font-size:14px; }
+    .brand small { display:none; }
+    .tb-spacer { display:none; }
+    .count { display:none; }
+    .btn { padding:6px 10px; }
+    .top-link { padding:6px 8px; }
+    .pane-toggle { display:inline-flex; }
+    .workspace { flex-direction:column; }
+    .palette-pane { width:100%; flex:none; max-height:28vh; border-right:none; border-bottom:1px solid var(--border); padding:10px; }
+    body.palette-collapsed .palette-pane { display:none; }
+    .canvas-pane { flex:1; min-height:240px; }
+    .console-pane { height:140px; min-height:96px; }
+    .drawflow .drawflow-node { width:206px; }
+  }
+</style>
+</head>
+<body class="palette-collapsed">
+  <header class="topbar">
+    <button class="btn pane-toggle" id="paneToggle" title="展开/收起节点面板" onclick="document.body.classList.toggle('palette-collapsed')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+    <span class="brand">节点工作台<small>节点式可视化工作流 · 不止于代码</small></span>
+    <span class="tb-spacer"></span>
+    <span class="count" id="saveState">节点工作流</span>
+    <button class="btn primary" id="runBtn" title="按依赖顺序执行整张图">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5.5l12 6.5-12 6.5z"/></svg>运行
+    </button>
+    <button class="btn" id="stopBtn" hidden title="中止运行">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>停止
+    </button>
+    <button class="btn" id="saveBtn" title="保存到本地">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5.5h10l4 4V19a.5.5 0 0 1-.5.5H5A.5.5 0 0 1 4.5 19V6A.5.5 0 0 1 5 5.5z"/><path d="M8 5.5v4h6"/><path d="M8 19v-5h8v5"/></svg>保存
+    </button>
+    <button class="btn" id="clearBtn" title="清空画布">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5h15"/><path d="M9 6.5V5.2A1.7 1.7 0 0 1 10.7 3.5h2.6A1.7 1.7 0 0 1 15 5.2V6.5"/><path d="M6.8 6.5l.7 12.2a1.8 1.8 0 0 0 1.8 1.7h5.4a1.8 1.8 0 0 0 1.8-1.7l.7-12.2"/></svg>清空
+    </button>
+    <a class="top-link" href="/" title="返回主站">返回主站</a>
+  </header>
+
+  <div class="workspace">
+    <aside class="palette-pane">
+      <div class="pal-hint">点节点加到画布,拖端口连线成工作流。引擎与画布解耦:洪都演示平台复用同一引擎,只换节点包。</div>
+      <div id="palette"></div>
+    </aside>
+    <main class="canvas-pane">
+      <div id="canvas"></div>
+      <div class="cdn-warn" id="cdnWarn">节点画布库(Drawflow)未能从 CDN 加载。请检查网络后刷新,或改用本地打包版。</div>
+    </main>
+  </div>
+
+  <section class="console-pane" id="consolePane">
+    <div class="console-resize" id="consoleResize" title="拖动上沿调整输出台高度"></div>
+    <div class="console-head">
+      <div class="console-tabs">
+        <button class="console-tab active" id="tabLog" type="button">输出台</button>
+        <button class="console-tab" id="tabArt" type="button">产物 <span class="art-count" id="artCount">0</span></button>
+      </div>
+      <div class="console-actions">
+        <button class="btn" id="downloadAllBtn" type="button" hidden>下载全部</button>
+        <button class="btn" id="clearLogBtn" type="button">清空日志</button>
+      </div>
+    </div>
+    <div id="console"></div>
+    <div id="artifacts" hidden></div>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/drawflow@0.0.59/dist/drawflow.min.js"></script>
+  <script src="/config.js"></script>
+  <script src="/tools/flow/engine.js"></script>
+  <script src="/tools/flow/nodes.js"></script>
+  <script src="/tools/flow/canvas.js"></script>
+  <script src="/tools/flow/help.js"></script>
+</body>
+</html>
