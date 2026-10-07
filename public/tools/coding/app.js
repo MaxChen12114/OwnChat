@@ -35,7 +35,7 @@
   var saveTimer = null;
   var LS_LAST = "cfw_coding_ide_last_v1";
   var LS_MODEL = "cfw_coding_ide_model_v1";
-  function unlimitedOn() { return false; }
+  // 公开版：基座只有一套，恒用内置（use_builtin_persona = true）
   
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;"); }
@@ -467,7 +467,7 @@
     $("#aiRunBtn").hidden = on; $("#aiStopBtn").hidden = !on;
   }
   async function aiChat(system, user, model, onDelta) {
-    var on = unlimitedOn();
+    var on = true;
     var body = { mode: "free", model: model || "", promptProfile: "assist", use_builtin_persona: on, custom_system_prompt: system || "", thinking: "disabled", messages: [{ role: "user", content: user || "" }] };
     try { var _bid = localStorage.getItem("cfw_base_id_v1") || ""; if (_bid) body.baseId = _bid; } catch (e) {}
     

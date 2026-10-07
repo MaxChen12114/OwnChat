@@ -4,7 +4,7 @@
 
   if (window.__promptEditor) return;
 
-  var MASK_ID = 'unlimitedEditorMask';
+  var MASK_ID = 'promptEditorMask';
 
   // 4.59 线性图标:编辑器标题 + 各 Tab 改用与全站一致的 currentColor 线性 SVG(替换 emoji,去掉 v0 骨架角标)。
   // 2026-10-06: 动作按钮(编辑/删除/拖拽/箭头/关闭)也一并 SVG 化 —— 原先这些位置是 ✎ ✕ ⠹ ▸ 这类文字字形。
@@ -56,7 +56,7 @@
     mask = document.createElement('div');
     mask.id = MASK_ID;
     mask.innerHTML = [
-      '<div id="unlimitedEditor" role="dialog" aria-label="提示词编辑器" aria-modal="true">',
+      '<div id="promptEditor" role="dialog" aria-label="提示词编辑器" aria-modal="true">',
         '<div class="ue-header">',
           '<div class="ue-title">' + UE_ICON.wrench + ' 提示词编辑器</div>',
           '<button class="ue-close" id="ueCloseBtn" aria-label="关闭" title="关闭(ESC)">' + UE_A.close + '</button>',
@@ -143,7 +143,7 @@
   }
 
   function bindEntry(){
-    var btn = document.getElementById('unlimitedEditorBtn');
+    var btn = document.getElementById('promptEditorBtn');
     if (btn && !btn.__ueBound) {
       btn.__ueBound = true;
       btn.addEventListener('click', function(e){

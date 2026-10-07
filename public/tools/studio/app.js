@@ -91,7 +91,6 @@ var DEF_EXTRACT=[
 "- 每个角色 rules 给 2-3 条，exampleQA 给 1-2 组真实可用的对话；",
 "- 全部用中文（专有名词可保留原文）。只返回 JSON。"
 ].join("\n");
-var LS_STORY="cfw_studio_sys_story_v1",LS_EXTRACT="cfw_studio_sys_extract_v1";
 function loadPrompts(){
   if($("#sysStory"))$("#sysStory").value=localStorage.getItem(LS_STORY)||DEF_STORY;
   if($("#sysExtract"))$("#sysExtract").value=localStorage.getItem(LS_EXTRACT)||DEF_EXTRACT;
@@ -102,7 +101,7 @@ function wirePrompts(){
   var rb=$("#promptReset");
   if(rb)rb.addEventListener("click",function(){localStorage.removeItem(LS_STORY);localStorage.removeItem(LS_EXTRACT);loadPrompts();if($("#promptHint"))$("#promptHint").textContent="已恢复默认提示词";});
 }
-function storySys(){var base=($("#sysStory")&&$("#sysStory").value.trim())||DEF_STORY;return base;}
+function storySys(){return ($("#sysStory")&&$("#sysStory").value.trim())||DEF_STORY;}
 function extractSys(){return ($("#sysExtract")&&$("#sysExtract").value.trim())||DEF_EXTRACT;}
 
 // ====== Step 1: 写故事 ======

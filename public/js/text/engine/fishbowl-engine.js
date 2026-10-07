@@ -89,7 +89,7 @@ async function reactionPause(speaker) {
 }
 
 // 4.52: 开发者模式取消轮数硬限——跑到 AI [end] 或手动 ⏹ 才停(实验功能,反馈好转正)
-function devUnlimited() { return localStorage.getItem("cfw_dev_mode_v1") === "1"; }
+function devNoRoundCap() { return localStorage.getItem("cfw_dev_mode_v1") === "1"; }
 
 // ── 参与者列表（去重 + 上限 6 人）──
 function getParticipants() {
@@ -195,7 +195,7 @@ function insertUserMsg(text) {
 // ── 主循环（start / resume 共用）──
 async function runLoop() {
   try {
-    while (state === "running" && (devUnlimited() || currentRound < getMaxRounds()) && !abortFlag) {
+    while (state === "running" && (devNoRoundCap() || currentRound < getMaxRounds()) && !abortFlag) {
       // 1. flush 用户插话（让下一位 AI 看见）
       await flushPending();
       // 2. 选发言者
@@ -254,7 +254,7 @@ async function runLoop() {
       // tick 调小 → B 立刻开始 streaming → B 的 typing/首条与 A 的 tail piece 重叠出现 → 插话感
       // 4.58: 拟人反应延迟已在每轮开头 reactionPause 处理(pacing 开时);这里只在 pacing 关时保留基础停顿。
       // 原 wechat 200ms 是为 AB 气泡交错(已回退),不再使用 → 避免多智能体秒接显得太快。
-      if (state === "running" && (devUnlimited() || currentRound < getMaxRounds())) {
+      if (state === "running" && (devNoRoundCap() || currentRound < getMaxRounds())) {
         await sleep(pacingOn() ? 0 : TICK_SLEEP_MS);
       }
     }

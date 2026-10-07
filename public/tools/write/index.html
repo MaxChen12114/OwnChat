@@ -182,9 +182,7 @@ function buildModels(){var sel=$("#model");if(!sel)return;sel.innerHTML="";addGr
 function selModel(){var sel=$("#model");var o=sel&&sel.options[sel.selectedIndex];if(o&&o.getAttribute("data-mode"))return{mode:o.getAttribute("data-mode"),model:o.getAttribute("data-model")};return{mode:"free",model:undefined};}
 
 async function callChat(opts){
-  
   try{var _bid=localStorage.getItem("cfw_base_id_v1")||"";if(_bid)body.baseId=_bid;}catch(e){}
-  
   var r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:opts.signal});
   if(!r.ok){var t="";try{t=await r.text();}catch(e){}throw new Error("服务返回 "+r.status+(t?(" · "+t.slice(0,160)):""));}
   var reader=r.body.getReader(),dec=new TextDecoder(),buf="",full="";

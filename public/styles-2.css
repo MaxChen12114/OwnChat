@@ -1004,35 +1004,35 @@ html[data-theme="candle"] #topbar #personaToggle:hover {
    现在只留这一份（搬进来的是运行时那份较新的规则）。改样式只改这里，别再往 JS 里塞 <style>。
  - 主题配色见下方 Glass / candle 段。
  ═══════════════════════════════════════════════ */
-#unlimitedEditorMask { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(8,8,12,.66); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
-#unlimitedEditorMask.open { display: flex; }
-#unlimitedEditor { --ue-accent: var(--ue-tab-accent, rgba(180,180,180,.75)); --ue-accent-soft: color-mix(in srgb, var(--ue-tab-accent, rgba(180,180,180,.75)) 16%, transparent); display: flex; flex-direction: column; width: min(880px, 96vw); max-height: 90vh; overflow: hidden; background: var(--bg, #0f0f12); color: inherit; border: 1px solid rgba(127,127,127,.3); border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+#promptEditorMask { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(8,8,12,.66); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+#promptEditorMask.open { display: flex; }
+#promptEditor { --ue-accent: var(--ue-tab-accent, rgba(180,180,180,.75)); --ue-accent-soft: color-mix(in srgb, var(--ue-tab-accent, rgba(180,180,180,.75)) 16%, transparent); display: flex; flex-direction: column; width: min(880px, 96vw); max-height: 90vh; overflow: hidden; background: var(--bg, #0f0f12); color: inherit; border: 1px solid rgba(127,127,127,.3); border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
 @keyframes uePopIn { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
-#unlimitedEditorMask.open #unlimitedEditor { animation: uePopIn .22s ease; }
-#unlimitedEditor .ue-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; flex-shrink: 0; border-bottom: 1px solid rgba(127,127,127,.2); background: linear-gradient(135deg, var(--ue-accent-soft), transparent 72%); }
-#unlimitedEditor .ue-title { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-#unlimitedEditor .ue-title svg { color: var(--ue-accent); }
-#unlimitedEditor .ue-badge { font-size: 11px; font-weight: 500; opacity: .7; padding: 2px 8px; border: 1px solid currentColor; border-radius: 999px; }
-#unlimitedEditor .ue-close { width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(127,127,127,.3); background: transparent; color: inherit; cursor: pointer; font-size: 15px; line-height: 1; flex: 0 0 auto; }
-#unlimitedEditor .ue-close:hover { background: rgba(255,80,80,.14); color: #ff7777; border-color: #ff7777; }
-#unlimitedEditor .ue-tabs { display: flex !important; flex-wrap: nowrap !important; flex-shrink: 0; gap: 6px; padding: 14px 16px 12px; overflow-x: auto !important; border-bottom: 1px solid rgba(127,127,127,.15); -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-#unlimitedEditor .ue-tabs::-webkit-scrollbar { display: none; }
-#unlimitedEditor .ue-tab { display: inline-flex !important; align-items: center; justify-content: center; gap: 6px; flex: 0 0 auto !important; white-space: nowrap !important; padding: 8px 16px; margin-bottom: 0 !important; border: 1px solid transparent; border-radius: 10px; background: rgba(127,127,127,.07); color: inherit; cursor: pointer; font-size: 13px; line-height: 1.2; opacity: .6; transition: background .15s, opacity .15s, border-color .15s, box-shadow .15s; }
-#unlimitedEditor .ue-tab:hover { opacity: 1; background: rgba(127,127,127,.1); }
-#unlimitedEditor .ue-tab.active { opacity: 1; border-color: var(--ue-accent); background: var(--ue-accent-soft); color: var(--ue-accent); font-weight: 600; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
-#unlimitedEditor .ue-tab.active svg { color: var(--ue-accent); }
-#unlimitedEditor .ue-tab-icon { font-size: 15px; flex: 0 0 auto; }
-#unlimitedEditor .ue-tab-label { display: inline !important; flex: 0 0 auto; }
-#unlimitedEditor .ue-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 20px; }
-#unlimitedEditor .ue-panel-icon { color: var(--ue-accent); }
-#unlimitedEditor .ue-panel-name { font-size: 18px; font-weight: 700; letter-spacing: .2px; }
-#unlimitedEditor .ue-panel-head { display: flex; align-items: center; gap: 9px; padding-bottom: 12px; margin-bottom: 2px; border-bottom: 1px solid rgba(127,127,127,.14); }
-#unlimitedEditor .ue-panel-desc { font-size: 12.5px; line-height: 1.65; opacity: .62; margin: 12px 0 2px; max-width: 760px; }
-#unlimitedEditor .ue-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid rgba(127,127,127,.2); background: rgba(127,127,127,.04); }
-#unlimitedEditor .ue-footer-hint { font-size: 11px; opacity: .55; }
-#unlimitedEditor .ue-btn-ghost { padding: 6px 14px; border-radius: 8px; border: 1px solid rgba(127,127,127,.3); background: transparent; color: inherit; cursor: pointer; font-size: 13px; }
-#unlimitedEditor .ue-btn-ghost:hover { background: rgba(127,127,127,.15); }
-@media (max-width: 640px) { #unlimitedEditorMask { padding: 0; } #unlimitedEditor { width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; border: none; } #unlimitedEditor .ue-header { padding: 12px 14px; } #unlimitedEditor .ue-tabs { padding: 10px 12px 8px; } #unlimitedEditor .ue-body { padding: 12px 14px 16px; } #unlimitedEditor .ue-tab { padding: 8px 13px; } }
+#promptEditorMask.open #promptEditor { animation: uePopIn .22s ease; }
+#promptEditor .ue-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; flex-shrink: 0; border-bottom: 1px solid rgba(127,127,127,.2); background: linear-gradient(135deg, var(--ue-accent-soft), transparent 72%); }
+#promptEditor .ue-title { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+#promptEditor .ue-title svg { color: var(--ue-accent); }
+#promptEditor .ue-badge { font-size: 11px; font-weight: 500; opacity: .7; padding: 2px 8px; border: 1px solid currentColor; border-radius: 999px; }
+#promptEditor .ue-close { width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(127,127,127,.3); background: transparent; color: inherit; cursor: pointer; font-size: 15px; line-height: 1; flex: 0 0 auto; }
+#promptEditor .ue-close:hover { background: rgba(255,80,80,.14); color: #ff7777; border-color: #ff7777; }
+#promptEditor .ue-tabs { display: flex !important; flex-wrap: nowrap !important; flex-shrink: 0; gap: 6px; padding: 14px 16px 12px; overflow-x: auto !important; border-bottom: 1px solid rgba(127,127,127,.15); -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+#promptEditor .ue-tabs::-webkit-scrollbar { display: none; }
+#promptEditor .ue-tab { display: inline-flex !important; align-items: center; justify-content: center; gap: 6px; flex: 0 0 auto !important; white-space: nowrap !important; padding: 8px 16px; margin-bottom: 0 !important; border: 1px solid transparent; border-radius: 10px; background: rgba(127,127,127,.07); color: inherit; cursor: pointer; font-size: 13px; line-height: 1.2; opacity: .6; transition: background .15s, opacity .15s, border-color .15s, box-shadow .15s; }
+#promptEditor .ue-tab:hover { opacity: 1; background: rgba(127,127,127,.1); }
+#promptEditor .ue-tab.active { opacity: 1; border-color: var(--ue-accent); background: var(--ue-accent-soft); color: var(--ue-accent); font-weight: 600; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+#promptEditor .ue-tab.active svg { color: var(--ue-accent); }
+#promptEditor .ue-tab-icon { font-size: 15px; flex: 0 0 auto; }
+#promptEditor .ue-tab-label { display: inline !important; flex: 0 0 auto; }
+#promptEditor .ue-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 20px; }
+#promptEditor .ue-panel-icon { color: var(--ue-accent); }
+#promptEditor .ue-panel-name { font-size: 18px; font-weight: 700; letter-spacing: .2px; }
+#promptEditor .ue-panel-head { display: flex; align-items: center; gap: 9px; padding-bottom: 12px; margin-bottom: 2px; border-bottom: 1px solid rgba(127,127,127,.14); }
+#promptEditor .ue-panel-desc { font-size: 12.5px; line-height: 1.65; opacity: .62; margin: 12px 0 2px; max-width: 760px; }
+#promptEditor .ue-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid rgba(127,127,127,.2); background: rgba(127,127,127,.04); }
+#promptEditor .ue-footer-hint { font-size: 11px; opacity: .55; }
+#promptEditor .ue-btn-ghost { padding: 6px 14px; border-radius: 8px; border: 1px solid rgba(127,127,127,.3); background: transparent; color: inherit; cursor: pointer; font-size: 13px; }
+#promptEditor .ue-btn-ghost:hover { background: rgba(127,127,127,.15); }
+@media (max-width: 640px) { #promptEditorMask { padding: 0; } #promptEditor { width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; border: none; } #promptEditor .ue-header { padding: 12px 14px; } #promptEditor .ue-tabs { padding: 10px 12px 8px; } #promptEditor .ue-body { padding: 12px 14px 16px; } #promptEditor .ue-tab { padding: 8px 13px; } }
 .ue-toolbar { display: flex; flex-wrap: wrap; gap: 10px; row-gap: 10px; align-items: center; margin: 16px 0 14px; padding: 10px 12px; border-radius: 12px; background: rgba(127,127,127,.04); border: 1px solid rgba(127,127,127,.1); }
 .ue-toolbar-spacer { flex: 1; }
 .ue-count { font-size: 12px; opacity: .65; }
@@ -1088,7 +1088,7 @@ html[data-theme="candle"] #topbar #personaToggle:hover {
 }
 
 /* Glass */
-html[data-theme="glass"] #unlimitedEditor {
+html[data-theme="glass"] #promptEditor {
  background: rgba(255,255,255,.97);
  border: 1px solid rgba(15,30,60,.1);
  color: #1a1f2e;
@@ -1131,7 +1131,7 @@ html[data-theme="glass"] .ue-badge {
 }
 
 /* candle */
-html[data-theme="candle"] #unlimitedEditor {
+html[data-theme="candle"] #promptEditor {
  background: rgba(20,13,8,.97);
  border: 1px solid rgba(217,168,104,.32);
  color: #f2e7d6;
@@ -1175,8 +1175,8 @@ html[data-theme="candle"] .ue-badge {
 
 /* 手机端 modal 适配 */
 @media (max-width: 768px) {
- #unlimitedEditorMask { padding: 10px; }
- #unlimitedEditor { max-height: 92vh; }
+ #promptEditorMask { padding: 10px; }
+ #promptEditor { max-height: 92vh; }
  .ue-header { padding: 10px 14px; }
  .ue-title { font-size: 14px; }
  .ue-tabs { padding: 6px 8px 0; }
@@ -1566,11 +1566,11 @@ html:not([data-theme]):not([data-scheme="dark"]) ::-webkit-scrollbar-thumb { bac
 /* —— 4.29-B 弹窗 / 表单 / 角色面板 / 费用 / 主题选项 (4.82: 摘除组内 preset-* 死选择器) —— */
 html:not([data-theme]):not([data-scheme="dark"]) #settingsMask,
 html:not([data-theme]):not([data-scheme="dark"]) .char-panel-mask,
-html:not([data-theme]):not([data-scheme="dark"]) #unlimitedEditorMask { background: rgba(15,15,15,.32); }
+html:not([data-theme]):not([data-scheme="dark"]) #promptEditorMask { background: rgba(15,15,15,.32); }
 
 html:not([data-theme]):not([data-scheme="dark"]) #settings,
 html:not([data-theme]):not([data-scheme="dark"]) .char-panel,
-html:not([data-theme]):not([data-scheme="dark"]) #unlimitedEditor {
+html:not([data-theme]):not([data-scheme="dark"]) #promptEditor {
  background:#fff; border:1px solid #e9e9e7; color:#37352f;
  box-shadow: 0 30px 80px rgba(15,15,15,.16);
 }
