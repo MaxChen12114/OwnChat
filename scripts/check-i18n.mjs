@@ -116,7 +116,8 @@ const missing = all.filter((x) => !covered(x.s)).sort((a, b) => b.n - a.n);
 const totalOcc = all.reduce((a, x) => a + x.n, 0);
 const covOcc = coveredList.reduce((a, x) => a + x.n, 0);
 
-const top = Number((process.argv[process.argv.indexOf("--top") + 1]) || 40);
+const topArg = process.argv.indexOf("--top");
+const top = topArg >= 0 ? (Number(process.argv[topArg + 1]) || 40) : 40;
 
 console.log(`双语覆盖度审计（public/，含中文的字符串）`);
 console.log(`  去重字符串：${all.length} 条；出现次数合计 ${totalOcc}`);
