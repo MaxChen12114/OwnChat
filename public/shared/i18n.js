@@ -19,12 +19,21 @@
   var LS_LANG = "cfw_ui_lang_v1";
   var DICT_SRC = "/shared/i18n-dict.js";
   var ATTRS = ["title", "placeholder", "aria-label"];
-  // 跳过清单：输入框、代码、模型输出/用户内容相关区域、推理与统计块、脚本样式
-  var SKIP_SEL = [
-    "#msg", "textarea", "input", "select", "[contenteditable='true']",
+  // 跳过清单分两档（2026-10-08 修）：
+  //   · 文本档：只跳真正的内容区。**不能**跳 select —— <option> 的文本是 UI 标签（截图实测：
+  //     设置里的下拉「变更前确认…」等一直不翻就是这个原因）；input/textarea 里没有文本节点
+  //     （值是 value 属性），跳过它们只影响自身属性，交给属性档处理。
+  //   · 属性档：title / placeholder / aria-label 本来就该翻 —— input/select 不再拦（只动这三个属性）。
+  var TEXT_SKIP = [
+    "#msg", "textarea", "[contenteditable='true']",
     "pre", "code", "script", "style",
     ".bubble", ".md-body", ".reasoning-text", ".reasoning-block", ".stats",
-    ".conv-preview", ".char-item", ".dev-panel", "#devHud"
+    ".conv-preview", ".char-item", ".dev-panel", "#devHud",
+  ].join(",");
+  var ATTR_SKIP = [
+    "pre", "code", "script", "style",
+    ".bubble", ".md-body", ".reasoning-text", ".reasoning-block",
+    ".dev-panel", "#devHud",
   ].join(",");
   var CJK = /[\u3400-\u9fff\uf900-\ufaff]/;
 
@@ -57,23 +66,27 @@
     return s;
   }
 
-  function inSkip(node) {
+  function inSkipText(node) {
     var el = node.nodeType === 1 ? node : node.parentElement;
     if (!el || !el.closest) return false;
-    try { return !!el.closest(SKIP_SEL); } catch (e) { return false; }
+    try { return !!el.closest(TEXT_SKIP); } catch (e) { return false; }
+  }
+  function inSkipAttr(el) {
+    if (!el || !el.closest) return false;
+    try { return !!el.closest(ATTR_SKIP); } catch (e) { return false; }
   }
 
   function doText(node) {
     if (!node || node.nodeType !== 3) return;
     var v = node.nodeValue;
-    if (!v || !CJK.test(v) || inSkip(node)) return;
+    if (!v || !CJK.test(v) || inSkipText(node)) return;
     var next = tr(v);
     if (next !== v) { applying = true; node.nodeValue = next; applying = false; }
   }
 
   function doAttrs(el) {
     if (!el || el.nodeType !== 1 || !el.getAttribute) return;
-    if (inSkip(el)) return;
+    if (inSkipAttr(el)) return;
     for (var i = 0; i < ATTRS.length; i++) {
       var a = ATTRS[i];
       var v = el.getAttribute(a);
@@ -88,7 +101,7 @@
     stats.nodes++;
     if (node.nodeType === 3) { doText(node); return; }
     if (node.nodeType !== 1) return;
-    if (inSkip(node)) return;
+    if (inSkipText(node)) return;
     doAttrs(node);
     for (var c = node.firstChild; c; c = c.nextSibling) walk(c);
   }
@@ -166,6 +179,52 @@
     document.head.appendChild(s);
   }
 
+  // CSS 伪元素里的文案（如思考挡位的「低 / 中 / 高」）不是文本节点，DOM 替换够不着 ——
+  // 启用英文时注入一份覆盖样式，译名直接取字典。以后新增同类伪元素，在下面补一行选择器即可。
+  function injectPseudoOverrides() {
+    var rules = [
+      ['#composer #thinkToggle.active[data-mobile-effort="low"] .think-label::after', "低"],
+      ['#composer #thinkToggle.active[data-mobile-effort="medium"] .think-label::after', "中"],
+      ['#composer #thinkToggle.active[data-mobile-effort="high"] .think-label::after', "高"],
+    ];
+    var css = "";
+    for (var i = 0; i < rules.length; i++) {
+      var label = tr(rules[i][1]);
+      if (label !== rules[i][1]) {
+        css += rules[i][0] + ' { content: "' + label.replace(/"/g, '\\"') + '" !important; }\n';
+      }
+    }
+    if (!css) return;
+    var st = document.createElement("style");
+    st.id = "i18nPseudoOverrides";
+    st.textContent = css;
+    document.head.appendChild(st);
+  }
+
+  // 采集器：把页面上"仍是中文且字典里没有"的节点原文列出来（覆盖度盘点用；只在手动调用时工作）。
+  // 用法：控制台执行 window.__i18n.collect()（手机 App 里也能跑 —— 这正是它存在的意义）。
+  function coveredByPattern(s) {
+    for (var i = 0; i < patterns.length; i++) {
+      try { if (patterns[i][0].test(s)) return true; } catch (e) {}
+    }
+    return false;
+  }
+  function collect() {
+    var out = Object.create(null);
+    (function w(n) {
+      if (n.nodeType === 3) {
+        var s = (n.nodeValue || "").trim();
+        if (s && CJK.test(s) && s.length <= 120 && !inSkipText(n) && dict[s] == null && !coveredByPattern(s)) {
+          out[s] = (out[s] || 0) + 1;
+        }
+        return;
+      }
+      if (n.nodeType !== 1 || inSkipAttr(n)) return;
+      for (var c = n.firstChild; c; c = c.nextSibling) w(c);
+    })(document.body);
+    return Object.keys(out).sort(function (a, b) { return out[b] - out[a]; });
+  }
+
   function applyAll() {
     if (lang !== "en") return;
     loadDict(function () {
@@ -173,6 +232,7 @@
       walk(document.body);
       applying = false;
       startObserver();
+      injectPseudoOverrides();
       stats.__done = true;
     });
   }
@@ -189,6 +249,7 @@
     setLang: setLang,
     tr: tr,
     applyAll: applyAll,
+    collect: collect,
     stats: stats,
     get ready() { return ready; },
     _dictSize: function () { return Object.keys(dict).length; },
