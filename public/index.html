@@ -431,6 +431,8 @@
         if (isAndroidShell && localStorage.getItem("cfw_app_fx_rich_v1") === "1") document.documentElement.classList.add("fx-rich");
         var t = localStorage.getItem("cfw_theme_v1");
         if (t === "glass" || t === "candle") document.documentElement.setAttribute("data-theme", t);
+        // 公开版：顶栏按钮改「基座档位切换」——部署里 ≥2 套基座时循环切换；只有一套时提示怎么加（见 README）
+        window.__baseCycleMode = true;
       } catch (e) {}
     })();
   </script>
@@ -1463,6 +1465,8 @@
 <script src="/js/text/core/dev.js"></script>
 <!-- 2026-09-14 UI第一轮:统一反馈组件(toast/confirm,自注入样式,零依赖)。运行时才被调用,位置宽松;各模块旧 toast 缺失它时自动回退原实现 -->
 <script src="/shared/feedback.js"></script>
+<!-- 2026-10-07 双语插件：引擎按需加载字典（未启用英文时零开销；设置→外观可切换） -->
+<script src="/shared/i18n.js"></script>
 <!-- 4.37: 改回加载 Worker 动态下发的 /config.js。clientConfigJs() 生成纯 window.APP_* 赋值(无 export),且 worker 路由早于静态资源命中,以 src/config.js 为唯一模型源。
        重组目录时误把带 ESM export 的服务端 config 放到了 /js/text/core/config.js,classic <script> 读到 export 即抛 SyntaxError 中断 → window.APP_MODELS_FREE 未赋值 → 模型下拉空。 -->
 <script src="/config.js"></script>

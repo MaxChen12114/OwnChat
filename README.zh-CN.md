@@ -68,9 +68,19 @@ Tauri 2 打包工程在 `src-tauri/`；CI（`.github/workflows/tauri-build.yml`�
    私钥放仓库 Secrets：`TAURI_SIGNING_PRIVATE_KEY`（+ 密码）；公钥填进 `tauri.conf.json` → `plugins.updater.pubkey`，更新源 `plugins.updater.endpoints` 指向你自己的 Releases。
 3. **改 bundle identifier**（`tauri.conf.json` 的 `identifier`）如果你想让自己的构建成为一个独立应用。注意它就是安卓的 `applicationId`，上线后再改等于换应用（需卸载重装）。
 
-## 加自己的底座提示词
+## 添加自己的基座提示词
 
-把任意 `.md` / `.txt`（或一整个文件夹）丢进 `src/prompts/bases/`，构建步骤会自动扫描，**文件名就是设置里「对话 → 基座」下拉里显示的 id**，不用改代码。
+**基座**是 system 提示词的第一段，决定模型在整个应用里的行为方式。本仓库只带**一套**通用基座（`src/prompts/bases/基础.md`）。
+
+要加自己的：
+
+1. 把任意 `.md` / `.txt`（或一整个文件夹 = 一套多文件基座）丢进 `src/prompts/bases/`。
+2. 部署（构建步骤会自动扫描该目录；**文件名 / 文件夹名就是设置里「对话 → 基座」下拉显示的 id**）。
+3. 部署里有**两套及以上**基座时，顶栏那个按钮点一下就能循环切换；只有一套时它会提示你来看这段说明。
+
+> **本仓库不提供什么。** 只含上面那一套通用基座。项目不附带、不审核、也不为任何其他基座文本背书 —— 使用者自行添加、自行负责，并有责任遵守所在地区的法律与你所用模型服务商的条款。
+
+基座文件是**载荷不是文档**：逐字节进入模型请求（保持 LF，`.gitattributes` 已钉死）。
 
 随仓库分发的提示词库来源见 `src/prompts/CREDITS.md`，内置氛围音来源见 `public/assets/ambient/CREDITS.txt`。
 

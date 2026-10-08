@@ -470,9 +470,41 @@
   }
 
   let useBuiltin = (localStorage.getItem(LS_USE_BUILTIN) ?? "1") === "1";
-  // 已废弃死代码(紧接着被 setIcon 覆盖的无效赋值): personaToggle.textContent = useBuiltin ? "\u{1F608}" : "\u{1F607}";
 
-  setIcon(personaToggle, useBuiltin ? "personaBuiltin" : "personaCustom", useBuiltin ? "内置" : "自定义");
+  // ── 2026-10-07 顶栏「基座」按钮两种语义 ──────────────────────────────────────
+  // · 私有渠道（默认）：原有的「内置/自定义」开关（export 会把文案改成公开口径）。
+  // · 公开渠道：window.__baseCycleMode 由导出补丁置位 —— 按钮改「基座档位切换」：
+  //   部署里有 ≥2 套基座时点一下循环切换；只有一套（官方公开版默认）时提示怎么添加自己的基座。
+  const BASE_CYCLE_MODE = !!window.__baseCycleMode;
+  function baseIdsList() {
+    return (Array.isArray(window.APP_BASE_IDS) ? window.APP_BASE_IDS : [])
+      .filter(function (x) { return typeof x === "string" && x; });
+  }
+  function currentBaseId() {
+    try { return localStorage.getItem("cfw_base_id_v1") || ""; } catch (e) { return ""; }
+  }
+  function toastMsg(msg, ms) {
+    try { if (window.__feedback && typeof window.__feedback.toast === "function") window.__feedback.toast(msg, ms || 2000); } catch (e) {}
+  }
+  function paintPersonaButton() {
+    if (!BASE_CYCLE_MODE) {
+      setIcon(personaToggle, useBuiltin ? "personaBuiltin" : "personaCustom", useBuiltin ? "内置" : "自定义");
+      return;
+    }
+    var ids = baseIdsList();
+    if (ids.length >= 2) {
+      var cur = currentBaseId();
+      var label = (cur && ids.indexOf(cur) >= 0) ? cur : ids[0];
+      setIcon(personaToggle, "personaBuiltin", label);
+      personaToggle.title = "切换基座（当前：" + label + "，共 " + ids.length + " 套）";
+      personaToggle.setAttribute("aria-label", "切换基座");
+    } else {
+      setIcon(personaToggle, "personaBuiltin", "基座");
+      personaToggle.title = "加自己的基座：往 src/prompts/bases/ 放入 .md / .txt，这里即可切换（见 README）";
+      personaToggle.setAttribute("aria-label", "基座说明");
+    }
+  }
+  paintPersonaButton();
   // 2026-09-14 会话系统重做:默认改为「开」。会话列表/跨会话切换要有意义就必须落盘,
   // 否则列表里全是 0 条、刷新即空,谈不上会话管理。显式关过(存了 "0")的用户保持关闭。
   let historyEnabled = (localStorage.getItem(LS_HISTORY_ENABLED) ?? "1") === "1";
@@ -1935,9 +1967,22 @@
   });
 
   personaToggle.addEventListener("click", () => {
+    if (BASE_CYCLE_MODE) {
+      const ids = baseIdsList();
+      if (ids.length >= 2) {
+        const cur = currentBaseId();
+        const idx = ids.indexOf(cur);
+        const next = ids[(idx + 1) % ids.length];
+        try { localStorage.setItem("cfw_base_id_v1", next); } catch (e) {}
+        paintPersonaButton();
+        toastMsg("基座已切换：" + next, 1800);
+        return;
+      }
+      toastMsg("当前只有一套基座。往 src/prompts/bases/ 放入你自己的 .md / .txt 并部署，这里就会出现可切换的档位（见 README「添加自己的基座」）。", 6500);
+      return;
+    }
     useBuiltin = !useBuiltin;
-    // 已废弃死代码(紧接着被 setIcon 覆盖的无效赋值): personaToggle.textContent = useBuiltin ? "\u{1F608}" : "\u{1F607}";
-    setIcon(personaToggle, useBuiltin ? "personaBuiltin" : "personaCustom", useBuiltin ? "内置" : "自定义");
+    paintPersonaButton();
     localStorage.setItem(LS_USE_BUILTIN, useBuiltin ? "1" : "0");
   });
 

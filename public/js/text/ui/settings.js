@@ -733,6 +733,26 @@
     });
   }
 
+  // ─── §外观. 界面语言（2026-10-07 新增，双语插件）───
+  // 双语是「插件脚本」实现：/shared/i18n.js 引擎 + /shared/i18n-dict.js 字典（启用英文才懒加载，
+  // 中文用户零开销）。按已渲染文本整串替换，模型输出/用户内容不在翻译范围；覆盖主路径，
+  // 未覆盖的仍显示中文（可增量补字典，`node scripts/check-i18n.mjs` 审计缺口）。切换会整页刷新。
+  function mountI18nCard() {
+    var slot = document.getElementById('setAppearanceThemeSlot') || document.getElementById('setAppearanceTopSlot');
+    if (!slot || document.getElementById('i18nCard')) return;
+    var card = document.createElement('div'); card.className = 'card'; card.id = 'i18nCard';
+    card.innerHTML = '<h4>界面语言 / Language</h4>'
+      + '<p>英文界面是<b>运行时翻译插件</b>（beta）：按字典把界面文案替换成英文 —— 模型输出、消息内容、角色名不会被翻译。已覆盖主路径；个别未覆盖的文案仍显示中文，可增量补字典。切换语言会刷新页面。</p>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="i18nEnToggle"><label for="i18nEnToggle">English UI（beta，部分文案未覆盖）</label></div></div>';
+    slot.appendChild(card);
+    var t = card.querySelector('#i18nEnToggle');
+    t.checked = localStorage.getItem('cfw_ui_lang_v1') === 'en';
+    t.addEventListener('change', function () {
+      localStorage.setItem('cfw_ui_lang_v1', t.checked ? 'en' : 'zh');
+      location.reload();
+    });
+  }
+
   function mountStaticSettingsCards() {
     mountAuthCard();
     mountLocalHistoryCard(); // 常用:放账号页第一屏
@@ -744,6 +764,7 @@
     mountMobileAppLayoutCard();
     mountDisplayCard();      // 字号/字体属于外观
     mountAppFxCard();        // 2026-10-07 (E-B): App 壳内特效档位（仅壳内出现）
+    mountI18nCard();         // 2026-10-07: 界面语言（双语插件开关）
     mountStateLayerCard();  // 角色状态层开关(有卡就注入的把手)
     mountWebSearchCard();   // 2026-10-07: 联网搜索（Worker 代查 + Exa 可选）
     mountBaseIdCard();       // 基座:放「对话」首卡 —— 它影响一切,理应最上面

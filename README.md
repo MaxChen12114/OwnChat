@@ -70,7 +70,17 @@ Before publishing your *own* builds, or if you want a build that skips the setup
 
 ## Adding your own base prompts
 
-Put any `.md` / `.txt` file (or a folder of them) into `src/prompts/bases/`; the build step scans that directory and the file name becomes the id shown in Settings → 对话 → 基座. No code changes needed.
+A **base prompt** is the first block of the system prompt — it shapes how the model behaves across the whole app. This repository ships exactly **one** general-purpose base (`src/prompts/bases/基础.md`).
+
+To add your own:
+
+1. Put any `.md` / `.txt` file — or a folder of them (= one multi-file base) — into `src/prompts/bases/`.
+2. Deploy (the build step scans that directory; the file/folder name becomes the id shown in **Settings → 对话 → 基座**).
+3. With **two or more** bases deployed, the top-bar persona button switches between them with a single click (with one base, the button just shows this guide).
+
+> **What this repository does *not* provide.** Only the one general-purpose base above is included. The project does not ship, review, or vouch for any other base text: people add their own, at their own responsibility, and are responsible for complying with the laws that apply to them and with the terms of whichever model provider they use.
+
+Base files are payloads, not documents — their bytes go straight into model requests (keep them LF; `.gitattributes` enforces it).
 
 Prompt libraries that ship with the repo are credited in `src/prompts/CREDITS.md`; bundled ambient audio in `public/assets/ambient/CREDITS.txt`.
 
