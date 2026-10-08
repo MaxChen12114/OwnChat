@@ -59,7 +59,7 @@
       return reqP(os.getAll()).then(function (arr) {
         var c = convId();
         return (arr || []).filter(function (r) { return r && r.convId === c; })
-          .map(function (r) { return { path: r.path, bytes: r.bytes || 0, ts: r.ts || 0 }; })
+          .map(function (r) { return { path: r.path, bytes: r.bytes || 0, lines: r.lines || undefined, ts: r.ts || 0 }; })
           .sort(function (a, b) { return a.path < b.path ? -1 : 1; });
       });
     });
@@ -73,7 +73,8 @@
     var p = normPath(path);
     if (!p) return Promise.resolve({ ok: false, error: "路径不合法(不能为空、不能含 ..)" });
     var text = String(content == null ? "" : content);
-    var rec = { id: keyOf(p), convId: convId(), path: p, content: text, bytes: text.length, ts: Date.now() };
+    // 2026-10-08: 顺手记行数（list_files 显示用；旧记录没有这个字段就空着，读一次 read_file 也能拿到 totalLines）
+    var rec = { id: keyOf(p), convId: convId(), path: p, content: text, bytes: text.length, lines: text.split("\n").length, ts: Date.now() };
     return tx("readwrite").then(function (os) {
       if (!os) return { ok: false, error: "工作区不可用(IndexedDB 打不开)" };
       return reqP(os.put(rec)).then(function () { return { ok: true, path: p, bytes: text.length }; });
@@ -141,16 +142,107 @@
 
     registry.define({
       name: "read_file",
-      description: "读取工作区里某个文件的全文。用 list_files 先看有哪些文件。",
+      description: "读取工作区文件（**按行分页**）。默认返回前 400 行；文件更长时结果里带 totalLines 与 nextOffset，" +
+        "继续读就把 offset 传成 nextOffset。要找内容先用 search_file（先搜后读，比整读省得多，也不会被截断挖掉中段）。",
       parameters: {
         type: "object",
-        properties: { path: { type: "string", description: "工作区内的文件路径,如 report.md / src/app.js" } },
+        properties: {
+          path: { type: "string", description: "工作区内的文件路径,如 report.md / src/app.js" },
+          offset: { type: "integer", description: "起始行号（1 起，默认 1）" },
+          limit: { type: "integer", description: "最多返回多少行（默认 400，上限 2000）" },
+        },
         required: ["path"],
       },
       run: function (args) {
-        return read(args && args.path).then(function (r) {
-          if (!r) return { ok: false, error: "文件不存在: " + normPath((args && args.path) || "") };
-          return { ok: true, path: r.path, bytes: r.bytes, text: r.content };
+        var a = args || {};
+        return read(a.path).then(function (r) {
+          if (!r) return { ok: false, error: "文件不存在: " + normPath(a.path || "") };
+          var TS = (typeof window !== "undefined" && window.__textSearch) || null;
+          if (!TS) return { ok: false, error: "text-search 模块未加载（分页读不可用）" };
+          var sl = TS.sliceLines(r.content, a.offset, a.limit);
+          var out = { ok: true, path: r.path, bytes: r.bytes, totalLines: sl.total, from: sl.from, to: sl.to, text: sl.text };
+          if (sl.more) {
+            out.truncated = true;
+            out.nextOffset = sl.to + 1;
+            out.hint = "共 " + sl.total + " 行，本次返回第 " + sl.from + "–" + sl.to + " 行；继续读用 read_file(offset=" + (sl.to + 1) + ")，或先 search_file 定位再读窗口。";
+          } else if (sl.from > 1) {
+            out.hint = "已到文件末尾（共 " + sl.total + " 行）。";
+          }
+          if (sl.clippedLines) out.clippedLines = sl.clippedLines;
+          if (sl.droppedByBytes) out.hint = (out.hint ? out.hint + " " : "") + "（单窗字节上限 " + TS.LIMITS.READ_MAX_BYTES + "，本次少返回 " + sl.droppedByBytes + " 行）";
+          return out;
+        });
+      },
+    });
+
+    registry.define({
+      name: "search_file",
+      description: "在工作区文件里检索（grep 语义）：返回命中**行号 + 上下文**。" +
+        "默认**字面**匹配（快、零误报）；regex:true 才按正则解释 pattern（带长度上限与嵌套量词拒绝，防回溯炸弹）。" +
+        "用法：大文件先 search 定位 → read_file(path, offset=命中行-15, limit=40) 读窗口；不要整读大文件。",
+      parameters: {
+        type: "object",
+        properties: {
+          pattern: { type: "string", description: "要找的内容（默认字面文本；regex:true 时为正则）" },
+          path: { type: "string", description: "可选：只搜某个文件（精确路径、glob 如 *.md / src/*，或路径片段）" },
+          regex: { type: "boolean", description: "true=按正则解释 pattern（默认 false=字面）" },
+          ignore_case: { type: "boolean", description: "忽略大小写" },
+          context: { type: "integer", description: "每个命中的上下文行数（默认 2，上限 10；0=不要上下文）" },
+          max_results: { type: "integer", description: "最多返回多少条命中（默认 30，上限 100）" },
+        },
+        required: ["pattern"],
+      },
+      run: function (args) {
+        var a = args || {};
+        var pattern = String(a.pattern == null ? "" : a.pattern);
+        if (!pattern) return Promise.resolve({ ok: false, error: "缺少 pattern" });
+        var TS = (typeof window !== "undefined" && window.__textSearch) || null;
+        if (!TS) return Promise.resolve({ ok: false, error: "text-search 模块未加载（检索不可用）" });
+        return list().then(function (files) {
+          var picked = files || [];
+          if (a.path) {
+            var p = normPath(a.path);
+            var re = TS.globToRe(p);
+            var exact = picked.filter(function (f) { return f.path === p; });
+            if (exact.length) picked = exact;
+            else if (re) picked = picked.filter(function (f) { return re.test(f.path); });
+            else picked = picked.filter(function (f) { return f.path.indexOf(p) >= 0; });
+          }
+          if (!picked.length) return { ok: true, files: [], totalMatches: 0, note: "没有匹配的文件（先 list_files 看工作区里有什么）" };
+          var max = Math.max(1, Math.min(TS.LIMITS.SEARCH_HARD_MAX, parseInt(a.max_results, 10) || TS.LIMITS.SEARCH_DEF_MAX));
+          var ctx = (a.context == null) ? TS.LIMITS.SEARCH_CTX_DEF : a.context;
+          var remaining = max, blocks = [], total = 0, degraded = null, scanned = 0, perFileTruncated = false;
+          return picked.reduce(function (chain, f) {
+            return chain.then(function () {
+              if (remaining <= 0) return;
+              return read(f.path).then(function (r) {
+                if (!r) return;
+                scanned++;
+                var res = TS.searchText(r.content, { pattern: pattern, regex: !!a.regex, ignore_case: !!a.ignore_case, context: ctx, max_results: remaining });
+                if (res.degraded && !degraded) degraded = f.path + "：" + res.degraded;
+                total += res.total;
+                if (res.matches.length) {
+                  var blk = { path: f.path, totalLines: res.totalLines, matchCount: res.total, matches: res.matches };
+                  if (res.truncated) { blk.truncated = true; perFileTruncated = true; } // 该文件命中多于此块返回的条数
+                  blocks.push(blk);
+                  remaining -= res.matches.length;
+                }
+              });
+            });
+          }, Promise.resolve()).then(function () {
+            // 输出预算 ≈ 内核单条工具结果上限（8000 字符，超了内核会"头尾保留、挖掉中段"）——
+            // 超预算在这里先按条裁剪并如实标注，让模型看到的是清晰截断 + 收窄建议，而不是断口。
+            var fit = TS.fitBlocks(blocks, TS.LIMITS.SEARCH_OUT_BUDGET);
+            var kept = fit.blocks;
+            var out = { ok: true, totalMatches: total, filesScanned: scanned, files: kept };
+            if (fit.truncated) { out.truncated = true; out.hint = "命中过多，输出已按预算（" + TS.LIMITS.SEARCH_OUT_BUDGET + " 字符）截断；请收窄 pattern 或加 path 限定文件。"; }
+            else if (perFileTruncated) { out.truncated = true; out.hint = "部分文件命中数超过返回上限（见各文件 matchCount）；收窄 pattern 或调大 max_results（上限 " + TS.LIMITS.SEARCH_HARD_MAX + "）。"; }
+            else if (remaining <= 0) { out.hint = "已达 max_results 上限（" + max + "）；收窄 pattern 或调大 max_results（上限 " + TS.LIMITS.SEARCH_HARD_MAX + "）。"; }
+            if (!total) out.note = "没有命中（模式：" + (a.regex ? "正则" : "字面") + "）。换关键词、去掉大小写限制，或确认真的是这个文件。";
+            else out.readHint = "读窗口：read_file(path, offset=命中行-" + (ctx + 1) + ", limit=" + (ctx * 2 + 10) + ")。";
+            if (degraded) out.degraded = degraded;
+            return out;
+          });
         });
       },
     });
@@ -197,7 +289,7 @@
           if (!oldS) return { ok: false, error: "old_string 不能为空" };
           var cnt = r.content.split(oldS).length - 1;
           if (cnt === 0) return { ok: false, error: "没找到 old_string(注意空格/换行要完全一致)" };
-          if (cnt > 1 && a.replace_all !== true) return { ok: false, error: "old_string 在文件里出现了 " + cnt + " 次,不唯一。请把上下文补足让它唯一,或传 replace_all:true。" };
+          if (cnt > 1 && a.replace_all !== true) return { ok: false, error: "old_string 在文件里出现了 " + cnt + " 次,不唯一。请把上下文补足让它唯一,或传 replace_all:true；也可以先用 search_file 看各处命中行号再补足上下文。" };
           var next = a.replace_all === true ? r.content.split(oldS).join(String(a.new_string == null ? "" : a.new_string))
             : r.content.replace(oldS, String(a.new_string == null ? "" : a.new_string));
           return write(a.path, next).then(function (w) {
@@ -246,8 +338,14 @@
           var invoke = (g.__TAURI__ && g.__TAURI__.core && typeof g.__TAURI__.core.invoke === "function") ? g.__TAURI__.core.invoke.bind(g.__TAURI__.core) : null;
           if (invoke) {
             return invoke("export_text_file", { suggestedName: name, content: r.content })
-              .then(function (p) { return { ok: true, mode: "tauri", path: p || name, bytes: r.bytes }; })
-              .catch(function (e) { return { ok: false, error: "桌面端写盘失败: " + String((e && e.message) || e) }; });
+              .then(function (p) {
+                // 2026-10-08: null = 用户取消 / 未落盘（Android 上还有 content:// URI 拿不到路径的情形）——
+                // 旧版 `p || name` + ok:true 会把"没写盘"报成"导出成功"（文件哪儿都不在），模型据此
+                // 断言已完成、用户也以为导出成功。现在如实报失败，并把取消与写盘错误分开措辞。
+                if (!p) return { ok: false, error: "已取消保存（未写盘）" };
+                return { ok: true, mode: "tauri", path: String(p), bytes: r.bytes };
+              })
+              .catch(function (e) { return { ok: false, error: "写盘失败: " + String((e && e.message) || e) }; });
           }
           try {
             var blob = new Blob([r.content], { type: "text/plain;charset=utf-8" });

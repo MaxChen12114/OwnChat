@@ -147,7 +147,7 @@ function wireTopbarToggle() {
     if (next && !localStorage.getItem(LSHINT)) {
       try { localStorage.setItem(LSHINT, "1"); } catch (e) {}
       setTimeout(() => {
-        alert("已切换为多人场景模式。\n\n玩法：\n① 点 🎭 打开角色面板 →「我的」标签 → 点多张卡的「+场景」加成员\n② 群聊(orchestrate)模式由智能编排自动接力：AI 喊名字让对应角色发言\n③ 吐槽姬/接龙/讨论模式：点输入框上方的群聊控制台切换发言者\n④ 好感度 / 指令模块都按当前发言者处理");
+        alert("已切换为多人场景模式。\n\n玩法：\n① 点 🎭 打开角色面板 →「我的」标签 → 点多张卡的「+场景」加成员\n② 群聊(orchestrate)模式由智能编排自动接力：AI 喊名字让对应角色发言\n③ 吐槽姬/接龙/讨论模式：点输入框上方的群聊控制台切换发言者\n④ 好感度 / 指令模块都按当前发言者处理\n⑤ 与 Agent 模式同开时：多智能体是「给 agent 开的能力」—— 私下小会 / 派子 agent / 请角色上台（设置→Agent 里有开关），时间线仍由主 agent 说话");
       }, 100);
     }
   });
@@ -351,7 +351,18 @@ function renderFishbowlSidePanel() {
       `</div></div>`;
   }
 
-  panel.innerHTML = `<div class="fb-side-header">${fbSvg('<path d="M4 5.5h13a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H9l-4 3v-3H4A1.5 1.5 0 0 1 2.5 14V7A1.5 1.5 0 0 1 4 5.5z"/><circle cx="7.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="10.8" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.1" cy="10.5" r="1" fill="currentColor" stroke="none"/>', {size:15})} 群聊控制台</div><div class="fb-side-modes">${chipsHtml}</div>${orchestrateHtml}${statusHtml}${btns.length ? `<div class="fb-side-actions">${btns.join("")}</div>` : ""}`;
+  // 2026-10-08 多智能体独立上下文：把"当前口径 + 计入条数"显示出来 —— 每个角色吃自己的
+  // 上下文（旧消息不算场景键），不显示的话"上下文变短"看起来像 bug。
+  let ctxHtml = "";
+  try {
+    const info = (window.__app && window.__app.getContextInfo) ? window.__app.getContextInfo() : null;
+    if (info) {
+      const who = info.speaker ? ("「" + safe(info.speaker) + "」") : "";
+      ctxHtml = `<div class="fb-side-ctx" style="font-size:11px;opacity:.72;padding:2px 2px 6px;">上下文：${safe(info.label)}${who} · 计入 ${info.included} 条 / 共 ${info.total} 条</div>`;
+    }
+  } catch (e) {}
+
+  panel.innerHTML = `<div class="fb-side-header">${fbSvg('<path d="M4 5.5h13a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H9l-4 3v-3H4A1.5 1.5 0 0 1 2.5 14V7A1.5 1.5 0 0 1 4 5.5z"/><circle cx="7.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="10.8" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.1" cy="10.5" r="1" fill="currentColor" stroke="none"/>', {size:15})} 群聊控制台</div>${ctxHtml}<div class="fb-side-modes">${chipsHtml}</div>${orchestrateHtml}${statusHtml}${btns.length ? `<div class="fb-side-actions">${btns.join("")}</div>` : ""}`;
 
   panel.querySelectorAll("[data-fbmode]").forEach(el => {
     el.addEventListener("click", () => handleFbModeChip(el.dataset.fbmode));
@@ -377,9 +388,33 @@ function renderFishbowlSidePanel() {
   if (window.__app && window.__app.updateSpacer) window.__app.updateSpacer();
 }
 
+// 2026-10-08（分层按钮 + 多智能体编排）：Agent 模式下的「平级名单」—— 多智能体模式开着时，
+// 列出场景角色（可被私下咨询 / 可被请上台）与各自的单聊上下文条数，让"独立上下文"可见。
+// 容器由 index.html 的 mountAgentPanel 在活动面板顶部预留（#__agentPeers）。
+function renderAgentPeers() {
+  const box = document.getElementById("__agentPeers");
+  if (!box) return;
+  if (!isMulti() || getSceneIds().length < 2) { box.innerHTML = ""; box.style.display = "none"; return; }
+  box.style.display = "";
+  const safe = (x) => String(x == null ? "" : x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const cards = getSceneCards();
+  let info = null;
+  try { info = (window.__app && window.__app.getContextInfo) ? window.__app.getContextInfo() : null; } catch (e) {}
+  const rows = cards.map((c) => {
+    let n = null;
+    try { n = (window.__app && window.__app.getRoleContextCount) ? window.__app.getRoleContextCount(c) : null; } catch (e) {}
+    return '<span class="chip-btn" title="' + safe(c.name) + (n != null ? (" · 自己的单聊上下文 " + n + " 条") : "") + '">'
+      + safe(c.icon || "\u{1F642}") + " " + safe(c.name) + (n != null ? (" · " + n) : "") + "</span>";
+  }).join("");
+  box.innerHTML = '<div style="font-size:11px;opacity:.72;padding:0 2px 6px;">平级名单（可被私下咨询 / 可被请上台）'
+    + (info ? (' · 当前上下文计入 ' + info.included + "/" + info.total + " 条") : "")
+    + '</div><div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 2px 8px;">' + rows + "</div>";
+}
+
 function renderAll() {
   renderSceneStrip();
   renderFishbowlSidePanel();
+  renderAgentPeers();
 }
 
 document.addEventListener("DOMContentLoaded", () => {

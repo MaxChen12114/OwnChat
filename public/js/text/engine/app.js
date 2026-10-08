@@ -180,12 +180,19 @@
   // 导致 wechat ||拆条只显示第 1 段,后续段全消失。新 _tailGen 不受新 sendOne 影响,只跟 abort 联动。
   let _tailGen = 0;
   let partialStream = null;
+  // 2026-10-08: 本次中断是否"明确丢弃半截"（重试/删除/鱼缸 stop 走 abortCurrent(true)）。
+  // 中断兜底据此决定要不要把半截回复/工具轮写回 session —— 那条路正在截断，
+  // 迟到的写回会把刚删掉的内容以"幽灵消息"补回来。每次新发送开头重置。
+  let _discardPartialFlag = false;
 
   // discardPartial=true: 同时清空 partialStream（重试/删除 使用，明确丢弃已收到的部分）
   // discardPartial=false（默认）: 保留 partialStream，AbortError 处理时会把已收到部分作为完整 AI 回复入 session（停止按钮 使用）
   function abortCurrent(discardPartial) {
+    // 2026-10-08: 先解掉未决的「等待放行」卡 —— agent 循环可能正挂在那个 Promise 上，
+    // 光 abort fetch 到不了它（这就是"点停止后输入框发不出消息、重启才恢复"的锁）。
+    try { if (window.__agentConsole && window.__agentConsole.cancelPending) window.__agentConsole.cancelPending("已中断"); } catch (e) {}
     _tailGen++; // 4.19 P1: 取消所有 fire-and-forget tail (停止/重试/删除/鱼缸 stop 共用)
-    if (discardPartial) partialStream = null;
+    if (discardPartial) { partialStream = null; _discardPartialFlag = true; }
     if (currentController) {
       try { currentController.abort(); } catch {}
       currentController = null;
@@ -407,6 +414,16 @@
       persistSessionIfEnabled();
     }
   };
+  // 2026-10-08 停止键的完整语义（■■ 停止按钮专用）：旧版只 abort fetch —— 若循环正卡在
+  // "等待放行"或工具执行里，abort 到不了它，isSending 也永不释放（表现：停止后输入框发不出消息）。
+  // 现在：① 解掉未决权限卡；② 发中断信号（内核会先配对自愈、再抛 AbortError，由本文件已有的
+  // AbortError 兜底分支接住半截回复）；③ 无条件释放发送锁 —— 旧回合若还有尾巴在跑，
+  // sendGen 已变，它会静默退场（写回/渲染路径都加了 myGen 守卫）。
+  window.__stopCurrent = function () {
+    try { if (window.__agentConsole && window.__agentConsole.cancelPending) window.__agentConsole.cancelPending("已中断"); } catch (e) {}
+    abortCurrent();
+    window.__resetSending();
+  };
 
   const LS_MODEL      = "cfw_model";
   const LS_USE_BUILTIN     = "cfw_use_builtin";
@@ -537,11 +554,59 @@
     return out;
   }
 
+  // ─── 2026-10-08 角色能力档：每张卡一套「底座 / 指令模块 / 技能 / 模型」覆盖 ────────────────
+  // 存储：cfw_char_caps_v1 = { [cardId]: { baseId?, presetIds?: [id], skillIds?: [id], model? } }
+  // 缺省（没档 / 字段为空）= 跟随全局 —— 不配置就是现状，RP 体验零变化。
+  // 设定集（世界书）的按卡绑定已由 lorebook.js 的 scope:'perCard' + boundCardId 提供，不在这里重复。
+  const LS_CHAR_CAPS = "cfw_char_caps_v1";
+  function charCapMap() {
+    try { const o = JSON.parse(localStorage.getItem(LS_CHAR_CAPS) || "{}"); return (o && typeof o === "object") ? o : {}; } catch (e) { return {}; }
+  }
+  function charCap(card) {
+    const id = typeof card === "string" ? card : (card && card.id);
+    if (!id) return null;
+    const c = charCapMap()[id];
+    return (c && typeof c === "object") ? c : null;
+  }
+  // v1 最小设置入口：控制台调 `__charCaps.ui()`，按提示给"当前角色"配 底座 / 指令模块 / 技能 / 模型。
+  // （正式的「提示词编辑器·角色页·能力区」留待后续批次；存储与装配已全部打通，见 charCap 的使用点）
+  window.__charCaps = {
+    get: (card) => charCap(card),
+    all: () => charCapMap(),
+    set: (cardId, patch) => {
+      if (!cardId) return null;
+      const m = charCapMap();
+      m[cardId] = Object.assign({}, m[cardId] || {}, patch || {});
+      try { localStorage.setItem(LS_CHAR_CAPS, JSON.stringify(m)); } catch (e) {}
+      return m[cardId];
+    },
+    clear: (cardId) => { const m = charCapMap(); delete m[cardId]; try { localStorage.setItem(LS_CHAR_CAPS, JSON.stringify(m)); } catch (e) {} },
+    ui: () => {
+      const card = (window.__character && window.__character.getActiveCard && window.__character.getActiveCard()) || null;
+      if (!card || !card.id) { alert("先挂一张角色卡（左栏角色面板）—— 能力档是「每张卡一套」的。"); return; }
+      const cur = charCap(card) || {};
+      const baseId = prompt("「" + card.name + "」的底座 id（留空=跟随全局；可用 __charCaps 查看/清空）：", cur.baseId || "");
+      if (baseId === null) return;
+      const presetIds = prompt("指令模块 id 列表（逗号分隔；留空=跟随全局的勾选）：", Array.isArray(cur.presetIds) ? cur.presetIds.join(",") : "");
+      if (presetIds === null) return;
+      const skillNames = prompt("技能名列表（逗号分隔；留空=全部已启用技能）：", Array.isArray(cur.skillNames) ? cur.skillNames.join(",") : "");
+      if (skillNames === null) return;
+      const patch = {
+        baseId: baseId.trim(),
+        presetIds: presetIds.split(",").map((s) => s.trim()).filter(Boolean),
+        skillNames: skillNames.split(",").map((s) => s.trim()).filter(Boolean),
+      };
+      window.__charCaps.set(card.id, patch);
+      alert("已保存「" + card.name + "」的能力档：\n底座 " + (patch.baseId || "(跟随全局)") + "\n指令模块 " + (patch.presetIds.length || "(跟随全局)") + " 个\n技能 " + (patch.skillNames.length || "(全部)") + " 个\n（下次发消息生效）");
+    },
+  };
   // 服务端另有白名单兜底(resolveBaseId:乱传/不存在的 id 回落默认),所以这里只是少发无用字段,不是安全边界。
   // 两处 payload(sendOneAgent / sendOne)都要带 —— 只加一处的坑在 4.69 BYO 上踩过。
-  function baseIdPayload() {
+  // 2026-10-08：可传发言者卡 —— 该卡配了 baseId 就用它的（角色能力档），否则跟随全局。
+  function baseIdPayload(card) {
     try {
-      const id = localStorage.getItem("cfw_base_id_v1") || "";
+      const cap = charCap(card);
+      const id = (cap && typeof cap.baseId === "string" && cap.baseId) ? cap.baseId : (localStorage.getItem("cfw_base_id_v1") || "");
       return id ? { baseId: id } : {};
     } catch (e) { return {}; }
   }
@@ -1163,6 +1228,59 @@
   // 同时剥掉 UI 专用字段(_tool / agentRound / agentPreamble / files / images 等),避免污染请求体;
   // speaker* 是 worker 做多角色历史改写要用的,必须保留。
   // opts.dropToolRounds=true 时把工具轮整段剔除(非 Agent 模式发历史时用,防止不支持工具的模型 400)。
+  // ─── 2026-10-08 多智能体「每角色独立上下文」：场景键 + 按发言者装配 ───────────────
+  // 背景：旧版所有人共用一条 session，请求发上游前由 worker 按当前发言者把别人的话改写成
+  // user+【名字】。功能上"能看"，但上下文不分家 —— 换角色/切群聊都在吃同一条历史。
+  // 现在：每条消息落库时打"场景键" sc，发请求前按 sc 过滤 + 按发言者投影：
+  //   sc = 'group'        群聊（场景成员共同在场）
+  //   sc = 'char:<cardId>' 与该角色的单聊（角色之间互不可见）
+  //   sc = 'free'         没挂角色的自由对话
+  // 旧消息（无 sc）不加限制、两边都算 —— 升级后老会话不会"突然失忆"（有意为之）。
+  function currentScopeKey() {
+    try {
+      const M = window.__multi;
+      if (M && M.isMulti && M.isMulti()) return "group";
+    } catch (e) {}
+    try {
+      const c = window.__character && window.__character.getActiveCard ? window.__character.getActiveCard() : null;
+      if (c && c.id) return "char:" + c.id;
+    } catch (e) {}
+    return "free";
+  }
+  function scopeTag(obj) {
+    try { obj.sc = currentScopeKey(); } catch (e) {}
+    return obj;
+  }
+  function scopeLabel(sc) {
+    if (sc === "group") return "群聊";
+    if (sc === "free") return "自由对话";
+    if (sc && sc.indexOf("char:") === 0) return "单聊";
+    return "全部";
+  }
+  // 把共享 session 投影成「某个发言者的上下文」：
+  //   ① 场景键过滤 —— 别的角色单聊 / 群聊 与当前场景互不可见（旧消息无标记 → 放行）
+  //   ② 发言者投影 —— 别人说的 assistant 降级为 user +【名字】；带 tool_calls 的机器轮
+  //      永不投影（agent 循环的协议轮，改了会散架）
+  function selectSpeakerView(msgs, opts) {
+    const scope = (opts && opts.scope) || currentScopeKey();
+    const card = (opts && opts.card) || null;
+    const myName = (card && typeof card.name === "string") ? card.name : "";
+    const out = [];
+    for (const m of msgs || []) {
+      if (!m || !m.role) continue;
+      if (m.sc && m.sc !== scope) continue; // ①
+      if (m.role === "assistant" && !(Array.isArray(m.tool_calls) && m.tool_calls.length)) {
+        const speaker = typeof m.speakerName === "string" ? m.speakerName : "";
+        if (myName && speaker && speaker !== myName) {
+          out.push({ role: "user", content: "【" + speaker + "】" + (typeof m.content === "string" ? m.content : "") }); // ②
+          continue;
+        }
+      }
+      out.push(m);
+    }
+    return out;
+  }
+
   function sanitizeToolProtocol(msgs, opts) {
     const drop = !!(opts && opts.dropToolRounds);
     const out = [];
@@ -1181,6 +1299,26 @@
       if (typeof m.speakerId === "string") o.speakerId = m.speakerId;
       out.push(o);
     });
+    // 2026-10-08 协议自愈（只走 agent 路径）：历史会话里可能留着旧版停止按钮造成的
+    // "悬空 tool_calls / 孤儿 tool 消息"（脏数据已落盘，重启后每次请求被上游 400）。
+    // ① 孤儿 tool（全数组没有任何 assistant.tool_calls 声明过该 id）→ 丢；
+    // ② 悬空 tool_calls → 紧邻补合成结果（复用内核的配对函数，不另写一份）。
+    // worker 侧另有一份同语义的入站净化（不同运行时，作为第二道防线）。
+    if (!drop) {
+      const declared = new Set();
+      for (const m of out) {
+        if (m.role === "assistant" && Array.isArray(m.tool_calls)) {
+          for (const c of m.tool_calls) if (c && c.id) declared.add(c.id);
+        }
+      }
+      const kept = out.filter((m) => m.role !== "tool" || (m.tool_call_id && declared.has(m.tool_call_id)));
+      try {
+        if (window.AgentKernel && typeof window.AgentKernel.pairPendingToolCalls === "function") {
+          window.AgentKernel.pairPendingToolCalls(kept, "回合被中断，工具结果未知（客户端协议自愈）");
+        }
+      } catch (e) {}
+      return kept;
+    }
     return out;
   }
 
@@ -1510,6 +1648,12 @@
       const cur = activeCardId();
       if (want && want !== cur) {
         if (window.__character && window.__character.setActiveId) window.__character.setActiveId(want);
+        // 2026-10-08: 这一步是「会话记住的角色」在切回来 —— 字段随云同步跨设备回灌，
+        // 用户看不到来源就会觉得"莫名其妙被挂上了某个角色"（实证询问过）。给一次可见提示。
+        try {
+          const c = (window.__character && window.__character.getActiveCard && window.__character.getActiveCard()) || null;
+          if (c && c.name) toastMsg("已按「会话记住的角色」切到 " + c.name + "（不是刚选的；左栏角色面板可换）", 4200);
+        } catch (e) {}
       } else if (!want && cur) {
         setConvCharId(convId, cur); // 会话没记角色(老默认会话)→ 记下当前的
       }
@@ -1688,6 +1832,9 @@
         if (typeof m.tool_call_id === "string") e.tool_call_id = m.tool_call_id;
         if (m._tool && typeof m._tool === "object") e._tool = m._tool;
       }
+      // 2026-10-08 多智能体独立上下文：场景键必须随会话持久化 —— 这里是重建 session 的唯一入口，
+      // 漏了它刷新后所有消息都变"无标记"，按角色隔离当场失效。
+      if (typeof m.sc === "string" && m.sc) e.sc = m.sc;
       if (_role === "assistant" && typeof m.reasoning_content === "string" && m.reasoning_content) {
         e.reasoning_content = m.reasoning_content;
       }
@@ -1754,8 +1901,29 @@
         } catch (_ags) {}
         continue;
       }
-      const r = makeRow(m.role === "user" ? "user" : "assistant");
-      _flushTurnsInto(r.rowEl);
+      // 2026-10-08 修「user 头上也有调用工具」：过程块**只能挂到 AI 行**。
+      // 旧版对每一行都调 _flushTurnsInto(rowEl)，于是"工具轮后面直接跟 user 消息"这种历史形状
+      // （中断/丢弃半截回合后的常见落库形状：assistant(tool_calls)+tool 之后没有最终 assistant）
+      // 会把过程块挂进**用户行** —— 渲染出来就是"用户消息头上带了工具调用"。
+      // 现在：user 行之前先补一条合成 AI 行托住过程块（空气泡隐藏），保持"过程属于上一轮"的位置感。
+      let r;
+      if (m.role === "user") {
+        if (_pendingTurns.length) {
+          try {
+            const _r0 = makeRow("assistant");
+            _flushTurnsInto(_r0.rowEl);
+            if (_r0.bubble && !String(_r0.bubble.textContent || "").trim()) _r0.bubble.style.display = "none";
+          } catch (_pf) {}
+        }
+        r = makeRow("user");
+      } else {
+        r = makeRow("assistant");
+        _flushTurnsInto(r.rowEl);
+      }
+      // 2026-10-08: 行上记真实 session 下标 —— Agent 工具轮不建行（折进"紧随其后的最终回答"），
+      // 所以 DOM 行号 ≠ session 下标。重试/删除按这个下标算，否则会错位截断、留下悬空
+      // tool_calls 落盘（"重启后每次请求被上游 400"的根源）。
+      try { r.rowEl.dataset.sidx = String(_i); } catch (_sx) {}
       const _visText = m.content;
       // Bug3 fix: agent 回复用 innerHTML 渲染 Markdown(还原时 textContent 会把 <table class="md-table"> 显示为文本)
       if (m.role === "assistant") { r.bubble.innerHTML = renderMarkdownSafe(_visText); } else { r.bubble.textContent = _visText; }
@@ -1798,7 +1966,7 @@
     }
     // 末尾仍有未挂出的过程块(该轮被中断 / 没有最终回答):补一行承载,避免"跑了工具却什么都没有"
     if (_pendingTurns.length) {
-      try { const _r2 = makeRow("assistant"); _flushTurnsInto(_r2.rowEl); } catch (_pf) {}
+      try { const _r2 = makeRow("assistant"); _flushTurnsInto(_r2.rowEl); if (_r2.bubble && !String(_r2.bubble.textContent || "").trim()) _r2.bubble.style.display = "none"; } catch (_pf) {}
     }
   }
 
@@ -2124,15 +2292,19 @@
   // Phase 4 阶段 6：从 LS 读取启用的预设，按 order 排序，filter enabled，COT 在快速(DeepSeek)模式下自动禁用
   // （2026-10-06: 原「语音情绪白名单」(emotionTagDirective) 已随多情绪系统删除 —— 本函数曾残留对它的
   //   活调用导致所有聊天路径 ReferenceError 中止(agent 模式报"emotionTagDirective is not defined")，已清。）
-  function getExtraSystemPrompts(mode) {
+  function getExtraSystemPrompts(mode, card) {
     try {
       const raw = localStorage.getItem(LS_PROMPT_PRESETS);
       if (!raw) return "";
       const arr = JSON.parse(raw);
       if (!Array.isArray(arr)) return "";
       const isDeepSeek = mode === "fast";
+      // 2026-10-08 角色能力档：该角色配了 presetIds 就按它取（忽略全局 enabled 勾选），否则走全局。
+      const cap = charCap(card);
+      const ids = (cap && Array.isArray(cap.presetIds) && cap.presetIds.length) ? cap.presetIds : null;
       return arr
-        .filter(p => p && p.enabled && typeof p.content === "string" && p.content.trim())
+        .filter(p => p && typeof p.content === "string" && p.content.trim())
+        .filter(p => ids ? ids.indexOf(p.id) >= 0 : !!p.enabled)
         .filter(p => !(isDeepSeek && p.name === "COT"))
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
         .map(p => p.content.trim())
@@ -2173,6 +2345,7 @@
 
   async function sendOneAgent(opts) {
     if (isSending) return null;
+    _discardPartialFlag = false; // 新一轮开始：清掉上一轮的"明确丢弃"标记
     const opts0 = opts || {};
     const isAuto = opts0.text != null;
     updateSpacer();
@@ -2198,7 +2371,8 @@
       const inEst = estimateTokens(text) + attFileTokens(_attA);
       totalInEstimate += inEst;
       userRow.stats.textContent = `Input(估算): ≈${inEst} | Total In(估算): ≈${totalInEstimate}`;
-      session.push(Object.assign({ role: "user", content: text }, attMeta(_attA)));
+      session.push(scopeTag(Object.assign({ role: "user", content: text }, attMeta(_attA))));
+      try { userRow.rowEl.dataset.sidx = String(session.length - 1); } catch (_sx) {} // 2026-10-08: 重试/删除按真实下标算
       persistSessionIfEnabled();
     }
     if (!isAuto) {
@@ -2231,7 +2405,7 @@
     // 与 payload 同一快照口径:中途切模型/底座,旧回复保留旧标注、新回复带新的 —— 所以按条存,不按会话盖章。
     // baseId 空串 = 「用默认档」(worker 侧回落到排序第一份),不是没记录。
     // 这个字段只进 UI/本地会话:发请求前 sanitizeToolProtocol 白名单重建会把它剥掉,不会流到上游。
-    const _replyMeta = { model: snapshotModel, baseId: baseIdPayload().baseId || "" };
+    const _replyMeta = { model: snapshotModel, baseId: baseIdPayload(characterCard).baseId || "" };
 
     const aiRow = makeRow("assistant", { side: opts0.side || null });
     setStreamingUI(aiRow.rowEl, true);
@@ -2289,6 +2463,8 @@
               _imgContent.className = 'content';
               const _imgEl = document.createElement('img');
               _imgEl.src = url;
+              // 2026-10-08 内存:聊天 DOM 不虚拟化 —— 屏外图不加载/不解码，长会话里少一批常驻位图
+              try { _imgEl.loading = 'lazy'; _imgEl.decoding = 'async'; } catch (_ie2) {}
               _imgEl.style.cssText = 'max-width:280px;max-height:320px;border-radius:12px;display:block;object-fit:cover;cursor:pointer;margin:2px 0;';
               _imgEl.onclick = function() { try { window.open(url, '_blank'); } catch (_) {} };
               _imgEl.onerror = function() { _imgRow.style.display = 'none'; };
@@ -2357,7 +2533,39 @@
       // agent 模式下始终看不到任何统计)。必须用 var(函数作用域): 声明在 try 块内,
       // 但回填点在 finally 块,const/let 的块作用域会 ReferenceError。
       var _roundUsage = { p: 0, c: 0, n: 0 };
+      // 2026-10-08 上游"静默卡死"防护：agent 的 callModel 是流式（4.77），但上游可能
+      // headers 之后 body 不再吐字节（worker 默认流是裸透传、无心跳）——旧版只能干等，
+      // 表现就是「工具跑完不回字、行一直 streaming」，唯一出路是点停止。
+      // 现在：包装真 callModel，90 秒没有任何 chunk 就中止本次调用并抛出人话错误
+      // （内核据此走 model_error 优雅收尾）。用独立子 controller 链到宿主 signal：
+      // 用户主动停止（宿主 abort）与「上游没响应」（看门狗）在错误类型上可区分。
+      const AGENT_CALL_IDLE_MS = 90 * 1000;
+      let _callCtrl = null, _idleTimer = null, _idleTimedOut = false;
+      const _armIdle = () => {
+        if (_idleTimer) clearTimeout(_idleTimer);
+        _idleTimer = setTimeout(() => { _idleTimedOut = true; try { _callCtrl.abort(); } catch (e) {} }, AGENT_CALL_IDLE_MS);
+      };
+      const _disarmIdle = () => { if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; } };
       const callModel = async (messages, schemas) => {
+        _callCtrl = new AbortController();
+        _idleTimedOut = false;
+        const _onHostAbort = () => { try { _callCtrl.abort(); } catch (e) {} };
+        if (controller.signal.aborted) _onHostAbort();
+        else { try { controller.signal.addEventListener("abort", _onHostAbort, { once: true }); } catch (e) {} }
+        _armIdle();
+        try {
+          return await _callModelOnce(messages, schemas);
+        } catch (e) {
+          if (_idleTimedOut && !controller.signal.aborted) {
+            throw new Error("上游 " + Math.round(AGENT_CALL_IDLE_MS / 1000) + " 秒无响应（静默卡死），已中断本轮回合");
+          }
+          throw e;
+        } finally {
+          _disarmIdle();
+          try { controller.signal.removeEventListener("abort", _onHostAbort); } catch (e) {}
+        }
+      };
+      const _callModelOnce = async (messages, schemas) => {
         // Vision：首轮把附图注入最后一条 user 消息（仅消费一次，后续轮不重复注入）
         // 2026-09-14: 附件在请求装配时展开(文件全文 / 图片视觉数组),不改 session;
         // 再过一遍协议装配 —— kernel 自己 push 的消息带 _tool 等 UI 字段,不能直接进请求体。
@@ -2365,7 +2573,7 @@
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
+          signal: _callCtrl.signal, // 2026-10-08: 子 controller（链宿主 signal + 空闲看门狗），不再是 controller.signal
           body: JSON.stringify({
             stream: true, // 4.77: agent 改流式(原 false → 边收边渲染 + 增量重组 tool_calls);worker 流式已透传 tools/吐 tool_calls delta
             tools: schemas,
@@ -2381,14 +2589,14 @@
             emotion: "neutral",
             affection: null,
             priorSummary: "",
-            extraSystemPrompts: getExtraSystemPrompts(snapshotMode) + (_envSnap ? "\n\n" + _envSnap : "") + AGENT_TOOL_USE_DIRECTIVE + (getAgentWorkMode() === "plan" ? AGENT_PLAN_DIRECTIVE : "") + (window.__skills && window.__skills.buildCatalogPrompt ? window.__skills.buildCatalogPrompt() : "") + ambientDirectorPrompt(),
+            extraSystemPrompts: getExtraSystemPrompts(snapshotMode, characterCard) + (_kbInj ? "\n\n" + _kbInj : "") + (_envSnap ? "\n\n" + _envSnap : "") + AGENT_TOOL_USE_DIRECTIVE + (getAgentWorkMode() === "plan" ? AGENT_PLAN_DIRECTIVE : "") + (window.__skills && window.__skills.buildCatalogPrompt ? window.__skills.buildCatalogPrompt((charCap(characterCard) || {}).skillNames) : "") + ambientDirectorPrompt(),
             // 4.82: 思考不再绑定快速档 —— 免费档也下发(worker 按 provider 方言装配参数)
             thinking: thinkingOn ? "enabled" : "disabled",
             reasoning_effort: thinkingOn ? getThinkLevel() : undefined,
             ...genParamPayload(), // 4.83: 用户在设置里填了 temperature/max_tokens 才带上(留空=不干预)
             replyStyle: localStorage.getItem("cfw_reply_style_v1") || "default",
             customProvider: customProviderSnapshot, // 4.69 BYO 自定义 API 直传
-            ...baseIdPayload(), // 基座版本(未选=不发)
+            ...baseIdPayload(characterCard), // 基座版本（角色能力档可覆盖；未选=不发）
             ...stateLayerPayload(), // 2026-10-05：角色状态层(仅在设置里关掉时才发 false)
             ...webSearchPayload(), // 2026-10-07 联网搜索（开关打开时服务端才挂 web_search 工具）
             messages: _msgsToSend,
@@ -2464,6 +2672,7 @@
         while (true) {
           const { done, value } = await reader.read();
           if (done) { _sseBuf += decoder.decode(); break; }
+          _armIdle(); // 收到字节 = 上游还活着，重置空闲计时（看门狗只打"静默"，不设总时长上限）
           _sseBuf += decoder.decode(value, { stream: true });
           let _nl;
           while ((_nl = _sseBuf.indexOf("\n")) >= 0) {
@@ -2535,7 +2744,9 @@
       // 4.82 修:必须**先展开附件再协议化** —— sanitizeToolProtocol 会剥掉 files/images 字段,
       // 顺序反了则附件全文/图片在起始消息里就没了,callModel 里的 expandAttachmentMessages 再找不到
       // files 可展开 → Agent 模式下上传的文件永远进不了模型上下文(表现为「文件没算进上下文」)。
-      const startMessages = sanitizeToolProtocol(await expandAttachmentMessages(session));
+      // 2026-10-08: 与 RP 路径同口径 —— 先按"当前场景 + 本角色"投影（工具轮不受投影影响），
+      // 再展开附件/协议化。Agent 模式与群聊互斥，所以这里的世界就是"本角色视角"。
+      const startMessages = sanitizeToolProtocol(await expandAttachmentMessages(selectSpeakerView(session, { scope: currentScopeKey(), card: characterCard })));
       const _startLen = startMessages.length;
       // 4.69 控制台接线 + 子 agent 编排:把右栏 agent 控制台的 onEvent/ensurePermission 喂进内核,
       // 并把 callModel/onEvent/depth 透传进 context,供 delegate_to_agent 派生子 agent 时复用。
@@ -2552,6 +2763,7 @@
       // 渲染「轮次步骤卡片」(ui/agent-steps.js) —— 每轮一张卡,展开能看到入参与**工具返回了什么**。
       // 折叠块只留模型真实推理(reasoning_content / <think>),不再混入工具行。
       var _stepsLive = null;
+      var _stepsEnd = undefined; // 过程块的收尾原因（finally 里兜底收尾用；undefined=正常）
       const _steps = () => {
         if (!_stepsLive) {
           try {
@@ -2571,12 +2783,65 @@
           else if (ev.type === 'tool_done' && ev.name) S.tool_done(ev.name, { ok: ev.ok !== false, ms: ev.ms, summary: ev.summary });
           else if (ev.type === 'tool_error' && ev.name) S.tool_error(ev.name, { error: ev.message || ev.error || '调用失败', ms: ev.ms });
           else if (ev.type === 'tool_denied' && ev.name) S.tool_denied(ev.name, ev.args || {});
+          // 2026-10-08 多智能体编排：小会/上台的过程进同一块过程面板（可见但不进时间线）
+          else if (ev.type === 'meeting_start') S.meeting_start(ev);
+          else if (ev.type === 'meeting_speaker') S.meeting_speaker(ev);
+          else if (ev.type === 'peer_invite') S.peer_invite(ev);
           if (isNearBottom()) scrollToBottom();
         } catch (_) {}
       };
       const _askBase = (_ac && typeof _ac.ensurePermission === "function") ? _ac.ensurePermission : null;
       const _ensurePermission = makeAgentPermission(getAgentWorkMode(), _askBase);
+      // 2026-10-08: 工具轮写回抽成函数 —— 正常收尾与"用户中断"两条路都要走它。
+      // 中断时内核已把悬空调用配对（err._agentMessages），写回后会话里不再留断掉的协议尾巴；
+      // 重试/删除 走的是"明确丢弃半截"（_discardPartialFlag），那条路不写回 ——
+      // 否则 chat-ux 刚做的截断会被这条迟到的回写又补回来（幽灵回复）。
+      // 必须用 var(函数作用域): 定义在 try 块内、调用点在 catch 块,const/let 的块作用域在 catch 里
+      // 取不到（同 `_roundUsage` 那条注释的教训 —— 实测这一条会让中断自愈静默失效）。
+      var _writeBackRounds = (allMsgs) => {
+        try {
+          if (myGen !== sendGen || _discardPartialFlag) return;
+          const _newMsgs = Array.isArray(allMsgs) ? allMsgs.slice(_startLen) : [];
+          // 末条是内核自造的「最终答复」assistant —— 正文会用清洗后的版本单独入 session,避免重复
+          if (_newMsgs.length && _newMsgs[_newMsgs.length - 1].role === "assistant") _newMsgs.pop();
+          _newMsgs.forEach((m) => {
+            if (m.role === "tool") {
+              const t = { role: "tool", tool_call_id: m.tool_call_id, content: m.content };
+              if (m._tool) t._tool = m._tool;
+              session.push(scopeTag(t));
+              return;
+            }
+            if (m.role === "assistant" && Array.isArray(m.tool_calls) && m.tool_calls.length) {
+              const a = { role: "assistant", content: "", tool_calls: m.tool_calls };
+              if (m.reasoning_content) a.reasoning_content = m.reasoning_content;
+              if (m.content) a.agentPreamble = m.content; // 该轮附带的可见正文(仅给 UI 展示)
+              if (characterCard) { a.speakerId = characterCard.id; a.speakerName = characterCard.name; a.speakerIcon = characterCard.icon || "🙂"; }
+              session.push(scopeTag(a));
+              return;
+            }
+            session.push(scopeTag({ role: m.role, content: typeof m.content === "string" ? m.content : "" }));
+          });
+          if (_newMsgs.length) persistSessionIfEnabled();
+        } catch (_wb) {}
+      };
+      // 2026-10-08 角色记忆：小本子（char_db_*）+ 知识库检索（kb_search / kb_read）
+      if (window.__charMemory && typeof window.__charMemory.defineTools === "function") {
+        try { window.__charMemory.defineTools(registry); } catch (e) { console.warn('[char-memory] defineTools 失败:', e); }
+      }
+      // 2026-10-08 知识库命中注入：按「当前发言者 + 最后一条用户消息」取 top-K（本地检索，零 token 成本；
+      // 命中才有内容）。知识库是"每个角色一套"，所以取的是这张卡的库。
+      let _kbInj = "";
+      try {
+        if (window.__charMemory && typeof window.__charMemory.buildInjection === "function") {
+          let _lastUser = "";
+          for (let i = startMessages.length - 1; i >= 0; i--) {
+            if (startMessages[i] && startMessages[i].role === "user") { _lastUser = String(startMessages[i].content || ""); break; }
+          }
+          _kbInj = await window.__charMemory.buildInjection(characterCard, _lastUser);
+        }
+      } catch (e) {}
       // 2026-09-14:最大工具轮数改为可配(原来写死内核默认值 8)。设置页「Agent 工具集」卡里可改。
+      // 2026-10-08: signal 交给内核 —— 停止/重试/删除 的中断要能掀掉"等待放行"与轮间空档。
       const result = await window.AgentKernel.runAgentLoop({
         messages: startMessages,
         registry,
@@ -2585,44 +2850,32 @@
         context: { characterCard, callModel, onEvent: _onEvent, ensurePermission: _ensurePermission, depth: 0 },
         onEvent: _onEvent,
         ensurePermission: _ensurePermission,
+        signal: controller.signal,
       });
       finalText = (result && result.finalText) || "";
       // 整轮结束:过程块自动收起成一行摘要(对齐 ZCode —— 过程只在运行时展开,跑完收起,下面才是正文)
-      try { if (_stepsLive) _stepsLive.finish(); } catch (_fz) {}
+      _stepsEnd = "done";
+      try { if (_stepsLive) _stepsLive.finish("done"); } catch (_fz) {}
 
-      // 2026-09-14 根因修复:把工具轮次**写回 session**。
+      // 2026-09-14 根因修复:把工具轮次**写回 session**（2026-10-08 抽成 _writeBackRounds）。
       // 旧实现里 startMessages 只是 session 的浅拷贝,result.messages 出了作用域就丢 ——
       // 于是下一条用户消息时,模型完全不知道自己上轮调过什么工具、拿到了什么结果,每次失忆重开。
       // 这正是 Agent「像过家家」的头号原因。现在按协议顺序 assistant(带 tool_calls) → tool(结果)
       // 追加进 session 并持久化(agentPreamble/_tool 是 UI 专用,请求装配时会剥掉)。
-      try {
-        const _newMsgs = (result && Array.isArray(result.messages)) ? result.messages.slice(_startLen) : [];
-        // 末条是内核自造的「最终答复」assistant —— 下面会用清洗后的版本单独入 session,避免重复
-        if (_newMsgs.length && _newMsgs[_newMsgs.length - 1].role === "assistant") _newMsgs.pop();
-        _newMsgs.forEach((m) => {
-          if (m.role === "tool") {
-            const t = { role: "tool", tool_call_id: m.tool_call_id, content: m.content };
-            if (m._tool) t._tool = m._tool;
-            session.push(t);
-            return;
-          }
-          if (m.role === "assistant" && Array.isArray(m.tool_calls) && m.tool_calls.length) {
-            const a = { role: "assistant", content: "", tool_calls: m.tool_calls };
-            if (m.reasoning_content) a.reasoning_content = m.reasoning_content;
-            if (m.content) a.agentPreamble = m.content; // 该轮附带的可见正文(仅给 UI 展示)
-            if (characterCard) { a.speakerId = characterCard.id; a.speakerName = characterCard.name; a.speakerIcon = characterCard.icon || "🙂"; }
-            session.push(a);
-            return;
-          }
-          session.push({ role: m.role, content: typeof m.content === "string" ? m.content : "" });
-        });
-        if (_newMsgs.length) persistSessionIfEnabled();
-      } catch (_wb) {}
+      _writeBackRounds(result && result.messages);
     } catch (e) {
       if (e.name === "AbortError") {
+        // 2026-10-08: 中断也要收尾过程块 —— 旧版只在正常结束/报错时收尾，点停止后过程块一直转"运行中…"
+        // （截图实证：气泡已显示"（已中断）"，过程块还在转）。
+        _stepsEnd = "aborted";
+        // 2026-10-08: 中断时内核已配对悬空 tool_calls（挂在 err._agentMessages 上），
+        // 先把工具轮写回 —— 否则断掉的协议随会话落盘，重启后每次请求被上游 400。
+        // （_writeBackRounds 为 var：定义在 try 内、此处可用；理论上更早的异常可能让它还是 undefined）
+        if (e._agentMessages && typeof _writeBackRounds === "function") _writeBackRounds(e._agentMessages);
         // 4.79 中断兜底:流被掐断(新发一条/停止/重试/删除/pacing/切角色)时,不再裸 return 丢掉半截,
         // 而是把已收到的可见正文清洗后定格为最终态并入 session(对齐普通 sendOne 的 partialStream 兜底)。
-        if (myGen === sendGen) {
+        // 2026-10-08: 只有"保留半截"的停止路径才落盘；重试/删除（discardPartial）不落 —— 那条路正在截断。
+        if (myGen === sendGen && !_discardPartialFlag) {
           try {
             const _salvBody = stripResidualMarkup(stripJailbreakPrefix(stripThinkBlocks(_lastAgentContent || "")));
             // 2026-06-20:中断兜底也带上工具轮前置正文,避免 abort 时把已说的问候/道歉一并丢掉。
@@ -2633,8 +2886,12 @@
               if (_agentReasonLines.length) _am.reasoning_content = _agentReasonLines.join("\n");
               if (characterCard) { _am.speakerId = characterCard.id; _am.speakerName = characterCard.name; _am.speakerIcon = characterCard.icon || "🙂"; }
               _am._meta = _replyMeta; // 2026-10-05: 中断兜底也留来源标注
-              session.push(_am);
+              session.push(scopeTag(_am));
+              try { aiRow.rowEl.dataset.sidx = String(session.length - 1); } catch (_sx) {} // 2026-10-08
               persistSessionIfEnabled();
+            } else if (myGen === sendGen) {
+              // 一点内容都没收到就被停止：不留"思考中…"挂在气泡里（旧版会一直挂着直到刷新）
+              try { aiRow.bubble.textContent = "（已中断）"; } catch (_ib) {}
             }
           } catch (_se) {}
           isSending = false; sendBtn.disabled = false; if (currentController === controller) currentController = null;
@@ -2643,8 +2900,11 @@
         return;
       }
       if (myGen === sendGen) aiRow.bubble.textContent = "网络错误: " + e.message;
+      _stepsEnd = "error";
       finalText = "";
     } finally {
+      // 2026-10-08 兜底：任何出口都让过程块收尾（正常路径已在上面收过，重复调用是幂等的）
+      try { if (_stepsLive) _stepsLive.finish(_stepsEnd); } catch (_fz) {}
       if (myGen === sendGen) {
         isSending = false;
         sendBtn.disabled = false;
@@ -2686,7 +2946,8 @@
       asMsg.speakerIcon = characterCard.icon || "🙂";
     }
     asMsg._meta = _replyMeta; // 2026-10-05: 本轮模型 + 底座来源标注
-    session.push(asMsg);
+    session.push(scopeTag(asMsg));
+    try { aiRow.rowEl.dataset.sidx = String(session.length - 1); } catch (_sx) {} // 2026-10-08: 删除本行时按真实下标算
     persistSessionIfEnabled();
 
     // 4.83: 回合结束回填 AI 行统计 —— 旧版开场 aiRow.stats.textContent="" 之后从不回填,
@@ -2712,6 +2973,7 @@
   // 不传 opts.text 时从 inputEl 取;返回 AI 完整回复文本,失败/中断返回 null/undefined
   async function sendOne(opts) {
     if (isSending) return null;
+    _discardPartialFlag = false; // 新一轮开始：清掉上一轮的"明确丢弃"标记
     // 内核接线 v1:Agent 内核模式开启时改走 sendOneAgent(function-calling + agent loop);默认关走原流式路径
     if (isAgentModeOn()) {
       return await sendOneAgent(opts);
@@ -2782,7 +3044,8 @@
       const inEst = estimateTokens(text) + attFileTokens(_attB);
       totalInEstimate += inEst;
       userRow.stats.textContent = `Input(估算): ≈${inEst} | Total In(估算): ≈${totalInEstimate}`;
-      session.push(Object.assign({ role: "user", content: text }, attMeta(_attB)));
+      session.push(scopeTag(Object.assign({ role: "user", content: text }, attMeta(_attB))));
+      try { userRow.rowEl.dataset.sidx = String(session.length - 1); } catch (_sx) {} // 2026-10-08: 重试/删除按真实下标算
       persistSessionIfEnabled();
     }
     if (!isAuto) {
@@ -2859,13 +3122,31 @@
     }
     // 2026-10-05: 本轮回复的来源标注(见 sendOneAgent 同名注释)。baseId 空串 = 用默认档(排序第一份)。
     // sanitizeToolProtocol 白名单重建会剥掉它,不会流到上游。
-    const _replyMeta = { model: snapshotModel, baseId: baseIdPayload().baseId || "" };
+    const _replyMeta = { model: snapshotModel, baseId: baseIdPayload(characterCard).baseId || "" };
 
     try {
       // 2026-09-14: 附件在请求装配时展开(文件全文拼进 content / 图片转视觉数组),session 本身不动。
       // 非 Agent 模式下把工具轮整段剔除 —— 不支持 function calling 的模型收到 tool 轮会直接报错,
       // 而工具轮的价值只在于 agent 循环内部;最终答复本身已经是普通 assistant 消息,上下文不丢。
-      const _reqMessages = sanitizeToolProtocol(await expandAttachmentMessages(session), { dropToolRounds: true });
+      // 2026-10-08: 先投影成"当前发言者的上下文"（场景键过滤 + 他人发言降级为 user【名字】），
+      // 再展开附件/协议化 —— 这样每个角色拿到的是自己的历史，不再共享同一条。
+      // 发言者取 opts.asCard（鱼缸/编排显式指定）优先，否则当前激活卡。
+      const _speakerCard = opts0.asCard || (ch && ch.getActiveCard ? ch.getActiveCard() : null);
+      const _reqMessages = sanitizeToolProtocol(
+        await expandAttachmentMessages(selectSpeakerView(session, { scope: currentScopeKey(), card: _speakerCard })),
+        { dropToolRounds: true }
+      );
+      // 2026-10-08 知识库命中注入：按「当前发言者 + 最后一条用户消息」取 top-K（本地检索、零 token 成本）
+      let _kbInj = "";
+      try {
+        if (window.__charMemory && typeof window.__charMemory.buildInjection === "function") {
+          let _lastUser = "";
+          for (let i = _reqMessages.length - 1; i >= 0; i--) {
+            if (_reqMessages[i] && _reqMessages[i].role === "user") { _lastUser = String(_reqMessages[i].content || ""); break; }
+          }
+          _kbInj = await window.__charMemory.buildInjection(_speakerCard, _lastUser);
+        }
+      } catch (e) {}
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2885,7 +3166,7 @@
           summonableNames,
           thresholdEvents,
           priorSummary: historyEnabled ? priorSummary : "",
-          extraSystemPrompts: getExtraSystemPrompts(snapshotMode) + ((window.__chatImageText && window.__chatImageText.getInjection) ? window.__chatImageText.getInjection() : "") + groupChatInjection(characterCard) + ambientDirectorPrompt(), // 2026-10-06: 技能不再走这里——只有 agent 模式挂「技能目录」，正文由 load_skill 按需取
+          extraSystemPrompts: getExtraSystemPrompts(snapshotMode, characterCard) + (_kbInj ? "\n\n" + _kbInj : "") + ((window.__chatImageText && window.__chatImageText.getInjection) ? window.__chatImageText.getInjection() : "") + groupChatInjection(characterCard) + ambientDirectorPrompt(), // 2026-10-06: 技能不再走这里——只有 agent 模式挂「技能目录」，正文由 load_skill 按需取;
           // 4.82: 思考不再绑定快速档 —— 免费档也下发(worker 按 provider 方言装配参数)
           thinking: thinkingOn ? "enabled" : "disabled",
             reasoning_effort: thinkingOn ? getThinkLevel() : undefined,
@@ -2895,7 +3176,7 @@
           // 2026-05-29: 回复风格 (default / wechat / verbose) - wechat 会在后面拆气泡
           replyStyle: localStorage.getItem("cfw_reply_style_v1") || "default",
           lorebook: lorebookEntries,
-          ...baseIdPayload(), // 基座版本(未选=不发)
+          ...baseIdPayload(characterCard), // 基座版本（角色能力档可覆盖；未选=不发）
           ...stateLayerPayload(), // 2026-10-05：角色状态层(仅在设置里关掉时才发 false)
           ...webSearchPayload(), // 2026-10-07 联网搜索（开关打开时服务端才挂 web_search 工具）
           messages: _reqMessages,
@@ -3038,7 +3319,8 @@
               m.speakerIcon = partialStream.speakerIcon;
             }
             m._meta = _replyMeta; // 2026-10-05: 中断兜底也留来源标注
-            session.push(m);
+            session.push(scopeTag(m));
+            try { aiRow.rowEl.dataset.sidx = String(session.length - 1); } catch (_sx) {} // 2026-10-08
             persistSessionIfEnabled();
           }
           isSending = false;
@@ -3226,7 +3508,8 @@
       asMsg.speakerIcon = characterCard.icon || "🙂";
     }
     asMsg._meta = _replyMeta; // 2026-10-05: 本轮模型 + 底座来源标注(随会话持久化)
-    session.push(asMsg);
+    session.push(scopeTag(asMsg));
+    try { aiRow.rowEl.dataset.sidx = String(session.length - 1); } catch (_sx) {} // 2026-10-08: 删除本行时按真实下标算
     persistSessionIfEnabled();
     // 2026-05-29 微信发图:正文入 session 后触发出图(图片气泡插在本条 AI 之后)
     if (_photoSig != null && window.__chatImageText && window.__chatImageText.handleSignal) {
@@ -3295,6 +3578,10 @@
   function randomBargeChance() { const n = parseInt(localStorage.getItem(LS_RANDOM_BARGE) ?? "35", 10); return isNaN(n) ? 35 : Math.max(0, Math.min(100, n)); }
 
   function isGroupChatActive() {
+    // 2026-10-08（分层按钮）：Agent 模式与多智能体不再互斥 —— 同开时多智能体是"给 agent 开的能力
+    // 闸门"（私下小会 / 派子 agent），时间线仍只有主 agent 一个声音，接力/编排不自动跑，角色只在
+    // "小会 / 上台"里出现。所以这里在 agent 模式下恒 false。
+    if (isAgentModeOn()) return false;
     const M = window.__multi;
     if (!(M && M.isMulti && M.isMulti())) return false;
     let n = 0; try { n = ((M.getSceneCards && M.getSceneCards()) || []).length; } catch (e) {}
@@ -3393,6 +3680,206 @@
   }
   function continueGroupChat(reply, card) { return runAutoRelay(reply, card); }
 
+  // ─── 2026-10-08 Agent 的多智能体能力（多智能体模式 + Agent 模式同开时可用）───────────────
+  // 术语（用户口径）：**平级 agent = 你单独配置好的角色卡**（各有独立上下文，能互发消息）；
+  // **子 agent = 主 agent 现造的临时工**（tools.js 的「最小权限」档，任务级、用完即弃）。
+  // 这里实现"平级"的两个动作（tools.js 只声明 schema，重活在这边——状态都在本文件）：
+  //   runPeerMeeting            私开小会：多位角色并行独立作答（rounds=2 可互评），结论回主 agent、不进时间线
+  //   inviteCharacterToTimeline 叫上台：角色按自己的档案与上下文，直接在时间线里回答
+  function _maCardByName(name) {
+    const raw = String(name == null ? "" : name).trim();
+    if (!raw) return null;
+    const norm = (s) => String(s == null ? "" : s).replace(/[\s【】\[\]()（）「」·,，.。!！?？~]/g, "").toLowerCase();
+    const hit = (arr) => {
+      let h = arr.find((c) => c && c.name === raw);
+      if (h) return h;
+      const n = norm(raw);
+      if (!n) return null;
+      h = arr.find((c) => c && norm(c.name) === n);
+      if (h) return h;
+      return arr.find((c) => { const cn = norm(c && c.name); return cn && cn.length >= 2 && n.length >= 2 && (cn.includes(n) || n.includes(cn)); }) || null;
+    };
+    let scene = [];
+    try { scene = (window.__multi && window.__multi.getSceneCards && window.__multi.getSceneCards()) || []; } catch (e) {}
+    const s1 = hit(scene); // 在场角色优先
+    if (s1) return s1;
+    try { return hit((window.__character && window.__character.listAllCards && window.__character.listAllCards()) || []); } catch (e) { return null; }
+  }
+  function _maCfg() {
+    const num = (k, def, lo, hi) => { const n = parseInt(localStorage.getItem(k), 10); return isNaN(n) ? def : Math.max(lo, Math.min(hi, n)); };
+    return {
+      meetingMax: num("cfw_ma_meeting_max_v1", 3, 1, 6),
+      meetingRounds: num("cfw_ma_meeting_rounds_v1", 1, 1, 2),
+      ctxMsgs: num("cfw_ma_ctx_msgs_v1", 60, 0, 400),
+    };
+  }
+  // 给"平级角色"的一次独立模型调用：它自己的角色卡（rp 档案）+ 它自己的上下文视图 + 一段简报。
+  // signal 链宿主 currentController（停止按钮能一起掐掉）+ 60 秒硬超时；非流式（小会只要结论，省钱）。
+  async function callPeerModel(card, view, brief) {
+    let sig;
+    try {
+      if (currentController && typeof AbortSignal !== "undefined" && AbortSignal.any) sig = AbortSignal.any([currentController.signal, AbortSignal.timeout(60000)]);
+      else if (currentController) sig = currentController.signal;
+    } catch (e) {}
+    const msgs = (view || []).concat(brief ? [{ role: "user", content: String(brief) }] : []);
+    const _byo = (window.__byoProvider && window.__byoProvider.get && window.__byoProvider.get()) || undefined;
+    // 2026-10-08 知识库命中注入（同 RP/agent 路径）：这一位平级角色的库里，与本轮话题最相关的段落
+    let _kbInj = "";
+    try {
+      if (window.__charMemory && typeof window.__charMemory.buildInjection === "function") {
+        _kbInj = await window.__charMemory.buildInjection(card, String(brief || "").slice(0, 600));
+      }
+    } catch (e) {}
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: sig,
+      body: JSON.stringify({
+        stream: false,
+        mode: currentMode,
+        model: _byo ? _byo.model : (modelSel ? modelSel.value : undefined),
+        promptProfile: "rp",
+        use_builtin_persona: useBuiltin,
+        custom_system_prompt: (!useBuiltin && promptEnabled) ? (localStorage.getItem(LS_CUSTOM_PROMPT) || "") : "",
+        characterCard: card || null,
+        relation: "default",
+        emotion: "neutral",
+        affection: null,
+        priorSummary: "",
+        extraSystemPrompts: getExtraSystemPrompts(currentMode, card) + (_kbInj ? "\n\n" + _kbInj : ""),
+        thinking: "disabled", // 小会要结论不要思考链（省钱、更快）
+        replyStyle: localStorage.getItem("cfw_reply_style_v1") || "default",
+        customProvider: _byo,
+        ...baseIdPayload(card),
+        ...stateLayerPayload(),
+        messages: msgs,
+      }),
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error("Request failed (" + res.status + "): " + String(t).slice(0, 200));
+    }
+    const j = await res.json().catch(() => null);
+    // 记账：与 sendOne/callModel 同口径（快速档有 usage 才记）
+    try {
+      if (currentMode === "fast" && j && j.usage) {
+        const _p = j.usage.prompt_tokens || 0, _c = j.usage.completion_tokens || 0, _ca = j.usage.prompt_cache_hit_tokens || 0;
+        const cost = calcCost(pricingContext(currentMode, _byo ? _byo.model : (modelSel ? modelSel.value : undefined), _byo), _p, _c, _ca);
+        if (cost > 0) { totalCostCNY += cost; totalPromptTokens += _p; totalCompletionTokens += _c; addCostToToday(cost, _p, _c); updateCostDisplay(); }
+      }
+    } catch (e) {}
+    const m = j && j.choices && j.choices[0] && j.choices[0].message;
+    return (m && typeof m.content === "string") ? m.content : "";
+  }
+  async function runPeerMeeting(opts) {
+    const o = opts || {};
+    const topic = String(o.topic || "").trim();
+    if (!topic) return { ok: false, error: "缺少议题（topic）" };
+    const cfg = _maCfg();
+    const onEvent = typeof o.onEvent === "function" ? o.onEvent : function () {};
+    const rounds = Math.max(1, Math.min(2, parseInt(o.rounds, 10) || cfg.meetingRounds));
+    // 参与者的上下文取"群聊视角"：小会是场景层面的事，在场角色互相可见（各自仍是独立上下文/独立调用）
+    const scope = "group";
+    let names = Array.isArray(o.participants) ? o.participants.map((x) => String(x || "").trim()).filter(Boolean) : [];
+    if (!names.length) {
+      try { names = ((window.__multi && window.__multi.getSceneCards && window.__multi.getSceneCards()) || []).map((c) => c.name).filter(Boolean); } catch (e) {}
+    }
+    let entries = names.slice(0, cfg.meetingMax).map((n) => ({ name: n, card: _maCardByName(n), aspect: "" }));
+    // agenda：多方多主题（给参与者指定负责的方面）
+    const agenda = Array.isArray(o.agenda) ? o.agenda : [];
+    agenda.slice(0, cfg.meetingMax).forEach((a, i) => {
+      if (!a) return;
+      const who = a.who ? _maCardByName(a.who) : null;
+      if (who) {
+        const exist = entries.find((e) => e.card && e.card.id === who.id);
+        if (exist) { exist.aspect = String(a.aspect || ""); return; }
+        entries.push({ name: who.name, card: who, aspect: String(a.aspect || "") });
+      } else if (entries[i]) entries[i].aspect = String(a.aspect || "");
+    });
+    entries = entries.filter((e) => e.card).slice(0, cfg.meetingMax);
+    if (!entries.length) {
+      // 一张角色卡都不可用 → 通用视角（仍是各自独立的调用与上下文，只是人设换成"专家视角"）
+      const aspects = (agenda.length ? agenda.map((a) => String((a && a.aspect) || "")) : ["总体评估", "风险与代价", "替代方案"]).filter(Boolean).slice(0, cfg.meetingMax);
+      entries = aspects.map((a, i) => ({ name: "视角" + (i + 1) + "·" + a, card: null, aspect: a }));
+    }
+    const capView = (card) => {
+      let view = selectSpeakerView(session, { scope: scope, card: card });
+      if (cfg.ctxMsgs > 0 && view.length > cfg.ctxMsgs) view = view.slice(-cfg.ctxMsgs);
+      return view;
+    };
+    onEvent({ type: "meeting_start", topic, participants: entries.map((e) => e.name), rounds });
+    const answers = [];
+    const runRound = async (roundNo, withReview) => {
+      return await Promise.all(entries.map(async (e) => {
+        const aspectLine = e.aspect ? ("\n本会议你负责的方面：" + e.aspect) : "";
+        const review = withReview
+          ? ("\n【上一轮其他人的结论】\n" + answers.map((a) => "· " + a.name + "：" + String(a.text || "").slice(0, 800)).join("\n") + "\n请针对以上结论补充、修正或反驳（不必重复赞同）。")
+          : "";
+        const brief = "【私下小会·第 " + roundNo + " 轮】议题：" + topic + aspectLine + review + "\n请直接用你的身份给出结论（简洁、可执行；不要寒暄、不要提问、不要输出方括号标记）。";
+        try {
+          onEvent({ type: "meeting_speaker", who: e.name, round: roundNo, phase: "start" });
+          const text = await callPeerModel(e.card, capView(e.card), brief);
+          const clean = String(text || "").trim();
+          // text 带全文（过程面板要能读到"小会里说了什么"）；summary 仅给右栏控制台做一行预览
+          onEvent({ type: "meeting_speaker", who: e.name, round: roundNo, phase: "done", summary: clean.slice(0, 200), text: clean });
+          return { name: e.name, aspect: e.aspect, text: clean };
+        } catch (err) {
+          const msg = String((err && err.message) || err);
+          onEvent({ type: "meeting_speaker", who: e.name, round: roundNo, phase: "error", error: msg });
+          return { name: e.name, aspect: e.aspect, text: "", error: msg };
+        }
+      }));
+    };
+    const r1 = await runRound(1, false);
+    answers.push(...r1);
+    let r2 = null;
+    if (rounds >= 2) r2 = await runRound(2, true);
+    onEvent({ type: "meeting_done", topic, participants: answers.map((a) => a.name) });
+    return {
+      ok: true, topic, rounds,
+      answers: answers.map((a) => ({ who: a.name, aspect: a.aspect || undefined, text: a.text, error: a.error || undefined })),
+      review: r2 ? r2.map((a) => ({ who: a.name, text: a.text, error: a.error || undefined })) : undefined,
+      note: "以上为私下小会结论（未进聊天时间线）。可据此作答；也可用 invite_character 请其中一位上台直接回答。",
+    };
+  }
+  async function inviteCharacterToTimeline(opts) {
+    const o = opts || {};
+    const card = _maCardByName(o.name);
+    if (!card) return { ok: false, error: "找不到角色：" + String(o.name || "") };
+    const onEvent = typeof o.onEvent === "function" ? o.onEvent : function () {};
+    onEvent({ type: "peer_invite", who: card.name, phase: "start" });
+    try {
+      const cfg = _maCfg();
+      let view = selectSpeakerView(session, { scope: currentScopeKey(), card });
+      if (cfg.ctxMsgs > 0 && view.length > cfg.ctxMsgs) view = view.slice(-cfg.ctxMsgs);
+      const brief = String(o.brief || "").trim();
+      const text = await callPeerModel(
+        card, view,
+        brief
+          ? ("【被请上台】" + brief + "\n请按你的身份直接回答（不要寒暄、不要提问、不要输出方括号标记）。")
+          : "【被请上台】用户刚把你请进这段对话，请按你的身份接住当前话题、直接说话（不要寒暄、不要输出方括号标记）。"
+      );
+      const clean = stripResidualMarkup(stripJailbreakPrefix(stripThinkBlocks(String(text || ""))));
+      if (!clean.trim()) { onEvent({ type: "peer_invite", who: card.name, phase: "done" }); return { ok: false, error: card.name + " 没有产出内容" }; }
+      // 渲染成时间线里的一条 AI 行（挂该角色的名字/头像）+ 落库（带场景键）
+      const row = makeRow("assistant");
+      row.bubble.innerHTML = renderMarkdownSafe(clean);
+      if (window.__character && window.__character.decorateAiRow) { try { window.__character.decorateAiRow(row.rowEl, card); } catch (e) {} }
+      setStreamingUI(row.rowEl, false);
+      const msg = { role: "assistant", content: clean, speakerId: card.id, speakerName: card.name, speakerIcon: card.icon || "🙂" };
+      session.push(scopeTag(msg));
+      try { row.rowEl.dataset.sidx = String(session.length - 1); } catch (e) {}
+      persistSessionIfEnabled();
+      updateSpacer();
+      scrollToBottom();
+      onEvent({ type: "peer_invite", who: card.name, phase: "done", text: clean });
+      return { ok: true, who: card.name, said: clean, note: "已请「" + card.name + "」在时间线上回答（用户能看到它的气泡）。" };
+    } catch (err) {
+      onEvent({ type: "peer_invite", who: card.name, phase: "done" });
+      return { ok: false, error: String((err && err.message) || err) };
+    }
+  }
+
   // ─── 4.53 真实节奏:攒消息防抖(支持连发) + 不秒回延迟 + 「正在输入」提示 + 群聊在线模式 ───
   // 痛点:发一条就秒回、且没法像真人那样连着发好几句。
   // 做法:Send/Enter 先把消息只入 UI+session(不触发 AI),起一个防抖计时;你继续发就重置计时,
@@ -3451,7 +3938,8 @@
     const inEst = estimateTokens(text) + attFileTokens(_attC);
     totalInEstimate += inEst;
     userRow.stats.textContent = `Input(估算): ≈${inEst} | Total In(估算): ≈${totalInEstimate}`;
-    session.push(Object.assign({ role: "user", content: text }, attMeta(_attC)));
+    session.push(scopeTag(Object.assign({ role: "user", content: text }, attMeta(_attC))));
+    try { userRow.rowEl.dataset.sidx = String(session.length - 1); } catch (_sx) {} // 2026-10-08: 重试/删除按真实下标算
     persistSessionIfEnabled();
   }
 
@@ -3555,7 +4043,8 @@
     row.bubble.textContent = content;
     // 2026-09-14: 主持人/鱼缸旁白不再「偷吃」待发附件(旧实现会调 consumePendingFileAppendix 把用户
     // 刚附加的文件全文塞进主持人消息,用户真正那条反而丢了)。旁白就是纯文本。
-    session.push({ role: "user", content: content });
+    session.push(scopeTag({ role: "user", content: content }));
+    try { row.rowEl.dataset.sidx = String(session.length - 1); } catch (_sx) {} // 2026-10-08
     persistSessionIfEnabled();
     updateSpacer();
     scrollToBottom();
@@ -3574,7 +4063,7 @@
       m.speakerName = partialStream.speakerName;
       m.speakerIcon = partialStream.speakerIcon;
     }
-    session.push(m);
+    session.push(scopeTag(m));
     persistSessionIfEnabled();
   });
 
@@ -3777,7 +4266,57 @@
     if (mq.addEventListener) mq.addEventListener("change", apply); else if (mq.addListener) mq.addListener(apply);
   }
 
+  // ─── 2026-10-08 内存自愈（设置→外观可关，壳内默认开）───
+  // WebView2 壳长跑后 GPU/渲染进程会持住大量缓存内存（实测与特效档位关系不大 —— 大头是随会话、
+  // 图片、长驻页面增长的部分）。本机制：窗口在后台 ≥10 分钟、没有发送中/待批/进行中的 agent 循环、
+  // 输入框也没有草稿时，自动刷新页面释放整页内存。聊天记录已落盘（cfw_chat_session_v1），刷新只影响
+  // 内存态，不影响任何数据。
+  (function memIdleRelease() {
+    function enabled() {
+      try {
+        const v = localStorage.getItem("cfw_mem_idle_release_v1");
+        if (v === "0") return false;
+        if (v === "1") return true;
+        return document.documentElement.classList.contains("android-app"); // 缺省：壳内开、网页关
+      } catch (e) { return false; }
+    }
+    const LIMIT_MS = 10 * 60 * 1000;
+    let hiddenSince = 0;
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) { if (!hiddenSince) hiddenSince = Date.now(); }
+      else hiddenSince = 0;
+    });
+    setInterval(() => {
+      try {
+        if (!document.hidden || !hiddenSince) return;
+        if (Date.now() - hiddenSince < LIMIT_MS) return;
+        if (!enabled()) { hiddenSince = 0; return; }
+        if (isSending) return;
+        if (inputEl && inputEl.value && inputEl.value.trim()) return; // 有草稿：不刷
+        if (attCount()) return; // 有未发附件：不刷
+        if (window.AgentKernel && typeof window.AgentKernel.isRunning === "function" && window.AgentKernel.isRunning()) return;
+        location.reload();
+      } catch (e) {}
+    }, 60 * 1000);
+  })();
+
   // 「思考过程显示」下拉已迁移到 settings.js
+
+  // 2026-10-08 外部改动（云同步回灌 / 别的标签页）后：重读"缓存进模块变量"的开关 + 重绘对应控件。
+  // 这四个标志在请求装配时会用到（useBuiltin / historyEnabled / promptEnabled / thinkingOn），
+  // 缓存过期 = "设置变了但行为没变"（历史不落盘、不带思考、底座开关错位）。
+  // 由 index.html 的 applyExternalSettings() 广播 cfw:external-settings 触发。
+  function refreshCachedFlagsFromLS() {
+    try { useBuiltin = (localStorage.getItem(LS_USE_BUILTIN) ?? "1") === "1"; } catch (e) {}
+    try { historyEnabled = (localStorage.getItem(LS_HISTORY_ENABLED) ?? "1") === "1"; } catch (e) {}
+    try { promptEnabled = (localStorage.getItem(LS_PROMPT_ENABLED) ?? "1") === "1"; } catch (e) {}
+    try { thinkingOn = (localStorage.getItem(LS_THINKING) ?? "0") === "1"; } catch (e) {}
+    try { if (typeof updateThinkToggleUI === "function") updateThinkToggleUI(); } catch (e) {}
+    try { if (typeof paintPersonaButton === "function") paintPersonaButton(); } catch (e) {}
+    try { const el = document.getElementById("historyKeep"); if (el) el.checked = historyEnabled; } catch (e) {}
+    try { const el = document.getElementById("promptKeep"); if (el) el.checked = promptEnabled; } catch (e) {}
+  }
+  window.addEventListener("cfw:external-settings", refreshCachedFlagsFromLS);
 
   function init() {
     purgeLegacyConvs();         // 会话系统重做:一次性清掉旧「角色卡#会话」槽位(只跑一次)
@@ -3820,7 +4359,27 @@
     // 4.83: 附件 token 估算(状态面板「上传文档」行用,与实时统计同口径)
     attFileTokens,
     // 2026-09-14 附件重构:供 chat-ux.js 的「重试」按 DOM 行号取回原始消息(含附件元数据)
-    getSessionMessageAt: (i) => (i >= 0 && i < session.length ? session[i] : null) };
+    getSessionMessageAt: (i) => (i >= 0 && i < session.length ? session[i] : null),
+    // 2026-10-08 多智能体独立上下文：控制台/状态面板读「当前口径 + 计入条数」（隔离要可见，不然像 bug）
+    getContextInfo: () => {
+      try {
+        const scope = currentScopeKey();
+        const card = (window.__character && window.__character.getActiveCard) ? window.__character.getActiveCard() : null;
+        const included = selectSpeakerView(session, { scope, card }).length;
+        return { scope, label: scopeLabel(scope), total: session.length, included, speaker: card ? card.name : "" };
+      } catch (e) { return null; }
+    },
+    // 平级名单用：某角色"自己的单聊上下文"条数（把多智能体独立上下文可见化）
+    getRoleContextCount: (card) => {
+      try {
+        const id = typeof card === "string" ? card : (card && card.id);
+        if (!id) return null;
+        return selectSpeakerView(session, { scope: "char:" + id, card: (typeof card === "object" ? card : null) }).length;
+      } catch (e) { return null; }
+    },
+    // 2026-10-08 Agent 的多智能体能力（tools.js 的 convene_meeting / invite_character 调这两个）
+    runPeerMeeting,
+    inviteCharacterToTimeline };
 
   // 云同步 + Auth UI 已迁移到 settings.js
 

@@ -28,6 +28,7 @@
 .ags-panel[data-state="run"] .ags-hico{color:#7fb3d5;animation:agsSpin 1.1s linear infinite;}
 .ags-panel[data-state="done"] .ags-hico{color:#5ec98a;}
 .ags-panel[data-state="err"] .ags-hico{color:#e8607d;}
+.ags-panel[data-state="aborted"] .ags-hico{color:#f5a524;}
 .ags-htx{flex:none;font-weight:600;color:inherit;}
 .ags-hnames{flex:1;min-width:0;color:var(--muted,#9a9a9a);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;opacity:.9;}
 .ags-hms{flex:none;color:var(--muted,#9a9a9a);font-size:11px;font-variant-numeric:tabular-nums;opacity:.9;}
@@ -89,6 +90,7 @@
   var ICON_ERR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>';
   // 折叠箭头用线性 SVG —— 别用 "▶"(U+25B6,部分平台按 emoji 呈现)这类裸文本符号
   var ICON_CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+  var ICON_STOP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
 
   var BRIEF_KEYS = ["path", "file", "file_path", "filename", "url", "query", "q", "keyword", "name", "pattern", "id", "topic", "text", "content"];
   function briefArgs(name, args) {
@@ -223,17 +225,37 @@
   }
   function ensureWrap(anchor) {
     if (!anchor) return null;
-    var host = anchor.parentNode || anchor;
+    // 2026-10-08 锚点规范化：过程块必须落在"某一行（优先 AI 行）的 .content"里。
+    // 旧版直接拿 anchor.parentNode 当宿主 —— 锚点若不在行内（合成行/脱离 DOM 的节点等边角路径），
+    // 会退化成 #chat 级的裸块，看起来就像"挂在下一条消息头上"（用户实测："user 头上也有调用工具"）。
+    var host = null;
+    try {
+      if (document.contains(anchor)) {
+        var row = anchor.closest ? anchor.closest(".row") : null;
+        if (row) {
+          host = row.querySelector(".content") || null;
+          anchor = (host && host.querySelector(".bubble")) || anchor;
+        }
+      }
+    } catch (e) {}
+    if (!host) {
+      // 锚点已脱离 DOM / 不在行内 → 退到"最后一条 AI 行"，仍然挂在行里；没有 AI 行就放弃（宁可不画，不画裸块）
+      var rows = document.querySelectorAll("#chat .row.ai");
+      var last = rows.length ? rows[rows.length - 1] : null;
+      host = last ? last.querySelector(".content") : null;
+      anchor = host ? (host.querySelector(".bubble") || null) : null;
+    }
+    if (!host) return null;
     var wrap = host.querySelector(":scope > .ags-wrap");
     if (!wrap) {
       wrap = document.createElement("div");
       wrap.className = "ags-wrap";
-      if (anchor.parentNode === host) host.insertBefore(wrap, anchor); // 过程块摆在气泡上方
+      if (anchor && anchor.parentNode === host) host.insertBefore(wrap, anchor); // 过程块摆在气泡上方
       else host.appendChild(wrap);
     }
     return wrap;
   }
-  function setPanelDone(p, ms) {
+  function setPanelDone(p, ms, reason) {
     if (!p) return;
     var steps = p.querySelectorAll(".ags-step");
     var names = [], err = 0;
@@ -243,12 +265,15 @@
       if (el.dataset.state === "err") err++;
     });
     var hasSteps = steps.length > 0;
-    p.dataset.state = err ? "err" : "done";
-    p.querySelector(".ags-hico").innerHTML = err ? ICON_ERR : ICON_DONE;
+    // 2026-10-08: 中断也是"收尾"。旧版只在正常结束/报错时收尾，用户点停止后过程块一直转"运行中…"
+    // （截图实证），而真实状态是「回合被中断，结果未知」。
+    var aborted = reason === "aborted";
+    p.dataset.state = aborted ? "aborted" : (err ? "err" : "done");
+    p.querySelector(".ags-hico").innerHTML = aborted ? ICON_STOP : (err ? ICON_ERR : ICON_DONE);
     // 没有工具调用时这不是"工作流"而是纯思考,别显示"已完成 · 0 步"
-    p.querySelector(".ags-htx").textContent = hasSteps
-      ? ((err ? "已结束" : "已完成") + " · " + steps.length + " 步")
-      : "思考过程";
+    p.querySelector(".ags-htx").textContent = aborted
+      ? ("已中断" + (hasSteps ? " · " + steps.length + " 步" : ""))
+      : (hasSteps ? ((err ? "已结束" : "已完成") + " · " + steps.length + " 步") : "思考过程");
     p.querySelector(".ags-hnames").textContent = names.slice(0, 4).join("、") + (names.length > 4 ? " 等" : "");
     if (ms != null) p.querySelector(".ags-hms").textContent = ms >= 1000 ? (ms / 1000).toFixed(1) + "s" : ms + "ms";
     // 跑完时思考也一并收起 —— 长思考展开着会淹没工具行
@@ -295,6 +320,7 @@
     var wrap = ensureWrap(anchor);
     var panel = null, body = null, curRound = null, curStep = null, roundNo = 0;
     var started = Date.now();
+    var _peers = {}; // 小会/上台的卡片按 "谁+轮次" 复用（start 建卡、done 填正文）
     function ensurePanel() {
       if (panel) return panel;
       panel = makePanel();
@@ -344,8 +370,33 @@
         fillStep(el, { name: name, args: args, ok: false, denied: true, error: "你拒绝了这次操作" });
         ensureRound().appendChild(el);
       },
-      // 整轮结束:收起过程块 → 只留一行摘要
-      finish: function () { if (panel) setPanelDone(panel, Date.now() - started); },
+      // 2026-10-08 多智能体编排：小会 / 上台的过程进同一条过程流（用户在气泡上就能看见全过程）——
+      // 内容仍不进时间线（不伪造角色气泡），但折叠在过程块里可读；对齐"群聊看得见"的观感诉求。
+      meeting_start: function (ev) {
+        var lb = document.createElement("div");
+        lb.className = "ags-preamble";
+        lb.textContent = "私下小会 · " + String((ev && ev.topic) || "").slice(0, 80)
+          + "（" + (((ev && ev.participants) || []).join("、") || "—") + " · 共 " + ((ev && ev.rounds) || 1) + " 轮）";
+        ensureRound().appendChild(lb);
+      },
+      meeting_speaker: function (ev) {
+        if (!ev) return;
+        var key = "小会 · " + ev.who + "（第 " + (ev.round || 1) + " 轮）";
+        var el = _peers[key];
+        if (!el) { el = makeStepEl(key); ensureRound().appendChild(el); _peers[key] = el; }
+        if (ev.phase === "start") return; // 先以"运行中"出现，答完再填正文
+        if (ev.phase === "error") fillStep(el, { name: key, ok: false, error: String(ev.error || "出错") });
+        else fillStep(el, { name: key, ok: true, result: ev.text || ev.summary || "" });
+      },
+      peer_invite: function (ev) {
+        if (!ev) return;
+        var key = "上台 · " + ev.who;
+        var el = _peers[key];
+        if (!el) { el = makeStepEl(key); ensureRound().appendChild(el); _peers[key] = el; }
+        if (ev.phase === "done") fillStep(el, { name: key, ok: true, result: ev.text || "（无内容）" });
+      },
+      // 整轮结束:收起过程块 → 只留一行摘要。reason: undefined=正常 / "aborted"=中断 / "error"=异常
+      finish: function (reason) { if (panel) setPanelDone(panel, Date.now() - started, reason); },
       hasContent: function () { return !!(panel && panel.querySelectorAll(".ags-step").length); },
     };
   }

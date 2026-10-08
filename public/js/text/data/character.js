@@ -316,6 +316,14 @@ async function cascadeCleanupCard(id){
   try{localStorage.removeItem(LSAT_PREFIX+id);}catch(e){}
   try{const pend=JSON.parse(localStorage.getItem(LSPE)||"[]");if(Array.isArray(pend)){const left=pend.filter(ev=>!ev||ev.cardId!==id);if(left.length)localStorage.setItem(LSPE,JSON.stringify(left));else localStorage.removeItem(LSPE);}}catch(e){}
   try{if(window.__multi&&typeof window.__multi.removeFromScene==="function")window.__multi.removeFromScene(id);}catch(e){}
+  // 2026-10-08: 删卡时一并清掉"角色私有"的三处附属数据（能力档 / 知识库 / 小本子），不留孤儿：
+  //   能力档 = cfw_char_caps_v1 里的一条；知识库与小本子 = IndexedDB cfw_char_memory_v1（按 cardId 命名空间）
+  try {
+    const capsKey = "cfw_char_caps_v1";
+    const m = JSON.parse(localStorage.getItem(capsKey) || "{}");
+    if (m && typeof m === "object" && Object.prototype.hasOwnProperty.call(m, id)) { delete m[id]; localStorage.setItem(capsKey, JSON.stringify(m)); }
+  } catch (e) {}
+  try { if (window.__charMemory && typeof window.__charMemory.removeCard === "function") await window.__charMemory.removeCard(id); } catch (e) {}
   try{if(window.__lorebook&&typeof window.__lorebook.getAll==="function"&&typeof window.__lorebook.saveEntry==="function"){const list=window.__lorebook.getAll();if(Array.isArray(list))list.forEach(en=>{if(en&&en.scope==="perCard"&&en.boundCardId===id)window.__lorebook.saveEntry({...en,scope:"global",boundCardId:null});});}}catch(e){}
 }
 async function deleteCard(id){

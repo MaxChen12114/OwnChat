@@ -118,7 +118,7 @@ function applyBg() {
       src = as.bgData || "";
     } else if (bg.src) src = bg.src;
     let layer = document.getElementById("ue-bg-layer");
-    if (!src) { if (layer && layer.parentNode) layer.parentNode.removeChild(layer); bgBaseClear(false); return; }
+    if (!src) { if (layer && layer.parentNode) layer.parentNode.removeChild(layer); bgBaseClear(false); document.documentElement.classList.remove("has-bg"); return; }
     if (!layer) {
       layer = document.createElement("div");
       layer.id = "ue-bg-layer";
@@ -138,6 +138,10 @@ function applyBg() {
     if (!isFinite(py)) py = 50;
     layer.style.backgroundPosition = Math.max(0, Math.min(100, px)) + "% " + Math.max(0, Math.min(100, py)) + "%";
     bgBaseClear(true);
+    // 2026-10-08: 设了背景图 = html/body 被置透明（bgBaseClear）→ 半透明面（输入框/AI 气泡）
+    // 底下直接透出照片，"半透明但没有磨砂"（壳内低特效档关闭了 blur）时就是"输入框变透明"。
+    // 打这个类让壳内低特效档只在这种场景把底色做实（没设背景图时外观完全不变）。
+    document.documentElement.classList.add("has-bg");
   } catch (e) {}
 }
 
@@ -233,7 +237,18 @@ const Mixer = (() => {
     _lastPulse = s;
     document.documentElement.style.setProperty("--pulse", s);
   }
+  // 2026-10-08：壳内低特效档整体停掉 --pulse 驱动 —— 该档下脉冲的消费方（气泡阴影/输入框/
+  // 发送键/body 渐变）要么已被低特效关掉、要么静态就够；而 20Hz~60Hz 的变量写入会让整棵样式树
+  // 失效重算 + 全量重绘，是长会话里最大的一项"随消息数增长"的动态渲染成本（桌面壳也在壳内）。
+  // 完整特效档（fx-rich）保留律动：音乐律动/烛光呼吸是那一档的设计卖点。
+  function fxRich() {
+    try {
+      const el = document.documentElement;
+      return !el.classList.contains("android-app") || el.classList.contains("fx-rich");
+    } catch (e) { return true; }
+  }
   function pulseNeeded() {
+    if (!fxRich()) return false;
     if (anyPlaying()) return true;
     const t = document.documentElement.getAttribute("data-theme");
     return t === "candle" || t === "glass";
@@ -244,6 +259,9 @@ const Mixer = (() => {
   // 2026-10-07 (E-C)：分析器缓冲复用 —— 旧版每帧 new Uint8Array(frequencyBinCount)（60fps 下白造垃圾）
   let _freqBuf = null;
   function tick() {
+    // 2026-10-08：切回低特效档（fx-rich 被取消）时停下 rAF 并钉静态值 —— 否则音频播放中会继续
+    // 20~60Hz 写变量（该档下消费方已关/静态即可，写入只剩全树重算的成本）。
+    if (!fxRich()) { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } setPulseVar(0.35); return; }
     if (!analyser) { rafId = requestAnimationFrame(tick); return; }
     if (!_freqBuf || _freqBuf.length !== analyser.frequencyBinCount) _freqBuf = new Uint8Array(analyser.frequencyBinCount);
     const buf = _freqBuf;
@@ -439,14 +457,15 @@ const Mixer = (() => {
     return detail;
   }
   function syncPulseLoop() {
-    if (anyPlaying() && audioReady) {
+    if (anyPlaying() && audioReady && fxRich()) {
       stopFallback();
       setPulseClass(true);
       if (!rafId) tick();
     } else {
       if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
       setPulseClass(false);
-      if (audioReady) startFallback();
+      if (!fxRich()) setPulseVar(0); // 低特效档：钉一个静态值，别再让样式树抖
+      else if (audioReady) startFallback();
     }
   }
   function markAudioReady() {
@@ -459,6 +478,9 @@ const Mixer = (() => {
   }
   // 初始化:没有手势前先跑 CSS 慢摆,让 --pulse 仍有节奏
   setTimeout(() => { if (!audioReady) startFallback(); }, 400);
+  // 2026-10-08 低特效档：开场钉一个静态 --pulse（缓和的暖光晕），此后不再写 —— 变量没被写过时
+  // calc(...var(--pulse)...) 整条失效（阴影直接丢掉），固定值让观感确定且零重算。
+  try { if (!fxRich()) setPulseVar(0.35); } catch (e) {}
 
   return {
     get, set, tag, stopAll, setEnabled, setVolume, markAudioReady,
@@ -525,7 +547,16 @@ function subscribe(fn) {
   return () => window.removeEventListener("theme:changed", h);
 }
 
-window.__theme = { get: getAll, set, is, styles, subscribe, panic, audio, applyBg, wireAmbientCard };
+// 2026-10-08: 外部改动后「只重应用、不回写」的入口 —— 云同步会把 cfw_theme_v1 / cfw_theme_accent_v1 /
+// cfw_ui_overrides_v1 回灌到本机，旧版只在启动时应用一次（别的设备换主题，这边看着还是旧的）。
+// 不能走 set()：它会写回 LS → markDirty → 又触发推送，和同步互相追尾。
+function applyFromLS() {
+  try { applyStyle(getStyle()); applyScheme(); } catch (e) {}
+  try { applyBg(); } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent("theme:changed", { detail: getAll() })); } catch (e) {}
+}
+
+window.__theme = { get: getAll, set, is, styles, subscribe, panic, audio, applyBg, applyFromLS, wireAmbientCard };
 // 氛围音混音器（对外主入口）：
 //   __ambient.get()                      → { enabled, playing, amb:{id,vol}, mus:{id,vol} }
 //   __ambient.set('amb'|'mus', id|null, vol?)  → 设置某轨（null 停该轨），返回最新状态

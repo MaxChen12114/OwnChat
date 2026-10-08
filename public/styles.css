@@ -1488,19 +1488,6 @@ html[data-theme="glass"] .cost-empty { color: #8a9098; }
 /* ════════════════════
    Phase 4 阶段 8 · 多智能体模式开关
    ════════════════════ */
-/* #multiAgentToggle 沿用 .iconbtn 默认 38px 方形，不再 override 尺寸 */
-#multiAgentToggle.active {
-  background: rgba(127, 127, 127, .18);
-  color: inherit;
-  border-color: rgba(127, 127, 127, .45);
-  box-shadow: 0 0 0 1px rgba(127, 127, 127, .28) inset;
-}
-html[data-theme="glass"] #multiAgentToggle.active {
-  background: rgba(63, 111, 143, .14);
-  color: #345d7c;
-  border-color: rgba(63, 111, 143, .42);
-  box-shadow: 0 0 0 1px rgba(63, 111, 143, .22) inset;
-}
 /* #multiAgentToggle 在窄屏也沿用 .iconbtn mobile 36px */
 
 /* ════════════════════
@@ -1568,19 +1555,6 @@ html[data-theme="glass"] .avatar.bot.fishbowl-active {
 /* ════════════════════
    Phase 4 阶段 8 · 多智能体模式开关
    ════════════════════ */
-/* #multiAgentToggle 沿用 .iconbtn 默认 38px 方形，不再 override 尺寸 */
-#multiAgentToggle.active {
-  background: rgba(127, 127, 127, .18);
-  color: inherit;
-  border-color: rgba(127, 127, 127, .45);
-  box-shadow: 0 0 0 1px rgba(127, 127, 127, .28) inset;
-}
-html[data-theme="glass"] #multiAgentToggle.active {
-  background: rgba(63, 111, 143, .14);
-  color: #345d7c;
-  border-color: rgba(63, 111, 143, .42);
-  box-shadow: 0 0 0 1px rgba(63, 111, 143, .22) inset;
-}
 /* #multiAgentToggle 在窄屏也沿用 .iconbtn mobile 36px */
 
 /* ════════════════════
@@ -1900,12 +1874,9 @@ html[data-theme="candle"] .msg-action-btn:hover {
   border-color: rgba(217, 168, 104, .55);
 }
 
-html[data-theme="candle"] #multiAgentToggle.active {
-  background: rgba(217, 168, 104, .25);
-  color: #f2e7d6;
-  border-color: rgba(217, 168, 104, .55);
-}
-
+/* 2026-10-08: 删掉 #multiAgentToggle 的专属激活样式（当年它在顶栏当方形 .iconbtn 用，ID 级规则
+   压过通用 .sidebar-btn.active —— 与「Agent 模式」按钮同排时点亮亮度不一致：这里是平铺色、那边是渐变）。
+   现在它与左侧栏其它模式按钮共用 .sidebar-btn.active / html[data-theme=*] .sidebar-btn.active。 */
 /* ─── 慢呼吸 fallback animation：未启动音频时的视觉脉动 ─── */
 /* theme.js 启动 Web Audio API 后给 html 加 .pulse-on class，此时关闭 fallback */
 @keyframes candle-breathe {

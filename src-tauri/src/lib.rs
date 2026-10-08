@@ -62,24 +62,54 @@ async fn import_text_file(app: tauri::AppHandle) -> Result<Option<ImportedFile>,
     }))
 }
 
-// 弹出系统「保存文件」对话框，把内容写入用户选定位置；返回写入路径，取消返回 null
+// 把内容导出到真实磁盘：桌面端弹系统「保存文件」对话框（取消返回 null）；移动端写进
+// 应用数据目录的 exports/ 并返回真实路径。
+// 2026-10-08 平台分支（修复 Android 导出）：「另存为」在 Android 上返回的是 content:// URI
+// （Tauri 官方 Dialog 文档明说）——`into_path()` 拿不到文件路径、`std::fs::write` 也写不进，
+// 旧版在这里静默失败，而前端又把 null 当成功（已另行修成如实报失败）。移动端不再走对话框。
+// 文件名只取最后一段、剔掉路径分隔符与非法字符，防 "../" 穿越与写入失败。
 #[tauri::command]
 async fn export_text_file(
     app: tauri::AppHandle,
     suggested_name: String,
     content: String,
 ) -> Result<Option<String>, String> {
-    let picked = app
-        .dialog()
-        .file()
-        .set_file_name(&suggested_name)
-        .blocking_save_file();
-    let Some(fp) = picked else {
-        return Ok(None);
+    let leaf = suggested_name
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let safe_name = if leaf.is_empty() {
+        "export.txt".to_string()
+    } else {
+        leaf.replace([':', '*', '?', '"', '<', '>', '|'], "_")
     };
-    let path = fp.into_path().map_err(|e| e.to_string())?;
-    std::fs::write(&path, content).map_err(|e| e.to_string())?;
-    Ok(Some(path.to_string_lossy().to_string()))
+
+    #[cfg(desktop)]
+    {
+        let picked = app
+            .dialog()
+            .file()
+            .set_file_name(&safe_name)
+            .blocking_save_file();
+        let Some(fp) = picked else {
+            return Ok(None);
+        };
+        let path = fp.into_path().map_err(|e| e.to_string())?;
+        std::fs::write(&path, content).map_err(|e| e.to_string())?;
+        Ok(Some(path.to_string_lossy().to_string()))
+    }
+    // Android / iOS：写应用数据目录（resolve_storage_dir = 文档/OwnChat；Android 上是应用专属
+    // 外部目录），不弹对话框 —— 手机上没有可用的系统"另存为"，返回真实路径让 UI 能如实展示。
+    #[cfg(mobile)]
+    {
+        let dir = resolve_storage_dir(&app)?.join("exports");
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let path = dir.join(&safe_name);
+        std::fs::write(&path, content).map_err(|e| e.to_string())?;
+        Ok(Some(path.to_string_lossy().to_string()))
+    }
 }
 
 // === 数据存储位置（可在设置面板更改；默认放「文档/OwnChat」，不深埋在 AppData，好找好删好备份） ===

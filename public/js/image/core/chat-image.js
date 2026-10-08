@@ -243,6 +243,9 @@
     var img = document.createElement("img");
     img.src = imageUrl;
     img.alt = "AI 发来的照片";
+    // 2026-10-08 内存:聊天 DOM 不虚拟化,长会话里每张图都会被解码并常驻 —— 屏外图先不加载/不解码
+    // （与 fx 开关无关的成本项，见"重启壳→基线→用一阵→看任务管理器"的对照协议）。
+    try { img.loading = "lazy"; img.decoding = "async"; } catch (e) {}
     img.style.cssText = "max-width:220px;max-height:300px;border-radius:10px;display:block;cursor:zoom-in;";
     img.addEventListener("click", function () { window.open(imageUrl, "_blank"); });
     bubble.appendChild(img);

@@ -96,8 +96,15 @@ export function isRunning() {
  *        2026-10-05 新增（DSH agent/pre-step 的单钩子版）：每次模型请求前依次调用。
  *        可返回 {reject:"原因"} 提前收尾（不发起这次请求），或 {append:[消息]} 在请求前
  *        追加上下文（时间/状态/压缩检查点等）。把"发请求前的策略"从循环体里拆出来。
+ * @param {AbortSignal} [opts.signal]  取消信号（2026-10-08）。
+ *        宿主（停止按钮 / 重试 / 删除 / 切换会话）abort 时：内核在任何出口前先补齐
+ *        悬空 tool_calls 的配对，然后 **抛 AbortError**（不返回）—— 宿主已有的
+ *        "AbortError 半截回复兜底"分支会接住它；错误对象上挂 `_agentMessages`
+ *        供宿主把已配对的工具轮写回会话（自愈，不再把断裂协议落盘）。
+ *        真正的上游/工具错误不走这条，仍以 model_error 优雅收尾。
  * @returns {Promise<{finalText:string, messages:Array, iterations:number, stopReason:string}>}
  *        stopReason ∈ "stop" | "model_error" | "max_iterations" | "blocked"
+ *        （用户中断不在这里返回 —— 走 AbortError 抛出，见 opts.signal）
  */
 export async function runAgentLoop(opts) {
 	const {
@@ -109,6 +116,7 @@ export async function runAgentLoop(opts) {
 		ensurePermission,
 		onEvent = () => {},
 		beforeStep,
+		signal,
 	} = opts || {}
 
 	if (!Array.isArray(messages)) throw new Error("[agent-kernel] messages 必须是数组")
@@ -117,12 +125,45 @@ export async function runAgentLoop(opts) {
 	if (typeof callModel !== "function")
 		throw new Error("[agent-kernel] 需要注入 callModel")
 
+	// 2026-10-08 取消信号进内核（roadmap 里"取消信号进内核"落地）：
+	// 旧版没有任何中断路径 —— 停止按钮只 abort fetch，若中断落在"工具刚跑完 / 等待放行"
+	// 这类不经过 callModel 的缝里，循环会继续跑下一轮（且悬空 tool_calls 原样落盘 → 下次 400）。
+	// 现在：任何出口前先配对自愈，再抛 AbortError 交宿主的兜底分支处理。
+	const abortError = (msg) => {
+		const e = new Error(msg || "回合已中断")
+		e.name = "AbortError"
+		e._agentMessages = messages // 宿主写回用：已配对的工具轮（含合成结果）
+		return e
+	}
+	const isAborted = () => !!(signal && signal.aborted)
+	// 权限闸门等"没有 signal 参数的长等待"与取消信号竞速：中断即拒绝本次待批调用。
+	const raceWithAbort = (promise, onAbort) => {
+		if (!signal) return promise
+		if (signal.aborted) return Promise.reject(onAbort())
+		return new Promise((resolve, reject) => {
+			const hit = () => reject(onAbort())
+			signal.addEventListener("abort", hit, { once: true })
+			promise.then(
+				(v) => { signal.removeEventListener("abort", hit); resolve(v) },
+				(e) => { signal.removeEventListener("abort", hit); reject(e) }
+			)
+		})
+	}
+	const abortNow = (phase, i) => {
+		onEvent({ type: "aborted", iteration: i, phase })
+		pairPendingToolCalls(messages, "回合被用户中断，本轮已发出的工具调用结果未知")
+		return abortError("回合被用户中断")
+	}
+
 	const schemas = registry.toSchemas()
 	const _beforeSteps = Array.isArray(beforeStep) ? beforeStep : (beforeStep ? [beforeStep] : [])
 
 	_activeLoops++
 	try {
 	for (let i = 0; i < maxIterations; i++) {
+		// 2026-10-08: 中断可能落在"工具刚跑完、下一轮请求还没发"的缝里（工具本身不可中断）。
+		// 在这里兜底，保证循环一定会收敛，而不是继续跑下一轮。
+		if (isAborted()) throw abortNow("between_iterations", i)
 		// pre-step 钩子:先于本次请求执行。reject 则本回合以 blocked 收尾(不花钱)。
 		let _rejected = null
 		for (const hook of _beforeSteps) {
@@ -148,6 +189,9 @@ export async function runAgentLoop(opts) {
 		try {
 			res = (await callModel(messages, schemas)) || {}
 		} catch (e) {
+			// 2026-10-08 用户中断与真错误分流：旧版把 AbortError 也当成"模型调用失败"，
+			// 于是气泡显示"（第 N 轮模型调用失败…）"，而宿主真正的半截回复兜底分支永远收不到信号。
+			if (isAborted() || (e && e.name === "AbortError")) throw abortNow("model_call", i)
 			// 模型调用失败（上下文超限 / 上游 4xx-5xx / 超时）——不再静默抛穿掀翻整个 loop。
 			// 发 model_error 事件 + 带着已有进度优雅收尾，让 UI 能看到真实原因而不是“卡在第 N 轮”。
 			const errMsg = String(e && e.message ? e.message : e)
@@ -216,8 +260,11 @@ export async function runAgentLoop(opts) {
 			if (_needPerm) {
 				let ok = false
 				try {
-					ok = await ensurePermission(name, args)
+					// 2026-10-08: 闸门是"等人点放行"的长等待（此前无超时、无出口 —— 停止按钮点下去
+					// 循环卡在这里，isSending 永远不释放）。与取消信号竞速：中断即从这里掀桌收尾。
+					ok = await raceWithAbort(ensurePermission(name, args), () => abortNow("permission", i))
 				} catch (e) {
+					if (e && e.name === "AbortError") throw e // 上面 abortNow 已配对，交给宿主兜底
 					const _err = `权限检查失败（闸门异常）：${e && e.message ? e.message : e}`
 					pushToolResult(messages, call, { error: _err }, { name, args, ok: false, error: _err, denied: true, denied_reason: "gate_error" })
 					onEvent({ type: "tool_denied", name, args, reason: "gate_error" })
@@ -304,34 +351,39 @@ function summarizeToolResult(result) {
 
 /** 配对自愈(2026-10-05,取自 DSH ToolCallRecovery 的简化版): —— 给没有任何 tool 结果的 tool_call 合成一条错误结果,
  *  保证 messages 里 tool_call/tool_result 永远配对,下一轮请求不会因协议断裂 400。
- *  正常流程里结果总是紧跟调用入栈,本函数是 no-op;它保护的是未来会引入的
- *  取消/并行执行/超时等提前退出路径(roadmap 里"取消信号进内核"落地后就靠它兜底)。
+ *  正常流程里结果总是紧跟调用入栈,本函数是 no-op;它兜的是提前退出路径:
+ *  2026-10-08 起取消信号已进内核(opts.signal → 任何出口前都先跑本函数),并行/超时等路径落地时同样靠它。
+ *  宿主(app.js 的请求装配 / worker 的入站净化)也复用同一语义,不在别处另写一份。
  *  @returns {number} 补写的结果条数 */
-function pairPendingToolCalls(messages, note) {
+export function pairPendingToolCalls(messages, note) {
 	const answered = new Set()
 	for (const m of messages) {
 		if (m && m.role === "tool" && m.tool_call_id) answered.add(m.tool_call_id)
 	}
+	// 2026-10-08: 合成结果**紧邻**插到对应 assistant 之后（旧版统一追加到数组末尾）。
+	// 循环自身的早退路径里悬空调用总在尾部，两种写法等价；但本函数现在也被"历史会话自愈"复用
+	// （请求装配 / 入站净化），悬空调用可能出现在中段 —— 协议要求 tool 结果紧跟对应调用，
+	// 拖到末尾在历史中段是非法顺序。倒序扫 + 原地插入，避免索引位移。
 	let n = 0
-	for (const m of messages) {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const m = messages[i]
 		if (!m || m.role !== "assistant" || !Array.isArray(m.tool_calls)) continue
-		for (const call of m.tool_calls) {
-			const id = call && call.id
-			if (!id || answered.has(id)) continue
-			messages.push({
-				role: "tool",
-				tool_call_id: id,
-				content: JSON.stringify({ error: note || "工具调用未完成（循环提前退出），结果未知" }),
-			})
-			answered.add(id)
-			n++
-		}
+		const missing = m.tool_calls.filter((c) => c && c.id && !answered.has(c.id))
+		if (!missing.length) continue
+		const synth = missing.map((c) => ({
+			role: "tool",
+			tool_call_id: c.id,
+			content: JSON.stringify({ error: note || "工具调用未完成（循环提前退出），结果未知" }),
+		}))
+		messages.splice(i + 1, 0, ...synth)
+		for (const s of synth) answered.add(s.tool_call_id)
+		n += synth.length
 	}
 	return n
 }
 
 // 兼容非模块环境（浏览器 <script> 直接引入）：挂到全局
 if (typeof globalThis !== "undefined") {
-	globalThis.AgentKernel = { createToolRegistry, runAgentLoop, isRunning }
+	globalThis.AgentKernel = { createToolRegistry, runAgentLoop, isRunning, pairPendingToolCalls }
 }
 

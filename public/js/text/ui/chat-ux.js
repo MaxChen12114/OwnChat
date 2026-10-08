@@ -104,6 +104,21 @@
       });
     }
 
+    // 2026-10-08: DOM 行号 ≠ session 下标 —— Agent 工具轮不建行（折进紧随其后的最终回答），
+    // 老代码用 allRows.indexOf(row) 当 session 下标，一条含工具轮的会话上会错位截断/删除，
+    // 留下悬空 tool_calls 落盘（"重启后每次请求被上游 400"的根源）。
+    // 行上有 dataset.sidx（app.js 在渲染/新建行时写入真实下标）时一律用它；取不到才退回旧口径。
+    function _sidOf(row, fallback) {
+      const v = row && row.dataset ? parseInt(row.dataset.sidx, 10) : NaN;
+      return (Number.isFinite(v) && v >= 0) ? v : fallback;
+    }
+    function _sessionLen() {
+      try {
+        const a = window.__app && window.__app.getSessionMessages ? window.__app.getSessionMessages() : null;
+        return a && typeof a.length === "number" ? a.length : null;
+      } catch (e) { return null; }
+    }
+
     // 通用：从指定起始 row（含）开始全部移除 DOM + 截断 session + 回填输入框 + 触发发送
     function resendFromUserRow(userRow) {
       if (typeof window.__abortCurrent === "function") window.__abortCurrent(true);
@@ -116,19 +131,22 @@
       // 没有文件全文;而 __sessionTruncateTo 会把含全文的原消息(内存+磁盘)一起删掉,
       // 结果「换模型 → 点重试」附件内容就永久消失。现改为从 session 取原始消息,
       // 并把它的附件重新放回待发状态,重发时仍带全文/图片。
+      // 2026-10-08: 取消息/截断都用真实下标（sidx），旧版用 DOM 行号 → 同一会话里有 agent
+      // 工具轮时取到的是别人的消息（内容是空串），于是"点重试没反应"。
+      const sidx = _sidOf(userRow, userIdx);
       let msg = null;
-      try { msg = window.__app && window.__app.getSessionMessageAt ? window.__app.getSessionMessageAt(userIdx) : null; } catch (e) {}
+      try { msg = window.__app && window.__app.getSessionMessageAt ? window.__app.getSessionMessageAt(sidx) : null; } catch (e) {}
       const userText = (msg && typeof msg.content === "string") ? msg.content : bubble.textContent.trim();
       if (!userText) {
         const hasAtt = !!(msg && ((msg.files && msg.files.length) || (msg.images && msg.images.length)));
         if (!hasAtt) return; // 纯空消息(无文字无附件)才真的放弃
       }
-      for (let i = allRows.length - 1; i >= userIdx; i--) allRows[i].remove();
+      for (let i = allRows.length - 1; i >= 0; i--) allRows[i].remove();
       try {
         if (msg && window.__attach && window.__attach.restage) window.__attach.restage(msg);
       } catch (e) {}
       if (typeof window.__sessionTruncateTo === "function") {
-        window.__sessionTruncateTo(userIdx);
+        window.__sessionTruncateTo(sidx);
       }
       if (typeof window.__resetSending === "function") window.__resetSending();
       else {
@@ -144,31 +162,41 @@
       }, 30);
     }
 
-    // 通用：删 user + 紧随的 AI / 删 AI + 前面的 user；同时清理任何残留流式行
+    // 通用：删「一个回合」—— user 行 and/or 其 AI 回复，一次删干净（含 agent 工具轮的落库消息）
+    // mode 保留在签名里兼容调用方（fromUser/fromAi 的区分已被"回合边界"统一覆盖）
     function deleteRowPair(anchorRow, mode) {
-      // mode = "fromUser" | "fromAi"
+      void mode;
       if (typeof window.__abortCurrent === "function") window.__abortCurrent(true);
       const allRows = Array.from(chat.querySelectorAll(".row"));
       const idx = allRows.indexOf(anchorRow);
       if (idx < 0) return;
-      let start, count;
-      if (mode === "fromUser") {
-        const next = allRows[idx + 1];
-        const hasAi = !!(next && next.classList.contains("ai"));
-        anchorRow.remove();
-        if (hasAi) next.remove();
-        start = idx;
-        count = hasAi ? 2 : 1;
-      } else {
-        const prev = allRows[idx - 1];
-        const hasUser = !!(prev && prev.classList.contains("user"));
-        anchorRow.remove();
-        if (hasUser) prev.remove();
-        start = hasUser ? idx - 1 : idx;
-        count = hasUser ? 2 : 1;
-      }
+      // 回落到本回合的 user 行：AI 行 → 前面最近的 user 行；user 行 → 自己；都没有 → 自己
+      let startIdx = idx;
+      for (let i = idx; i >= 0; i--) { if (allRows[i].classList.contains("user")) { startIdx = i; break; } }
+      // 回合终点：后面最近一条 user 行（不含）或列表末尾
+      let endIdx = allRows.length;
+      for (let i = startIdx + 1; i < allRows.length; i++) { if (allRows[i].classList.contains("user")) { endIdx = i; break; } }
+
+      const startSidx = _sidOf(allRows[startIdx], null);
+      const sessLen = _sessionLen();
+      for (let i = startIdx; i < endIdx; i++) allRows[i].remove();
+
       if (typeof window.__sessionDeleteAt === "function") {
-        window.__sessionDeleteAt(start, count);
+        if (startSidx != null && sessLen != null) {
+          // 回合终点对应的 session 下标：下一条 user 行的 sidx（没有则到会话末尾）
+          let endSidx = sessLen;
+          for (let i = endIdx; i < allRows.length; i++) {
+            if (allRows[i].classList.contains("user")) {
+              const v = _sidOf(allRows[i], null);
+              if (v != null) endSidx = v;
+              break;
+            }
+          }
+          window.__sessionDeleteAt(startSidx, Math.max(1, endSidx - startSidx));
+        } else {
+          // 旧数据缺 sidx 时的回退：按刚删掉的 DOM 行数删（比旧版固定 ±1 更接近真实回合跨度）
+          window.__sessionDeleteAt(startIdx, Math.max(1, endIdx - startIdx));
+        }
       }
       // partialStream 已被 __abortCurrent(true) 丢弃，必须连带从 DOM 移除残留流式行
       // 否则会出现 DOM 多一条悬空 AI 行 / session 少一条 a_n 的错位
@@ -191,7 +219,10 @@
       stopBtn.classList.add("my-stop-btn");
       stopBtn.style.display = aiRow.dataset.streaming === "1" ? "" : "none";
       stopBtn.addEventListener("click", () => {
-        if (typeof window.__abortCurrent === "function") window.__abortCurrent();
+        // 旧版只 abort fetch —— 循环若卡在权限等待就永远收不了尾，isSending 也不释放，
+        // 表现就是"点停止后输入框再也发不出消息"（重启才恢复）。__stopCurrent 见 app.js。
+        if (typeof window.__stopCurrent === "function") window.__stopCurrent();
+        else if (typeof window.__abortCurrent === "function") window.__abortCurrent();
         stopBtn.style.display = "none";
         try {
           delete aiRow.dataset.streaming;

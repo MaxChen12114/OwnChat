@@ -1,4 +1,4 @@
-// public/js/text/engine/wechat-group.js — 微信群聊(打包层)
+// public/js/text/engine/wechat-group.js — 群聊(打包层；文件名与内部标识保留 wechat 不动)
 // 复用现有引擎,不重写:multi-agent.js(场景成员/多人开关) + fishbowl-engine.js(轮转) +
 //   app.js(发言人头像气泡 / @点名 / [next:X] 自动接力) + wechat 回复风格(连发拆气泡)。
 // 单一职责:① 一键建群入口(跨世界观勾选成员 + 起群名) ② 微信风群头部皮肤(sticky)。
@@ -153,7 +153,7 @@ function renderBuilder() {
       + '</button>';
   }).join("");
   panel.innerHTML =
-    '<div class="wg-bd-head">💬 微信群聊</div>'
+    '<div class="wg-bd-head">💬 群聊</div>'
     + '<div class="wg-bd-body">'
     +   '<div class="wg-desc">把不同世界观的角色拉进同一个群,他们能看到彼此发言、相互 @、自动接话,产生戏剧效果。勾选 ≥2 个成员即可建群。</div>'
     +   '<div class="wg-flabel">群名称</div>'
@@ -206,7 +206,7 @@ function renderHeader() {
     chatEl.insertBefore(header, chatEl.firstChild);
   }
   const cards = sceneCards();
-  const name = getGroupName() || "微信群聊";
+  const name = getGroupName() || "群聊";
   const avatars = cards.slice(0, 5).map(c => '<span class="wg-h-av" title="' + safe(c.name) + '">' + safe(c.icon || "🙂") + '</span>').join("")
     + (cards.length > 5 ? '<span class="wg-h-extra">+' + (cards.length - 5) + '</span>' : '');
   header.innerHTML =

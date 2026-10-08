@@ -51,11 +51,15 @@
   // 记过这一条：清单被挤掉 = 技能全部不可达）。超预算时往后退化成"只列名字"，再超就明说省略了几条。
   const DESC_MAX = 500;      // 单条描述上限（对齐 DSH 的 500 字符）
   const CATALOG_MAX = 4000;  // 目录总长上限（字符）
-  function buildCatalogPrompt() {
+  function buildCatalogPrompt(onlyNames) {
     try {
       if (!isGlobalEnabled()) return "";
+      // 2026-10-08 角色能力档：可传"只列这些技能名"（该角色配了 skillIds 时）——
+      // 不传 = 现状（全部 enabled 的技能）。技能按 name 寻址（load_skill 同口径）。
+      const allow = (Array.isArray(onlyNames) && onlyNames.length) ? new Set(onlyNames.map((n) => String(n).trim()).filter(Boolean)) : null;
       const arr = getAll()
         .filter(s => s && s.enabled && String(s.name || "").trim())
+        .filter(s => !allow || allow.has(String(s.name).trim()))
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       if (!arr.length) return "";
       const lines = [];

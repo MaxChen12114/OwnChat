@@ -35,13 +35,34 @@
 			//  要落盘则用 export_file)。同时避免两处同名 define 抛错带崩后续工具注册。
 			"offer_choices", "load_skill",
 			"manage_character_card", "send_image", "adjust_affinity", "speak",
+			// 2026-10-08 多智能体编排：从 full 档放开到默认档（用户口径：让 agent 也能用多智能体 /
+			// 主-子路线）。真正是否注册还看"多智能体模式 + 各自设置开关"，见 MA_GATED。
+			"delegate_to_agent", "convene_meeting", "invite_character",
 		]
+		// 2026-10-08: 子 agent（delegate_to_agent 派出的临时工）用「最小权限」档 ——
+		// 只留"读与调查"（技能正文 + 联网只读由 AgentReach 另行挂载），不给任何会改动用户数据 /
+		// 时间线 / 角色卡的工具。用户口径：子 agent 最小权限、仅本对话、由主 agent 创建、任务完成即回收。
+		// 不含任何编排工具 → 天然防递归（深度上限仍在，作为第二道闸）。
+		const SUB_TOOLS = ["load_skill"]
 		let _profile = opts.profile
 		if (!_profile) { try { _profile = localStorage.getItem("cfw_agent_tools_v1") || "core" } catch (e) { _profile = "core" } }
-		const _allowed = _profile === "full" ? null : CORE_TOOLS
+		const _allowed = _profile === "full" ? null : (_profile === "sub" ? SUB_TOOLS : CORE_TOOLS)
 		const _realDefine = registry.define.bind(registry)
+		// 2026-10-08 多智能体编排的"分层开关"：
+		//   ① 多智能体模式（侧栏按钮）关着 → 只有单 agent，不注册任何编排工具；
+		//   ② 开着再按各功能的设置开关（设置→多智能体）逐个决定（默认开）。
+		// 子 agent 档（sub）永不注册编排工具 —— 防递归的第一道闸。
+		const MA_GATED = {
+			delegate_to_agent: "cfw_ma_delegate_v1",
+			convene_meeting: "cfw_ma_meeting_v1",
+			invite_character: "cfw_ma_invite_v1",
+		}
+		function _maOn() { try { return localStorage.getItem("tavern_multi_agent_mode_v1") === "multi"; } catch (e) { return false; } }
+		function _maFlag(k) { try { const v = localStorage.getItem(k); return v == null ? true : v === "1"; } catch (e) { return true; } }
+		function _maEnabled(k) { return _profile !== "sub" && _maOn() && _maFlag(k); }
 		function define(def) {
 			if (_allowed && _allowed.indexOf(def && def.name) < 0) return registry
+			if (def && MA_GATED[def.name] && !_maEnabled(MA_GATED[def.name])) return registry
 			return _realDefine(def)
 		}
 
@@ -153,9 +174,11 @@
 				onEvent({ type: "subagent_start", role, task: args.task, depth })
 				let subRegistry
 				try {
-					subRegistry = buildRegistry({ onImage: opts && opts.onImage })
+					// 2026-10-08: 子 agent 走「最小权限」档（见 SUB_TOOLS）—— 只给读与调查能力。
+					// 旧版 buildRegistry({onImage}) 会按父级的档位把角色卡/发图/好感/朗读全给它。
+					subRegistry = buildRegistry({ onImage: opts && opts.onImage, profile: "sub" })
 					// 子 agent 也挂上联网技能(Agent-Reach):buildRegistry 只含站内工具,
-					// 不补这一步,子 agent 拿不到 fetch_page/web_search 等,“去查资料再汇总”时根本搜不了网。
+					// 不补这一步,子 agent 拿不到 fetch_page/web_search 等,"去查资料再汇总"时根本搜不了网。
 					if (global.AgentReach && typeof global.AgentReach.defineTools === "function") {
 						try { global.AgentReach.defineTools(subRegistry) } catch (e2) { /* 单个工具注册失败不影响子 agent 主流程 */ }
 					}
@@ -182,6 +205,58 @@
 					onEvent({ type: "subagent_done", role, depth })
 					return { ok: false, error: "子 agent 运行失败: " + (e && e.message ? e.message : e) }
 				}
+			},
+		})
+
+		// 2026-10-08 编排工具②「私开小会」：多位角色并行独立作答，结论回主 agent、不进时间线。
+		// 参与者用**本人档案 + 自己的独立上下文**（见 app.js runPeerMeeting / selectSpeakerView）。
+		define({
+			name: "convene_meeting",
+			destructive: true, // 每位参与者都是一次真实计费调用 → 走权限卡（成本闸门）
+			description:
+				"私下开一个小会：就某个议题征询若干角色（或指定视角）的意见，各自独立作答；结果只回给你，不进聊天时间线。" +
+				"适合：需要多方视角的复杂问题（方案评审、工程规划、剧情走向），或某个角色擅长的话题 —— 先私下问清，再决定要不要请它上台。",
+			parameters: {
+				type: "object",
+				properties: {
+					topic: { type: "string", description: "议题 / 要问的问题（写清背景与期望产出）" },
+					participants: { type: "array", items: { type: "string" }, description: "参与者名字（已保存的角色卡名）。省略 = 场景成员；一个角色都没有时退回通用视角" },
+					agenda: { type: "array", items: { type: "object", properties: { who: { type: "string", description: "参与者名字（可省，按顺序对应）" }, aspect: { type: "string", description: "该参与者负责的方面，如 架构 / 成本 / 风险" } }, required: ["aspect"] }, description: "可选：多方多主题 —— 给每位参与者指定负责的方面" },
+					rounds: { type: "number", description: "1（默认，各答各的）或 2（第二轮能看到彼此答案、互相补充或反驳）" },
+				},
+				required: ["topic"],
+			},
+			async run(args, ctx) {
+				const app = global.__app
+				if (!app || typeof app.runPeerMeeting !== "function") {
+					return { ok: false, error: "多智能体未接线（app.js 未提供 runPeerMeeting）" }
+				}
+				return await app.runPeerMeeting(Object.assign({}, args || {}, { onEvent: (ctx && ctx.onEvent) || function () {} }))
+			},
+		})
+
+		// 2026-10-08 编排工具③「叫上台」：角色按自己的档案与上下文，直接在时间线里回答。
+		// 与私开小会可任意组合（先私下讨论 → 再请上台总结）。可见、可删，不额外开权限卡。
+		define({
+			name: "invite_character",
+			destructive: false,
+			description:
+				"把某个角色「叫上台」：它按自己的人设与自己的上下文，直接在聊天时间线里回答（用户会看到它的气泡）。" +
+				"适合把话题交给擅长它的角色，或先私开小会、再请它上台做总结。调用后你会收到它在时间线上说了什么。",
+			parameters: {
+				type: "object",
+				properties: {
+					name: { type: "string", description: "角色名（已保存的角色卡）" },
+					brief: { type: "string", description: "可选：给它的简短交代（当前讨论到哪、希望它回答什么；不写则按它自己的上下文接话）" },
+				},
+				required: ["name"],
+			},
+			async run(args, ctx) {
+				const app = global.__app
+				if (!app || typeof app.inviteCharacterToTimeline !== "function") {
+					return { ok: false, error: "多智能体未接线（app.js 未提供 inviteCharacterToTimeline）" }
+				}
+				return await app.inviteCharacterToTimeline(Object.assign({}, args || {}, { onEvent: (ctx && ctx.onEvent) || function () {} }))
 			},
 		})
 

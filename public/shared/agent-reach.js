@@ -439,7 +439,8 @@
         type: "object",
         properties: {
           url:       { type: "string",  description: "要读取的网页 URL" },
-          max_chars: { type: "integer", description: "最多返回字符数，默认 8000" },
+          max_chars: { type: "integer", description: "本次最多返回字符数，默认 8000" },
+          offset:    { type: "integer", description: "从第几个字符开始返回（默认 0）。大页面/大源码分次读：结果里的 nextOffset 直接传回来即可续读" },
         },
         required: ["url"],
         additionalProperties: false,
@@ -448,6 +449,16 @@
         const url = args && typeof args.url === "string" ? args.url.trim() : ""
         if (!url) return { ok: false, error: "url 不能为空" }
         const maxChars = Math.max(500, Math.min(40000, Number(args.max_chars) || 8000))
+        // 2026-10-08 续读：大页面/大源码不再只看头（旧版只有 max_chars，中段永远读不到）。
+        // offset 是字符偏移；统一在**拿到全文之后**切片（三条路径共用同一口径）。
+        const offset = Math.max(0, Math.min(5 * 1024 * 1024, Number(args.offset) || 0))
+        const page = (t) => {
+          const s = String(t == null ? "" : t)
+          const total = s.length
+          const from = Math.min(offset, total)
+          const slice = s.slice(from, from + maxChars)
+          return { text: slice, totalChars: total, fromOffset: from, nextOffset: from + slice.length, truncated: from + slice.length < total }
+        }
         // ① 同源地址：页面自己直读，不走任何代理也不出网 ——
         // 2026-10-07 修复「自己抓自己」死局：worker 的 /api/fetch 去抓本站 = worker 子请求自身，
         // Cloudflare 直接掐断（实测外部跳板也会识破 Worker 出口，全军覆没）。
@@ -465,15 +476,15 @@
             const _stxt = (/text\/html/i.test(_sct) || /^\s*</.test(_sraw)) ? htmlToText(_sraw) : _sraw
             if (!_stxt || !_stxt.trim()) return { ok: false, url: url, error: "同源读取为空：" + _rel }
             // 同源直读不做「代理那套 150 字门槛」：JS/CSS 这类短文件也要原样返回
-            return { ok: true, source: "same-origin", url: _rel, text: _stxt.slice(0, maxChars), chars: _stxt.length }
+            return Object.assign({ ok: true, source: "same-origin", url: _rel }, page(_stxt))
           } catch (e) {
             return { ok: false, url: url, error: "同源读取异常：" + (e && e.message ? e.message : String(e)) }
           }
         }
-        // ② 桌面端：Rust 原生直连（无 GFW / CORS）
-        const nativeFirst = await tryNativeFetch(url, maxChars)
+        // ② 桌面端：Rust 原生直连（无 GFW / CORS）。要多取 offset 之后的正文，所以按 offset+maxChars 要
+        const nativeFirst = await tryNativeFetch(url, maxChars + offset)
         if (nativeFirst != null && nativeFirst.trim()) {
-          return { ok: true, source: "native", url: url, text: nativeFirst, chars: nativeFirst.length }
+          return Object.assign({ ok: true, source: "native", url: url }, page(nativeFirst))
         }
         // ③ /api/fetch worker 代理（同源 Cloudflare 出口，无 GFW/CORS；与 web_search 同路径）
         try {
@@ -484,7 +495,7 @@
             // 若代理路由不存在则返回 SPA 首页(纯 script 壳，htmlToText 后极短) → 跳过降级 Jina
             const _txt = (/text\/html/i.test(_ct) || /^\s*</.test(_raw)) ? htmlToText(_raw) : _raw
             if (_txt && _txt.trim().length > 150) {
-              return { ok: true, source: "proxy", url: url, text: _txt.slice(0, maxChars), chars: _txt.length }
+              return Object.assign({ ok: true, source: "proxy", url: url }, page(_txt))
             }
           }
         } catch (_) {}

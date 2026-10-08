@@ -350,6 +350,8 @@
     var img = document.createElement("img");
     img.src = src;
     img.alt = (meta && meta.name) || "附件图片";
+    // 2026-10-08 内存:历史还原时整条会话的附件图都会被解码 —— 屏外的先不加载/不解码
+    try { img.loading = "lazy"; img.decoding = "async"; } catch (e) {}
     card.appendChild(img);
     card.addEventListener("click", function () { openLightbox(src, (meta && meta.name) || ""); });
     if (onRemove) {

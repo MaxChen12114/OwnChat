@@ -163,6 +163,9 @@
   // 2026-06-15 升级: 单条 lastPayload → 环形缓冲(最多 MAX_PAYLOADS 条),面板可列表切换查看历史请求;
   // 每条记录 status/ms/bytes(由 measureStream 回填)。lastPayload 保留为"最新一条"做向后兼容(buildReport/replay 等仍可用)。
   const MAX_PAYLOADS=25;
+  // 2026-10-08: 开发者模式关着时只留最后几条（够"开着模式回看刚才那条"用）——
+  // 环是无条件装的（谁都进），但每条 payload 是完整消息历史，25 条在最坏情况下是几十 MB 常驻。
+  const MAX_PAYLOADS_OFF=3;
   let payloads=[];
   let selPayload=-1;
   let inspectTab="overview"; // 2026-06-15 I/O 探查器当前子标签
@@ -190,7 +193,8 @@
     let requestBytes=0;try{requestBytes=new Blob([JSON.stringify(p||{})]).size;}catch(e){try{requestBytes=JSON.stringify(p||{}).length;}catch(_){}}
     const entry={at:Date.now(),payload:p,status:null,ms:0,bytes:0,done:false,requestBytes:requestBytes,msgCount:countPayloadMessages(p),tokenEstimate:estimatePayloadTokens(p),error:null,errorBody:""};
     payloads.push(entry);
-    if(payloads.length>MAX_PAYLOADS)payloads.splice(0,payloads.length-MAX_PAYLOADS);
+    const _cap=(function(){try{return isOn()?MAX_PAYLOADS:MAX_PAYLOADS_OFF;}catch(e){return MAX_PAYLOADS_OFF;}})();
+    if(payloads.length>_cap)payloads.splice(0,payloads.length-_cap);
     selPayload=payloads.length-1;
     lastPayload=entry;
     api.log("capture payload",p);
@@ -315,6 +319,9 @@
       }).then(function(recs){
         if(!recs.length)return;
         recs.slice().reverse().forEach(function(r){payloads.unshift(Object.assign({},r,{fromHist:true}));});
+        // 2026-10-08 修:并回历史后必须重施内存环上限 —— 旧版 15(历史) + 25(本次) 可涨到 40 条,
+        // 每条最长 40 万字符原始流 + 完整 payload,长跑就是几十 MB 常驻(那 200-330MB 渲染进程堆的一块)。
+        if(payloads.length>MAX_PAYLOADS)payloads.splice(0,payloads.length-MAX_PAYLOADS);
         if(selPayload<0)selPayload=payloads.length-1;
         try{if(mask&&mask.style.display!=="none")renderPanel();}catch(e){}
       });
@@ -371,7 +378,18 @@
       let resp;
       try{resp=await orig(input,init);}catch(e){hud.inflight=false;if(_curEntry){_curEntry.done=true;_curEntry.status="ERR";_curEntry.error=(e&&e.name?e.name+": ":"")+(e&&e.message?e.message:String(e));_curEntry.ms=Math.round(((window.performance&&performance.now)?performance.now():Date.now())-t0);}try{ioPersist(_curEntry);}catch(_e){}try{updateHud();}catch(_){}try{if(mask&&mask.style.display!=="none")renderPanel();}catch(_){}throw e;}
       if(_curEntry)_curEntry.status=resp.status;
-      try{measureStream(resp.clone(),t0,_curEntry);}catch(e){hud.inflight=false;try{updateHud();}catch(_){}}
+      // 2026-10-08: clone 会把整条响应流再缓冲一份（与真实读取同时驻留，峰值翻倍）。开发者模式
+      // 关着时没人能打开面板看这份逐块记录 —— 直接跳过，只留 status/耗时级别的轻量条目。
+      try{
+        if(_curEntry && !isOn()){
+          _curEntry.done=true;
+          _curEntry.ms=Math.round(((window.performance&&performance.now)?performance.now():Date.now())-t0);
+          hud.inflight=false;try{updateHud();}catch(_){}
+          try{ioPersist(_curEntry);}catch(_e){}
+        }else{
+          measureStream(resp.clone(),t0,_curEntry);
+        }
+      }catch(e){hud.inflight=false;try{updateHud();}catch(_){}}
       return resp;
     };
   })();
@@ -498,7 +516,12 @@
   function showHud(){if(!hudEl){hudEl=document.createElement("div");hudEl.id="dev-hud";hudEl.style.cssText="position:fixed;left:12px;bottom:72px;z-index:9000;background:var(--bg,#16161e);color:inherit;border:1px solid var(--border,rgba(127,127,127,.35));border-radius:12px;padding:9px 11px;font:11px/1.5 ui-monospace,Menlo,Consolas,monospace;max-width:240px;box-shadow:0 8px 24px rgba(0,0,0,.4);backdrop-filter:blur(8px);cursor:move;";document.body.appendChild(hudEl);dragify(hudEl);}localStorage.setItem(HUD_KEY,"1");hudEl.style.display="block";updateHud();}
   function hideHud(){localStorage.setItem(HUD_KEY,"0");if(hudEl)hudEl.style.display="none";}
   function dragify(el){let sx,sy,ox,oy,on=false;el.addEventListener("pointerdown",function(e){if(e.target.closest&&e.target.closest("[data-hud-x]"))return;on=true;sx=e.clientX;sy=e.clientY;const r=el.getBoundingClientRect();ox=r.left;oy=r.top;try{el.setPointerCapture(e.pointerId);}catch(_){}});el.addEventListener("pointermove",function(e){if(!on)return;el.style.left=(ox+e.clientX-sx)+"px";el.style.top=(oy+e.clientY-sy)+"px";el.style.bottom="auto";});el.addEventListener("pointerup",function(){on=false;});}
-  function updateHud(){if(!hudEl||hudEl.style.display==="none")return;const th=localStorage.getItem("cfw_theme_v1")||"minimal";const think=(document.getElementById("thinkToggle")||{}).textContent||"";let sync="—",push="—";try{if(window.__sync&&window.__sync.getStatus){const s=window.__sync.getStatus();sync=s.enabled?(s.paused?"暂停":"开"):"关";push=s.pushCount;}}catch(e){}const spd=hud.ms?(Math.round(hud.bytes/1024/(hud.ms/1000)*10)/10+"KB/s"):"—";hudEl.innerHTML='<div style="display:flex;justify-content:space-between;gap:8px;"><b style="color:inherit;opacity:.65;letter-spacing:.04em;">DEV HUD</b><span data-hud-x style="cursor:pointer;color:#e8607d;">关闭</span></div><div>模型 '+esc(hud.model||"—")+'</div><div>'+esc(th)+'</div><div>'+esc(think)+'</div><div>同步 '+sync+' · push '+push+'</div><div>'+(hud.inflight?'<span style="color:#fd6;">请求中…</span>':('上次 '+(hud.ms||0)+'ms · '+spd))+'</div>'+(fault?'<div style="color:#f66;">故障注入:'+fault+'</div>':'');const x=hudEl.querySelector("[data-hud-x]");if(x)x.onclick=hideHud;}
+  function updateHud(){if(!hudEl||hudEl.style.display==="none")return;const th=localStorage.getItem("cfw_theme_v1")||"minimal";const think=(document.getElementById("thinkToggle")||{}).textContent||"";let sync="—",push="—";try{if(window.__sync&&window.__sync.getStatus){const s=window.__sync.getStatus();sync=s.enabled?(s.paused?"暂停":"开"):"关";push=s.pushCount;}}catch(e){}const spd=hud.ms?(Math.round(hud.bytes/1024/(hud.ms/1000)*10)/10+"KB/s"):"—";
+      // 2026-10-08 内存对照用:渲染进程 JS 堆 + 消息行数（"重启壳→基线→用一阵→看任务管理器"里
+      // JS 侧的读数;GPU 进程的数字只能在系统任务管理器里看）
+      const _mem=(function(){try{const m=performance.memory;if(!m||!m.usedJSHeapSize)return "—";return Math.round(m.usedJSHeapSize/1048576)+"MB";}catch(e){return "—";}})();
+      const _rows=(function(){try{return document.querySelectorAll("#chat .row").length;}catch(e){return "—";}})();
+      hudEl.innerHTML='<div style="display:flex;justify-content:space-between;gap:8px;"><b style="color:inherit;opacity:.65;letter-spacing:.04em;">DEV HUD</b><span data-hud-x style="cursor:pointer;color:#e8607d;">关闭</span></div><div>模型 '+esc(hud.model||"—")+'</div><div>'+esc(th)+'</div><div>'+esc(think)+'</div><div>同步 '+sync+' · push '+push+'</div><div>堆 '+_mem+' · 消息行 '+_rows+'</div><div>'+(hud.inflight?'<span style="color:#fd6;">请求中…</span>':('上次 '+(hud.ms||0)+'ms · '+spd))+'</div>'+(fault?'<div style="color:#f66;">故障注入:'+fault+'</div>':'');const x=hudEl.querySelector("[data-hud-x]");if(x)x.onclick=hideHud;}
   setInterval(function(){try{updateHud();}catch(e){}},2000);
   function buildReport(){const notes=notesLoad();const lines=["# 测试报告 "+new Date().toLocaleString(),"","## 环境","- 模型(最近): "+(hud.model||"—"),"- 主题: "+(localStorage.getItem("cfw_theme_v1")||"minimal"),"- UA: "+navigator.userAgent,"","## Bug / 笔记 ("+notes.length+")"];notes.forEach(function(n,i){lines.push((i+1)+". ["+new Date(n.at).toLocaleString()+"] "+n.text+"  \n   _ctx: 模型="+n.ctx.model+" 主题="+n.ctx.theme+(n.ctx.card?" 角色="+n.ctx.card:"")+"_");});if(lastPayload){lines.push("","## 最近一次请求 payload","```json",JSON.stringify(lastPayload.payload,null,2),"```");}return lines.join("\n");}
   function chaos(){const themes=["minimal","glass","candle"];const t=themes[Math.floor(Math.random()*themes.length)];if(window.__theme&&window.__theme.set)window.__theme.set(t);else localStorage.setItem("cfw_theme_v1",t);const opts=modelOptions();if(opts.length)setModel(opts[Math.floor(Math.random()*opts.length)].v);const styles=["default","wechat","verbose"];setReplyStyle(styles[Math.floor(Math.random()*styles.length)]);toast("🎰 混沌:"+t,2000);setTimeout(function(){if(mask&&mask.style.display!=="none")renderPanel();},120);}

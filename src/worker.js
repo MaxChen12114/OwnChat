@@ -810,8 +810,58 @@ async function handleChat(request, env) {
     }
   }
 
+  // 2026-10-08 入站协议净化（权威边界）：旧版停止按钮会把"断掉的回合"原样落盘
+  // （assistant.tool_calls 之后没有 tool 结果 / 孤儿 role:"tool"），重启后每次请求被上游 400；
+  // G1 只删空 assistant，治不了这种协议断裂。客户端已有同语义自愈（app.js sanitizeToolProtocol
+  // 复用 agent-kernel.pairPendingToolCalls），这里是第二道防线 —— 一次修好所有设备、所有历史会话
+  // （脏数据在各自的 localStorage 里，不能指望每个客户端都跑新代码）。
+  // 语义：① 全数组没有任何 assistant.tool_calls 声明过的 tool 消息 → 丢；
+  //       ② 未配对的 tool_call → **紧邻**插入合成结果（协议要求 tool 结果紧跟对应调用，
+  //          拖到数组末尾在历史中段是非法顺序）。
+  function normalizeToolProtocol(list) {
+    let touched = false;
+    for (const m of list) {
+      if (m && (m.role === "tool" || (m.role === "assistant" && Array.isArray(m.tool_calls) && m.tool_calls.length))) { touched = true; break; }
+    }
+    if (!touched) return list; // 纯 RP/聊天路径零开销
+
+    const declared = new Set();
+    for (const m of list) {
+      if (m && m.role === "assistant" && Array.isArray(m.tool_calls)) {
+        for (const c of m.tool_calls) if (c && c.id) declared.add(c.id);
+      }
+    }
+    const kept = [];
+    for (const m of list) {
+      if (m && m.role === "tool" && (!m.tool_call_id || !declared.has(m.tool_call_id))) continue;
+      kept.push(m);
+    }
+    const answered = new Set();
+    for (const m of kept) if (m && m.role === "tool" && m.tool_call_id) answered.add(m.tool_call_id);
+    let repaired = 0;
+    for (let i = kept.length - 1; i >= 0; i--) {
+      const m = kept[i];
+      if (!m || m.role !== "assistant" || !Array.isArray(m.tool_calls) || !m.tool_calls.length) continue;
+      const missing = m.tool_calls.filter((c) => c && c.id && !answered.has(c.id));
+      if (!missing.length) continue;
+      const synth = missing.map((c) => ({
+        role: "tool",
+        tool_call_id: c.id,
+        content: JSON.stringify({ error: "回合被中断，工具结果未知（服务端协议自愈）" }),
+      }));
+      kept.splice(i + 1, 0, ...synth);
+      for (const s of synth) answered.add(s.tool_call_id);
+      repaired += synth.length;
+    }
+    if (repaired) {
+      // 留痕（不静默：仓库纪律"缺东西要响"）—— 出现即说明有客户端送来了断裂协议
+      try { console.log("[api/chat] 入站协议自愈：补写 " + repaired + " 条合成工具结果"); } catch (e) {}
+    }
+    return kept;
+  }
+
   // G1(4.69 · AstrBot 踩坑②): 过滤"既无 content 又无 tool_calls"的空 assistant 消息(DeepSeek 会 400)
-  const cleanedMessages = upstreamMessages.filter((m) => {
+  const cleanedMessages = normalizeToolProtocol(upstreamMessages).filter((m) => {
     if (!m || m.role !== "assistant") return true;
     const hasContent = typeof m.content === "string" && m.content.trim();
     const hasCalls = Array.isArray(m.tool_calls) && m.tool_calls.length;

@@ -68,6 +68,9 @@ export function mountAgentConsole(container, opts = {}) {
 		stopBtn.type = "button"
 		stopBtn.textContent = "停止"
 		stopBtn.onclick = () => {
+			// 2026-10-08: 停止必须先解掉未决的「等待放行」卡 —— 否则内核循环挂在那个 Promise 上，
+			// 怎么 abort 都收不了尾（这就是"停止后输入框发不出消息"的锁）。
+			cancelPending("已中断")
 			try { onStop() } catch {}
 			stopBtn.disabled = true
 			setStatus("warn", "已请求停止")
@@ -91,6 +94,9 @@ export function mountAgentConsole(container, opts = {}) {
 	let startTs = 0
 	let clockTimer = null
 	const pending = new Map() // name -> rec[]（同名工具按调用先后配对 done/error）
+	// 2026-10-08: 未决的「等待放行」卡集合 —— 每张卡的 resolve 都必须可被外部解掉
+	// （停止/重试/删除/清空），否则 agent 循环会永远等在那里。见 cancelPending。
+	const pendingPerms = new Set()
 
 	setStatus("idle", "待命")
 
@@ -198,12 +204,17 @@ export function mountAgentConsole(container, opts = {}) {
 		scrollIntoView()
 	}
 
-	function addSubagent(role, task, starting) {
+	function addSubagent(role, task, starting, kind) {
 		const s = el("div", "ac-sub")
 		s.style.marginLeft = depth * 12 + "px"
 		const ic = el("span", "ac-sub__icon"); ic.innerHTML = SVG.sub
 		const t = el("span")
-		t.textContent = " " + (starting ? `子 agent 启动 · ${role}${task ? " · " + task : ""}` : `子 agent 完成 · ${role}`)
+		// 2026-10-08: 平级角色（小会/上台）不是"子 agent"（那是最小权限的临时工）——措辞分开，别混
+		if (kind && kind !== "子 agent") {
+			t.textContent = " " + kind + " · " + String(role) + (task ? " · " + task : "")
+		} else {
+			t.textContent = " " + (starting ? `子 agent 启动 · ${role}${task ? " · " + task : ""}` : `子 agent 完成 · ${role}`)
+		}
 		s.append(ic, t)
 		timeline.append(s)
 		scrollIntoView()
@@ -251,6 +262,23 @@ export function mountAgentConsole(container, opts = {}) {
 				depth++; addSubagent(ev.role, ev.task, true); break
 			case "subagent_done":
 				addSubagent(ev.role, null, false); depth = Math.max(0, depth - 1); break
+			// 2026-10-08 多智能体编排：私下小会 / 请角色上台（app.js runPeerMeeting / inviteCharacterToTimeline）
+			// 完整内容在聊天气泡上方的过程块里（agent-steps），这里只给一行可扫的状态 + 摘要预览。
+			case "meeting_start":
+				setStatus("thinking", "私下小会 · " + String(ev.topic || "").slice(0, 28))
+				addSubagent((ev.participants || []).join("、") || "—", "共 " + (ev.rounds || 1) + " 轮", true, "小会")
+				break
+			case "meeting_speaker":
+				if (ev.phase === "start") addSubagent(String(ev.who) + " 思考中…", null, true, "小会")
+				else if (ev.phase === "done") addSubagent(String(ev.who) + " · 第 " + (ev.round || 1) + " 轮已答", String(ev.summary || "").slice(0, 60), false, "小会")
+				else addSubagent(String(ev.who) + " 出错：" + String(ev.error || "").slice(0, 60), null, false, "小会")
+				break
+			case "meeting_done":
+				setStatus("thinking", "小会结束，汇总中…")
+				break
+			case "peer_invite":
+				addSubagent(String(ev.who) + (ev.phase === "done" ? " 已上台" : " 上台回答中…"), (ev.phase === "done" && ev.text) ? String(ev.text).slice(0, 60) : null, ev.phase !== "done", "上台")
+				break
 			case "model_error":
 				// 4.82: agent-kernel 会发出 model_error(见 agent-kernel.js),旧版 default 分支静默吞掉,
 				// 状态条会一直停留在上一状态直到下个事件;现在显式显示错误。
@@ -274,10 +302,31 @@ export function mountAgentConsole(container, opts = {}) {
 		else { name = a; args = b }
 		setStatus("perm", "等待放行 · " + name)
 		if (autoApprove) { addPermCard(name, args, null, true); return true }
-		return await new Promise((resolve) => addPermCard(name, args, resolve, false))
+		return await new Promise((resolve) => {
+			// 2026-10-08: 登记这张卡的出口 —— 旧版这个 Promise 只能靠用户点「放行/拒绝」，
+			// 没有任何取消路径；加上内核的取消竞速（agent-kernel.js raceWithAbort）后，
+			// 停止/重试/删除会先 cancelPending 把它解成"拒绝"，循环才能收尾。
+			const rec = { name, resolve: null, done: null }
+			rec.resolve = (ok) => { pendingPerms.delete(rec); resolve(ok) }
+			pendingPerms.add(rec)
+			addPermCard(name, args, rec.resolve, false, rec)
+		})
 	}
 
-	function addPermCard(name, args, resolve, auto) {
+	/** 解掉所有未决的「等待放行」卡（resolve(false) = 按拒绝处理，内核据此继续收尾）。
+	 *  @returns {number} 解掉的卡片数 */
+	function cancelPending(reason) {
+		if (!pendingPerms.size) return 0
+		const n = pendingPerms.size
+		for (const rec of [...pendingPerms]) {
+			try { if (rec.done) rec.done(false, reason || "已中断") } catch (e) {}
+			try { if (pendingPerms.has(rec)) rec.resolve(false) } catch (e) {}
+		}
+		pendingPerms.clear()
+		return n
+	}
+
+	function addPermCard(name, args, resolve, auto, rec) {
 		const card = el("div", "ac-perm")
 		const title = el("div", "ac-perm__title"); title.textContent = "请求放行：" + name
 		card.append(title)
@@ -296,19 +345,22 @@ export function mountAgentConsole(container, opts = {}) {
 		btns.append(no, yes)
 		card.append(btns)
 		timeline.append(card); scrollIntoView()
-		const done = (ok) => {
+		const done = (ok, noteText) => {
 			card.classList.add("is-resolved")
 			btns.remove()
-			const note = el("div", "ac-perm__note"); note.textContent = ok ? "已放行" : "已拒绝"
+			const note = el("div", "ac-perm__note"); note.textContent = noteText || (ok ? "已放行" : "已拒绝")
 			card.append(note)
-			setStatus(ok ? "thinking" : "warn", ok ? "已放行，继续…" : "已拒绝该操作")
+			setStatus(ok ? "thinking" : "warn", ok ? "已放行，继续…" : (noteText || "已拒绝该操作"))
 			resolve(ok)
 		}
 		yes.onclick = () => done(true)
 		no.onclick = () => done(false)
+		if (rec) rec.done = done // 供 cancelPending 解卡（文案走 noteText）
 	}
 
 	function clear() {
+		// 清空面板前先解掉未决卡：否则循环还挂在那张卡的 Promise 上，而卡已经从 DOM 里消失
+		cancelPending("已中断（面板清空）")
 		timeline.innerHTML = ""
 		finalBox.style.display = "none"
 		finalBox.innerHTML = ""
@@ -318,7 +370,7 @@ export function mountAgentConsole(container, opts = {}) {
 		setStatus("idle", "待命")
 	}
 
-	return { onEvent, ensurePermission, clear, root }
+	return { onEvent, ensurePermission, cancelPending, clear, root }
 }
 
 let _styled = false
@@ -327,7 +379,7 @@ function injectStylesOnce() {
 	_styled = true
 	const css = `
 .agent-console{font:13px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;color:inherit;display:flex;flex-direction:column;gap:8px;padding:2px;flex:1 1 auto;min-height:0;max-height:100%}
-.ac-header{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:9px;background:var(--ag-surface,rgba(127,127,127,.10));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.ac-header{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:9px;background:var(--bg,#1b1b1f);border-bottom:1px solid var(--border,rgba(127,127,127,.22))}
 .ac-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:currentColor;opacity:.45}
 .ac-dot--thinking{background:#4d8dff;opacity:1;animation:acPulse 1.1s ease-in-out infinite}
 .ac-dot--tool{background:#f59f00;opacity:1;animation:acPulse 1.1s ease-in-out infinite}

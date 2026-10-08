@@ -47,8 +47,10 @@
   const CHARS_DIRTY_KEYS = ["cfw_chars_meta_v1", "cfw_chars_tomb_v1"];
   let _applyingRemoteChars = false;
 
-  // 需同步的精确 LS key。注意:实际同步以 collectLS() 的"PROTECTED 反向排除 + 前缀 + 全量兜底"为准,
-  // 这份白名单主要起文档作用(标明哪些 key 预期上云),新增 key 不加进来也会被全量兜底带走。
+  // 需同步的精确 LS key。**这份清单就是全部**：collectLS() 只收「这里列出的」+「LS_PREFIXES 前缀命中的」
+  // 两类，**没有"全量兜底"**（旧注释写过"不加也会被兜底带走"，与代码不符，已删 —— 照它推断会得出
+  // 反结论，实测踩过：据此以为 cfw_app_fx_rich_v1 / cfw_dev_* 会被同步，实际从来没有）。
+  // 纪律：新增「需要跨设备」的 key 必须加进这里，否则**静默不同步**；反过来，想只留本机就进 PROTECTED。
   const LS_EXPLICIT = [
     "cfw_theme_v1", "cfw_theme_accent_v1", "cfw_thinking",
     "cfw_prior_summary_v1", "cfw_summary_enabled", "cfw_summary_trigger", "cfw_summary_keep",
@@ -64,6 +66,11 @@
     // 2026-09-12 / 4.70 API 云端化:同步自定义直连的非敏感配置与自定义定价。
     // API Key 仍留在 cfw_byo_provider_v1(受保护本地私密),跨端只带 endpoint/model/models/thinking。
     "cfw_byo_provider_public_v1", "cfw_custom_pricing_v1",
+    // 2026-10-08: 角色能力档（每张卡的底座/指令模块/技能覆盖）与多智能体编排开关 ——
+    // 它们是"用户配置"而非设备属性，跨设备一致（真正设备本地的两项见 PROTECTED 注释）。
+    "cfw_char_caps_v1",
+    "cfw_ma_delegate_v1", "cfw_ma_meeting_v1", "cfw_ma_invite_v1",
+    "cfw_ma_meeting_max_v1", "cfw_ma_meeting_rounds_v1", "cfw_ma_ctx_msgs_v1",
     // 4.17: cfw_chat_session_v1 已移出默认白名单,改由 includeChat() toggle 控制(默认 OFF 避免跨设备覆盖)
   ];
   // 前缀匹配（多实例）
@@ -72,10 +79,17 @@
     "cfw_summary_",  // 领域预留
   ];
   // 受保护不同步的 LS key（同步状态本身 + auth token）
+  // 注：collectLS() 以 LS_EXPLICIT 为唯一入口，这里的条目对"前缀循环"生效、并**记录意图** ——
+  // 防止将来有人把某个本机键顺手加进 LS_EXPLICIT（例如调试开关、设备属性、同步簿记）。
   const PROTECTED = [
     "cfw_auth_token_v1",
     "cfw_chat_protect_v1",
     "cfw_byo_provider_v1", // 自定义 API 私密配置:含 apiKey,永不同步;公开副本走 cfw_byo_provider_public_v1
+    // 2026-10-08 设备本地偏好（不应跨设备传播）：壳内特效档位与"空闲自动释放内存"是设备属性。
+    // 勘误：这两个键**本来就不在 LS_EXPLICIT、从来没被同步过**（上一轮注释误信了"全量兜底"那句旧话）。
+    // 列进 PROTECTED 是记录意图 —— 防止将来有人把它们当"用户配置"加进同步清单。
+    "cfw_app_fx_rich_v1",
+    "cfw_mem_idle_release_v1",
     SYNC_ENABLED_KEY, LAST_PUSH_KEY, LAST_PULL_KEY,
     INCLUDE_CHAT_KEY, PAUSE_KEY, PUSH_COUNT_KEY, PUSH_COUNT_DAY_KEY, // 4.17 同步控制开关本身不进同步
     // 4.20: 费用独立同步 - 不进 main blob;monkey-patch setItem 看到这些 key 跳过 main markDirty
@@ -86,6 +100,13 @@
     "cfw_device_id_v1",
     EXCLUDE_KEY, // 4.21: 排除清单不进 main blob(改走 4.21-F 独立 /sync/exclude 通道)
     LAST_EXCLUDE_PUSH_KEY, LAST_EXCLUDE_PULL_KEY, // 4.21-F: 排除清单同步时间戳
+    // 2026-10-08 调试/开发类键：**设备本地属性**，跟别处同步没有意义（旧版随"全量兜底"上云，
+    // 会把一台机器的调试开关/覆盖参数/笔记带到另一台）。cfw_dev_io_v1 是 IndexedDB 库名，不在 LS，无需列。
+    "cfw_dev_mode_v1", "cfw_dev_hud_v1", "cfw_dev_notes_v1", "cfw_dev_overrides_v1",
+    "cfw_dev_debug_v1", "cfw_dev_force_comply_v1", "cfw_dev_stream_probe_v1", "cfw_dev_io_record_v1",
+    // 聊天通道的本机簿记（push/pull 时间戳）——与 main / cost / chars / exclude 的时间戳同类：
+    // 同步它们会让某台设备"以为刚拉过"而跳过该做的拉取。
+    LAST_CHAT_PUSH_KEY, LAST_CHAT_PULL_KEY,
     // 4.22 → 2026-10-06: 背景图上传的 base64 仅本机,永不进同步包(只同步 URL)
     "cfw_ui_assets_v1",
     // 4.76: 聊天会话改走独立 /sync/chat 通道(slot 级合并),不进 main blob;以下 setItem 转触发 markChatDirty
@@ -102,9 +123,11 @@
   ];
   // IndexedDB 数据库名列表
   // 4.78: tavern_chars_v2(角色卡)移出 main blob → 独立 /sync/chars 通道(按卡 id LWW 合并),避免整段 LWW 跨设备互相覆盖。
-  // 2026-10-06: 道具卡整条删掉后,main blob **不再携带任何 IDB**(角色卡走独立通道;道具已不存在)——
-  //   列表留空而不是删变量:dumpAll/restoreAll 的循环与语义都还在,将来要加 DB 只改这里。
-  const IDB_NAMES = [];
+    // 2026-10-06: 道具卡整条删掉后,main blob **不再携带任何 IDB**(角色卡走独立通道;道具已不存在)——
+    //   列表留空而不是删变量:dumpAll/restoreAll 的循环与语义都还在,将来要加 DB 只改这里。
+    // 2026-10-08 注:角色记忆模块的 IndexedDB(cfw_char_memory_v1:知识库/小本子)故意不进这张表 ——
+    //   它是"每角色一套、体积可能很大"的本地库,进 main blob 会撑爆同步包。
+    const IDB_NAMES = [];
 
   function token() { return (window.__auth && window.__auth.getToken && window.__auth.getToken()) || ""; }
   function syncAuthHeaders(extra) {

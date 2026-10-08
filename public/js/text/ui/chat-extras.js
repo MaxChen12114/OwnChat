@@ -135,15 +135,14 @@
     if ($("ceStyles")) return;
     var s = document.createElement("style");
     s.id = "ceStyles";
+    // 2026-10-08 主题跟随修复：旧版 .ce-panel 每个主题各写一套硬编码底色，candle 还被后一条
+    // （白底 rgba(255,255,255,.97)）盖掉 —— 深色烛夜主题里弹出纯白面板，正是"同步弹窗不跟随主题"。
+    // 现在统一走主题变量（--bg/--border/文字继承），所有主题与明暗方案自动一致；只留一点描边强调。
     s.textContent = [
       ".ce-btn{font-size:12px;padding:6px 10px;border:1px solid rgba(127,127,127,.32);border-radius:8px;background:rgba(127,127,127,.06);color:inherit;cursor:pointer;}",
       ".ce-btn:hover{background:rgba(127,127,127,.16);}",
       ".ce-btn-primary{background:rgba(154,163,255,.16);border-color:rgba(154,163,255,.4);font-weight:600;}",
-      ".ce-panel{width:min(440px,92vw);max-height:80vh;display:flex;flex-direction:column;border-radius:14px;overflow:hidden;background:#16161e;color:#eaeaea;border:1px solid rgba(127,127,127,.25);box-shadow:0 12px 40px rgba(0,0,0,.4);}",
-      "html:not([data-theme]):not([data-scheme=\"dark\"]) .ce-panel{background:#fff;color:#37352f;border-color:#e9e9e7;box-shadow:0 30px 80px rgba(15,15,15,.16);}",
-      "html[data-theme=\"glass\"] .ce-panel{background:rgba(255,255,255,.97);color:#1a1f2e;border-color:rgba(15,30,60,.1);box-shadow:0 30px 80px rgba(60,80,140,.28);}",
-      "html[data-theme=\"candle\"] .ce-panel{background:rgba(26,8,16,.97);color:#FFE8EF;border-color:rgba(255,107,157,.32);box-shadow:0 30px 80px rgba(0,0,0,.7),0 0 60px rgba(255,107,157,.18);}",
-      "html[data-theme=\"candle\"] .ce-panel{background:rgba(255,255,255,.97);color:#4A0820;border-color:rgba(139,0,51,.22);box-shadow:0 30px 80px rgba(139,0,51,.3);}"
+      ".ce-panel{width:min(440px,92vw);max-height:80vh;display:flex;flex-direction:column;border-radius:14px;overflow:hidden;background:var(--bg,#16161e);color:inherit;border:1px solid var(--border,rgba(127,127,127,.3));box-shadow:0 18px 50px rgba(0,0,0,.42);}"
     ].join("");
     document.head.appendChild(s);
   }
@@ -231,7 +230,7 @@
     ensureStyles();
     mergedToast = document.createElement("div");
     mergedToast.id = "ceMergedToast";
-    mergedToast.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:10002;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:rgba(20,20,28,.96);color:#eaeaea;border:1px solid rgba(154,163,255,.45);box-shadow:0 10px 30px rgba(0,0,0,.4);font-size:13px;max-width:92vw;";
+    mergedToast.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:10002;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:var(--bg,#14141c);color:inherit;border:1px solid var(--border,rgba(154,163,255,.45));box-shadow:0 10px 30px rgba(0,0,0,.4);font-size:13px;max-width:92vw;";
     var txt = document.createElement("span");
     txt.textContent = "已从其他设备同步到对话更新";
     var refresh = document.createElement("button");

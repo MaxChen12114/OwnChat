@@ -413,8 +413,50 @@
     try { if (window.__autopilot && window.__autopilot.onTick) window.__autopilot.onTick(function (st) { setMsg('状态:' + st.state + ' · 第 ' + st.seg + ' 段'); }); } catch (e) {}
   }
 
+  // ─── 多智能体编排（2026-10-08 从「Agent 工作模式」卡拆出）───
+  // 用户口径：编排玩法与工作能力是两件事，各占一张卡。工具是否注册由 tools.js 的 MA_GATED
+  // 三重条件共同决定：① 侧栏「多智能体」模式开着 ② 本卡对应开关开着 ③ 当前不是子 agent 档。
+  function mountMultiAgentCard() {
+    var slot = document.getElementById('setAgentSlot') || document.getElementById('setChatSlot');
+    if (!slot || document.getElementById('multiAgentCard')) return;
+    var SS = 'flex:1;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;';
+    var card = document.createElement('div'); card.className = 'card'; card.id = 'multiAgentCard';
+    card.innerHTML = '<h4>多智能体编排</h4>'
+      // 本段刻意写成"整句单文本节点"（不带 <b> 内联标签）：双语引擎按文本节点整串匹配，
+      // 带标签的句子会被切成碎片、字典键难对（这是上一批翻译踩过的坑）。
+      + '<p>先在侧栏打开「多智能体」模式，再按下面开关逐个放行；模式关闭时 = 单 agent，不挂任何编排工具。平级 agent = 你配置好的角色卡（各有独立上下文）；子 agent = 主 agent 现造的临时工（最小权限、任务完成即回收，不进聊天记录）。</p>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="maDelegate"><label for="maDelegate">主子分派 · 允许派子 agent 干活</label></div></div>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="maMeeting"><label for="maMeeting">私下小会 · 向角色私下征询（结论不进时间线）</label></div></div>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="maInvite"><label for="maInvite">请角色上台 · 角色可直接在时间线回答</label></div></div>'
+      + '<div class="rowline" style="align-items:center;gap:8px;flex-wrap:wrap;"><label style="font-size:12px;color:var(--muted);min-width:52px;">小会</label>'
+      + '<input id="maMeetMax" type="number" min="1" max="6" step="1" style="' + SS + 'max-width:76px;" title="每次小会最多几位角色（每位都是一次独立计费调用）"> <span style="font-size:11px;color:var(--muted);">人数上限</span>'
+      + '<input id="maMeetRounds" type="number" min="1" max="2" step="1" style="' + SS + 'max-width:76px;" title="2 = 第二轮参与者能看到彼此答案、互相补充或反驳（成本约翻倍）"> <span style="font-size:11px;color:var(--muted);">轮数</span>'
+      + '<input id="maCtxMsgs" type="number" min="0" max="400" step="10" style="' + SS + 'max-width:88px;" title="每位角色带多少条自己的上下文（0 = 全带；条数越多越贵）"> <span style="font-size:11px;color:var(--muted);">上下文条数</span></div>'
+      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>成本提示：小会里每位角色都是一次独立计费调用，轮数 2 约等于翻倍；子 agent 继承最小权限，不碰你的数据与时间线。</span></div>';
+    slot.appendChild(card);
+
+    // 开关与上限（tools.js 的 MA_GATED / app.js 的 _maCfg 读这些键；键"没值"= 开/默认，
+    // 这样老用户不用先来这里点一遍）
+    [['maDelegate', 'cfw_ma_delegate_v1'], ['maMeeting', 'cfw_ma_meeting_v1'], ['maInvite', 'cfw_ma_invite_v1']].forEach(function (pair) {
+      var el = card.querySelector('#' + pair[0]); if (!el) return;
+      var cur = true; try { var v = localStorage.getItem(pair[1]); if (v != null) cur = v === '1'; } catch (e) {}
+      el.checked = cur;
+      el.addEventListener('change', function () { try { localStorage.setItem(pair[1], el.checked ? '1' : '0'); } catch (e) {} });
+    });
+    [['maMeetMax', 'cfw_ma_meeting_max_v1', 3, 1, 6], ['maMeetRounds', 'cfw_ma_meeting_rounds_v1', 1, 1, 2], ['maCtxMsgs', 'cfw_ma_ctx_msgs_v1', 60, 0, 400]].forEach(function (q) {
+      var el = card.querySelector('#' + q[0]); if (!el) return;
+      var cur = q[2]; try { var n = parseInt(localStorage.getItem(q[1]), 10); if (!isNaN(n)) cur = Math.max(q[3], Math.min(q[4], n)); } catch (e) {}
+      el.value = String(cur);
+      el.addEventListener('change', function () {
+        var n2 = parseInt(el.value, 10); if (isNaN(n2)) n2 = q[2];
+        n2 = Math.max(q[3], Math.min(q[4], n2)); el.value = String(n2);
+        try { localStorage.setItem(q[1], String(n2)); } catch (e) {}
+      });
+    });
+  }
+
   // ─── Agent 工具集档位(对应 shared/tools.js 里的 CORE_TOOLS 门控 · LS cfw_agent_tools_v1) ───
-  // 两档: core(默认八个常用) / full(全 17 个,自检时才开)。写完下次 buildRegistry 时生效。
+  // 两档: core(常用) / full(全量,自检时才开)。档位数在卡内动态点数（作者会持续加工具）。
   function mountAgentToolsCard() {
     // 2026-09-14:Agent 配置独立成分类(工具档位 / 轮数 / 工作模式);旧页面回落 #setChatSlot
     var slot = document.getElementById('setAgentSlot') || document.getElementById('setChatSlot');
@@ -432,23 +474,35 @@
       + '</select></div>'
       + '<div id="agentWorkDesc" style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6;"></div>'
       + '<div class="rowline" style="align-items:center;gap:10px;margin-top:12px;"><label style="font-size:12px;color:var(--muted);min-width:42px;">工具</label>'
-      + '<select id="agentToolsSel" style="' + SS + '"><option value="core">常用(默认) · 7 个</option><option value="full">全量 · 16 个(自检/排查用)</option></select></div>'
+      + '<select id="agentToolsSel" style="' + SS + '"></select></div>'
       + '<div class="rowline" style="align-items:center;gap:10px;margin-top:8px;"><label style="font-size:12px;color:var(--muted);min-width:42px;">轮数</label>'
       + '<input id="agentMaxRounds" type="number" min="1" max="50" step="1" style="' + SS + 'max-width:110px;" title="一次回复里模型最多可以「思考→调工具」多少个来回">'
       + '<span style="font-size:11px;color:var(--muted);">最大工具轮数(1~50,默认 8)</span></div>'
       // 4.70 本地能力:工作目录。**并进这张卡**而不是另开一张 ——
-      // index.html:1107 的注释写明 Agent 分类由 mountAgentToolsCard 单卡注入,分两张会割裂。
+      // index.html 的注释写明 Agent 分类由本卡注入主要配置；多智能体编排 2026-10-08 起已拆走
+      // （mountMultiAgentCard），因为"工作能力"与"编排玩法"是两件事，混在一张卡里互相干扰阅读。
       + '<div class="rowline" style="align-items:center;gap:10px;margin-top:12px;"><label style="font-size:12px;color:var(--muted);min-width:42px;">工作目录</label>'
       + '<input id="agentWorkdirPath" type="text" readonly style="' + SS + 'cursor:default;" placeholder="尚未设置">'
       + '<button id="agentWorkdirPick" style="padding:7px 12px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;cursor:pointer;white-space:nowrap;">选择…</button></div>'
       + '<div id="agentLocalStatus" style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6;"></div>'
       + '<div id="agentToolsDesc" style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6;"></div>'
-      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>文件工具(list/read/write/edit/delete/export)与联网工具(搜索 / 抓网页)由各自模块单独注册,<b>两档都有</b>,不受这里影响。改完<b>下一次开 Agent 生效</b>(当前正在跑的不变)。<br>轮数决定一次回复能跑多少来回:读写多个文件、多轮检索这类任务要调大;太小会在中途被"已达最大轮数"截断。</span></div>';
+      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>文件工具(list/search/read/write/edit/delete/export)与联网工具(搜索 / 抓网页)由各自模块单独注册,<b>两档都有</b>,不受这里影响：先 search_file 定位、read_file 按行分页读(大文件不怕截断)、长文 fetch_page 可续读 —— 由模型按需灵活组合。改完<b>下一次开 Agent 生效</b>(当前正在跑的不变)。<br>轮数决定一次回复能跑多少来回:读写多个文件、多轮检索这类任务要调大;太小会在中途被"已达最大轮数"截断。</span></div>';
     slot.appendChild(card);
     var sel = card.querySelector('#agentToolsSel'), desc = card.querySelector('#agentToolsDesc');
+    // 档位数**动态点数**（2026-10-08）：另一个会话加了 search_file / 分页读 / fetch 续读等新工具后，
+    // 写死的「7 个 / 16 个」立刻过期。直接问注册表要数；数不出来就只写档名，不写假数字（缺东西要响）。
+    function toolCount(profile) {
+      try {
+        var r = window.OwnChatTools && window.OwnChatTools.buildRegistry({ profile: profile });
+        return (r && typeof r.list === "function") ? r.list().length : 0;
+      } catch (e) { return 0; }
+    }
+    var nCore = toolCount('core'), nFull = toolCount('full');
+    sel.innerHTML = '<option value="core">' + (nCore ? '常用 · ' + nCore + ' 个' : '常用（默认）') + '</option>'
+      + '<option value="full">' + (nFull ? '全量 · ' + nFull + ' 个' : '全量') + '</option>';
     var TXT = {
-      core: '给选项 · 载技能(load_skill) · 角色卡增删改 · 发图 · 好感度 · 朗读',
-      full: '在常用基础上再加: 设定集 · 指令模块 · 换主题 · 换模型 · 改设置 · 开编辑器 · 查费用 · 派子 Agent · 生成视频故事。其中视频故事一跑就是一两小时且不能关页,派子 Agent 会递归烧 token —— 只建议临时开。'
+      core: '给选项 · 载技能 · 角色卡增删改 · 发图 · 好感度 · 朗读，外加多智能体编排（分派 / 小会 / 请角色上台，见「多智能体编排」卡）。文件与联网工具两档都有。',
+      full: '在常用基础上再加: 设定集 · 指令模块 · 换主题 · 换模型 · 改设置 · 开编辑器 · 查费用 · 生成视频故事。其中视频故事一跑就是一两小时且不能关页 —— 只建议临时开。'
     };
     function render() { if (desc) desc.textContent = TXT[sel.value] || ''; }
     var v = 'core'; try { v = localStorage.getItem(K) === 'full' ? 'full' : 'core'; } catch (e) {}
@@ -488,6 +542,9 @@
         try { localStorage.setItem(RK, String(v2)); } catch (e) {}
       });
     }
+
+    // 多智能体编排的开关与上限 → 2026-10-08 已拆到独立卡（mountMultiAgentCard），见下方。
+    // 这里保留一句提示：编排类工具是否注册由「多智能体模式 + 那张卡的开关」共同决定。
 
     // 4.70 本地能力:工作目录 + Node 运行时状态。同卡内的一块,不另开卡片。
     // 文案必须说清:命令类工具**不受工作目录限制**,工作目录只是 cwd ——
@@ -712,24 +769,34 @@
     sync();
   }
 
-  // ─── §外观. App 壳特效档位（2026-10-07 新增，E-B）───
-  // 手机 App 壳内默认「流畅优先」：index.html 里 html.android-app:not(.fx-rich) 那组覆盖关掉了
-  // 毛玻璃 / 全屏混合层 / 常驻动画（拖动卡顿的主因）。勾选这里 = 加回 .fx-rich，换回完整观感。
-  // 只在壳内出现（有 android-app 类）—— 桌面浏览器没有这组覆盖，开关无意义。
+  // ─── §外观. App 壳特效档位（2026-10-07 新增，E-B；2026-10-08 文案修正）───
+  // 壳内（含桌面壳 —— 桌面壳也是 ?shell=android，见 tauri.conf.json）默认「流畅优先」：
+  // index.html 里 html.android-app:not(.fx-rich) 那组覆盖关掉了毛玻璃 / 全屏混合层 / 常驻动画
+  // （拖动卡顿的主因），并且在低特效档停掉 --pulse 的定时重算。勾选 = 加回 .fx-rich。
+  // 注意：气泡级的毛玻璃与 ::after 流光**所有档位都关**（成本随消息数线性增长），这里换不回来。
   function mountAppFxCard() {
     if (!document.documentElement.classList.contains('android-app')) return;
     var slot = document.getElementById('setAppearanceThemeSlot') || document.getElementById('setAppearanceTopSlot');
     if (!slot || document.getElementById('appFxCard')) return;
     var card = document.createElement('div'); card.className = 'card'; card.id = 'appFxCard';
     card.innerHTML = '<h4>App 内特效档位</h4>'
-      + '<p>App 壳内<b>默认「流畅优先」</b>：关闭毛玻璃模糊、全屏混合层与常驻动画，拖动/滚动更跟手、更省电。勾选可换回完整的玻璃 / 烛光观感（代价是耗电与可能的卡顿）。</p>'
-      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="appFxRichToggle"><label for="appFxRichToggle">完整特效（更耗电 / 可能卡顿）</label></div></div>';
+      + '<p>App 壳内<b>默认「流畅优先」</b>：关闭毛玻璃模糊、全屏混合层、常驻动画与背景光晕律动，拖动/滚动更跟手、更省电。勾选可换回玻璃 / 烛光的完整观感（代价是耗电与可能的卡顿）。<br>气泡级的磨砂与流光已<b>永久关闭</b>（成本随消息条数增长），不再随本开关恢复。</p>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="appFxRichToggle"><label for="appFxRichToggle">完整特效（更耗电 / 可能卡顿）</label></div></div>'
+      + '<h4 style="margin-top:12px;">内存</h4>'
+      + '<p>壳长时间挂在后台后，页面会持住大量缓存内存（与特效档位关系不大）。开启后：<b>窗口在后台超过 10 分钟</b>且没有发送中/待批/草稿时，自动刷新页面释放内存 —— 聊天记录已落盘，不受影响。</p>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="appMemIdleToggle"><label for="appMemIdleToggle">空闲自动释放内存</label></div></div>';
     slot.appendChild(card);
     var t = card.querySelector('#appFxRichToggle');
     t.checked = localStorage.getItem('cfw_app_fx_rich_v1') === '1';
     t.addEventListener('change', function () {
       localStorage.setItem('cfw_app_fx_rich_v1', t.checked ? '1' : '0');
       document.documentElement.classList.toggle('fx-rich', t.checked);
+    });
+    var m = card.querySelector('#appMemIdleToggle');
+    // 缺省开（壳是长跑场景）：未显式设置过时显示为勾选，切换才写值
+    m.checked = localStorage.getItem('cfw_mem_idle_release_v1') !== '0';
+    m.addEventListener('change', function () {
+      localStorage.setItem('cfw_mem_idle_release_v1', m.checked ? '1' : '0');
     });
   }
 
@@ -771,6 +838,7 @@
     mountChatModeCard();
     mountAutopilotCard();
     mountAgentToolsCard();
+    mountMultiAgentCard();   // 2026-10-08 独立成卡（编排玩法与工作能力分开）
     mountPersonaCard();      // M1
     mountModelPoolCard(); // 2026-09-10 (方案 C): 模型候选池,放在自定义直连之前
     mountByoCard(); // 2026-06-24: 聊天模型自定义直连归「模型 API」分类(原在「对话」)
@@ -1691,6 +1759,38 @@
     });
     render();
   }
+
+  // ─── 2026-10-08 外部改动（云同步回灌 / 别的标签页）后：把设置面板里这些开关/输入的值回读一遍 ───
+  // 面板的卡片是"挂载一次"的（各 mount* 用 id 存在与否做守卫），旧版不会因为远端设置变化而更新 ——
+  // 用户会看到"设置里显示关着、实际云端是开着的"。这里按"元素 id ← LS 键"的清单逐个回读。
+  // （只处理会被同步的、且已直接落到 LS 的开关；内容型数据如角色卡/预设由各自通道的合并逻辑刷新。）
+  const SYNCED_CONTROLS = [
+    ["historyKeep", "cfw_history_enabled"],
+    ["promptKeep", "cfw_prompt_enabled"],
+    ["syncIncludeChatToggle", "cfw_sync_include_chat_v1"],
+    ["appFxRichToggle", "cfw_app_fx_rich_v1"],
+    ["appMemIdleToggle", "cfw_mem_idle_release_v1"],
+    ["maDelegate", "cfw_ma_delegate_v1"],
+    ["maMeeting", "cfw_ma_meeting_v1"],
+    ["maInvite", "cfw_ma_invite_v1"],
+    ["agentMaxRounds", "cfw_agent_max_rounds_v1"],
+  ];
+  function syncSettingsControlsFromLS() {
+    if (!document.getElementById("settingsMask")) return;
+    SYNCED_CONTROLS.forEach(function (pair) {
+      var el = document.getElementById(pair[0]);
+      if (!el) return;
+      try {
+        var v = localStorage.getItem(pair[1]);
+        if (el.type === "checkbox") el.checked = (v == null) ? true : (v === "1");
+        else if (v != null) el.value = v;
+      } catch (e) {}
+    });
+    // 下拉类（值域与默认值各不同）单独回读：
+    try { var ag = document.getElementById("agentWorkMode"); var w = localStorage.getItem("cfw_agent_work_mode_v1"); if (ag && w) ag.value = w; } catch (e) {}
+    try { var at = document.getElementById("agentToolsSel"); var t = localStorage.getItem("cfw_agent_tools_v1"); if (at && t) at.value = t; } catch (e) {}
+  }
+  window.addEventListener("cfw:external-settings", syncSettingsControlsFromLS);
 
   // ─── init ───
   function init() {

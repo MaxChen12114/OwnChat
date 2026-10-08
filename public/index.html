@@ -173,7 +173,7 @@
     #rightSidebar .rs-empty { font-size: 11.5px; line-height: 1.6; opacity: .5; text-align: center; padding: 18px 12px; }
     #rightSidebar #fishbowlSlot:not(:empty) + .rs-empty { display: none; }
     #rightSidebar .rs-panel .sidebar-slot-placeholder { padding: 0; border: none; background: none; text-align: left; color: inherit; min-height: 0; }
-    /* 4.59: 群聊控制台「建微信群聊」入口(从左侧栏迁入);线性图标 + 双行文案,走主题变量 */
+    /* 4.59: 群聊控制台「建群聊」入口(从左侧栏迁入);线性图标 + 双行文案,走主题变量 */
     #rightSidebar .rs-build-group { display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--border, #333); border-radius: 12px; background: rgba(127,127,127,.06); color: inherit; cursor: pointer; text-align: left; transition: border-color .15s, background .15s; }
     #rightSidebar .rs-build-group:hover { border-color: rgba(127,127,127,.55); background: rgba(127,127,127,.10); }
     #rightSidebar .rs-build-group .rs-build-group-ico { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex: none; border-radius: 9px; background: rgba(127,127,127,.14); color: inherit; }
@@ -402,9 +402,13 @@
     html.android-app:not(.fx-rich) .input-inner,
     html.android-app:not(.fx-rich) .bubble,
     html.android-app:not(.fx-rich) #settingsMask,
+    html.android-app:not(.fx-rich) #promptEditorMask,
     html.android-app:not(.fx-rich) .sidebar-backdrop,
+    html.android-app:not(.fx-rich) .left-sidebar,
+    html.android-app:not(.fx-rich) .right-sidebar,
     html.android-app:not(.fx-rich) .pill,
-    html.android-app:not(.fx-rich) .iconbtn {
+    html.android-app:not(.fx-rich) .iconbtn,
+    html.android-app:not(.fx-rich) .chip-btn {
       -webkit-backdrop-filter: none !important;
       backdrop-filter: none !important;
     }
@@ -417,6 +421,24 @@
     html.android-app:not(.fx-rich) .avatar,
     html.android-app:not(.fx-rich) .bubble { animation: none !important; }
     html.android-app:not(.fx-rich) #topbar { background: var(--bg) !important; }
+    /* 2026-10-08 补漏 + 动态渲染取舍（用户拍板"直接删"）：
+       ① 逐条气泡的毛玻璃 / ::after 流光**所有档位**都删 —— 成本随消息数线性增长（每条消息一个
+          合成层 + 主线程逐帧重绘），收益只是每气泡一点点磨砂；结构面（顶栏/侧栏/输入框/chip）
+          的毛玻璃在完整特效档保留。
+       ② 背景图整屏 blur 只在低特效档去掉（全屏离屏栅格，任何变化都要重建）。 */
+    html.android-app .bubble {
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+    }
+    html.android-app .bubble::after { display: none !important; }
+    html.android-app:not(.fx-rich) #ue-bg-layer { filter: none !important; }
+    /* ③ 输入框/AI 气泡「变透明」修复：只在设了聊天背景图（has-bg：html/body 被置成透明，
+       照片直接透上来）且低特效档（blur 已被关）时把底色做实 —— 没设背景图时外观完全不变。
+       这是修可读性（透明没有磨砂时文字对比度不够），不是改观感。 */
+    html.android-app:not(.fx-rich).has-bg[data-theme="candle"] .input-inner { background: rgba(40, 28, 18, .94) !important; }
+    html.android-app:not(.fx-rich).has-bg[data-theme="candle"] .bubble.ai { background: rgba(40, 28, 18, .92) !important; }
+    html.android-app:not(.fx-rich).has-bg[data-theme="glass"] .input-inner { background: rgba(255, 255, 255, .96) !important; }
+    html.android-app:not(.fx-rich).has-bg[data-theme="glass"] .bubble.ai { background: rgba(255, 255, 255, .95) !important; }
   </style>
   <!-- FOUC-safe 主题预应用:在 styles.css 应用前读 LS 立即贴 data-theme -->
   <!-- 支持 minimal(默认) / glass / candle;新增主题只需扩 ALLOWED 集合 -->
@@ -859,7 +881,7 @@
       <div class="sidebar-section-title">模式</div>
       <!-- 2026-09-14:「新对话」按钮已移除 —— 功能与左栏「对话」分组里的「+ 新建会话」完全重复。
            (注:旧版这里是清空全部历史的假按钮;会话系统重做后新建入口统一收敛到「对话」列表顶部) -->
-      <button class="sidebar-btn topbar-toggle" id="multiAgentToggle" title="单人 / 多人场景模式。多人模式下:角色面板出现「场景成员」管理区,卡库出现 +场景 按钮;输入框上方出现发言者选择条;AI 看到其他角色的发言但只代表自己。">
+      <button class="sidebar-btn" id="multiAgentToggle" title="单人 / 多人场景模式。多人模式下:角色面板出现「场景成员」管理区,卡库出现 +场景 按钮;输入框上方出现发言者选择条;AI 看到其他角色的发言但只代表自己。">
         <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="2.7"/><path d="M3.5 18.5a5.5 5.5 0 0 1 11 0"/><path d="M16 6.2a2.7 2.7 0 0 1 0 5.2"/><path d="M17 13.2a5.5 5.5 0 0 1 3.5 5.3"/></svg></span>
         <span class="sidebar-btn-label">多智能体</span>
       </button>
@@ -1078,7 +1100,8 @@
         <!-- 2026-09-14 Agent 独立分类:工具集档位 / 最大轮数 / 工作模式 都归这里 -->
         <div class="set-cat" data-cat="agent">
         <div class="settings-group-title">Agent · 工作模式</div>
-        <!-- settings.js mountAgentToolsCard() 注入此槽 -->
+        <!-- settings.js 注入两张卡：mountAgentToolsCard()（工作模式 / 工具档位 / 轮数 / 工作目录）
+             + mountMultiAgentCard()（编排玩法，2026-10-08 按用户口径拆出独立成卡） -->
         <div id="setAgentSlot"></div>
         </div><!-- /set-cat agent -->
 
@@ -1180,13 +1203,13 @@
     </div>
     <div class="rs-body">
       <section class="rs-panel active" data-rs-panel="fishbowl" role="tabpanel">
-        <!-- 4.59: 微信群聊从左侧栏「模式」迁到群聊控制台:它本质是「建群」动作而非常驻模式,且桌面端控制台空置,正好补位。唯一建跨世界群入口走 window.__wechatGroup.open() -->
+        <!-- 4.59: 群聊从左侧栏「模式」迁到群聊控制台:它本质是「建群」动作而非常驻模式,且桌面端控制台空置,正好补位。唯一建跨世界群入口走 window.__wechatGroup.open() -->
         <button type="button" class="rs-build-group" id="wgConsoleBuildBtn" title="把不同世界观的角色拉进同一个群,自动接话产生戏剧效果(基于多人模式 + 微信连发)" onclick="window.__wechatGroup&&window.__wechatGroup.open()">
           <span class="rs-build-group-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.8 16.5L4 19V7.5A2 2 0 0 1 6 5.5h9A2 2 0 0 1 17 7.5v6A2 2 0 0 1 15 15.5H8z"/><circle cx="8" cy="10.5" r="1"/><circle cx="11.5" cy="10.5" r="1"/><circle cx="15" cy="10.5" r="1"/></svg></span>
-          <span class="rs-build-group-tx"><b>建微信群聊</b><small>拉不同世界观的角色进同一个群</small></span>
+          <span class="rs-build-group-tx"><b>建群聊</b><small>拉不同世界观的角色进同一个群</small></span>
         </button>
         <div id="fishbowlSlot" class="sidebar-slot"></div>
-        <div class="rs-empty" id="fishbowlEmptyHint">还没有进行中的群聊。点上方「建微信群聊」拉角色进群，或开启顶栏「多智能体」手动编排发言。</div>
+        <div class="rs-empty" id="fishbowlEmptyHint">还没有进行中的群聊。点上方「建群聊」拉角色进群，或开启顶栏「多智能体」手动编排发言。</div>
       </section>
       <section class="rs-panel" data-rs-panel="image" role="tabpanel" hidden>
         <div id="imageSlot" class="sidebar-slot-placeholder"></div>
@@ -1424,7 +1447,7 @@
 })();
 </script>
 
-<!-- 4.62: 「建微信群聊」入口仅在「多智能体」模式下显示(它本质是多人建群动作)。未开多智能体时隐藏按钮,提示先在顶栏切到多智能体。监听 multi-agent.js 的 multi-agent:changed 事件实时同步。 -->
+<!-- 4.62: 「建群聊」入口仅在「多智能体」模式下显示(它本质是多人建群动作)。未开多智能体时隐藏按钮,提示先在顶栏切到多智能体。监听 multi-agent.js 的 multi-agent:changed 事件实时同步。 -->
 <script>
 (function(){
   function isMultiOn(){
@@ -1440,7 +1463,7 @@
     var on = isMultiOn();
     btn.style.display = on ? '' : 'none';
     if (hint) hint.textContent = on
-      ? '还没有进行中的群聊。点上方「建微信群聊」拉角色进群，或在群聊控制台里手动编排发言。'
+      ? '还没有进行中的群聊。点上方「建群聊」拉角色进群，或在群聊控制台里手动编排发言。'
       : '群聊在「多智能体」模式下开启：点左侧「单智能体」切到「多智能体」，再来这里建群 / 编排发言。';
   }
   window.addEventListener('multi-agent:changed', sync);
@@ -1495,6 +1518,10 @@
 <!-- 2026-09-14 Agent 文件工作区(IndexedDB,按会话隔离)+ 文件工具(list/read/write/edit/delete/export)。
      由 app.js 构建 Agent registry 时调 __agentWorkspace.defineTools 注册。零依赖,须在 app.js 之前 -->
 <script src="/js/text/data/agent-workspace.js"></script>
+<!-- 2026-10-08 大文件分页读/检索（read_file offset+limit、search_file 字面/正则守卫）的纯函数 -->
+<script src="/shared/text-search.js"></script>
+<!-- 2026-10-08 角色记忆：小本子（角色 KV）+ 知识库（trigram/BM25 关键词检索，全本地 IndexedDB） -->
+<script src="/js/text/data/char-memory.js"></script>
 <script src="/js/text/engine/app.js"></script>
   <script src="/js/text/ui/settings.js"></script>
 <!-- 网页内核(魂)· 工具调用内核 SDK。agent-kernel.js 用 ESM export,必须 type="module"(classic <script> 读到 export 会抛 SyntaxError → window.AgentKernel 不挂载);它底部仍会挂 globalThis.AgentKernel 供非模块代码取用。tools.js 是 IIFE,挂 window.OwnChatTools,仅在 buildRegistry() 运行时才取 AgentKernel,故 classic 加载、顺序无碍。app.js 的 agent 模式分支在「发送」时按需调用 window.AgentKernel.runAgentLoop + window.OwnChatTools.buildRegistry({onImage})。须在 app.js 之后。 -->
@@ -1528,7 +1555,7 @@
 <script src="/shared/tts.js"></script>
 <!-- 鱼缸引擎 V3:必须在 app.js 之后(依赖 window.__app.sendOne / abortCurrent / injectModeratorMsg) -->
 <script src="/js/text/engine/fishbowl-engine.js"></script>
-<!-- 微信群聊(打包层):一键建群入口 + 微信群头部皮肤;复用 multi-agent + fishbowl + app.js(发言人气泡/@/自动接力) + wechat 风格。须在 app.js + fishbowl-engine 之后 -->
+<!-- 群聊(打包层):一键建群入口 + 群聊头部皮肤;复用 multi-agent + fishbowl + app.js(发言人气泡/@/自动接力) + wechat 风格。须在 app.js + fishbowl-engine 之后 -->
 <script src="/js/text/engine/wechat-group.js"></script>
 <script src="/js/text/ui/cost-log-ui.js"></script>
 <!-- 2026-05-29 微信发图 文本侧编排(raw):配合图像侧 window.__chatImage 契约,契约未上线走 mock -->
@@ -1785,6 +1812,12 @@
       fishbowlSlot.innerHTML = '';
       fishbowlSlot.removeAttribute('style');
       fishbowlSlot.className = 'sidebar-slot';
+      // 2026-10-08 多智能体编排：活动面板顶部的「平级名单」容器（内容由 multi-agent.js 填；
+      // 只在多智能体模式开着且场景≥2 时有内容，否则隐藏）。一屏看全：上=平级，下=活动时间线。
+      var peers = document.createElement('div');
+      peers.id = '__agentPeers';
+      peers.style.cssText = 'flex:none;';
+      fishbowlSlot.appendChild(peers);
       fishbowlSlot.appendChild(wrapper);
       if (window.mountAgentConsole && typeof window.mountAgentConsole === 'function') {
         var r = window.mountAgentConsole(wrapper, { autoApprove: false });
@@ -1828,17 +1861,15 @@
   function syncAgentClass(on){
     try { document.documentElement.classList.toggle('agent-mode', !!on); } catch(e) {}
   }
+  // 2026-10-08（分层按钮）：两个开关不再互斥 —— 语义见下，别再恢复"点一个静默关掉另一个"。
+  //   Agent 模式 = 工作模式（工具循环）；单独开 = 单 agent（默认）。
+  //   多智能体   = 能力闸门：单独开 = RP 群聊（角色在时间线轮流发言）；
+  //                与 Agent 模式同开 = 给 agent 开多智能体能力（私下小会 / 派子 agent / 请角色上台），
+  //                时间线仍只有主 agent 一个声音（app.js isGroupChatActive 在 agent 模式恒 false）。
   function applyAgentMode(on){
     localStorage.setItem(LS_AGENT, on ? '1' : '0');
     syncAgentClass(on);
     if (on) {
-      // 互斥：关掉多智能体
-      if (localStorage.getItem(LS_MULTI) === 'multi') {
-        localStorage.setItem(LS_MULTI, 'single');
-        var ma = document.getElementById('multiAgentToggle');
-        if (ma) ma.dispatchEvent(new CustomEvent('force-off', { bubbles: true }));
-        window.dispatchEvent(new CustomEvent('multi-agent:changed'));
-      }
       mountAgentPanel();
     } else {
       unmountAgentPanel();
@@ -1856,6 +1887,44 @@
     mobileAgentPanel = document.getElementById('mobileTabPanel-agent');
 
     if (btn) btn.addEventListener('click', function(){ applyAgentMode(!isAgentOn()); });
+
+    // 2026-10-08 模式按钮的「外部改动」刷新：这两个开关的状态会被别处改 ——
+    //   ① 云同步把 main blob 回灌（cfw_agent_mode_v1 / tavern_multi_agent_mode_v1 都上云）
+    //   ② agent 工具 manage_settings（action=set, key=agentMode） ③ dev 控制台 __dev.setAgentMode
+    // 旧版按钮只在"点击 / 启动时"刷新，于是会出现"逻辑上开着、按钮却是暗的"（实测亮度差异的根源：
+    // 多智能体亮、Agent 模式暗，因为后者是被外部置上的）。三处补刷新：跨标签页 storage、云同步落地、
+    // 回到前台。这里只同步视觉（class/按钮/agent-mode 类），不自动弹出/收起控制台面板 —— 避免远端改动
+    // 突然在眼前开面板。
+    function refreshModeButtons(){
+      try { syncAgentClass(isAgentOn()); } catch (e) {}
+      try { updateBtnUI(); } catch (e) {}
+      try { window.dispatchEvent(new CustomEvent('multi-agent:changed')); } catch (e) {} // 多智能体按钮/控制台/场景名单都挂在这个事件上
+    }
+    // 2026-10-08 统一的外部改动入口：云同步回灌 / 别的标签页 / 回到前台 → 一次性重应用视觉与开关。
+    // 各模块自己订阅 cfw:external-settings（app.js 重读缓存标志、settings.js 回读面板控件、theme 由这里调）。
+    function applyExternalSettings(){
+      refreshModeButtons();
+      try { if (window.__theme && typeof window.__theme.applyFromLS === 'function') window.__theme.applyFromLS(); } catch (e) {}
+      try { window.dispatchEvent(new CustomEvent('cfw:external-settings')); } catch (e) {}
+    }
+    try {
+      window.addEventListener('storage', function (e) {
+        if (!e) return;
+        // key === null 表示整库被 clear（同步的批量落地会走 onStatus 那条，这里是兜底）
+        if (e.key === null || e.key === LS_AGENT || e.key === LS_MULTI || /^(cfw_|tavern_)/.test(String(e.key))) applyExternalSettings();
+      });
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) applyExternalSettings(); });
+      (function wireSyncModeRefresh(){
+        var tries = 0;
+        (function go(){
+          if (window.__sync && typeof window.__sync.onStatus === 'function') {
+            window.__sync.onStatus(function () { applyExternalSettings(); });
+            return;
+          }
+          if (tries++ < 40) setTimeout(go, 500);
+        })();
+      })();
+    } catch (e) {}
 
     // 移动端 Agent tab 点击：未开启时顺手开启 Agent 模式
     if (mobileAgentTabEl) {
@@ -1875,15 +1944,13 @@
       });
     }
 
-    // 互斥：多智能体开启 → 关 Agent
+    // 2026-10-08（分层按钮）：不再"多智能体开启 → 关 Agent"。同开时多智能体 = 给 agent 的能力闸门
+    // （私下小会 / 派子 agent / 请角色上台），时间线仍只有主 agent 说话；群聊只在没开 Agent 模式时驱动。
     if (multiBtn) {
       multiBtn.addEventListener('click', function(){
         setTimeout(function(){
-          if (localStorage.getItem(LS_MULTI) === 'multi' && isAgentOn()) {
-            localStorage.setItem(LS_AGENT, '0');
-            unmountAgentPanel();
-            updateBtnUI();
-          }
+          updateBtnUI();
+          window.dispatchEvent(new CustomEvent('multi-agent:changed'));
         }, 80);
       });
     }

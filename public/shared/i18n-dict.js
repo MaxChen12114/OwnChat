@@ -984,6 +984,39 @@
     "默认 · 交由角色卡决定": "Default · let the character card decide",
     "微信连发 · 1-2 句一条·多气泡连发": "WeChat style · 1–2 sentences per bubble, rapid fire",
     "基础": "Basic",
+
+    // ══ 第八批：并行会话新增的文案（特效档位扩充 / 内存卡）+ 本次拆分出的多智能体卡 + 动态档位数 ══
+    "多智能体编排": "Multi-agent orchestration",
+    "主子分派 · 允许派子 agent 干活": "Delegation · let the agent hand work to sub-agents",
+    "私下小会 · 向角色私下征询（结论不进时间线）": "Private meeting · consult characters off the record (not added to the timeline)",
+    "请角色上台 · 角色可直接在时间线回答": "Bring a character on stage · a character answers directly in the timeline",
+    "小会": "Meeting",
+    "人数上限": "Max participants",
+    "上下文条数": "Context messages",
+    "成本提示：小会里每位角色都是一次独立计费调用，轮数 2 约等于翻倍；子 agent 继承最小权限，不碰你的数据与时间线。":
+      "Cost note: every character in a meeting is a separate billed call, and 2 rounds roughly doubles it. Sub-agents inherit minimal permissions and never touch your data or timeline.",
+    "给选项 · 载技能 · 角色卡增删改 · 发图 · 好感度 · 朗读，外加多智能体编排（分派 / 小会 / 请角色上台，见「多智能体编排」卡）。文件与联网工具两档都有。":
+      "Choices · skills · character cards · images · affinity · speech, plus multi-agent orchestration (delegate / meetings / on stage — see the orchestration card). File and web tools are available in both tiers.",
+    "文件工具(list/search/read/write/edit/delete/export)与联网工具(搜索 / 抓网页)由各自模块单独注册,":
+      "File tools (list/search/read/write/edit/delete/export) and web tools (search / fetch) come from their own modules,",
+    ",不受这里影响：先 search_file 定位、read_file 按行分页读(大文件不怕截断)、长文 fetch_page 可续读 —— 由模型按需灵活组合。改完":
+      " and ignore this tier: search_file locates, read_file pages line by line (large files never get truncated), fetch_page continues long documents — the model combines them as needed. After changing,",
+    "内存": "Memory",
+    "壳长时间挂在后台后，页面会持住大量缓存内存（与特效档位关系不大）。开启后：": "When the app sits in the background for a long time, the page holds a lot of cached memory (mostly unrelated to the effects level). When on:",
+    "窗口在后台超过 10 分钟": "if the window stays in the background for over 10 minutes",
+    "且没有发送中/待批/草稿时，自动刷新页面释放内存 —— 聊天记录已落盘，不受影响。": " and nothing is sending, pending or drafted, the page reloads itself to free memory — chats are already saved, so nothing is lost.",
+    "空闲自动释放内存": "Free memory when idle",
+    "气泡级的磨砂与流光已": "Per-bubble blur and shimmer are",
+    "永久关闭": "permanently off",
+    "（成本随消息条数增长），不再随本开关恢复。": " (their cost grows with message count) and won't come back with this switch.",
+    "：关闭毛玻璃模糊、全屏混合层、常驻动画与背景光晕律动，拖动/滚动更跟手、更省电。勾选可换回玻璃 / 烛光的完整观感（代价是耗电与可能的卡顿）。":
+      ": frosted blur, full-screen blend layers, always-on animations and the background glow pulse are off, so dragging and scrolling feel tighter and the battery lasts longer. Tick this to get the full glass / candlelight look back (at the cost of power and possible stutter).",
+    "长段叙事 · 小说式丰满段落(写小说)": "Long-form narration · novel-style fuller paragraphs (for fiction writing)",
+    "模型": "Model",
+    "建群聊": "Create a group chat",
+    "/ 100 次": "/ 100",
+    ")。开启云同步后费用会跨设备合并;下方按设备分桶汇总。免费模式(NVIDIA)不计费。":
+      "). With cloud sync on, costs merge across devices; the breakdown below groups by device. Free mode (NVIDIA) is not billed.",
   };
 
   g.__i18nPatterns = [
@@ -1019,6 +1052,8 @@
     [/^已收藏 (\d+) 张$/, "$1 saved"],
     [/^已完成 · (\d+) 步$/, "$1 step(s) done"],
     [/^第 (\d+) 轮$/, "Round $1"],
+    [/^常用 · (\d+) 个$/, "Common · $1 tools"],
+    [/^全量 · (\d+) 个$/, "Full · $1 tools"],
     [/^(\d+) 次到 KV \(免费层 1000\/日上限\),可点顶栏暂停同步避免超额$/, "$1 syncs to KV (free tier: 1000/day) — pause sync from the top bar to stay under the cap"],
     [/^个 · 刷新页面后下拉生效$/, " — the picker updates after a refresh"],
     [/^· 源站共 (\d+) 个可用$/, "· provider has $1 available"],
