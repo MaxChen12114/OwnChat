@@ -24,6 +24,12 @@ A self-hosted AI creation platform for roleplay, long-form writing, coding and i
 
 ## Self-hosting (Cloudflare Workers)
 
+**Fastest path — the one-click deploy button.** It clones this repo into your own GitHub, provisions the KV namespace for you, and asks for the secrets while it sets the Worker up:
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/MaxChen12114/OwnChat)
+
+The values it asks for are described in `.dev.vars.example` (at minimum one model key; an access password is strongly recommended). Prefer the terminal, or already have a Workers setup? Then:
+
 Requirements: a Cloudflare account (free tier is fine) and Node.js 18+.
 
 ```bash
@@ -48,11 +54,13 @@ Local development: `wrangler dev`, with secrets in `.dev.vars` (git-ignored).
 
 ## Desktop & Android builds
 
-The Tauri 2 shell lives in `src-tauri/`. CI (`.github/workflows/tauri-build.yml`) builds a Windows installer and a debug APK on a version tag or manual dispatch.
+The Tauri 2 shell lives in `src-tauri/`. CI (`.github/workflows/tauri-build.yml`) builds the Windows installer and the Android APK on a version tag or manual dispatch (tags containing `-test` produce draft releases for testing).
 
-Before publishing your own builds:
+**The shell is domain-neutral.** On first run it shows a local setup page where you enter your deployment URL — with a built-in 3-step deploy guide for newcomers. No rebuild is needed to point it at your own Worker; the app grants its local capabilities (file access under a chosen directory, command execution behind a native confirmation) to exactly the origin you configure, and only that one.
 
-1. **Point the shell at your deployment.** In `src-tauri/tauri.conf.json` set `app.windows[0].url` to your domain (`https://your-domain.example/?shell=android`; the `shell=android` query enables the mobile layout) and update `capabilities/remote.json` to grant IPC to that origin.
+Before publishing your *own* builds, or if you want a build that skips the setup page:
+
+1. **(Optional) hard-code a default address.** In `src-tauri/tauri.conf.json`, set `app.windows[0].url` to `https://your-domain/?shell=android` (`shell=android` enables the mobile layout). Leave it out to use the setup page instead.
 2. **Generate your own signing key** for auto-updates:
    ```bash
    npx tauri signer generate -w ownchat.key

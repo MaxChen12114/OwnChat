@@ -1,0 +1,23 @@
+{
+  "name": "ownchat",
+  "private": true,
+  "description": "Self-hosted AI creation platform (Cloudflare Workers + static assets). Zero runtime dependencies by design; this file exists so Cloudflare's one-click deploy can pre-fill the build and deploy commands.",
+  "scripts": {
+    "build": "node scripts/gen-prompts.mjs && node scripts/check-syntax.mjs",
+    "deploy": "npx wrangler deploy",
+    "dev": "npx wrangler dev"
+  },
+  "cloudflare": {
+    "bindings": {
+      "NVIDIA_API_KEY": {
+        "description": "Free-tier model key from [build.nvidia.com](https://build.nvidia.com). Required for chat (free mode)."
+      },
+      "DEEPSEEK_API_KEY": {
+        "description": "Optional. Enables \"fast\" mode and conversation summaries (DeepSeek official API)."
+      },
+      "CHAT_PASSWORD": {
+        "description": "Strongly recommended: access password for /api/* and /sync — without it your model quota is open to anyone with the URL. Also the in-app login."
+      }
+    }
+  }
+}

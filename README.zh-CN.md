@@ -24,6 +24,12 @@
 
 ## 自部署（Cloudflare Workers）
 
+**最快的一条路 —— 一键部署按钮。** 它会把本仓库克隆到你自己的 GitHub、自动创建 KV 存储，并在配置 Worker 的过程中问你几个密钥：
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/MaxChen12114/OwnChat)
+
+它会问的那几项在 `.dev.vars.example` 里有说明（至少要一个模型 Key；强烈建议再设一个访问密码）。习惯用命令行、或已经有 Workers 环境，就走下面的手动流程：
+
 前置：一个 Cloudflare 账号（免费配额足够）与 Node.js 18+。
 
 ```bash
@@ -48,11 +54,13 @@ wrangler deploy
 
 ## 桌面端与安卓构建
 
-Tauri 2 打包工程在 `src-tauri/`；CI（`.github/workflows/tauri-build.yml`）会在打版本标签或手动触发时构建 Windows 安装包与调试版 APK。
+Tauri 2 打包工程在 `src-tauri/`；CI（`.github/workflows/tauri-build.yml`）会在打版本标签或手动触发时构建 Windows 安装包与安卓 APK（带 `-test` 的标签出 draft 包，供测试装机）。
 
-发布你自己的构建前：
+**壳是"域中立"的**：首次启动会显示一个本地设置页，填你自己的部署地址即可进入 —— 页内还带一个三步的一键部署向导。**指向自己的 Worker 不需要重新构建**；本地能力（选定目录下的文件读写、带系统确认框的命令执行）只会授予你配置的那一个域名，且仅此一个。
 
-1. **把壳指向你的部署**：`src-tauri/tauri.conf.json` 里 `app.windows[0].url` 改成你的域名（`https://你的域名.example/?shell=android`，`shell=android` 参数启用移动端布局），并把 `capabilities/remote.json` 的授权源改成同一个域名。
+发布你自己的构建、或想让构建跳过设置页直连某站时：
+
+1. **（可选）写死默认地址**：`src-tauri/tauri.conf.json` 里 `app.windows[0].url` 填 `https://你的域名/?shell=android`（`shell=android` 启用移动端布局）；不填就走设置页。
 2. **生成你自己的签名密钥**（自动更新用）：
    ```bash
    npx tauri signer generate -w ownchat.key

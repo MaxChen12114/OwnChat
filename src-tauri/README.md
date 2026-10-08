@@ -2,19 +2,26 @@
 
 把部署好的 OwnChat Web 端用 Tauri 2 打包成可安装的桌面 / 移动应用。
 
-## 先改三处指向（否则装出来的壳还是指向别人的站）
+## 域中立壳：装好首次填地址即可
 
-1. `tauri.conf.json` → `app.windows[0].url`：改成你自己的域名（`https://你的域名/?shell=android`；
+公开版**不写死站点地址**：首次启动显示本地设置页（`frontend/index.html`，双语，含「一键部署」向导）。
+填入部署地址后，Rust 侧只为**这一个域名**动态授予 IPC 能力（见 `src/lib.rs` 的「服务器地址」一节）
+再导航过去 —— 公开仓库不带静态能力清单（`capabilities/remote.json` 已被移除）。
+
+想让自己出的包直连某站、跳过设置页，改这两处：
+
+1. `tauri.conf.json` → `app.windows[0].url`：填你的域名（`https://你的域名/?shell=android`；
    `shell=android` 参数启用移动端布局）。
-2. `capabilities/remote.json`：把授权源（IPC/全局 Tauri API 授予哪些源）改成同一个域名 ——
-   **远程源拿到的 IPC 权限等同于本机应用**，只授予你自己的站。
-3. `identifier`：换成你自己的（它就是安卓的 `applicationId`，上线后再改等于换应用）。
+2. `identifier`：换成你自己的（它就是安卓的 `applicationId`，上线后再改等于换应用）。
+
+自己发布时若坚持要用静态授权（不用启动页），可以自行添加 `capabilities/remote.json` ——
+权限清单与 `src/lib.rs` 的 `REMOTE_PERMISSIONS` 必须保持同一口径（改一处要改两处）。
 
 ## 自动更新
 
 官方公开版发布由维护者签名：`plugins.updater.pubkey` 已内置对应公钥，私钥放在本仓库的 Secrets 里。
 
-要发布**你自己的**版本（通常先改了域名 / identifier），请换成你自己的密钥对：
+要发布**你自己的**版本，请换成你自己的密钥对：
 
 ```bash
 npx tauri signer generate -w ownchat.key        # 生成自己的签名密钥

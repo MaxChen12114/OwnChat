@@ -14,7 +14,10 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["devtools", "tray-icon"] }
+# dynamic-acl：运行时按用户配置的域名动态授予 IPC 能力（域中立壳，见 lib.rs 服务器地址一节）。
+# devtools 移到可选 feature：发布包不再带 webview 调试器（体积/开销都省），本地调试用
+# `cargo tauri dev --features devtools` 或 `cargo build --features devtools`。
+tauri = { version = "2", features = ["tray-icon", "dynamic-acl"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 rusqlite = { version = "0.32", features = ["bundled"] }
@@ -23,6 +26,17 @@ base64 = "0.22"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 futures-util = "0.3"
+
+[features]
+devtools = ["tauri/devtools"]
+
+# 2026-10-07：发布包性能 —— 之前 Android 只能出 debug 包（opt-level 0、带调试信息），
+# 是「手机端整体发钝」的可疑项之一；这里给出 release 档正式参数（体积/启动/调用都受益）。
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+strip = true
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

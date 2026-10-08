@@ -1,7 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "主窗口默认能力集",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "description": "本地页面（启动页 / 更换服务器地址窗口）能力集：只给地址读写与探针所需的最小集合",
+  "windows": ["main", "server-setup"],
+  "permissions": [
+    "core:default",
+    "allow-open-external",
+    "allow-http-request",
+    "allow-get-server-url",
+    "allow-set-server-url"
+  ]
 }

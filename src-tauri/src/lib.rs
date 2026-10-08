@@ -700,6 +700,130 @@ fn tts_list_models(app: tauri::AppHandle) -> Result<TtsWeights, String> {
     Ok(TtsWeights { gpt, sovits })
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// 服务器地址（域中立壳）· 2026-10-07
+// 公开渠道不再硬编码站点域名：首启落在本地启动页（frontend/index.html），由用户填入
+// 自己的部署地址（或跟着页内「一键部署」向导 3 分钟部署一个）。地址存 kv(settings/server_url)，
+// 保存 / 启动时做两件事：
+//   · 给该源**动态授予** IPC 能力 —— 只授这一个域名，比通配符安全；动态授权是会话级的，
+//     重启后自然只剩当前配置的那个源（私有渠道的静态授权仍在 capabilities/remote.json）。
+//   · 把主窗导航到 <地址>/?shell=android（沿用既有约定：App 壳带该参数启用移动布局）。
+// 私有渠道行为不变：由 tauri.conf.json 的 url 直达（走静态授权，见 capabilities/remote.json），
+// 不经过启动页。
+// ════════════════════════════════════════════════════════════════════════════
+const SERVER_NS: &str = "settings";
+const SERVER_URL_KEY: &str = "server_url";
+
+/// 远程源可得的权限清单 —— 与 capabilities/remote.json 保持**同一口径**（改一处必须改另一处）。
+/// 动态授权走 CapabilityBuilder，读不到 remote.json，只能在代码里显式列出。
+const REMOTE_PERMISSIONS: &[&str] = &[
+    "core:default",
+    "allow-ping",
+    "allow-open-external",
+    "allow-read-text-file",
+    "allow-import-text-file",
+    "allow-export-text-file",
+    "allow-get-storage-dir",
+    "allow-set-storage-dir",
+    "allow-pick-storage-dir",
+    "allow-open-storage-dir",
+    "allow-kv-set",
+    "allow-kv-get",
+    "allow-kv-list",
+    "allow-kv-delete",
+    "allow-http-request",
+    "allow-http-request-stream",
+    "allow-tts-get-config",
+    "allow-tts-set-config",
+    "allow-tts-start",
+    "allow-tts-stop",
+    "allow-tts-pick-dir",
+    "allow-tts-list-models",
+    "allow-tts-pick-file",
+    "allow-tts-pick-files",
+    "allow-agent-workdir-get",
+    "allow-agent-workdir-pick",
+    "allow-agent-workdir-set",
+    "allow-local-list-dir",
+    "allow-local-read-file",
+    "allow-local-write-file",
+    "allow-local-run-command",
+    "allow-local-env-info",
+    // 2026-10-07 新增：页面里显示/更换服务器地址（远程页的「更换服务器」入口与启动页共用）
+    "allow-set-server-url",
+    "allow-get-server-url",
+];
+
+/// 规范化用户填的地址：补 https:// 前缀、只留 scheme://host[:port][/path]（丢掉 query/hash）。
+fn normalize_server_url(raw: &str) -> Result<tauri::Url, String> {
+    let s = raw.trim();
+    if s.is_empty() {
+        return Err("地址不能为空".into());
+    }
+    let with_scheme = if s.contains("://") { s.to_string() } else { format!("https://{s}") };
+    let mut url = tauri::Url::parse(&with_scheme).map_err(|e| format!("地址格式不对：{e}"))?;
+    if url.scheme() != "https" && url.scheme() != "http" {
+        return Err("只支持 http/https 地址".into());
+    }
+    if url.host_str().unwrap_or("").is_empty() {
+        return Err("地址缺少主机名".into());
+    }
+    url.set_query(None);
+    url.set_fragment(None);
+    let path = url.path().trim_end_matches('/').to_string();
+    url.set_path(&path);
+    Ok(url)
+}
+
+/// 主窗应加载的页面：<地址>/?shell=android
+fn server_page_url(base: &tauri::Url) -> tauri::Url {
+    let mut u = base.clone();
+    u.set_path(&format!("{}/", base.path().trim_end_matches('/')));
+    u.set_query(Some("shell=android"));
+    u
+}
+
+/// 只给配置的那一个源动态授权（能力标识按源生成；同源重复授予在会话内幂等，代价可忽略）
+fn grant_remote_origin(app: &tauri::AppHandle, origin: &str) -> Result<(), String> {
+    let mut id = String::from("remote-configured");
+    for c in origin.chars() {
+        id.push(if c.is_ascii_alphanumeric() { c } else { '-' });
+    }
+    let mut builder = tauri::ipc::CapabilityBuilder::new(id)
+        .window("main")
+        .remote(origin.to_string());
+    for p in REMOTE_PERMISSIONS {
+        builder = builder.permission(*p);
+    }
+    app.add_capability(builder).map_err(|e| e.to_string())
+}
+
+/// 授权 + 导航（保存地址与启动恢复共用的同一条路径）
+fn activate_server(app: &tauri::AppHandle, base: &tauri::Url) -> Result<(), String> {
+    grant_remote_origin(app, &base.origin().ascii_serialization())?;
+    let win = app
+        .get_webview_window("main")
+        .ok_or_else(|| "找不到主窗口".to_string())?;
+    win.navigate(server_page_url(base)).map_err(|e| e.to_string())
+}
+
+/// 当前配置的服务器地址（启动页用来回填输入框；无配置返回 null）
+#[tauri::command]
+fn get_server_url(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    kv_read(&app, SERVER_NS, SERVER_URL_KEY)
+}
+
+/// 保存服务器地址并立即进入（启动页「连接」按钮）。
+/// 校验放在边界：前端探针只是体验优化，Rust 侧照旧独立校验（页面永远当不可信）。
+#[tauri::command]
+fn set_server_url(app: tauri::AppHandle, url: String) -> Result<String, String> {
+    let base = normalize_server_url(&url)?;
+    let saved = base.as_str().trim_end_matches('/').to_string();
+    kv_write(&app, SERVER_NS, SERVER_URL_KEY, &saved)?;
+    activate_server(&app, &base)?;
+    Ok(saved)
+}
+
 // 站内「新标签页」链接（target=_blank）在桌面 App 里：
 //   · 同源 → 当前窗口内跳转（子页面进得去）
 //   · 跨站外链 → 调用 open_external 用系统默认浏览器打开
@@ -787,7 +911,7 @@ pub fn run() {
     builder
         .manage(TtsProcess(std::sync::Mutex::new(None)))
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![ping, open_external, read_text_file, import_text_file, export_text_file, get_storage_dir, set_storage_dir, pick_storage_dir, open_storage_dir, kv_set, kv_get, kv_list, kv_delete, http_request, http_stream::http_request_stream, tts_get_config, tts_set_config, tts_start, tts_stop, tts_pick_dir, tts_list_models, tts_pick_file, tts_pick_files, agent_local::agent_workdir_get, agent_local::agent_workdir_pick, agent_local::agent_workdir_set, agent_local::local_list_dir, agent_local::local_read_file, agent_local::local_write_file, agent_local::local_run_command, agent_local::local_env_info])
+        .invoke_handler(tauri::generate_handler![ping, open_external, get_server_url, set_server_url, read_text_file, import_text_file, export_text_file, get_storage_dir, set_storage_dir, pick_storage_dir, open_storage_dir, kv_set, kv_get, kv_list, kv_delete, http_request, http_stream::http_request_stream, tts_get_config, tts_set_config, tts_start, tts_stop, tts_pick_dir, tts_list_models, tts_pick_file, tts_pick_files, agent_local::agent_workdir_get, agent_local::agent_workdir_pick, agent_local::agent_workdir_set, agent_local::local_list_dir, agent_local::local_read_file, agent_local::local_write_file, agent_local::local_run_command, agent_local::local_env_info])
         // 每次页面加载完成后注入导航补丁：站内 _blank 子页面同窗口打开 + 外链走系统浏览器
         .on_page_load(|webview, payload| {
             if let PageLoadEvent::Finished = payload.event() {
@@ -811,6 +935,8 @@ pub fn run() {
                 MenuItem::with_id(app, "tts_stop", "语音 · 停止服务", true, None::<&str>)?;
             let tts_auto_i =
                 MenuItem::with_id(app, "tts_autostart", "语音 · 开机自启动（开/关）", true, None::<&str>)?;
+            let server_setup_i =
+                MenuItem::with_id(app, "server_setup", "更换服务器地址…", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "退出 OwnChat", true, None::<&str>)?;
             let menu = Menu::with_items(
                 app,
@@ -822,6 +948,7 @@ pub fn run() {
                     &tts_start_i,
                     &tts_stop_i,
                     &tts_auto_i,
+                    &server_setup_i,
                     &quit_i,
                 ],
             )?;
@@ -950,6 +1077,23 @@ pub fn run() {
                             }
                         }
                     }
+                    // 更换服务器地址：开一个本地启动页窗口（复用主窗同一条保存路径，改完会导航主窗）
+                    "server_setup" => {
+                        if let Some(w) = app.get_webview_window("server-setup") {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                        } else if let Err(e) = tauri::WebviewWindowBuilder::new(
+                            app,
+                            "server-setup",
+                            tauri::WebviewUrl::App("index.html".into()),
+                        )
+                        .title("OwnChat · 更换服务器地址")
+                        .inner_size(580.0, 660.0)
+                        .build()
+                        {
+                            eprintln!("打开服务器设置窗口失败: {e}");
+                        }
+                    }
                     "quit" => {
                         // 2026-10-07 退出前冲刷：聊天推送是 30s 防抖，直接 exit(0) 会丢掉最近半分钟的会话
                         // （手机端看不到刚聊完的那段）。先 emit 让前端立刻 pushChatNow/pushNow，
@@ -1027,6 +1171,23 @@ pub fn run() {
                             }
                         }
                     }
+                }
+            }
+
+            // 域中立壳：配置过服务器地址就为它动态授权并导航过去（没有配置则留在启动页等人填）
+            {
+                let handle = app.handle().clone();
+                match kv_read(&handle, SERVER_NS, SERVER_URL_KEY) {
+                    Ok(Some(saved)) if !saved.trim().is_empty() => match normalize_server_url(&saved) {
+                        Ok(base) => {
+                            if let Err(e) = activate_server(&handle, &base) {
+                                eprintln!("服务器地址激活失败（留在启动页）: {e}");
+                            }
+                        }
+                        Err(e) => eprintln!("已保存的服务器地址无效（{e}），留在启动页等用户修正：{saved}"),
+                    },
+                    Ok(_) => {}
+                    Err(e) => eprintln!("读取服务器地址失败: {e}"),
                 }
             }
 

@@ -12,7 +12,6 @@
       {
         "label": "main",
         "title": "OwnChat",
-        "url": "https://your-domain.example/?shell=android",
         "width": 1200,
         "height": 800,
         "minWidth": 360,

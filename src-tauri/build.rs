@@ -4,6 +4,9 @@ fn main() {
             tauri_build::AppManifest::new().commands(&[
                 "ping",
                 "open_external",
+                // 2026-10-07 域中立壳：启动页读写服务器地址（授权/导航在 Rust 侧一并完成）
+                "get_server_url",
+                "set_server_url",
                 "read_text_file",
                 "import_text_file",
                 "export_text_file",

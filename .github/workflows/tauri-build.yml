@@ -52,6 +52,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          # 显式钉住 CLI 入口：公开仓库现在带根 package.json（供 CF 一键部署预填命令），
+          # 不让 tauri-action 因它改变构建入口推断。
+          tauriScript: npx --yes @tauri-apps/cli@2
           # 开发验证 tag（app-v*-testN）→ draft release（公开不可见，仓库管理员可见），供装机实测；
           # 正式 tag（app-vX.Y.Z）→ 照常公开发布。tagName 用实际推的那个 tag，
           # 避免测试构建把 release 建到正式 tag 上。
@@ -182,11 +185,33 @@ jobs:
               print("build.gradle.kts: androidx.core already present")
           PY
 
-      - name: Build APK (debug signing, verify pipeline first)
-        run: npx --yes @tauri-apps/cli@2 android build --apk --debug
+      # 2026-10-07：Android 从 debug 包升级为 **release 签名包** —— debug 是 opt-level 0、
+      # 带调试信息的未优化构建，是「手机端整体发钝」的可疑项之一。签名密钥走仓库 Secrets
+      # （一次性工作流 gen-android-keystore.yml 生成，见 AGENTS.md）。
+      - name: Write Android signing config
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not set — a release APK must be signed. Generate the keystore once with the gen-android-keystore workflow (see AGENTS.md) and store the four ANDROID_* secrets."
+            exit 1
+          fi
+          KS="$GITHUB_WORKSPACE/src-tauri/gen/android/ownchat-release.keystore"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KS"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$KS" "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" \
+            > src-tauri/gen/android/keystore.properties
+          echo "keystore.properties written (storeFile=$KS)"
+
+      - name: Build APK (release, signed)
+        run: npx --yes @tauri-apps/cli@2 android build --apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ownchat-android
+          name: ownchat-android-release
           path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk

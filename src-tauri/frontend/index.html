@@ -2,10 +2,223 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>OwnChat</title>
+    <style>
+      /* 启动页（域中立壳的第一步）：本地页面，唯一职责是拿到「服务器地址」。
+         2026-10-07：公开版不再硬编码站点域名 —— 填自己的部署地址，或跟着页内
+         「一键部署」向导把 Cloudflare Worker 部署到自己的账号，3 分钟拿到地址。 */
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; min-height: 100vh; background: #15161a; color: #e9e9ec;
+        font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        display: flex; align-items: center; justify-content: center;
+        padding: max(20px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+      }
+      .wrap { width: 100%; max-width: 560px; }
+      header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+      h1 { font-size: 26px; margin: 0; letter-spacing: .5px; }
+      .tag { color: #9a9aa3; font-size: 13px; margin: 4px 0 0; }
+      #langBtn {
+        background: transparent; color: #9a9aa3; border: 1px solid #33343c; border-radius: 8px;
+        padding: 5px 10px; font-size: 12px; cursor: pointer;
+      }
+      #langBtn:hover { color: #e9e9ec; border-color: #4a4b55; }
+      .card {
+        background: #1c1d23; border: 1px solid #2a2b33; border-radius: 14px;
+        padding: 18px; margin-bottom: 14px;
+      }
+      label { display: block; font-size: 13px; color: #b9b9c2; margin-bottom: 8px; }
+      input[type="url"] {
+        width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid #33343c;
+        background: #14151a; color: #e9e9ec; font-size: 15px; outline: none;
+      }
+      input[type="url"]:focus { border-color: #5b6cff; }
+      .row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+      button.primary, button.ghost {
+        border: 0; border-radius: 10px; padding: 12px 18px; font-size: 15px; cursor: pointer;
+      }
+      button.primary { background: #5b6cff; color: #fff; flex: 1; min-width: 140px; }
+      button.primary:disabled { opacity: .55; cursor: default; }
+      button.ghost { background: transparent; color: #b9b9c2; border: 1px solid #3a3b45; }
+      button.ghost:hover { color: #e9e9ec; }
+      #status { margin-top: 12px; font-size: 13px; line-height: 1.6; min-height: 20px; color: #9a9aa3; }
+      #status.err { color: #ff8080; }
+      #status.ok { color: #79d68a; }
+      details.wizard { padding: 0; }
+      details.wizard > summary {
+        cursor: pointer; padding: 16px 18px; font-size: 14px; color: #cfd0d8; list-style: none;
+      }
+      details.wizard > summary::-webkit-details-marker { display: none; }
+      details.wizard > summary::before { content: "▸ "; color: #5b6cff; }
+      details.wizard[open] > summary::before { content: "▾ "; }
+      .wizardBody { padding: 0 18px 18px; }
+      ol { padding-left: 20px; margin: 4px 0 14px; }
+      ol li { margin: 10px 0; font-size: 13px; line-height: 1.75; color: #c6c7cf; }
+      a.ext { color: #8f9bff; text-decoration: none; border-bottom: 1px dashed #4c56a8; cursor: pointer; }
+      .hint { font-size: 12px; color: #86868f; line-height: 1.7; margin: 10px 0 0; }
+      code { background: #14151a; border: 1px solid #2a2b33; border-radius: 6px; padding: 1px 6px; font-size: 12px; }
+    </style>
   </head>
-  <body style="margin:0;background:#15161A;color:#e8e8e8;font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;">
-    <p>正在连接 OwnChat…</p>
+  <body>
+    <div class="wrap">
+      <header>
+        <div>
+          <h1>OwnChat</h1>
+          <p class="tag" id="tagline"></p>
+        </div>
+        <button id="langBtn" type="button">EN</button>
+      </header>
+
+      <section class="card">
+        <label id="urlLabel" for="urlInput"></label>
+        <input id="urlInput" type="url" placeholder="https://your-domain.com" autocomplete="off" autocapitalize="off" spellcheck="false" />
+        <div class="row">
+          <button class="primary" id="connectBtn" type="button"></button>
+          <button class="ghost" id="forceBtn" type="button" hidden></button>
+        </div>
+        <div id="status"></div>
+      </section>
+
+      <details class="card wizard" id="wizard">
+        <summary id="wizardSummary"></summary>
+        <div class="wizardBody">
+          <ol id="wizardSteps"></ol>
+          <div class="row">
+            <button class="primary" id="deployBtn" type="button"></button>
+          </div>
+          <p class="hint" id="wizardHint"></p>
+        </div>
+      </details>
+    </div>
+
+    <script>
+      (function () {
+        "use strict";
+        var invoke = (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+          ? window.__TAURI__.core.invoke.bind(window.__TAURI__.core) : null;
+        var DEPLOY_URL = "https://deploy.workers.cloudflare.com/?url=https://github.com/MaxChen12114/OwnChat";
+        var lang = (navigator.language || "zh").toLowerCase().indexOf("zh") === 0 ? "zh" : "en";
+
+        var T = {
+          tagline: { zh: "连接你自己的服务器（数据、密钥都在你手里）", en: "Connect to your own server — your data, your keys" },
+          urlLabel: { zh: "服务器地址（你的 Cloudflare Worker 部署地址）", en: "Server address (your Cloudflare Worker deployment URL)" },
+          connect: { zh: "连接", en: "Connect" },
+          force: { zh: "仍然连接", en: "Connect anyway" },
+          langBtn: { zh: "EN", en: "中文" },
+          wizardSummary: { zh: "我是新手：3 分钟部署一台自己的服务器", en: "New here? Deploy your own server in ~3 minutes" },
+          deployBtn: { zh: "打开一键部署页面", en: "Open the one-click deploy page" },
+          wizardHint: {
+            zh: "部署完成后把形如 https://ownchat.你的子域.workers.dev 的地址粘到上面的输入框，点「连接」。地址填错可以重装应用，或清一下应用数据重来。",
+            en: "When the build finishes, copy the URL (like https://ownchat.your-subdomain.workers.dev) into the field above and press Connect. Picked a wrong address? Reinstall the app or clear its data to get back here."
+          },
+          steps: {
+            zh: [
+              '注册两个免费账号：<a class="ext" data-ext="https://dash.cloudflare.com/sign-up">Cloudflare</a>（部署运行）和 <a class="ext" data-ext="https://github.com/signup">GitHub</a>（托管代码副本）。',
+              '领一个免费模型 Key：<a class="ext" data-ext="https://build.nvidia.com">NVIDIA NIM</a>（注册即可，免费额度）。可选：想用「快速」模式再加一个 DeepSeek 官方 Key。',
+              '点下面的「打开一键部署页面」→ 登录 Cloudflare → 授权 GitHub → 按提示确认。它会把项目克隆到你的 GitHub、自动创建存储，并让你粘贴上面两个 Key（访问密码建议填一个，防止别人消耗你的额度）。',
+              '等构建完成（约 1–2 分钟），复制 Cloudflare 给的 <code>*.workers.dev</code> 地址，粘回上面的输入框，点「连接」。',
+              '连上后在应用里做一次：设置 → 模型 API → 拉取模型列表 → 选一个模型。之后就能正常聊天了。'
+            ],
+            en: [
+              'Create two free accounts: <a class="ext" data-ext="https://dash.cloudflare.com/sign-up">Cloudflare</a> (runs the server) and <a class="ext" data-ext="https://github.com/signup">GitHub</a> (holds your copy of the code).',
+              'Get a free model key from <a class="ext" data-ext="https://build.nvidia.com">NVIDIA NIM</a> (sign-up only). Optional: a DeepSeek key if you want "fast" mode later.',
+              'Click "Open the one-click deploy page" → sign in to Cloudflare → authorize GitHub → follow the prompts. It clones the project to your GitHub, provisions storage automatically, and asks you to paste the two keys above (set an access password too, so nobody else burns your quota).',
+              'When the build finishes (~1–2 min), copy the <code>*.workers.dev</code> URL into the field above and press Connect.',
+              'Then, once inside: Settings → Model API → fetch the model list and pick one. That\'s the last step before you can chat.'
+            ]
+          },
+          busy: { zh: "正在验证地址…", en: "Checking the address…" },
+          needUrl: { zh: "请先填服务器地址。", en: "Please enter the server address first." },
+          ok: { zh: "地址可用，正在进入…", en: "Address looks good — opening…" },
+          fail: {
+            zh: "这个地址连不上或不是 OwnChat 服务（应能访问 <code>/config.js</code>）。检查一下地址，或再次点按确认没有打错。",
+            en: "Couldn't reach that address, or it isn't an OwnChat server (it should serve <code>/config.js</code>). Double-check the URL, or press again to connect anyway."
+          },
+          saved: { zh: "已保存，正在进入…", en: "Saved — opening…" },
+          noTauri: { zh: "启动页需要在 OwnChat 应用内打开。", en: "This setup page must be opened inside the OwnChat app." }
+        };
+        function t(key) { return T[key][lang]; }
+
+        var $ = function (id) { return document.getElementById(id); };
+        var input = $("urlInput"), statusEl = $("status"), connectBtn = $("connectBtn"), forceBtn = $("forceBtn");
+
+        function paint() {
+          document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+          $("langBtn").textContent = t("langBtn");
+          $("tagline").innerHTML = t("tagline");
+          $("urlLabel").textContent = t("urlLabel");
+          connectBtn.textContent = t("connect");
+          forceBtn.textContent = t("force");
+          $("wizardSummary").textContent = t("wizardSummary");
+          $("deployBtn").textContent = t("deployBtn");
+          $("wizardHint").innerHTML = t("wizardHint");
+          $("wizardSteps").innerHTML = t("steps").map(function (s) { return "<li>" + s + "</li>"; }).join("");
+        }
+        function say(cls, html) { statusEl.className = cls || ""; statusEl.innerHTML = html || ""; }
+
+        function normalize(raw) {
+          raw = (raw || "").trim();
+          if (!raw) return "";
+          if (!/^https?:\/\//i.test(raw)) raw = "https://" + raw;
+          return raw.replace(/\/+$/, "");
+        }
+
+        function openExternal(url) {
+          if (!invoke) return;
+          invoke("open_external", { url: url }).catch(function (e) { say("err", String(e)); });
+        }
+        document.addEventListener("click", function (e) {
+          var a = e.target && e.target.closest ? e.target.closest("[data-ext]") : null;
+          if (!a) return;
+          e.preventDefault();
+          openExternal(a.getAttribute("data-ext"));
+        });
+
+        var busy = false;
+        async function connect(force) {
+          if (busy) return;
+          var base = normalize(input.value);
+          if (!base) { say("err", t("needUrl")); return; }
+          if (!invoke) { say("err", t("noTauri")); return; }
+          busy = true; connectBtn.disabled = true; forceBtn.hidden = true;
+          say("", t("busy"));
+          var reachable = true;
+          if (!force) {
+            try {
+              // 探针走 Rust 侧 http_request（不受本地页 CORS 限制）：/config.js 是每个 OwnChat
+              // 部署都有的公开文件，200 即认为是自己的服务。
+              var r = await invoke("http_request", { method: "GET", url: base + "/config.js", follow_redirects: true, headers: {} });
+              reachable = !!(r && typeof r.status === "number" && r.status >= 200 && r.status < 400);
+            } catch (e) { reachable = false; }
+          }
+          if (!reachable && !force) {
+            busy = false; connectBtn.disabled = false;
+            forceBtn.hidden = false;
+            say("err", t("fail"));
+            return;
+          }
+          try {
+            await invoke("set_server_url", { url: base });
+            say("ok", t("saved"));
+          } catch (e) {
+            busy = false; connectBtn.disabled = false;
+            say("err", String(e));
+          }
+        }
+        connectBtn.addEventListener("click", function () { connect(false); });
+        forceBtn.addEventListener("click", function () { connect(true); });
+        $("langBtn").addEventListener("click", function () { lang = lang === "zh" ? "en" : "zh"; paint(); });
+        input.addEventListener("keydown", function (e) { if (e.key === "Enter") connect(false); });
+
+        paint();
+        if (invoke) {
+          invoke("get_server_url").then(function (v) {
+            if (v) { input.value = v; }
+          }).catch(function () {});
+        }
+      })();
+    </script>
   </body>
 </html>
