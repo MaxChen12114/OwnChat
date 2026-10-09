@@ -19,7 +19,7 @@ A self-hosted AI creation platform for roleplay, long-form writing, coding and i
 - **Multi-agent orchestration** — pull characters from different worlds into one group chat, hold a private meeting where characters answer off the record, or put a character on stage to reply directly in the timeline (as a sub-agent, the main agent can also delegate work under minimal permissions).
 - **WeChat-style photo messages** — the model can *send* photos mid-chat: selfies are re-rendered from the character's reference image so the face stays consistent, scenes are generated fresh. Replies can also arrive as multiple short bubbles, WeChat-style.
 - **Long-form writing & code collaboration** — a prompt-editor for reusable instruction modules, skills, and per-scene presets.
-- **Image & voice** — image generation/editing through your own provider; read any reply aloud with local TTS (GPT-SoVITS) in the desktop app.
+- **Image & voice** — image generation / editing / character portraits through **your own Gitee AI key** (called via the deployment's built-in proxy); read any reply aloud with local TTS (GPT-SoVITS) in the desktop app.
 - **Ambient audio** — two independent decks (environment × music) with 30 bundled CC0 tracks; the model can direct them from roleplay context via hidden tags.
 - **Themes** — minimal / glass / candle, per-device.
 - **Self-hosted by design** — no vendor backend, no telemetry; your Worker, your KV, your keys.
@@ -109,11 +109,19 @@ Base files are payloads, not documents — their bytes go straight into model re
 
 Prompt libraries that ship with the repo are credited in `src/prompts/CREDITS.md`; bundled ambient audio in `public/assets/ambient/CREDITS.txt`.
 
+## Images & voice
+
+**Images.** Generation, editing and character portraits call **Gitee AI** (`ai.gitee.com`) through the deployment's built-in `/img/*` proxy — you supply your own **Gitee AI key** (Settings → Image API Key; stored on your device only, never synced). Models used: `z-image-turbo` (text-to-image, up to 2048×2048), `Qwen-Image-Edit-2511` (editing), `Wan2_2-I2V-A14B` (image-to-video); editing and video run through Gitee's async task API. The free tier is around 100 images/day and the app keeps a local counter. **Other image providers are not supported yet.** On deployments that set an access password, image APIs require being logged in, like the rest of the app.
+
+**Voice (desktop app only).** Reading replies aloud requires a local [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) `api_v2` server (default `127.0.0.1:9880`); the tray menu can start it and auto-start it on login. Reference audio is a **local file path** — it is never uploaded. `.ckpt` / `.pth` voice models are scanned and hot-swappable, and multiple reference clips are supported. The port lives in the app's local settings; there is no in-app UI for changing it yet.
+
 ## Community resources
 
 Third-party projects that pair well with OwnChat. **Not affiliated with, not reviewed by, and not endorsed by this project** — and nothing below is copied into this repository:
 
 - **[Spiritual-Spell-Red-Teaming](https://github.com/Goochbeater/Spiritual-Spell-Red-Teaming)** — a large community collection of red-teaming / jailbreak prompts for many LLMs (mostly Claude). **Read the warnings before you click:** it ships **no license**, it contains adult / NSFW-capable jailbreak prompts and collected vendor system prompts, and **its README embeds hidden prompt-injection text aimed at AI tools** — do not paste that README into an AI assistant or agent, read it with your own eyes only. If you use anything from it in your own deployment, that is your own responsibility: comply with the laws that apply to you and with each model provider's terms. (Consistent with this repository's policy, no-license third-party text is never copied into `src/prompts/` — link only.)
+
+- **TTS backend** — this project integrates [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) (local `api_v2` `/tts`, default port 9880; voice cloning with hot-swappable weights; actively maintained). Other self-hostable Chinese voice-cloning options exist — [IndexTTS](https://github.com/index-tts/index-tts), [CosyVoice](https://github.com/FunAudioLLM/CosyVoice), [Chatterbox](https://github.com/resemble-ai/chatterbox), [F5-TTS](https://github.com/SWivid/F5-TTS) — but **their HTTP shapes differ (most are not OpenAI `/v1/audio/speech`; adapting is on you) and model-weight licenses vary (some are non-commercial)** — check each repository before integrating.
 
 Dropped into your own deployment and want it behind the top-bar button? This one clearly belongs on the "custom" side — put what you want under `src/prompts/custom/`, deploy, and switch the button to **Custom** (and keep that folder out of your public repository).
 

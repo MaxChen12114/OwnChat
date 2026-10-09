@@ -25,7 +25,15 @@
     var h = extra || {};
     var k = getKey();
     if (k) h['Authorization'] = 'Bearer ' + k;
+    // 2026-10-09：设了 CHAT_PASSWORD 的部署，/img/* 要求带应用登录态（服务端 checkSync 读 X-Sync-Token）。
+    // 不能借 Authorization —— 那个位置是上游 Gitee Key 的透传位。
+    var t = appToken();
+    if (t) h['X-Sync-Token'] = t;
     return h;
+  }
+  function appToken() {
+    try { return (window.__auth && window.__auth.getToken && window.__auth.getToken()) || localStorage.getItem('cfw_auth_token_v1') || ''; }
+    catch (e) { return ''; }
   }
   // ── 4.81 修(手机端发图卡死): 给裸 fetch 套单次超时,网络停滞时快速失败而非无限挂起。
   //    调用方已自带 signal 时不二次包装(尊重外部中止语义)。──
@@ -48,6 +56,7 @@
     var init = { method: 'GET', signal: opts.signal || null };
     if (/^data:/i.test(u)) return fetch(u, init);
     if (u.charAt(0) === '/') return fetch(u, init);
+    init.headers = authHeaders({}); // /img/dl 也过 checkSync：带登录态才通得过设了密码的部署
     return fetch(ENDPOINTS.download + encodeURIComponent(u), init);
   }
 

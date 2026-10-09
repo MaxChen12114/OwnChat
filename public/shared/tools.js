@@ -866,8 +866,16 @@
 				const doc = global.document
 				if (!doc) return { ok: false, error: "无 document,非浏览器环境,无法做视频接力" }
 				let apiKey = ""
-				try { apiKey = (localStorage.getItem("moark_api_key") || "").trim() } catch (e) {}
-				if (!apiKey) return { ok: false, error: "未找到 Gitee API Key:请先到图像工坊页输入并勾选「记住」存一次(localStorage.moark_api_key)" }
+				try { apiKey = (localStorage.getItem("cfw_image_key_v1") || localStorage.getItem("moark_api_key") || "").trim() } catch (e) {}
+				if (!apiKey) return { ok: false, error: "未找到 Gitee API Key：请先到 设置 → 图像 API Key 填一次（只存本机）" }
+				// 设了访问密码的部署：/img/* 要求带应用登录态（X-Sync-Token）；Authorization 让给上游 Key
+				let syncTok = ""
+				try { syncTok = (localStorage.getItem("cfw_auth_token_v1") || "").trim() } catch (e) {}
+				function authHdr(extra) {
+					const h = Object.assign({ "Authorization": "Bearer " + apiKey }, extra || {})
+					if (syncTok) h["X-Sync-Token"] = syncTok
+					return h
+				}
 				const rawSegs = Array.isArray(args && args.segments) ? args.segments : []
 				const segs = rawSegs.map(function (s) {
 					if (!s || typeof s.prompt !== "string" || !s.prompt.trim()) return null
@@ -887,7 +895,7 @@
 
 				async function readJson(res) { const t = await res.text(); try { return JSON.parse(t) } catch (e) { return { _text: t } } }
 				async function dlBlob(url) {
-					const r = await fetch("/img/dl?url=" + encodeURIComponent(url))
+					const r = await fetch("/img/dl?url=" + encodeURIComponent(url), { headers: authHdr() })
 					if (!r.ok) throw new Error("下载失败(" + r.status + ")")
 					return await r.blob()
 				}
@@ -906,7 +914,7 @@
 						fd.append("image", imageBlob, "frame.png")
 						return fd
 					}
-					const hdr = { "Authorization": "Bearer " + apiKey }
+					const hdr = authHdr()
 					let res = await fetch("/img/v1/async/videos/image-to-video", { method: "POST", headers: hdr, body: build(false) })
 					let j = await readJson(res)
 					if (res.ok && j.task_id) return j.task_id
@@ -918,7 +926,7 @@
 				async function pollTask(taskId) {
 					const start = Date.now()
 					while (Date.now() - start < 60 * 60 * 1000) {
-						const res = await fetch("/img/v1/task/" + encodeURIComponent(taskId), { method: "GET", headers: { "Authorization": "Bearer " + apiKey } })
+						const res = await fetch("/img/v1/task/" + encodeURIComponent(taskId), { method: "GET", headers: authHdr() })
 						const j = await readJson(res)
 						const st = j.status || "unknown"
 						if (st === "success" || st === "failed" || st === "cancelled") return { status: st, raw: j }

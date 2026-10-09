@@ -45,9 +45,11 @@
   function hashId(s) { var h = 5381, i = s.length; while (i) { h = (h * 33) ^ s.charCodeAt(--i); } return 'a' + (h >>> 0).toString(36); }
   function fire() { try { window.dispatchEvent(new CustomEvent('imagealbum:changed')); } catch (e) {} }
 
+  // 设了访问密码的部署：/img/* 要带应用登录态（服务端 checkSync 读 X-Sync-Token）
+  function authHdr() { try { var t = localStorage.getItem('cfw_auth_token_v1'); return t ? { 'X-Sync-Token': t } : {}; } catch (e) { return {}; } }
   function dlBlob(url) {
     if (url.indexOf('data:') === 0) return orig(url).then(function (r) { return r.blob(); });
-    return orig('/img/dl?url=' + encodeURIComponent(url)).then(function (r) { if (!r.ok) throw new Error('dl ' + r.status); return r.blob(); });
+    return orig('/img/dl?url=' + encodeURIComponent(url), { headers: authHdr() }).then(function (r) { if (!r.ok) throw new Error('dl ' + r.status); return r.blob(); });
   }
   function blobToDataUrl(blob) { return new Promise(function (res, rej) { var fr = new FileReader(); fr.onload = function () { res(fr.result); }; fr.onerror = function () { rej(fr.error); }; fr.readAsDataURL(blob); }); }
 

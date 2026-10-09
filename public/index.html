@@ -1566,7 +1566,9 @@
      2026-10-06: 改成三级渐进披露 —— 只有「名称 + 描述」目录挂进 agent 模式的系统提示(app.js 的 agent 装配点),
      正文由 load_skill 工具按需取;普通对话不再注入技能正文。管理面 = 设置·技能分类(#setSkillSlot)。 -->
 <script src="/shared/skills.js"></script>
-<!-- 本地语音 TTS(应用端独有):tts.js 自注入 🔊 朗读按钮,调本地 GPT-SoVITS(经 Tauri http_request 代理打到 127.0.0.1:9880,端口可在设置改 cfw_tts_port_v1)。IIFE 自执行 + MutationObserver 监听 .row.ai 注入按钮,无依赖;网页版无 window.__TAURI__ 时静默不启用。放 shared 这组末尾即可。 -->
+<!-- 本地语音 TTS(应用端独有):tts.js 自注入 🔊 朗读按钮,调本地 GPT-SoVITS(经 Tauri http_request 代理打到 127.0.0.1:<port>)。
+     端口由宿主设置层保存(Rust kv settings.tts_port,默认 9880;托盘「语音 · 启动服务」可拉起/自启),App 内暂无改端口的 UI(2026-10-09 更正旧注释)。
+     IIFE 自执行 + MutationObserver 监听 .row.ai 注入按钮,无依赖;网页版无 window.__TAURI__ 时静默不启用。放 shared 这组末尾即可。 -->
 <script src="https://cdn.jsdelivr.net/npm/resonance-audio/build/resonance-audio.min.js"></script>
 <script src="/shared/tts.js"></script>
 <!-- 鱼缸引擎 V3:必须在 app.js 之后(依赖 window.__app.sendOne / abortCurrent / injectModeratorMsg) -->

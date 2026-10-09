@@ -5,6 +5,20 @@ Notable changes per public release. Release notes live in
 
 ## Unreleased
 
+- **Docs: images & voice in plain words** — the README now states what the image features actually
+  use (your own **Gitee AI** key via the built-in proxy; `z-image-turbo` / `Qwen-Image-Edit-2511` /
+  `Wan2_2-I2V-A14B`; ~100 images/day free tier; other image providers not supported yet) and how
+  desktop TTS works (local GPT-SoVITS `api_v2` on 9880, tray start/auto-start, local reference audio).
+  Community resources gained a TTS-backend entry (GPT-SoVITS + other self-hosted options, with the
+  usual caveats about differing HTTP shapes and model-weight licenses).
+- **Security: image proxy requires login again** — `/img/v1/*` and `/img/dl` now go through the same
+  access check as `/api/*`: on deployments that set `CHAT_PASSWORD`, requests must carry the app's
+  login token (`X-Sync-Token`); deployments without a password are unchanged. Before this, anyone
+  could use a deployment as a free image proxy.
+- **Fix: video tool read the wrong key** — it only looked at the legacy `moark_api_key`, so users who
+  saved their key through Settings → Image API Key saw "no key found". It now reads the current key
+  first, with the legacy key as fallback.
+
 - **Setup page redesign** — the first-run window (the domain-neutral shell's setup page) got a proper
   product look: brand mark + version chip, the app's own neutral palette (the old indigo violated the
   project's no-purple rule), the app's font stack, a spinner on Connect, and two clearly separated

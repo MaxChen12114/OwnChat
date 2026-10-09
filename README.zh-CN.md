@@ -19,7 +19,7 @@
 - **多智能体编排** —— 把不同世界观的角色拉进同一个群聊；向角色开「私下小会」（结论不进时间线）；「请角色上台」让角色直接在时间线发言；主 agent 也能派子 agent 干活（最小权限、任务完成即回收）。
 - **微信发图** —— 模型能在聊天中主动发照片：自拍按角色基准图改图锁定长相、场景图现生成；回复还能像微信一样拆成多条短气泡连发。
 - **长文写作与代码协作** —— 提示词编辑器管理可复用的指令模块、技能与场景预设。
-- **图像与语音** —— 走你自己配置的图像服务；桌面端可用本地 TTS（GPT-SoVITS）把任意回复读出来。
+- **图像与语音** —— 生图 / 改图 / 立绘走**你自己的 Gitee AI Key**（经部署内置的代理调用）；桌面端可用本地 TTS（GPT-SoVITS）把任意回复读出来。
 - **氛围音** —— 环境声 × 背景音乐两条独立音轨，内置 30 条 CC0 音轨；RP 模式下模型可按剧情用隐藏标签自行导演。
 - **主题** —— 极简 / 玻璃 / 烛夜私语，按设备生效。
 - **自部署优先** —— 没有厂商后端、没有遥测；你的 Worker、你的 KV、你的密钥。
@@ -109,11 +109,19 @@ Tauri 2 打包工程在 `src-tauri/`；CI（`.github/workflows/tauri-build.yml`�
 
 随仓库分发的提示词库来源见 `src/prompts/CREDITS.md`，内置氛围音来源见 `public/assets/ambient/CREDITS.txt`。
 
+## 图像与语音
+
+**图像。** 生图 / 改图 / 立绘都走 **Gitee AI**（`ai.gitee.com`），经部署内置的 `/img/*` 代理调用 —— 你要自备 **Gitee AI Key**（设置 → 图像 API Key；只存本机、不进云同步）。用到的模型：`z-image-turbo`（文生图，最大 2048×2048）、`Qwen-Image-Edit-2511`（改图）、`Wan2_2-I2V-A14B`（图生视频）；改图与视频走 Gitee 的异步任务接口。免费额度约 **100 张/天**，应用内做本地计数。**暂不支持接其他生图服务。** 部署设了访问密码时，图像接口和其余接口一样需要先登录。
+
+**语音（仅桌面版）。** 朗读需要本机跑一个 [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) 的 `api_v2` 服务（默认 `127.0.0.1:9880`），托盘菜单可以启动它、也能设置开机自启。参考音频是**本机文件路径**，不会上传；支持扫描 `.ckpt` / `.pth` 音色模型热切与多参考音频。端口存在应用的本地设置里，目前 App 内没有改端口的界面。
+
 ## 社区资源
 
 与 OwnChat 搭配使用的第三方项目。**与本项目无关联、未经审核、不构成背书** —— 下列内容一律不复制进本仓库：
 
 - **[Spiritual-Spell-Red-Teaming](https://github.com/Goochbeater/Spiritual-Spell-Red-Teaming)** —— 面向多种大模型的越狱 / 红队提示词合集（以 Claude 为主）。**点进去之前先看警告**：它**没有 LICENSE**，含可产生成人向内容的越狱提示词与收集来的各家厂商系统提示词，**且其 README 里嵌了一段针对 AI 的隐藏提示词注入** —— 别把它整份喂给 AI 助手 / agent，请自己人眼看。若你在自己的部署里用了其中内容，后果自负：请遵守当地法律与各模型服务商的条款。（按本仓库一贯政策，无协议文本从不复制进 `src/prompts/`，只做链接。）
+
+- **TTS 后端** —— 本项目内置对接 [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS)（本机 `api_v2` 的 `/tts`，默认 9880，支持音色克隆与权重热切；该项目更新很活跃）。社区里同类可自托管的中文音色克隆方案还有 [IndexTTS](https://github.com/index-tts/index-tts)、[CosyVoice](https://github.com/FunAudioLLM/CosyVoice)、[Chatterbox](https://github.com/resemble-ai/chatterbox)、[F5-TTS](https://github.com/SWivid/F5-TTS) 等 —— **它们的 HTTP 接口形状各不相同（多数字不是 OpenAI `/v1/audio/speech`，接入需自行适配），模型权重许可证也不统一（部分禁商用）**，接入前请以各自仓库的 LICENSE 为准。
 
 放进自己部署后想让它跟在顶栏按钮后面？这类内容明显属于「自定义」那一档 —— 把你要用的部分放进 `src/prompts/custom/` 并部署，顶栏按钮切到「自定义」即可（记得别把该目录提交进公开仓库）。
 

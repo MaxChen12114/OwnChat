@@ -27,13 +27,14 @@ function json403() {
 export async function handleImageRequest(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
-  if (path === "/img/dl" || path === "/img/dl/") return handleDownload(request, url);
-  if (path.startsWith("/img/v1/")) return handleProxy(request, url);
+  if (path === "/img/dl" || path === "/img/dl/") return handleDownload(request, url, env);
+  if (path.startsWith("/img/v1/")) return handleProxy(request, url, env);
   return null; // 不是图像路由，交回主 Worker
 }
 
-async function handleProxy(request, url) {
+async function handleProxy(request, url, env) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders() });
+  if (!checkSync(request, env)) return jsonResp({ error: "Unauthorized" }, 401);
   const rest = url.pathname.slice("/img/v1/".length);
   const target = new URL(`${UPSTREAM}/${rest}`);
   target.search = url.search;
@@ -46,8 +47,9 @@ async function handleProxy(request, url) {
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: respHeaders });
 }
 
-async function handleDownload(request, url) {
+async function handleDownload(request, url, env) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders() });
+  if (!checkSync(request, env)) return jsonResp({ error: "Unauthorized" }, 401);
   const target = url.searchParams.get("url") || "";
   if (!target || !(target.startsWith("https://") || target.startsWith("http://"))) {
     return new Response(JSON.stringify({ error: "Invalid or missing url param" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders() } });
@@ -66,10 +68,11 @@ async function handleDownload(request, url) {
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: respHeaders });
 }
 
-// 与文本侧云同步同源鉴权: Authorization Bearer == env.CHAT_PASSWORD(未设则放行,便于本地)
-// 2026-10-05(C-2): 目前已无消费方(R2/画廊路由已删)。留着 —— 它是 checkSync 语义
-// 在图像侧的唯一实现,将来接任何"要鉴权的图像路由"时用得上,且未设密码时放行
-// 的 fail-open 行为在删除注释里已留档。
+// 与文本侧云同步同源鉴权: 设了 env.CHAT_PASSWORD 时要求 X-Sync-Token(或 Authorization)等于它;
+// 未设密码则放行(本地/内网部署)。
+// 2026-10-09: /img/v1 与 /img/dl 重新挂上本校验 —— 这两条是"拿你的 Worker 当免费代理"的两个面
+// (代理上游 + 任意 URL 下载),之前无消费方时等于对全网开放。前端在应用登录态下会带 X-Sync-Token。
+// 不用 Authorization 做判断面:那个头被"上游 Gitee Key 透传"占着,拿它当密码校验会误伤正常生图。
 function checkSync(request, env) {
   if (!env || !env.CHAT_PASSWORD) return true;
   const auth = request.headers.get("Authorization") || "";

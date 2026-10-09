@@ -1,4 +1,7 @@
-// image-gallery.js —— 工坊内画廊 tab + 手动收藏入 R2 + KV 跨设备同步 + IDB 缓存
+// image-gallery.js —— 工坊内画廊 tab + 手动收藏（本地元数据 LS + 缩略图 IDB 缓存）。
+// 2026-10-09 注：R2/云画廊三条路由已于 2026-10-05 删除（wrangler.toml 从未声明绑定，线上恒 501），
+// 现存的 /img/r2/save、/img/gallery 调用会失败并静默回落到本地画廊 —— 文案与代码里的 "云存储/R2"
+// 均为降级后的历史措辞，实际行为是"收藏只存本机"。
 (function () {
   if (window.__gallery) return;
   var LS_META = 'cfw_image_gallery_v1';   // 本地元数据(离线兜底,JSON 数组)
@@ -82,7 +85,13 @@
     persist();
     // 缓存 blob 到 IDB(R2 用 key,纯本地用 local:<id>),保证缩略图离线 / 过期后仍可显示
     var cacheKey = key || ('local:' + item.id);
-    try { var b = await (await fetch(key ? savedUrl : ('/img/dl?url=' + encodeURIComponent(srcUrl)))).blob(); if (b) await idbPut(cacheKey, b); } catch (e) {}
+    try {
+      // 走 /img/dl 时带登录态：设了访问密码的部署由服务端 checkSync 校验（X-Sync-Token）
+      var dlUrl = key ? savedUrl : ('/img/dl?url=' + encodeURIComponent(srcUrl));
+      var dlInit = { headers: (function () { try { var t = localStorage.getItem('cfw_auth_token_v1'); return t ? { 'X-Sync-Token': t } : {}; } catch (e) { return {}; } })() };
+      var b = await (await fetch(dlUrl, dlInit)).blob();
+      if (b) await idbPut(cacheKey, b);
+    } catch (e) {}
     renderGrid();
     // 仅当图已进 R2 才把元数据推 KV;没 R2 的纯本地条目不同步,避免别的设备拿到裂图
     if (key) pushSoon();
