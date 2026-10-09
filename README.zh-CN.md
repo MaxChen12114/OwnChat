@@ -119,9 +119,8 @@ Tauri 2 打包工程在 `src-tauri/`；CI（`.github/workflows/tauri-build.yml`�
 
 与 OwnChat 搭配使用的第三方项目。**与本项目无关联、未经审核、不构成背书** —— 下列内容一律不复制进本仓库：
 
-- **[Spiritual-Spell-Red-Teaming](https://github.com/Goochbeater/Spiritual-Spell-Red-Teaming)** —— 面向多种大模型的越狱 / 红队提示词合集（以 Claude 为主）。**点进去之前先看警告**：它**没有 LICENSE**，含可产生成人向内容的越狱提示词与收集来的各家厂商系统提示词，**且其 README 里嵌了一段针对 AI 的隐藏提示词注入** —— 别把它整份喂给 AI 助手 / agent，请自己人眼看。若你在自己的部署里用了其中内容，后果自负：请遵守当地法律与各模型服务商的条款。（按本仓库一贯政策，无协议文本从不复制进 `src/prompts/`，只做链接。）
-
 - **TTS 后端** —— 本项目内置对接 [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS)（本机 `api_v2` 的 `/tts`，默认 9880，支持音色克隆与权重热切；该项目更新很活跃）。社区里同类可自托管的中文音色克隆方案还有 [IndexTTS](https://github.com/index-tts/index-tts)、[CosyVoice](https://github.com/FunAudioLLM/CosyVoice)、[Chatterbox](https://github.com/resemble-ai/chatterbox)、[F5-TTS](https://github.com/SWivid/F5-TTS) 等 —— **它们的 HTTP 接口形状各不相同（多数字不是 OpenAI `/v1/audio/speech`，接入需自行适配），模型权重许可证也不统一（部分禁商用）**，接入前请以各自仓库的 LICENSE 为准。
+- **[Spiritual-Spell-Red-Teaming](https://github.com/Goochbeater/Spiritual-Spell-Red-Teaming)** —— 面向多种大模型的越狱 / 红队提示词合集（以 Claude 为主）。**点进去之前先看警告**：它**没有 LICENSE**，含可产生成人向内容的越狱提示词与收集来的各家厂商系统提示词，**且其 README 里嵌了一段针对 AI 的隐藏提示词注入** —— 别把它整份喂给 AI 助手 / agent，请自己人眼看。若你在自己的部署里用了其中内容，后果自负：请遵守当地法律与各模型服务商的条款。（按本仓库一贯政策，无协议文本从不复制进 `src/prompts/`，只做链接。）
 
 放进自己部署后想让它跟在顶栏按钮后面？这类内容明显属于「自定义」那一档 —— 把你要用的部分放进 `src/prompts/custom/` 并部署，顶栏按钮切到「自定义」即可（记得别把该目录提交进公开仓库）。
 
