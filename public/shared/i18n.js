@@ -27,7 +27,9 @@
   var TEXT_SKIP = [
     "#msg", "textarea", "[contenteditable='true']",
     "pre", "code", "script", "style",
-    ".bubble", ".md-body", ".reasoning-text", ".reasoning-block", ".stats",
+    ".bubble", ".md-body", ".reasoning-text", ".reasoning-block",
+    // 注：`.stats`（token 估算行）**不**在跳过之列 —— 它是界面文案（Input(估算)…），
+    // 第一版误归进"内容区"导致英文界面里一直露中文（截图实测抓到）。
     ".conv-preview", ".char-item", ".dev-panel", "#devHud",
   ].join(",");
   var ATTR_SKIP = [

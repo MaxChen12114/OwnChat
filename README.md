@@ -4,20 +4,22 @@
 
 A self-hosted AI creation platform for roleplay, long-form writing, coding and image/voice work — deploy it to your own Cloudflare account and keep your data and API keys to yourself.
 
-![OwnChat · chat (glass theme)](docs/screenshots/chat-glass.png)
+![OwnChat · agent mode (glass theme)](docs/screenshots/chat-agent.en.png)
 
 ## Screenshots
 
-| Chat · glass theme | Chat · candle theme | Settings |
+| Agent mode — tool calls, approvals, image replies (glass) | Multi-agent group chat (candle) | Settings |
 |---|---|---|
-| ![glass](docs/screenshots/chat-glass.png) | ![candle](docs/screenshots/chat-candle.png) | ![settings](docs/screenshots/settings.png) |
+| ![agent](docs/screenshots/chat-agent.en.png) | ![group](docs/screenshots/chat-group.en.png) | ![settings](docs/screenshots/settings.en.png) |
 
 ## Features
 
 - **Roleplay & multi-branch conversation** — character cards (SillyTavern V1/V2/V3 and PNG cards import/export), lorebooks, affinity tracking, group chat, multi-agent orchestration.
+- **Agent mode you can watch** — a tool-calling loop with a collapsible run panel in the chat (every tool, argument and result) plus a live console in the right sidebar; destructive actions ask for approval first, and the agent sends images into the conversation on its own.
+- **Multi-agent orchestration** — pull characters from different worlds into one group chat, hold a private meeting where characters answer off the record, or put a character on stage to reply directly in the timeline (as a sub-agent, the main agent can also delegate work under minimal permissions).
+- **WeChat-style photo messages** — the model can *send* photos mid-chat: selfies are re-rendered from the character's reference image so the face stays consistent, scenes are generated fresh. Replies can also arrive as multiple short bubbles, WeChat-style.
 - **Long-form writing & code collaboration** — a prompt-editor for reusable instruction modules, skills, and per-scene presets.
-- **Agent mode** — a tool-calling loop with web search/fetch, a virtual file workspace, image sending, ambient-audio direction, and an on-screen run console.
-- **Image & voice** — image generation/editing through your own provider, local TTS (GPT-SoVITS) on desktop.
+- **Image & voice** — image generation/editing through your own provider; read any reply aloud with local TTS (GPT-SoVITS) in the desktop app.
 - **Ambient audio** — two independent decks (environment × music) with 30 bundled CC0 tracks; the model can direct them from roleplay context via hidden tags.
 - **Themes** — minimal / glass / candle, per-device.
 - **Self-hosted by design** — no vendor backend, no telemetry; your Worker, your KV, your keys.
@@ -83,6 +85,14 @@ To add your own:
 Base files are payloads, not documents — their bytes go straight into model requests (keep them LF; `.gitattributes` enforces it).
 
 Prompt libraries that ship with the repo are credited in `src/prompts/CREDITS.md`; bundled ambient audio in `public/assets/ambient/CREDITS.txt`.
+
+## Community resources
+
+Third-party projects that pair well with OwnChat. **Not affiliated with, not reviewed by, and not endorsed by this project** — and nothing below is copied into this repository:
+
+- **[Spiritual-Spell-Red-Teaming](https://github.com/Goochbeater/Spiritual-Spell-Red-Teaming)** — a large community collection of red-teaming / jailbreak prompts for many LLMs (mostly Claude). **Read the warnings before you click:** it ships **no license**, it contains adult / NSFW-capable jailbreak prompts and collected vendor system prompts, and **its README embeds hidden prompt-injection text aimed at AI tools** — do not paste that README into an AI assistant or agent, read it with your own eyes only. If you use anything from it in your own deployment, that is your own responsibility: comply with the laws that apply to you and with each model provider's terms. (Consistent with this repository's policy, no-license third-party text is never copied into `src/prompts/` — link only.)
+
+Dropped one into your own deployment and want the top-bar button to switch between bases? Add it under `src/prompts/bases/`, deploy, and the button picks it up.
 
 ## Privacy & License
 

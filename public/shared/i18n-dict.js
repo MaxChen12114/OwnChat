@@ -14,7 +14,8 @@
     "面板": "Panel",
     "模式": "Mode",
     "对话": "Chat",
-    "活动": "Activity",
+    // 右栏页签只有 ~66px 宽：英文标签取短词，避免被省略号吃掉半个词（2026-10-08 实测）
+    "活动": "Agent",
     "工作台": "Studio",
     "资源": "Assets",
     "对话工具": "Chat tools",
@@ -147,8 +148,8 @@
     "天前": "d ago",
     "云同步未启用(点右上角设置开启)": "Cloud sync is off (enable it in Settings, top right)",
     // 群聊控制台 / 状态面板
-    "群聊": "Group chat",
-    "状态": "Status",
+    "群聊": "Group",
+    "状态": "Stats",
     "鱼缸": "Fishbowl",
     "建微信群聊": "Create a group chat",
     "拉不同世界观的角色进同一个群": "Pull characters from different worlds into one group",
@@ -1017,6 +1018,33 @@
     "/ 100 次": "/ 100",
     ")。开启云同步后费用会跨设备合并;下方按设备分桶汇总。免费模式(NVIDIA)不计费。":
       "). With cloud sync on, costs merge across devices; the breakdown below groups by device. Free mode (NVIDIA) is not billed.",
+
+    // ══ 第九批：Agent 运行面（过程块 / 活动控制台 / 多智能体行）—— 英文截图前补齐，
+    //    否则英文界面里会露中文碎片（agent-console.js / agent-steps.js / multi-agent.js） ══
+    "运行中": "Running",
+    "运行中…": "Running…",
+    "最终结果": "Final result",
+    "已拒绝": "Denied",
+    "已放行": "Approved",
+    "已自动放行": "Auto-approved",
+    "已中断": "Stopped",
+    "已结束": "Finished",
+    "已达到最大轮数": "Max rounds reached",
+    "模型调用出错": "Model call failed",
+    "放行": "Approve",
+    "拒绝": "Deny",
+    "平级名单（可被私下咨询 / 可被请上台）": "Peers (can be consulted privately / brought on stage)",
+    "正在输入···": "typing···",
+    // 群聊控制台（多智能体右栏）
+    "群聊控制台": "Group console",
+    "编排": "Arrange",
+    "接龙": "Relay",
+    "讨论": "Discuss",
+    "点角色让 TA 说下一句:": "Tap a character to speak next:",
+    "你手选下一句由谁说(群聊视觉)": "Pick who speaks next (group view)",
+    "AI 轮流自动接龙(吐槽姬视觉)": "The AI takes turns automatically (roast view)",
+    "围绕议题自由讨论(吐槽姬视觉)": "Free discussion around a topic (roast view)",
+    "管理成员 / 改群名 / 退出群聊": "Manage members / rename / leave group",
   };
 
   g.__i18nPatterns = [
@@ -1054,6 +1082,22 @@
     [/^第 (\d+) 轮$/, "Round $1"],
     [/^常用 · (\d+) 个$/, "Common · $1 tools"],
     [/^全量 · (\d+) 个$/, "Full · $1 tools"],
+    // Agent 运行面（过程块 / 控制台 / 多智能体行）
+    [/^· 第 (\d+) 轮 ·$/, "· Round $1 ·"],
+    [/^思考中 · 第 (\d+) 轮$/, "Thinking · round $1"],
+    [/^调用 (.+)$/, "Calling $1"],
+    [/^请求放行：(.+)$/, "Permission requested: $1"],
+    [/^私下小会 · (.+?)（(.+)）$/, "Private meeting · $1 ($2)"],
+    [/^私下小会 · (.+)$/, "Private meeting · $1"],
+    [/^小会 · (.+?)（第 (\d+) 轮）$/, "Meeting · $1 (round $2)"],
+    [/^小会 · (.+)$/, "Meeting · $1"],
+    [/^上台 · (.+)$/, "On stage · $1"],
+    [/^上下文：群聊【(.+?)】 · 计入 (\d+) 条 \/ 共 (\d+) 条$/, "Context: group chat [$1] · counting $2 of $3 messages"],
+    [/^上下文：群聊「(.+?)」 · 计入 (\d+) 条 \/ 共 (\d+) 条$/, "Context: group chat [$1] · counting $2 of $3 messages"],
+    [/^上下文：(.+?) · 计入 (\d+) 条 \/ 共 (\d+) 条$/, "Context: $1 · counting $2 of $3 messages"],
+    // token 估算统计行（模板串，整行一个文本节点）
+    [/^Input\(估算\): ≈(.+?) \| Total In\(估算\): ≈(.+)$/, "Input (est.): ≈$1 | Total In (est.): ≈$2"],
+    [/^Output\(估算\): ≈(.+?) \| Total Out\(估算\): ≈(.+)$/, "Output (est.): ≈$1 | Total Out (est.): ≈$2"],
     [/^(\d+) 次到 KV \(免费层 1000\/日上限\),可点顶栏暂停同步避免超额$/, "$1 syncs to KV (free tier: 1000/day) — pause sync from the top bar to stay under the cap"],
     [/^个 · 刷新页面后下拉生效$/, " — the picker updates after a refresh"],
     [/^· 源站共 (\d+) 个可用$/, "· provider has $1 available"],

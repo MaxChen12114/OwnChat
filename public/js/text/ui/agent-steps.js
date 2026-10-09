@@ -274,7 +274,8 @@
     p.querySelector(".ags-htx").textContent = aborted
       ? ("已中断" + (hasSteps ? " · " + steps.length + " 步" : ""))
       : (hasSteps ? ((err ? "已结束" : "已完成") + " · " + steps.length + " 步") : "思考过程");
-    p.querySelector(".ags-hnames").textContent = names.slice(0, 4).join("、") + (names.length > 4 ? " 等" : "");
+    // 工具名录像源码标识符，中英界面都用英文逗号连接（2026-10-08：英文界面里此前会露出「、」）
+    p.querySelector(".ags-hnames").textContent = names.slice(0, 4).join(", ") + (names.length > 4 ? (document.documentElement.classList.contains("i18n-en") ? " +" : " 等") : "");
     if (ms != null) p.querySelector(".ags-hms").textContent = ms >= 1000 ? (ms / 1000).toFixed(1) + "s" : ms + "ms";
     // 跑完时思考也一并收起 —— 长思考展开着会淹没工具行
     Array.prototype.forEach.call(p.querySelectorAll(".ags-think.open"), function (t) { t.classList.remove("open"); });

@@ -157,16 +157,26 @@
     @media (min-width: 1024px) { #rightSidebar { display: flex; flex-direction: column; min-height: 0; position: relative; /* 2026-06-16: 让内部 #rsResizeHandle(position:absolute) 相对右栏定位，否则手柄会脱离流相对视口定位覆盖全页交互元素 */ } }
     /* 2026-06-16 极简主题右栏背景兜底：4.29 改白底后右栏失去独立背景规则，白字打在白底上导致按钮「消失」+全白；各分主题已有独立 background 覆盖此兜底 */
     #rightSidebar .rs-header { padding: 8px 8px 6px; }
-    #rightSidebar .rs-tabs { display: flex; gap: 3px; background: rgba(127,127,127,.10); border-radius: 10px; padding: 3px; }
+    /* 2026-10-08: flex:1 1 auto —— .rs-header 是 flex 行，整行此前没有 flex → 一直按「内容宽」走
+       （英文标签下内容宽 223 > 可用 199 → 第三个页签被裁）。加上 flex 后整行铺满右栏，
+       内部三个页签（flex:1 + min-width:0）均分宽度、文字按需省略。 */
+    #rightSidebar .rs-tabs { display: flex; gap: 3px; flex: 1 1 auto; min-width: 0; background: rgba(127,127,127,.10); border-radius: 10px; padding: 3px; }
     /* 2026-09-14 UI第二轮:三 tab 时右栏 240px 下每个仅 ~70px,原 gap6/padding8/12.5px 收不下「图标+两字」→ 文字被压成竖排。
        收紧间距字号 + nowrap 钉死单行;min-width:0 允许 flex 收缩但文字不换行(极端窄栏下图标先让位)。 */
     #rightSidebar .rs-tab { flex: 1; min-width: 0; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 7px 6px; border: none; border-radius: 8px; background: transparent; color: inherit; opacity: .58; cursor: pointer; transition: background .15s, opacity .15s, box-shadow .15s; }
-    #rightSidebar .rs-tab > span:not(.rs-dot) { overflow: hidden; text-overflow: ellipsis; }
+    /* 2026-10-08: 省略号三件套补 min-width:0 —— 缺了它，flex 子项的 min-width:auto 会让文本
+       撑住不缩，英文标签（Activity/Status 比两字中文宽得多）把三个页签顶成 min-content 宽度，
+       整行溢出右栏、第三个页签被裁掉（英文模式实测：行宽 223 > 可用 199）。 */
+    #rightSidebar .rs-tab > span:not(.rs-dot) { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
     #rightSidebar .rs-tab svg { width: 15px; height: 15px; flex: none; }
     #rightSidebar .rs-tab:hover { opacity: .85; }
     #rightSidebar .rs-tab.active { opacity: 1; background: rgba(127,127,127,.22); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
     #rightSidebar .rs-tab .rs-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: none; }
     #rightSidebar .rs-tab.has-activity .rs-dot { display: inline-block; }
+    /* 2026-10-08: 英文标签（Agent/Group/Image/Status）比两字中文宽 —— 在英文模式下收紧
+       图标与留白，让三个页签都完整显示、不吃省略号。 */
+    html.i18n-en #rightSidebar .rs-tabs { gap: 2px; }
+    html.i18n-en #rightSidebar .rs-tab { font-size: 10.5px; gap: 2px; padding: 7px 2px; }
     #rightSidebar .rs-body { flex: 1; min-height: 0; display: flex; }
     #rightSidebar .rs-panel { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 10px; }
     #rightSidebar .rs-panel[hidden] { display: none; }

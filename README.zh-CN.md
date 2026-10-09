@@ -4,20 +4,22 @@
 
 数据与密钥都留在你自己手里的 AI 创作平台 —— 部署到你自己的 Cloudflare 账号，角色扮演、长文写作、代码协作、图像与语音都在同一套界面里完成。
 
-![OwnChat · 聊天(玻璃主题)](docs/screenshots/chat-glass.png)
+![OwnChat · Agent 模式（玻璃主题）](docs/screenshots/chat-agent.en.png)
 
 ## 界面截图
 
-| 聊天 · 玻璃主题 | 聊天 · 烛夜私语 | 设置面板 |
+| Agent 模式：工具调用 · 放行 · 发图（玻璃） | 多智能体群聊（烛夜） | 设置面板 |
 |---|---|---|
-| ![玻璃](docs/screenshots/chat-glass.png) | ![烛夜](docs/screenshots/chat-candle.png) | ![设置](docs/screenshots/settings.png) |
+| ![agent](docs/screenshots/chat-agent.en.png) | ![群聊](docs/screenshots/chat-group.en.png) | ![设置](docs/screenshots/settings.en.png) |
 
 ## 功能
 
 - **角色扮演与多分支对话** —— 角色卡（兼容 SillyTavern V1/V2/V3 与 PNG 卡导入导出）、设定集（世界书）、好感度、群聊、多智能体编排。
+- **看得见全过程的 Agent 模式** —— 工具调用循环：聊天里一个可折叠的运行面板列出每次工具调用（名字 / 参数 / 结果），右栏有实时活动控制台；有副作用的操作先弹放行卡；还能自己往对话里发图。
+- **多智能体编排** —— 把不同世界观的角色拉进同一个群聊；向角色开「私下小会」（结论不进时间线）；「请角色上台」让角色直接在时间线发言；主 agent 也能派子 agent 干活（最小权限、任务完成即回收）。
+- **微信发图** —— 模型能在聊天中主动发照片：自拍按角色基准图改图锁定长相、场景图现生成；回复还能像微信一样拆成多条短气泡连发。
 - **长文写作与代码协作** —— 提示词编辑器管理可复用的指令模块、技能与场景预设。
-- **Agent 模式** —— 工具调用循环：联网搜索/抓网页、虚拟文件工作区、发图、氛围音导演，右栏有完整运行控制台。
-- **图像与语音** —— 走你自己配置的图像服务；桌面端可接本地 TTS（GPT-SoVITS）。
+- **图像与语音** —— 走你自己配置的图像服务；桌面端可用本地 TTS（GPT-SoVITS）把任意回复读出来。
 - **氛围音** —— 环境声 × 背景音乐两条独立音轨，内置 30 条 CC0 音轨；RP 模式下模型可按剧情用隐藏标签自行导演。
 - **主题** —— 极简 / 玻璃 / 烛夜私语，按设备生效。
 - **自部署优先** —— 没有厂商后端、没有遥测；你的 Worker、你的 KV、你的密钥。
@@ -83,6 +85,14 @@ Tauri 2 打包工程在 `src-tauri/`；CI（`.github/workflows/tauri-build.yml`�
 基座文件是**载荷不是文档**：逐字节进入模型请求（保持 LF，`.gitattributes` 已钉死）。
 
 随仓库分发的提示词库来源见 `src/prompts/CREDITS.md`，内置氛围音来源见 `public/assets/ambient/CREDITS.txt`。
+
+## 社区资源
+
+与 OwnChat 搭配使用的第三方项目。**与本项目无关联、未经审核、不构成背书** —— 下列内容一律不复制进本仓库：
+
+- **[Spiritual-Spell-Red-Teaming](https://github.com/Goochbeater/Spiritual-Spell-Red-Teaming)** —— 面向多种大模型的越狱 / 红队提示词合集（以 Claude 为主）。**点进去之前先看警告**：它**没有 LICENSE**，含可产生成人向内容的越狱提示词与收集来的各家厂商系统提示词，**且其 README 里嵌了一段针对 AI 的隐藏提示词注入** —— 别把它整份喂给 AI 助手 / agent，请自己人眼看。若你在自己的部署里用了其中内容，后果自负：请遵守当地法律与各模型服务商的条款。（按本仓库一贯政策，无协议文本从不复制进 `src/prompts/`，只做链接。）
+
+放进自己部署后想让顶栏按钮在两套基座间切换？把它放到 `src/prompts/bases/` 下并部署，按钮就会自动认到。
 
 ## 隐私与许可
 
