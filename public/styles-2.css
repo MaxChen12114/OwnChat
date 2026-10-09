@@ -456,7 +456,10 @@ html[data-theme="candle"] .row.moderator .bubble {
 
 .sidebar-backdrop {
  position: fixed;
- inset: 0;
+ /* 2026-10-09: 遮罩不再覆盖顶栏条(z19 > 顶栏 z5,原来抽屉开着时点 ☰/齿轮第一下被它吃掉,
+   只关抽屉不开面板,用户读作"点了没反应")。顶栏以下照旧全屏遮罩,点它仍关抽屉。 */
+ left: 0; right: 0; bottom: 0;
+ top: var(--topbar-h, 60px);
  background: rgba(0, 0, 0, .55);
  backdrop-filter: blur(2px);
  -webkit-backdrop-filter: blur(2px);

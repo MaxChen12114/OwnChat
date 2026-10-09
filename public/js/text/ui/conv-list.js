@@ -120,7 +120,10 @@
   function render(force) {
     var el = mount();
     if (!el) return;
-    if (document.hidden && !force) return; // E-D：页面不可见时不出力（后台零开销）
+    // E-D：页面不可见时不出力（后台零开销）——但**骨架**必须先在：整组内容（含「新建会话」按钮）
+    // 都只在 render 里创建，后台重载后回到前台时曾表现为"对话分组只剩标题、没有新增按钮"。
+    // 2026-10-09: 改成"已有骨架才允许后台跳过"，首帧任何可见性都出骨架。
+    if (document.hidden && !force && el.querySelector(".conv-new")) return;
     var a = app();
     if (!a || !a.listConversations) return;
     // E-D 廉价闸门：会话库与槽位元数据的原始字符串都没变 → 连 JSON.parse 都省。
@@ -267,14 +270,17 @@
   // ───────── 启动 ─────────
   function start() {
     mount();
-    render();
+    render(true); // 2026-10-09: 首帧强制 —— 后台重载/冷启动时也要先把「新建会话」骨架画出来
     setInterval(render, POLL_MS); // 带签名比对,内容没变不重画
     // 2026-10-05(A-4): 删掉 "conversations:changed" —— 全仓无任何 dispatch 处,死监听。
     // 即时刷新由其余 4 个事件(均有真实派发源) + 2.5s 轮询兜底。
     ["character:changed", "multi-agent:changed", "chat-merged", "chat-conflict"].forEach(function (ev) {
       window.addEventListener(ev, function () { lastSig = ""; render(); });
     });
-    window.addEventListener("focus", render);
+    // 2026-10-09: focus 原先直接传 render（事件对象被当 force 传，靠"为真"侥幸正确）→ 写明确；
+    // 另补 visibilitychange：切走再回来/后台重载回前台时立刻补渲染，不必干等 8s 轮询。
+    window.addEventListener("focus", function () { render(true); });
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) render(true); });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
   else start();

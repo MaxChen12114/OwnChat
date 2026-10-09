@@ -247,12 +247,18 @@
         --mobile-tabs-h: calc(68px + env(safe-area-inset-bottom));
         --composer-bottom: calc(var(--mobile-tabs-h) + 16px);
         --chat-bottom-space: calc(148px + env(safe-area-inset-bottom));
+        /* 2026-10-09: 顶栏本体高度(8+44+8)。Agent 面板上沿与抽屉遮罩上沿都用它 ——
+           两处都必须从顶栏下沿开始,否则会盖住 ☰/齿轮(实测面板 z8/遮罩 z19 均高于顶栏 z5,
+           点上去命中的是面板/遮罩,顶栏两个键同时失效)。 */
+        --topbar-h: 60px;
       }
       html.hide-mobile-tabs {
         --mobile-tabs-h: 0px;
         --composer-bottom: calc(8px + env(safe-area-inset-bottom));
         --chat-bottom-space: calc(76px + env(safe-area-inset-bottom));
       }
+      /* 2026-10-09: 壳内顶栏总高 = 状态栏补白 + 本体 60px(见上 --topbar-h 注释) */
+      html.android-app { --topbar-h: calc(max(env(safe-area-inset-top, 0px), 42px) + 60px); }
       html.android-app #topbar {
         padding-top: max(env(safe-area-inset-top), 42px) !important;
         padding-left: max(8px, env(safe-area-inset-left)) !important;
@@ -1256,7 +1262,7 @@
 <button id="mobileTabsRestoreBtn" type="button" aria-label="恢复底部功能栏" title="恢复底部功能栏">▦</button>
 <div class="mobile-tab-panel" id="mobileTabPanel-image" data-tab="image">角色形象 / 场景图 · 加载中…</div>
 <div class="mobile-tab-panel" id="mobileTabPanel-status" data-tab="status">状态 · 加载中…</div>
-<div class="mobile-tab-panel" id="mobileTabPanel-agent" data-tab="agent" style="top:0;padding:0;overflow:hidden;background:var(--bg,#15161a);">
+<div class="mobile-tab-panel" id="mobileTabPanel-agent" data-tab="agent" style="top:var(--topbar-h,60px);padding:0;overflow:hidden;background:var(--bg,#15161a);">
   <div id="__mobileAgentPlaceholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;color:var(--muted,#888);font-size:13px;line-height:1.6;text-align:center;padding:0 24px;">
     <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.4"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M9 11V7a3 3 0 0 1 6 0v4"/><circle cx="12" cy="16" r="1.2"/></svg>
     <span style="opacity:.55">点左侧「Agent 模式」开启<br>或在左侧栏点「Agent 模式」按钮</span>

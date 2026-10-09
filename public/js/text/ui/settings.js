@@ -885,6 +885,9 @@
 
     function openPanel() {
       if (!settingsMask) return;
+      // 2026-10-09: 手机端抽屉(z20) > 设置遮罩(z10) —— 抽屉开着时从它上方点齿轮,
+      // 面板会开在抽屉底下,看起来"没反应"。开面板前先收抽屉。
+      try { document.body.classList.remove('drawer-open'); } catch (e) {}
       settingsMask.style.display = 'flex';
       mountImageCards();
       mountVoiceCards(); // 4.71
