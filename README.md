@@ -52,13 +52,29 @@ wrangler deploy
 
 `wrangler deploy` prints your Worker URL. A custom domain is optional (Workers → your Worker → Settings → Domains & Routes).
 
-Local development: `wrangler dev`, with secrets in `.dev.vars` (git-ignored).
+## Run it on your own PC (no domain needed)
+
+If `*.workers.dev` is unreachable where you are (it is, from mainland China) or you simply don't want to rent a domain, you can run the whole server on your own computer instead — same code, no Cloudflare account required:
+
+1. Install **Node.js 18+** ([nodejs.org](https://nodejs.org/en)).
+2. Download the source: the **Source code** archive on [Releases](https://github.com/MaxChen12114/OwnChat/releases/latest), or `git clone https://github.com/MaxChen12114/OwnChat`.
+3. In that folder, run **`start-local.cmd`** (Windows — double-click it) or **`bash start-local.sh`** (macOS / Linux). The first run creates `.dev.vars` and opens it — paste a model key (NVIDIA, or DeepSeek) and save.
+4. In the desktop app's setup page press **"Fill in the local address"** (or type `http://127.0.0.1:8787`) and Connect.
+
+Notes:
+
+- The server lives only while that window is open — your PC must be on whenever you use the app.
+- To use it from your phone on the same network, start it with `npx wrangler dev --ip 0.0.0.0 --port 8787` and enter `http://<your-LAN-IP>:8787`.
+- Data is stored **per origin**: a local run and any cloud deployment are two separate datasets.
+- Cloud sync in a local run needs `CHAT_PASSWORD` set in `.dev.vars` (otherwise those routes answer 401).
+- No `npm install` needed — the build step only uses Node.
+- `npx wrangler dev` (or `npm run dev`) is also the plain local-development loop; secrets stay in `.dev.vars` (git-ignored).
 
 ## Desktop & Android builds
 
 The Tauri 2 shell lives in `src-tauri/`. CI (`.github/workflows/tauri-build.yml`) builds the Windows installer and the Android APK on a version tag or manual dispatch (tags containing `-test` produce draft releases for testing).
 
-**The shell is domain-neutral.** On first run it shows a local setup page where you enter your deployment URL — with a built-in 3-step deploy guide for newcomers. No rebuild is needed to point it at your own Worker; the app grants its local capabilities (file access under a chosen directory, command execution behind a native confirmation) to exactly the origin you configure, and only that one.
+**The shell is domain-neutral.** On first run it shows a local setup page where you enter your deployment URL — or let it run the server on your own PC (see above), or follow the built-in one-click deploy guide (~3 minutes) for newcomers. No rebuild is needed to point it at your own Worker; the app grants its local capabilities (file access under a chosen directory, command execution behind a native confirmation) to exactly the origin you configure, and only that one.
 
 Before publishing your *own* builds, or if you want a build that skips the setup page:
 

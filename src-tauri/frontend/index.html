@@ -6,67 +6,129 @@
     <title>OwnChat</title>
     <style>
       /* 启动页（域中立壳的第一步）：本地页面，唯一职责是拿到「服务器地址」。
-         2026-10-07：公开版不再硬编码站点域名 —— 填自己的部署地址，或跟着页内
-         「一键部署」向导把 Cloudflare Worker 部署到自己的账号，3 分钟拿到地址。 */
-      :root { color-scheme: dark; }
+         2026-10-07：公开版不再硬编码站点域名。
+         2026-10-09 重设计：纯中性灰（取应用 minimal 主题的令牌值，去掉原靛紫 #5b6cff ——
+         仓库红线是「主站不引入紫色」）；字体栈/圆角与主站统一；补品牌件（星芒标 + 版本徽章）；
+         连接按钮加转圈态；新增「在本机运行」入口（方案 C：源码跑自己电脑上，不碰域名、不受墙）。 */
+      :root {
+        color-scheme: dark;
+        --bg: #0b0b0b;
+        --panel: #141414;
+        --panel-2: #101010;
+        --border: #26262b;
+        --border-hi: #3a3a41;
+        --text: #ececec;
+        --muted: #9a9a9a;
+        --muted-2: #6f6f76;
+        --ink-on-light: #101010;
+        --ok: #8fce9e;
+        --err: #e8918f;
+        --radius: 10px;
+        --radius-lg: 14px;
+      }
       * { box-sizing: border-box; }
       body {
-        margin: 0; min-height: 100vh; background: #15161a; color: #e9e9ec;
-        font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+        font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+        font-size: 14px; line-height: 1.6;
         display: flex; align-items: center; justify-content: center;
-        padding: max(20px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+        padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
       }
-      .wrap { width: 100%; max-width: 560px; }
-      header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-      h1 { font-size: 26px; margin: 0; letter-spacing: .5px; }
-      .tag { color: #9a9aa3; font-size: 13px; margin: 4px 0 0; }
+      body::before { /* 顶部一层极淡的中性光，给纯平底一点纵深（不引入任何色彩） */
+        content: ""; position: fixed; inset: 0 0 auto; height: 320px; pointer-events: none;
+        background: radial-gradient(120% 100% at 50% 0%, rgba(255,255,255,.055), rgba(255,255,255,0) 70%);
+      }
+      .wrap { position: relative; width: 100%; max-width: 620px; }
+      :focus-visible { outline: 2px solid #6a6a72; outline-offset: 2px; border-radius: 6px; }
+
+      /* ── 页头：品牌标 + 词标 + 版本徽章 + 语言键 ── */
+      header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+      .brand-mark {
+        width: 42px; height: 42px; flex: none; border-radius: 12px; overflow: hidden;
+        display: inline-flex; border: 1px solid var(--border);
+      }
+      .brand-mark img { width: 100%; height: 100%; display: block; }
+      .brand-tx { min-width: 0; }
+      .brand-tx h1 { font-size: 19px; margin: 0; letter-spacing: .2px; display: flex; align-items: center; gap: 8px; }
+      .ver { font-size: 11px; font-weight: 500; color: var(--muted-2); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
+      .brand-tx p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
       #langBtn {
-        background: transparent; color: #9a9aa3; border: 1px solid #33343c; border-radius: 8px;
-        padding: 5px 10px; font-size: 12px; cursor: pointer;
+        margin-left: auto; flex: none; background: transparent; color: var(--muted);
+        border: 1px solid var(--border); border-radius: 8px; padding: 5px 11px; font-size: 12px; cursor: pointer;
+        font-family: inherit;
       }
-      #langBtn:hover { color: #e9e9ec; border-color: #4a4b55; }
-      .card {
-        background: #1c1d23; border: 1px solid #2a2b33; border-radius: 14px;
-        padding: 18px; margin-bottom: 14px;
-      }
-      label { display: block; font-size: 13px; color: #b9b9c2; margin-bottom: 8px; }
+      #langBtn:hover { color: var(--text); border-color: var(--border-hi); }
+
+      /* ── 卡片 ── */
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px; }
+      .card + .card { margin-top: 12px; }
+      label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
       input[type="url"] {
-        width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid #33343c;
-        background: #14151a; color: #e9e9ec; font-size: 15px; outline: none;
+        width: 100%; padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--border);
+        background: var(--panel-2); color: var(--text); font-size: 14px; outline: none;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
       }
-      input[type="url"]:focus { border-color: #5b6cff; }
+      input[type="url"]::placeholder { color: var(--muted-2); }
+      input[type="url"]:focus { border-color: var(--border-hi); box-shadow: 0 0 0 3px rgba(255,255,255,.05); }
       .row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
       button.primary, button.ghost {
-        border: 0; border-radius: 10px; padding: 12px 18px; font-size: 15px; cursor: pointer;
+        border: 0; border-radius: var(--radius); padding: 12px 18px; font-size: 14px; cursor: pointer;
+        font-family: inherit; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        transition: background .15s, border-color .15s, color .15s, transform .05s;
       }
-      button.primary { background: #5b6cff; color: #fff; flex: 1; min-width: 140px; }
+      button.primary { background: #ececec; color: var(--ink-on-light); font-weight: 600; flex: 1; min-width: 150px; }
+      button.primary:hover:not(:disabled) { background: #fff; }
+      button.primary:active:not(:disabled) { transform: translateY(1px); }
       button.primary:disabled { opacity: .55; cursor: default; }
-      button.ghost { background: transparent; color: #b9b9c2; border: 1px solid #3a3b45; }
-      button.ghost:hover { color: #e9e9ec; }
-      #status { margin-top: 12px; font-size: 13px; line-height: 1.6; min-height: 20px; color: #9a9aa3; }
-      #status.err { color: #ff8080; }
-      #status.ok { color: #79d68a; }
-      details.wizard { padding: 0; }
-      details.wizard > summary {
-        cursor: pointer; padding: 16px 18px; font-size: 14px; color: #cfd0d8; list-style: none;
+      button.ghost { background: transparent; color: #c9c9cf; border: 1px solid var(--border-hi); }
+      button.ghost:hover { color: #fff; border-color: #4a4a52; }
+      .spinner {
+        width: 14px; height: 14px; flex: none; border-radius: 50%;
+        border: 2px solid rgba(16,16,16,.25); border-top-color: var(--ink-on-light);
+        animation: spin .7s linear infinite; display: none;
       }
-      details.wizard > summary::-webkit-details-marker { display: none; }
-      details.wizard > summary::before { content: "▸ "; color: #5b6cff; }
-      details.wizard[open] > summary::before { content: "▾ "; }
-      .wizardBody { padding: 0 18px 18px; }
-      ol { padding-left: 20px; margin: 4px 0 14px; }
-      ol li { margin: 10px 0; font-size: 13px; line-height: 1.75; color: #c6c7cf; }
-      a.ext { color: #8f9bff; text-decoration: none; border-bottom: 1px dashed #4c56a8; cursor: pointer; }
-      .hint { font-size: 12px; color: #86868f; line-height: 1.7; margin: 10px 0 0; }
-      code { background: #14151a; border: 1px solid #2a2b33; border-radius: 6px; padding: 1px 6px; font-size: 12px; }
+      button.primary.busy .spinner { display: inline-block; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* ── 状态行 ── */
+      #status { margin-top: 12px; font-size: 12.5px; line-height: 1.7; color: var(--muted); min-height: 20px; }
+      #status .ico { display: inline-block; width: 14px; }
+      #status.err { color: var(--err); }
+      #status.ok { color: var(--ok); }
+
+      /* ── 两条可选路径（默认一行，点开看步骤）── */
+      details.path > summary {
+        list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px;
+        padding: 15px 18px; font-size: 13.5px; color: #d6d6da;
+      }
+      details.path > summary::-webkit-details-marker { display: none; }
+      details.path > summary .p-ico { width: 26px; height: 26px; flex: none; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: rgba(127,127,127,.10); border: 1px solid var(--border); color: var(--muted); }
+      details.path > summary .p-ico svg { width: 15px; height: 15px; display: block; }
+      details.path > summary .p-tag { margin-left: auto; font-size: 11.5px; color: var(--muted-2); }
+      details.path > summary .chev { flex: none; color: var(--muted-2); transition: transform .15s; }
+      details.path[open] > summary .chev { transform: rotate(90deg); }
+      details.path > summary:hover { background: rgba(127,127,127,.05); }
+      .pathBody { padding: 0 18px 18px; }
+      ol { padding-left: 20px; margin: 2px 0 14px; }
+      ol li { margin: 9px 0; font-size: 13px; line-height: 1.75; color: #c9c9cf; }
+      a.ext { color: #dcdce2; text-decoration: none; border-bottom: 1px dashed #5a5a63; cursor: pointer; }
+      a.ext:hover { border-bottom-color: #8a8a93; }
+      .hint { font-size: 12px; color: var(--muted-2); line-height: 1.75; margin: 10px 0 0; }
+      code {
+        background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px;
+      }
+      .foot { margin-top: 14px; font-size: 11.5px; color: var(--muted-2); text-align: center; line-height: 1.7; }
     </style>
   </head>
   <body>
     <div class="wrap">
       <header>
-        <div>
-          <h1>OwnChat</h1>
-          <p class="tag" id="tagline"></p>
+        <span class="brand-mark"><img id="brandIcon" src="icon.png" alt="" /></span>
+        <div class="brand-tx">
+          <h1>OwnChat <span class="ver" id="verChip"></span></h1>
+          <p id="tagline"></p>
         </div>
         <button id="langBtn" type="button">EN</button>
       </header>
@@ -75,15 +137,36 @@
         <label id="urlLabel" for="urlInput"></label>
         <input id="urlInput" type="url" placeholder="https://your-domain.com" autocomplete="off" autocapitalize="off" spellcheck="false" />
         <div class="row">
-          <button class="primary" id="connectBtn" type="button"></button>
+          <button class="primary" id="connectBtn" type="button"><span class="spinner" aria-hidden="true"></span><span id="connectTx"></span></button>
           <button class="ghost" id="forceBtn" type="button" hidden></button>
         </div>
-        <div id="status"></div>
+        <div id="status" role="status" aria-live="polite"></div>
       </section>
 
-      <details class="card wizard" id="wizard">
-        <summary id="wizardSummary"></summary>
-        <div class="wizardBody">
+      <details class="card path" id="localPath">
+        <summary>
+          <span class="p-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.2"/><path d="M7.5 9.5l3 2.8-3 2.8"/><path d="M12.5 15.3h4"/></svg></span>
+          <span id="localTitle"></span>
+          <span class="p-tag" id="localTag"></span>
+          <svg class="chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </summary>
+        <div class="pathBody">
+          <ol id="localSteps"></ol>
+          <div class="row">
+            <button class="ghost" id="localFillBtn" type="button"></button>
+          </div>
+          <p class="hint" id="localHint"></p>
+        </div>
+      </details>
+
+      <details class="card path" id="deployPath">
+        <summary>
+          <span class="p-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 18.5a4.5 4.5 0 0 1-.7-8.95A5.5 5.5 0 0 1 17 9.1 3.7 3.7 0 0 1 16.8 18.5z"/></svg></span>
+          <span id="wizardSummary"></span>
+          <span class="p-tag" id="wizardTag"></span>
+          <svg class="chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </summary>
+        <div class="pathBody">
           <ol id="wizardSteps"></ol>
           <div class="row">
             <button class="primary" id="deployBtn" type="button"></button>
@@ -91,6 +174,8 @@
           <p class="hint" id="wizardHint"></p>
         </div>
       </details>
+
+      <p class="foot" id="footHint"></p>
     </div>
 
     <script>
@@ -98,20 +183,51 @@
         "use strict";
         var invoke = (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
           ? window.__TAURI__.core.invoke.bind(window.__TAURI__.core) : null;
-        var DEPLOY_URL = "https://deploy.workers.cloudflare.com/?url=https://github.com/MaxChen12114/OwnChat";
-        var lang = (navigator.language || "zh").toLowerCase().indexOf("zh") === 0 ? "zh" : "en";
+        var REPO_URL = "https://github.com/MaxChen12114/OwnChat";
+        var DEPLOY_URL = "https://deploy.workers.cloudflare.com/?url=" + REPO_URL;
+        var APP_VERSION = "v4.71";
+        var LOCAL_URL = "http://127.0.0.1:8787";
+        var LANG_KEY = "cfw_shell_lang_v1";
+
+        var lang = (function () {
+          try { var v = localStorage.getItem(LANG_KEY); if (v === "zh" || v === "en") return v; } catch (e) {}
+          return (navigator.language || "zh").toLowerCase().indexOf("zh") === 0 ? "zh" : "en";
+        })();
 
         var T = {
           tagline: { zh: "连接你自己的服务器（数据、密钥都在你手里）", en: "Connect to your own server — your data, your keys" },
-          urlLabel: { zh: "服务器地址（你的 Cloudflare Worker 部署地址）", en: "Server address (your Cloudflare Worker deployment URL)" },
+          urlLabel: { zh: "服务器地址（你自己的部署，或本机运行的服务）", en: "Server address (your own deployment, or a local server)" },
           connect: { zh: "连接", en: "Connect" },
           force: { zh: "仍然连接", en: "Connect anyway" },
           langBtn: { zh: "EN", en: "中文" },
+          localTitle: { zh: "在本机运行（不需要域名）", en: "Run it on this PC (no domain needed)" },
+          localTag: { zh: "方案 C", en: "Local" },
+          localHint: {
+            zh: "要用的时候这台电脑得开着（服务就跑在它上面）。手机想连同一台电脑：把启动命令换成 <code>npx wrangler dev --ip 0.0.0.0 --port 8787</code>，地址改成 <code>http://&lt;电脑局域网IP&gt;:8787</code>。本地这份数据与线上那份分开存，互不相通。",
+            en: "Your PC must be on while you use it (the server runs there). To use it from your phone on the same network, start it with <code>npx wrangler dev --ip 0.0.0.0 --port 8787</code> and enter <code>http://&lt;your-LAN-IP&gt;:8787</code>. Local data is stored separately from any cloud deployment."
+          },
+          localFill: { zh: "填入本机地址", en: "Fill in the local address" },
           wizardSummary: { zh: "我是新手：3 分钟部署一台自己的服务器", en: "New here? Deploy your own server in ~3 minutes" },
+          wizardTag: { zh: "免登录、免费额度", en: "Free tier" },
           deployBtn: { zh: "打开一键部署页面", en: "Open the one-click deploy page" },
           wizardHint: {
-            zh: "部署完成后把形如 https://ownchat.你的子域.workers.dev 的地址粘到上面的输入框，点「连接」。地址填错可以重装应用，或清一下应用数据重来。",
-            en: "When the build finishes, copy the URL (like https://ownchat.your-subdomain.workers.dev) into the field above and press Connect. Picked a wrong address? Reinstall the app or clear its data to get back here."
+            zh: "部署完成后把 Cloudflare 给的地址粘到上面的输入框，点「连接」。地址填错可以重装应用，或清一下应用数据重来。",
+            en: "When the build finishes, copy the URL Cloudflare gave you into the field above and press Connect. Picked a wrong address? Reinstall the app or clear its data to get back here."
+          },
+          footHint: { zh: "地址与数据都只存在本机；应用没有遥测。", en: "Address and data stay on this machine; the app has no telemetry." },
+          localSteps: {
+            zh: [
+              '装 <a class="ext" data-ext="https://nodejs.org/zh-cn">Node.js</a>（18 或更新，装完命令行里 <code>node -v</code> 能看到版本号即可）。',
+              '下载源码：<a class="ext" data-ext="' + REPO_URL + '/releases/latest">Releases</a> 页面的源码压缩包，或 <code>git clone ' + REPO_URL + '</code>。',
+              '解压/进入目录，双击 <code>start-local.cmd</code>（macOS / Linux 用 <code>bash start-local.sh</code>）——第一次会让你填模型 Key（存进 <code>.dev.vars</code>，别提交）。',
+              '等它打印出 <code>' + LOCAL_URL + '</code>，回到这里点下面的「填入本机地址」，再点「连接」。'
+            ],
+            en: [
+              'Install <a class="ext" data-ext="https://nodejs.org/en">Node.js</a> (18+, check with <code>node -v</code>).',
+              'Download the source: the source archive on the <a class="ext" data-ext="' + REPO_URL + '/releases/latest">Releases</a> page, or <code>git clone ' + REPO_URL + '</code>.',
+              'Enter the folder and double-click <code>start-local.cmd</code> (macOS / Linux: <code>bash start-local.sh</code>) — the first run asks for a model key (stored in <code>.dev.vars</code>, never commit it).',
+              'Wait until it prints <code>' + LOCAL_URL + '</code>, then press "Fill in the local address" below and Connect.'
+            ]
           },
           steps: {
             zh: [
@@ -146,22 +262,36 @@
 
         function paint() {
           document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+          $("verChip").textContent = APP_VERSION;
           $("langBtn").textContent = t("langBtn");
           $("tagline").innerHTML = t("tagline");
           $("urlLabel").textContent = t("urlLabel");
-          connectBtn.textContent = t("connect");
+          $("connectTx").textContent = t("connect");
           forceBtn.textContent = t("force");
+          $("localTitle").textContent = t("localTitle");
+          $("localTag").textContent = t("localTag");
+          $("localFillBtn").textContent = t("localFill");
+          $("localHint").innerHTML = t("localHint");
+          $("localSteps").innerHTML = t("localSteps").map(function (s) { return "<li>" + s + "</li>"; }).join("");
           $("wizardSummary").textContent = t("wizardSummary");
+          $("wizardTag").textContent = t("wizardTag");
           $("deployBtn").textContent = t("deployBtn");
           $("wizardHint").innerHTML = t("wizardHint");
           $("wizardSteps").innerHTML = t("steps").map(function (s) { return "<li>" + s + "</li>"; }).join("");
+          $("footHint").textContent = t("footHint");
         }
-        function say(cls, html) { statusEl.className = cls || ""; statusEl.innerHTML = html || ""; }
+        function say(cls, html) {
+          statusEl.className = cls || "";
+          statusEl.innerHTML = html ? '<span class="ico">' + (cls === "err" ? "!" : cls === "ok" ? "✓" : "·") + "</span>" + html : "";
+        }
 
+        // 无 scheme 时补前缀：本机地址补 http（wrangler dev 是明文 http），其余补 https。
+        // 本地判定：localhost / 127.0.0.1 / [::1] / 0.0.0.0 开头。Rust 侧 normalize_server_url 同规则。
+        var LOCAL_RE = /^(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(?::\d+)?(?:\/|$)/i;
         function normalize(raw) {
           raw = (raw || "").trim();
           if (!raw) return "";
-          if (!/^https?:\/\//i.test(raw)) raw = "https://" + raw;
+          if (!/^https?:\/\//i.test(raw)) raw = (LOCAL_RE.test(raw) ? "http://" : "https://") + raw;
           return raw.replace(/\/+$/, "");
         }
 
@@ -182,7 +312,7 @@
           var base = normalize(input.value);
           if (!base) { say("err", t("needUrl")); return; }
           if (!invoke) { say("err", t("noTauri")); return; }
-          busy = true; connectBtn.disabled = true; forceBtn.hidden = true;
+          busy = true; connectBtn.disabled = true; connectBtn.classList.add("busy"); forceBtn.hidden = true;
           say("", t("busy"));
           var reachable = true;
           if (!force) {
@@ -194,7 +324,7 @@
             } catch (e) { reachable = false; }
           }
           if (!reachable && !force) {
-            busy = false; connectBtn.disabled = false;
+            busy = false; connectBtn.disabled = false; connectBtn.classList.remove("busy");
             forceBtn.hidden = false;
             say("err", t("fail"));
             return;
@@ -202,15 +332,29 @@
           try {
             await invoke("set_server_url", { url: base });
             say("ok", t("saved"));
+            // 正常路径：Rust 侧随即导航到该地址，这一页会被替换掉；万一导航没发生（地址异常等），
+            setTimeout(function () {
+              if (!document.body.contains(connectBtn)) return;
+              busy = false; connectBtn.disabled = false; connectBtn.classList.remove("busy");
+            }, 2000);
           } catch (e) {
-            busy = false; connectBtn.disabled = false;
+            busy = false; connectBtn.disabled = false; connectBtn.classList.remove("busy");
             say("err", String(e));
           }
         }
         connectBtn.addEventListener("click", function () { connect(false); });
         forceBtn.addEventListener("click", function () { connect(true); });
-        $("langBtn").addEventListener("click", function () { lang = lang === "zh" ? "en" : "zh"; paint(); });
+        $("langBtn").addEventListener("click", function () {
+          lang = lang === "zh" ? "en" : "zh";
+          try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+          paint();
+        });
         input.addEventListener("keydown", function (e) { if (e.key === "Enter") connect(false); });
+        $("localFillBtn").addEventListener("click", function () {
+          input.value = LOCAL_URL;
+          input.focus();
+          connect(false);
+        });
 
         paint();
         if (invoke) {

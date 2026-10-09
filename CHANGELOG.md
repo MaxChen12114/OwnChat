@@ -5,6 +5,16 @@ Notable changes per public release. Release notes live in
 
 ## Unreleased
 
+- **Setup page redesign** — the first-run window (the domain-neutral shell's setup page) got a proper
+  product look: brand mark + version chip, the app's own neutral palette (the old indigo violated the
+  project's no-purple rule), the app's font stack, a spinner on Connect, and two clearly separated
+  one-click paths instead of a plain form.
+- **Run it on your own PC** — no domain, no Cloudflare account: `start-local.cmd` (Windows, double-click)
+  and `start-local.sh` bootstrap a local server on `http://127.0.0.1:8787` (creates `.dev.vars` and opens
+  it for your model key). The setup page gained a "Fill in the local address" button, and addresses like
+  `127.0.0.1:8787` now default to `http://` instead of `https://` (both in the shell and the page). See
+  README → "Run it on your own PC".
+
 - **Two base folders** — base prompts now live in two directories, and the top-bar button switches
   between them: `src/prompts/bases/` (**Built-in**, ships one general-purpose base) and
   `src/prompts/custom/` (**Custom**, the one you keep for yourself — empty by default, falls back to

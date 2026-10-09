@@ -784,13 +784,30 @@ const REMOTE_PERMISSIONS: &[&str] = &[
     "allow-get-server-url",
 ];
 
-/// 规范化用户填的地址：补 https:// 前缀、只留 scheme://host[:port][/path]（丢掉 query/hash）。
+/// 规范化用户填的地址：补 scheme、只留 scheme://host[:port][/path]（丢掉 query/hash）。
+/// 2026-10-09：本机地址（方案 C，源码跑在自己电脑上，wrangler dev 是明文 http）补 http:// 而不是 https://——
+/// 否则用户填 `127.0.0.1:8787` 会被补成 https，探测必失败。前端启动页的 normalize() 是同一条规则。
 fn normalize_server_url(raw: &str) -> Result<tauri::Url, String> {
     let s = raw.trim();
     if s.is_empty() {
         return Err("地址不能为空".into());
     }
-    let with_scheme = if s.contains("://") { s.to_string() } else { format!("https://{s}") };
+    let with_scheme = if s.contains("://") {
+        s.to_string()
+    } else {
+        let host_port = s.split('/').next().unwrap_or("");
+        let head = if host_port.starts_with('[') {
+            // IPv6 字面量：[::1]:8787 → "[::1]"（不能按 ':' 切，冒号在括号里）
+            match host_port.find(']') {
+                Some(i) => host_port[..=i].to_ascii_lowercase(),
+                None => host_port.to_ascii_lowercase(),
+            }
+        } else {
+            host_port.split(':').next().unwrap_or("").to_ascii_lowercase()
+        };
+        let is_local = matches!(head.as_str(), "localhost" | "127.0.0.1" | "[::1]" | "0.0.0.0");
+        format!("{}{s}", if is_local { "http://" } else { "https://" })
+    };
     let mut url = tauri::Url::parse(&with_scheme).map_err(|e| format!("地址格式不对：{e}"))?;
     if url.scheme() != "https" && url.scheme() != "http" {
         return Err("只支持 http/https 地址".into());

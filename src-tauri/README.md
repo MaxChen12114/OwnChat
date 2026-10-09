@@ -4,9 +4,12 @@
 
 ## 域中立壳：装好首次填地址即可
 
-公开版**不写死站点地址**：首次启动显示本地设置页（`frontend/index.html`，双语，含「一键部署」向导）。
-填入部署地址后，Rust 侧只为**这一个域名**动态授予 IPC 能力（见 `src/lib.rs` 的「服务器地址」一节）
-再导航过去 —— 公开仓库不带静态能力清单（`capabilities/remote.json` 已被移除）。
+公开版**不写死站点地址**：首次启动显示本地设置页（`frontend/index.html`，双语）。页内三条路：
+填地址连接；**在本机运行**（源码用 `npx wrangler dev` 起在 `http://127.0.0.1:8787`，不需要域名 ——
+仓库根的 `start-local.cmd` / `start-local.sh` 双击即起，国内访问不了 `*.workers.dev` 时走这条）；
+**一键部署向导**（约 3 分钟把 Worker 部署到你自己的 Cloudflare）。填入地址后，Rust 侧只为**这一个源**
+动态授予 IPC 能力（见 `src/lib.rs` 的「服务器地址」一节）再导航过去 —— 公开仓库不带静态能力清单
+（`capabilities/remote.json` 已被移除）。`http://127.0.0.1` 这类本机源同样支持（动态授权不看 scheme）。
 
 想让自己出的包直连某站、跳过设置页，改这两处：
 

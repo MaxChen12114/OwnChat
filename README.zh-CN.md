@@ -52,13 +52,29 @@ wrangler deploy
 
 `wrangler deploy` 会打印 Worker 地址；要不要绑自定义域名随意（Workers → 你的 Worker → Settings → Domains & Routes）。
 
-本地开发：`wrangler dev`，密钥放 `.dev.vars`（已在 `.gitignore` 内）。
+## 在你自己电脑上跑（方案 C，不需要域名）
+
+如果 `*.workers.dev` 在你这里访问不了（国内就是这样），或者你不想花钱租域名 —— 可以把整套服务跑在你自己电脑上：同一份代码，不需要 Cloudflare 账号。
+
+1. 安装 **Node.js 18+**（[nodejs.org/zh-cn](https://nodejs.org/zh-cn)）。
+2. 下载源码：[Releases](https://github.com/MaxChen12114/OwnChat/releases/latest) 页的源码压缩包，或 `git clone https://github.com/MaxChen12114/OwnChat`。
+3. 进目录运行 **`start-local.cmd`**（Windows 直接双击）或 **`bash start-local.sh`**（macOS / Linux）。第一次会生成 `.dev.vars` 并自动打开，把模型 Key（NVIDIA 或 DeepSeek）填上保存。
+4. 打开桌面应用，在设置页点 **「填入本机地址」**（或手填 `http://127.0.0.1:8787`）→ 连接。
+
+注意事项：
+
+- 服务只在那扇窗口开着时存在 —— 你要用它的时候电脑得开着。
+- 手机想连同一台电脑：启动命令换成 `npx wrangler dev --ip 0.0.0.0 --port 8787`，应用里填 `http://<电脑局域网IP>:8787`。
+- 数据**按站点来源分开存**：本地跑的这一份和线上部署的那份是两套，互不相通。
+- 本地跑要用云同步，得在 `.dev.vars` 里设 `CHAT_PASSWORD`（否则那些接口返回 401）。
+- 不需要 `npm install` —— 构建步骤只用 Node。
+- `npx wrangler dev`（或 `npm run dev`）就是普通的本地开发方式；密钥放 `.dev.vars`（已 git-ignore）。
 
 ## 桌面端与安卓构建
 
 Tauri 2 打包工程在 `src-tauri/`；CI（`.github/workflows/tauri-build.yml`）会在打版本标签或手动触发时构建 Windows 安装包与安卓 APK（带 `-test` 的标签出 draft 包，供测试装机）。
 
-**壳是"域中立"的**：首次启动会显示一个本地设置页，填你自己的部署地址即可进入 —— 页内还带一个三步的一键部署向导。**指向自己的 Worker 不需要重新构建**；本地能力（选定目录下的文件读写、带系统确认框的命令执行）只会授予你配置的那一个域名，且仅此一个。
+**壳是"域中立"的**：首次启动会显示一个本地设置页，填你自己的部署地址即可进入 —— 也可以让服务直接跑在你自己电脑上（见上一节），或跟着页内那个约 3 分钟的一键部署向导走。**指向自己的 Worker 不需要重新构建**；本地能力（选定目录下的文件读写、带系统确认框的命令执行）只会授予你配置的那一个来源，且仅此一个。
 
 发布你自己的构建、或想让构建跳过设置页直连某站时：
 
