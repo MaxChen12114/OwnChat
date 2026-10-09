@@ -489,7 +489,6 @@
   let useBuiltin = (localStorage.getItem(LS_USE_BUILTIN) ?? "1") === "1";
 
   // ── 2026-10-07 顶栏「基座」按钮两种语义 ──────────────────────────────────────
-  // · 私有渠道（默认）：原有的「内置/自定义」开关（export 会把文案改成公开口径）。
   // · 公开渠道：window.__baseCycleMode 由导出补丁置位 —— 按钮改「基座档位切换」：
   //   部署里有 ≥2 套基座时点一下循环切换；只有一套（官方公开版默认）时提示怎么添加自己的基座。
   const BASE_CYCLE_MODE = !!window.__baseCycleMode;

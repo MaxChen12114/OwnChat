@@ -84,6 +84,8 @@
     "今日 / 总计费用(仅快速模式计费)": "Today / total cost (fast mode only)",
     "基座": "Base",
     "内置": "Built-in",
+    "内置/自定义": "Built-in / Custom",
+    "内置提示词注入开关（关：不注入，只用自定义提示词）": "Inject the built-in prompt (off: custom prompt only)",
     "密码保护（Auth）": "Password protection (Auth)",
     "本地对话记忆": "Local chat memory",
     "云同步（Cloud Sync）": "Cloud sync",
@@ -767,6 +769,8 @@
     "生效。默认开 —— 不是按模型判的，就一条规则：有角色卡就注入。工具/Agent 那条路径本来就不吃状态层。":
       " Takes effect. On by default — one rule, not model-specific: any character card gets it. The tool/Agent path never uses the state layer anyway.",
     "注入角色状态层（【当前状态】/ 场景 / 摘要）": "Inject the character state layer ([current state] / scene / summary)",
+    "控制顶栏那个实时资金按钮(今日 / 总计)的显示。关闭后剩余按钮(模式切换 / 基座 / 同步 / 设置)自动紧凑排列。":
+      "Controls the live cost button (today / total) in the top bar. With it off, the remaining buttons (mode / base / sync / settings) pack tighter.",
     "估算仅含客户端可见的 payload 组成块,服务端系统底座与合规层不计入;实际以发送时 worker 装配为准。":
       "The estimate covers only the client-visible payload blocks; the server-side base prompt and compliance layer are not counted — the real number is whatever the worker assembles when sending.",
     "发送一条消息后显示真实 usage / 耗时。": "Shows real usage / latency after you send a message.",
@@ -905,6 +909,10 @@
     "生成立绘": "Generate character art",
     "本地画廊": "Local gallery",
     "打开画廊": "Open gallery",
+    "已收藏到本地画廊": "Saved to local gallery",
+    "已收藏到本地画廊(未开云同步,暂不跨设备)": "Saved to local gallery (cloud sync off, this device only)",
+    "已收藏并同步到画廊": "Saved and synced to gallery",
+    "未配置云存储,收藏仅保存在本机": "Cloud storage not configured — saved on this device only",
     "清空缓存": "Clear cache",
     "保存定价": "Save pricing",
     "角色扮演": "Roleplay",

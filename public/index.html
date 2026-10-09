@@ -47,7 +47,7 @@
     #topbar #modeToggle { display: inline-flex; align-items: center; gap: 6px; }
     #topbar #modeToggle .btn-text { font-size: 13px; line-height: 1; }
     @media (max-width: 640px) { #topbar #modeToggle .btn-text { display: none; } }
-
+    /* 2026-06-08 顶栏注入开关:原裸图标太隐晦 → 改「图标 + 文字标签」。桌面显示文字,手机端只留图标省空间 */
     #topbar #personaToggle { width: auto; display: inline-flex; align-items: center; gap: 6px; padding: 0 11px; }
 
     #topbar #personaToggle { border-radius: 9px !important; }
@@ -996,13 +996,13 @@
             <!-- 💰 inline 直显 费用:桌面/手机都扫一眼可见,不再收进 popover -->
             <span id="costDisplay" class="topbar-cost-inline" title="今日 / 总计费用(仅快速模式计费)"></span>
 
-
+            <!-- 弹性间距:把 [注入开关] + ☁️ 同步 + ⚙️ 设置推到右侧 -->
             <span class="topbar-spacer"></span>
 
-
-            <!-- app.js 已绑定 #personaToggle 事件,DOM 仅换位,不动逻辑(textContent 切 😈 / 😇) -->
-
-            <button class="iconbtn" id="personaToggle" title="内置人格 / 自定义提示词切换" aria-label="内置/自定义"></button>
+            <!-- 2026-10-09 顶栏「内置/自定义」提示词注入开关:开=注入内置提示词,关=不注入(只发自定义提示词);两种状态下语义一致,详见 AGENTS.md -->
+            <!-- app.js 已绑定 #personaToggle 事件,DOM 仅换位,不动逻辑(图标 + 文字标签) -->
+            <!-- 初始内容留空,交由 app.js 按当前模式渲染,避免静态 emoji 先显示后被脚本替换造成的跳变 -->
+            <button class="iconbtn" id="personaToggle" title="内置提示词注入开关（关：不注入，只用自定义提示词）" aria-label="内置/自定义"></button>
 
             <!-- ☁️ 云同步实时状态(仅桌面显示;手机顶栏空间紧不显) -->
             <div id="syncStatusIndicator" class="desktop-only" title="云同步状态">
