@@ -488,37 +488,52 @@
 
   let useBuiltin = (localStorage.getItem(LS_USE_BUILTIN) ?? "1") === "1";
 
-  // ── 2026-10-07 顶栏「基座」按钮两种语义 ──────────────────────────────────────
-  // · 公开渠道：window.__baseCycleMode 由导出补丁置位 —— 按钮改「基座档位切换」：
-  //   部署里有 ≥2 套基座时点一下循环切换；只有一套（官方公开版默认）时提示怎么添加自己的基座。
-  const BASE_CYCLE_MODE = !!window.__baseCycleMode;
+  // ── 2026-10-09 顶栏「基座」按钮两种语义 ──────────────────────────────────────
+  // · 公开渠道：window.__baseSwitchMode 由导出补丁置位 —— 按钮改「内置 ⇄ 自定义」两套目录切换：
+  //   内置 = src/prompts/bases/（随包一份「基础」准则 + 使用者的正经提示词）；
+  //   自定义 = src/prompts/custom/（使用者自己那份，只有他自己的部署看得见）。
+  //   两态各在「设置 → 对话 → 基座」里选具体档位；自定义目录为空时按钮不切过去，改成提示怎么放文件。
+  const BASE_SWITCH_MODE = !!window.__baseSwitchMode;
   function baseIdsList() {
     return (Array.isArray(window.APP_BASE_IDS) ? window.APP_BASE_IDS : [])
+      .filter(function (x) { return typeof x === "string" && x; });
+  }
+  function customIdsList() {
+    return (Array.isArray(window.APP_CUSTOM_IDS) ? window.APP_CUSTOM_IDS : [])
       .filter(function (x) { return typeof x === "string" && x; });
   }
   function currentBaseId() {
     try { return localStorage.getItem("cfw_base_id_v1") || ""; } catch (e) { return ""; }
   }
+  function currentCustomId() {
+    try { return localStorage.getItem("cfw_custom_id_v1") || ""; } catch (e) { return ""; }
+  }
+  function currentRegistryIsCustom() {
+    try { return BASE_SWITCH_MODE && localStorage.getItem("cfw_base_registry_v1") === "custom"; } catch (e) { return false; }
+  }
   function toastMsg(msg, ms) {
     try { if (window.__feedback && typeof window.__feedback.toast === "function") window.__feedback.toast(msg, ms || 2000); } catch (e) {}
   }
+  // 两套目录共用一份"当前档位"的取法：没选/选了个已被删掉的 id → 回落排序第一份
+  function registryDescribe(useCustom) {
+    var ids = useCustom ? customIdsList() : baseIdsList();
+    var cur = useCustom ? currentCustomId() : currentBaseId();
+    var label = (cur && ids.indexOf(cur) >= 0) ? cur : (ids[0] || "");
+    return { ids: ids, label: label };
+  }
   function paintPersonaButton() {
-    if (!BASE_CYCLE_MODE) {
-      setIcon(personaToggle, useBuiltin ? "personaBuiltin" : "personaCustom", useBuiltin ? "内置" : "自定义");
+    if (BASE_SWITCH_MODE) {
+      // 文案纪律：title/aria 用**固定整串**，别拼动态值 —— 拼接串在双语字典里没有对应键，
+      // 换英文界面时会原样漏中文（「思考挡位」那批就是这么漏的）。档位名放在设置卡里显示。
+      var useCustom = currentRegistryIsCustom();
+      setIcon(personaToggle, "personaBuiltin", useCustom ? "自定义" : "内置");
+      personaToggle.title = useCustom
+        ? "基座目录：自定义（src/prompts/custom/）。点击切回内置"
+        : "基座目录：内置（src/prompts/bases/）。点击切到自定义";
+      personaToggle.setAttribute("aria-label", useCustom ? "切回内置基座" : "切到自定义基座");
       return;
     }
-    var ids = baseIdsList();
-    if (ids.length >= 2) {
-      var cur = currentBaseId();
-      var label = (cur && ids.indexOf(cur) >= 0) ? cur : ids[0];
-      setIcon(personaToggle, "personaBuiltin", label);
-      personaToggle.title = "切换基座（当前：" + label + "，共 " + ids.length + " 套）";
-      personaToggle.setAttribute("aria-label", "切换基座");
-    } else {
-      setIcon(personaToggle, "personaBuiltin", "基座");
-      personaToggle.title = "加自己的基座：往 src/prompts/bases/ 放入 .md / .txt，这里即可切换（见 README）";
-      personaToggle.setAttribute("aria-label", "基座说明");
-    }
+    setIcon(personaToggle, useBuiltin ? "personaBuiltin" : "personaCustom", useBuiltin ? "内置" : "自定义");
   }
   paintPersonaButton();
   // 2026-09-14 会话系统重做:默认改为「开」。会话列表/跨会话切换要有意义就必须落盘,
@@ -604,6 +619,16 @@
   // 2026-10-08：可传发言者卡 —— 该卡配了 baseId 就用它的（角色能力档），否则跟随全局。
   function baseIdPayload(card) {
     try {
+      // 公开渠道：两套目录（bases/ 内置 · custom/ 自定义），顶栏按钮决定用哪套；档位 id 各自过白名单。
+      // 没选具体档位就不发 id —— 服务端回落到该注册表的默认档（与设置里「默认」一致）。
+      if (BASE_SWITCH_MODE) {
+        if (currentRegistryIsCustom()) {
+          const cid = currentCustomId();
+          return cid ? { use_custom_base: true, customId: cid } : { use_custom_base: true };
+        }
+        const bid = currentBaseId();
+        return bid ? { baseId: bid } : {};
+      }
       const cap = charCap(card);
       const id = (cap && typeof cap.baseId === "string" && cap.baseId) ? cap.baseId : (localStorage.getItem("cfw_base_id_v1") || "");
       return id ? { baseId: id } : {};
@@ -2134,18 +2159,20 @@
   });
 
   personaToggle.addEventListener("click", () => {
-    if (BASE_CYCLE_MODE) {
-      const ids = baseIdsList();
-      if (ids.length >= 2) {
-        const cur = currentBaseId();
-        const idx = ids.indexOf(cur);
-        const next = ids[(idx + 1) % ids.length];
-        try { localStorage.setItem("cfw_base_id_v1", next); } catch (e) {}
-        paintPersonaButton();
-        toastMsg("基座已切换：" + next, 1800);
+    if (BASE_SWITCH_MODE) {
+      const useCustom = currentRegistryIsCustom();
+      if (!useCustom && !customIdsList().length) {
+        toastMsg("还没有「自定义」基座：把 .md / .txt 放进 src/prompts/custom/ 并部署，这里就能切过去（见 README「两套基座目录」）。", 6500);
         return;
       }
-      toastMsg("当前只有一套基座。往 src/prompts/bases/ 放入你自己的 .md / .txt 并部署，这里就会出现可切换的档位（见 README「添加自己的基座」）。", 6500);
+      const next = useCustom ? "builtin" : "custom";
+      try {
+        if (next === "custom") localStorage.setItem("cfw_base_registry_v1", "custom");
+        else localStorage.removeItem("cfw_base_registry_v1");
+      } catch (e) {}
+      paintPersonaButton();
+      const d = registryDescribe(next === "custom");
+      toastMsg((next === "custom" ? "已切到自定义基座：" : "已切回内置基座：") + (d.label || "默认"), 1800);
       return;
     }
     useBuiltin = !useBuiltin;

@@ -32,6 +32,9 @@
 //   ③ 文本型目录里还有子目录（不支持嵌套）  ④ .default 指向不存在的 id
 //   ⑤ 条目型：front-matter 没闭合 / 技能没写 description / skills 里出现子目录
 // 非 .md/.txt 的文件在目录里会被忽略并打印警告，不中止。
+// 例外：target 标了 optional: true 时，目录不存在 / 为空都**不中止**，改生成"空注册表"——
+//   公开版的 custom/（使用者自己的基座目录）就是这个形态：目录由使用者自建，而 worker 是静态
+//   import，缺 index.js 会直接编译失败，所以必须先有一份空的。
 // 注册表走 Object.create(null) + 逐条赋值，而不是对象字面量：文件名叫 __proto__ 的极端情况下，
 //   字面量 `{ "__proto__": ... }` 会被 JS 当成设置原型而不是加一个键，白名单就废了。
 
@@ -47,6 +50,9 @@ const FOLDER_SEP = "\n\n---\n\n";
 const TARGETS = [
   // 目录名一律 ASCII（中文路径在构建机/压缩工具/编码假定上都是雷）。
   { dir: "bases", table: "BASES", defaultConst: "DEFAULT_BASE_ID", withShared: true },
+  // 2026-10-09: 公开版第二套目录 —— 使用者自己的基座（顶栏按钮切到「自定义」时用它）。
+  // optional: 目录不存在 / 为空都生成空注册表（worker 是静态 import，缺 index.js 会直接编译失败）。
+  { dir: "custom", table: "CUSTOMS", defaultConst: "DEFAULT_CUSTOM_ID", withShared: false, optional: true },
   { dir: "presets", table: "PRESETS", kind: "entries", groupKey: "group" },
   { dir: "skills", table: "SKILLS", kind: "entries" },
 ];
@@ -74,9 +80,38 @@ function readText(p, bomSink, label) {
   return t;
 }
 
-function buildOne({ dir, table, defaultConst, withShared }) {
+/** 生成物里的注册表标题（中性措辞：私有版生成物不进公开树，但公开版生成的同名字段要对得上）。 */
+const TABLE_TITLE = { BASES: "基座提示词", CUSTOMS: "自定义基座提示词" };
+
+/** optional target 的空注册表：0 条 + 默认档为空串（调用方必须自己兜底）。 */
+function writeEmptyRegistry({ dir, table, defaultConst, withShared }, why) {
+  const out = `// src/prompts/${dir}/index.js — ⚠️ 自动生成，勿手改（scripts/gen-prompts.mjs）
+// ${why}（该目录是 optional target，允许暂时没有内容）。
+// 往目录里放进 .md / .txt（或一整个子目录 = 一套多文件基座）后重新 dev / deploy，这里就会自动多出条目。
+
+/** ${TABLE_TITLE[table] || table}注册表：id = 文件名/目录名。null 原型对象，避免 __proto__ 这类键名作祟。 */
+export const ${table} = Object.create(null);
+
+/** 默认档：空注册表没有默认档（空串）—— 调用方必须自己兜底。 */
+export const ${defaultConst} = "";
+${withShared ? `
+/** 共用前缀（shared.md / shared.txt，当前为空占位；不进下拉、不当默认） */
+export const sharedText = "";
+` : ""}`;
+  const target = path.join(ROOT, "src", "prompts", dir, "index.js");
+  fs.mkdirSync(path.dirname(target), { recursive: true }); // 目录不存在时也要写得进去（optional 的常态）
+  const prev = fs.existsSync(target) ? fs.readFileSync(target, "utf8") : null;
+  if (prev === out) console.log(`[gen-prompts] ${dir}/index.js 无变化（空注册表），跳过写入`);
+  else { fs.writeFileSync(target, out, "utf8"); console.log(`[gen-prompts] 已生成 ${dir}/index.js：空注册表（${why}）`); }
+  return { ids: [], defaultId: "" };
+}
+
+function buildOne({ dir, table, defaultConst, withShared, optional }) {
   const abs = path.join(ROOT, "src", "prompts", dir);
-  if (!fs.existsSync(abs)) return { skipped: true, dir };
+  if (!fs.existsSync(abs)) {
+    if (optional) return writeEmptyRegistry({ dir, table, defaultConst, withShared }, "目录不存在");
+    return { skipped: true, dir };
+  }
   const bom = [], soft = [], hard = [];
   const items = [];
   for (const d of fs.readdirSync(abs, { withFileTypes: true })) {
@@ -87,6 +122,7 @@ function buildOne({ dir, table, defaultConst, withShared }) {
     }
   }
   if (!items.length) {
+    if (optional) return writeEmptyRegistry({ dir, table, defaultConst, withShared }, "目录为空");
     console.error(`[gen-prompts] ✗ ${dir}/ 下没有任何 .md / .txt / 子目录，拒绝生成空注册表`);
     process.exit(1);
   }
@@ -166,7 +202,7 @@ function buildOne({ dir, table, defaultConst, withShared }) {
 // 编辑面是本目录下的 *.md / *.txt 与子目录；wrangler dev / deploy 前会自动重新生成。
 // 手动重新生成：node scripts/gen-prompts.mjs
 
-
+/** ${TABLE_TITLE[table] || table}注册表：id = 文件名/目录名。null 原型对象，避免 __proto__ 这类键名作祟。 */
 export const ${table} = Object.create(null);
 ${lines.join("\n")}
 

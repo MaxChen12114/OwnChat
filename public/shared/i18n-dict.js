@@ -86,6 +86,14 @@
     "内置": "Built-in",
     "内置/自定义": "Built-in / Custom",
     "内置提示词注入开关（关：不注入，只用自定义提示词）": "Inject the built-in prompt (off: custom prompt only)",
+    "基座目录：自定义（src/prompts/custom/）。点击切回内置": "Base folder: custom (src/prompts/custom/). Click to switch back to built-in",
+    "基座目录：内置（src/prompts/bases/）。点击切到自定义": "Base folder: built-in (src/prompts/bases/). Click to switch to custom",
+    "切回内置基座": "Switch back to the built-in base",
+    "切到自定义基座": "Switch to the custom base",
+    "还没有「自定义」基座：把 .md / .txt 放进 src/prompts/custom/ 并部署，这里就能切过去（见 README「两套基座目录」）。":
+      "No custom base yet — drop a .md / .txt into src/prompts/custom/ and deploy, then this button can switch to it (see README: Two base folders).",
+    "自定义目录（src/prompts/custom/）": "Custom folder (src/prompts/custom/)",
+    "（目录为空 —— 把 .md / .txt 放进去并部署）": "(empty — drop .md / .txt in and deploy)",
     "密码保护（Auth）": "Password protection (Auth)",
     "本地对话记忆": "Local chat memory",
     "云同步（Cloud Sync）": "Cloud sync",
@@ -769,7 +777,7 @@
     "生效。默认开 —— 不是按模型判的，就一条规则：有角色卡就注入。工具/Agent 那条路径本来就不吃状态层。":
       " Takes effect. On by default — one rule, not model-specific: any character card gets it. The tool/Agent path never uses the state layer anyway.",
     "注入角色状态层（【当前状态】/ 场景 / 摘要）": "Inject the character state layer ([current state] / scene / summary)",
-    "控制顶栏那个实时资金按钮(今日 / 总计)的显示。关闭后剩余按钮(模式切换 / 基座 / 同步 / 设置)自动紧凑排列。":
+    "控制顶栏那个实时资金按钮(今日 / 总计)的显示。关闭后剩余按钮(模式切换 / 内置 / 同步 / 设置)自动紧凑排列。":
       "Controls the live cost button (today / total) in the top bar. With it off, the remaining buttons (mode / base / sync / settings) pack tighter.",
     "估算仅含客户端可见的 payload 组成块,服务端系统底座与合规层不计入;实际以发送时 worker 装配为准。":
       "The estimate covers only the client-visible payload blocks; the server-side base prompt and compliance layer are not counted — the real number is whatever the worker assembles when sending.",
@@ -1115,6 +1123,8 @@
     [/^生成中…（约 10-30 秒）$/, "Generating… (about 10–30 s)"],
     [/^\(内容过长,已截断到前 (\d+) 字\)$/, "(too long — truncated to the first $1 characters)"],
     [/^思考模式：开启 · 强度 (.+)$/, "Thinking on · effort $1"],
+    [/^已切到自定义基座：(.+)$/, "Switched to the custom base: $1"],
+    [/^已切回内置基座：(.+)$/, "Switched back to the built-in base: $1"],
     [/^【文件: (.+)\]$/, "[File: $1]"],
     [/^· 第 (\d+) 页$/, "· page $1"],
     [/^(\d+) 个条目。$/, "$1 entries."],

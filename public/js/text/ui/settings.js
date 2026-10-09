@@ -42,7 +42,7 @@
     if (!slot || document.getElementById('showTopbarCostToggle')) return;
     var card = document.createElement('div'); card.className = 'card';
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><path d="M3.5 9.2h17"/></svg>顶栏资金按钮</h4>'
-      + '<p>控制顶栏那个实时资金按钮(今日 / 总计)的显示。关闭后剩余按钮(模式切换 / 基座 / 同步 / 设置)自动紧凑排列。<b>仅本设备生效</b>(不进云同步)。</p>'
+      + '<p>控制顶栏那个实时资金按钮(今日 / 总计)的显示。关闭后剩余按钮(模式切换 / 内置 / 同步 / 设置)自动紧凑排列。<b>仅本设备生效</b>(不进云同步)。</p>'
       + '<div class="rowline"><div class="toggle"><input type="checkbox" id="showTopbarCostToggle"><label for="showTopbarCostToggle">显示实时资金按钮(顶栏 · 今日 / 总计)</label></div></div>'
       + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>资金数据始终在「高级 → 费用日志」卡里完整可看;关掉顶栏仅减少视觉占用,不影响计费/同步。</span></div>';
     slot.appendChild(card);
@@ -238,7 +238,7 @@
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
     var card = document.createElement('div');
     card.className = 'card'; card.id = 'baseIdCard';
-    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>基座提示词（系统提示第一段）</h4><p>底座是 system 提示词的第一段，所有聊天都吃它——内置模型与自定义直连一样。</p><div style="margin-top:10px;"><select id="baseIdSel" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"></select></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>选项就是 <code>src/prompts/bases/</code> 里的文件名（<b>默认</b> = 排序第一份；想让某份当默认，就在它名字最前面加个数字）。切换后<b>下一轮</b>生效（上游缓存前缀会重算一次）。往那里放一个新的 <code>.md</code> / <code>.txt</code>（或一整个子目录 = 多文件底座），部署后这里自动多一项。</span></div>`;
+    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>基座提示词（系统提示第一段）</h4><p>底座是 system 提示词的第一段，所有聊天都吃它——内置模型与自定义直连一样。</p><div style="margin-top:10px;"><select id="baseIdSel" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"></select></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>选项就是 <code>src/prompts/bases/</code> 里的文件名（<b>默认</b> = 排序第一份；想让某份当默认，就在它名字最前面加个数字）。切换后<b>下一轮</b>生效（上游缓存前缀会重算一次）。两个目录：<code>src/prompts/bases/</code> 放正经的（随包一份「基础」），<code>src/prompts/custom/</code> 放你自己留着的那些 —— 顶栏那个按钮在两者之间切换。各放一个 <code>.md</code> / <code>.txt</code>（或一整个子目录 = 多文件基座），部署后下拉里自动多一项。<b><code>custom/</code> 里的东西别提交进公开仓库</b>（加进 <code>.gitignore</code>）。</span></div>`;
     slot.prepend(card);
     // 候选项来自 /config.js 的 APP_BASE_IDS(worker 侧 bases/index.js 自动发现的产物)。
     // 只存 id、不存文本;真正的取舍在服务端 resolveBaseId 白名单,前端这里只负责挑。
@@ -257,6 +257,35 @@
     bs.addEventListener('change', function () {
       try { if (bs.value) localStorage.setItem(KB, bs.value); else localStorage.removeItem(KB); } catch (e) {}
     });
+    // 2026-10-09 公开渠道（__baseSwitchMode）：第二套目录 —— 自定义（src/prompts/custom/）也来一个下拉。
+    // 顶栏按钮只管在两套目录间切换，具体档位在这里各自选；私有版不置位，这段不执行。
+    if (window.__baseSwitchMode) {
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'margin-top:12px;';
+      var lab = document.createElement('div');
+      lab.style.cssText = 'font-size:12px;opacity:.65;margin-bottom:5px;';
+      lab.textContent = '自定义目录（src/prompts/custom/）';
+      wrap.appendChild(lab);
+      var cs = document.createElement('select');
+      cs.id = 'customBaseIdSel';
+      cs.style.cssText = 'width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;';
+      var cids = Array.isArray(window.APP_CUSTOM_IDS) ? window.APP_CUSTOM_IDS : [];
+      if (!cids.length) {
+        cs.innerHTML = '<option value="">（目录为空 —— 把 .md / .txt 放进去并部署）</option>';
+        cs.disabled = true;
+      } else {
+        cs.innerHTML = '<option value="">默认</option>' + cids.map(function (id) {
+          return '<option value="' + esc(id) + '">' + esc(id) + '</option>';
+        }).join('');
+        try { cs.value = localStorage.getItem('cfw_custom_id_v1') || ''; } catch (e) {}
+        cs.addEventListener('change', function () {
+          try { if (cs.value) localStorage.setItem('cfw_custom_id_v1', cs.value); else localStorage.removeItem('cfw_custom_id_v1'); } catch (e) {}
+        });
+      }
+      wrap.appendChild(cs);
+      var host = bs.parentNode && bs.parentNode.parentNode;
+      if (host) host.insertBefore(wrap, bs.parentNode.nextSibling);
+    }
   }
   // ─── §联网搜索卡（2026-10-07 新增）───
   // 背景：DeepSeek 官方 API 没有服务端搜索（官方文档里内置工具标 Ignored，定价页也无搜索项），

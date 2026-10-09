@@ -19,7 +19,7 @@ import {
 } from "./model/providers.js";
 import { isPrivateHost } from "./net-guard.js";
 import { assembleSystemPrompt } from "./prompts/layers/assemble.js";
-import { resolveBaseId, baseTextForId, baseIds, presetEntries, skillEntries, libraryVersions } from "./prompts/registry.js";
+import { resolveBaseId, resolveCustomId, baseTextForId, customTextForId, baseIds, customIds, presetEntries, skillEntries, libraryVersions } from "./prompts/registry.js";
 import { buildCharacterBasePrompt, buildLayer2, isValidCard } from "./prompts/layers/rp.js";
 import { buildLorebookInstruction, buildReplyStyleInstruction, buildSummarizeSysPrompt, buildTurnNudge } from "./prompts/layers/chat.js";
 import { handleImageRequest } from "./image-routes.js";
@@ -471,6 +471,8 @@ function clientConfigJs() {
     `window.APP_CTX_HINTS = ${JSON.stringify(CTX_HINTS || [])};`,
     // 基座候选(来自 bases/index.js 的自动发现注册表)。只下发 id 列表、不下发文本。
     `window.APP_BASE_IDS = ${JSON.stringify(baseIds())};`,
+    // 2026-10-09: 自定义目录（custom/）的候选 id。同样只下发 id、不下发文本。
+    `window.APP_CUSTOM_IDS = ${JSON.stringify(customIds())};`,
     MODEL_POOL_OVERRIDE_JS,
   ].join("\n");
 }
@@ -738,8 +740,10 @@ async function handleChat(request, env) {
   // 静态前缀段(会话内逐字稳定 → 命中缓存);层顺序/拼接见 src/prompts/layers/assemble.js
   // 各自走白名单(resolve*Id:乱传/缺省回落各自注册表的默认档)。锁定分支**不读 BASES**,
   // 所以「锁定态传 baseId」既拿不到底座文本、也不会报错(隔离回归见 redteam/e2e-prompts.mjs)。
-  const promptId = resolveBaseId(payload?.baseId);
-  const promptText = useBuiltinPersona ? baseTextForId(promptId) : "";
+  // 两套目录（bases/ 内置 · custom/ 自定义）：前端按钮决定用哪套，id 各自过白名单。
+  const useCustomBase = payload?.use_custom_base === true;
+  const promptId = useCustomBase ? resolveCustomId(payload?.customId) : resolveBaseId(payload?.baseId);
+  const promptText = useBuiltinPersona ? (useCustomBase ? customTextForId(promptId) : baseTextForId(promptId)) : "";
   const { systemContent, staticParts, dynamicParts } = assembleSystemPrompt({
     baseText: promptText, characterBasePrompt, customSystemPrompt,
     replyStyleInstr, extraSystemPrompts, lorebookInstr, characterStatePrompt,
@@ -888,7 +892,7 @@ async function handleChat(request, env) {
     model, mode, upstream: provider.label, authed,
     thinking: provider.supportsThinking ? thinking : "n/a",
     reasoningEffort, temperature, topP, maxTokens, wantStream,
-    flags: { useBuiltinPersona, prompt: promptId, replyStyle, needsReasoningHistory, promptProfile, stateLayer: injectStateLayer },
+    flags: { useBuiltinPersona, prompt: (useCustomBase ? "custom:" : "base:") + promptId, replyStyle, needsReasoningHistory, promptProfile, stateLayer: injectStateLayer },
     sysParts: staticParts.length + " static / " + dynamicParts.length + " dynamic",
     sysChars: systemContent.length,
     msgCount: cleanedMessages.length,

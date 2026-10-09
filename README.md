@@ -70,17 +70,24 @@ Before publishing your *own* builds, or if you want a build that skips the setup
    Put the private key into repository secrets `TAURI_SIGNING_PRIVATE_KEY` (+ `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) and the public key into `tauri.conf.json` → `plugins.updater.pubkey`; set `plugins.updater.endpoints` to your own releases feed.
 3. **Change the bundle identifier** (`identifier` in `tauri.conf.json`) if you want your builds to be a distinct app. Note it becomes the Android `applicationId`, so changing it later means a reinstall.
 
-## Adding your own base prompts
+## Two base folders
 
-A **base prompt** is the first block of the system prompt — it shapes how the model behaves across the whole app. This repository ships exactly **one** general-purpose base (`src/prompts/bases/基础.md`).
+A **base prompt** is the first block of the system prompt — it shapes how the model behaves across the whole app. The repository ships **two folders**, and the top-bar button switches between them:
+
+| Folder | Button state | What goes in |
+| --- | --- | --- |
+| `src/prompts/bases/` | Built-in | One general-purpose base ships here; your own regular prompts can live here too |
+| `src/prompts/custom/` | Custom | The one you keep for yourself — visible only in your own deployment |
 
 To add your own:
 
-1. Put any `.md` / `.txt` file — or a folder of them (= one multi-file base) — into `src/prompts/bases/`.
-2. Deploy (the build step scans that directory; the file/folder name becomes the id shown in **Settings → 对话 → 基座**).
-3. With **two or more** bases deployed, the top-bar persona button switches between them with a single click (with one base, the button just shows this guide).
+1. Put any `.md` / `.txt` file — or a folder of them (= one multi-file base) — into the folder you want.
+2. Deploy (the build step scans both folders; the file/folder name becomes the id shown in **Settings → 对话 → 基座**).
+3. With more than one base in a folder, pick the active one under **Settings → 对话 → 基座**; the top-bar button only switches folders. While `custom/` is empty the button won't switch to it (it shows a hint instead).
 
-> **What this repository does *not* provide.** Only the one general-purpose base above is included. The project does not ship, review, or vouch for any other base text: people add their own, at their own responsibility, and are responsible for complying with the laws that apply to them and with the terms of whichever model provider they use.
+> **Don't commit `custom/` to a public repository.** If you fork this project and push it publicly, add that folder to `.gitignore`.
+
+> **What this repository does *not* provide.** Only the one general-purpose base in `bases/` — `custom/` ships empty. The project does not ship, review, or vouch for any other base text: people add their own, at their own responsibility, and are responsible for complying with the laws that apply to them and with the terms of whichever model provider they use.
 
 Base files are payloads, not documents — their bytes go straight into model requests (keep them LF; `.gitattributes` enforces it).
 
@@ -92,7 +99,7 @@ Third-party projects that pair well with OwnChat. **Not affiliated with, not rev
 
 - **[Spiritual-Spell-Red-Teaming](https://github.com/Goochbeater/Spiritual-Spell-Red-Teaming)** — a large community collection of red-teaming / jailbreak prompts for many LLMs (mostly Claude). **Read the warnings before you click:** it ships **no license**, it contains adult / NSFW-capable jailbreak prompts and collected vendor system prompts, and **its README embeds hidden prompt-injection text aimed at AI tools** — do not paste that README into an AI assistant or agent, read it with your own eyes only. If you use anything from it in your own deployment, that is your own responsibility: comply with the laws that apply to you and with each model provider's terms. (Consistent with this repository's policy, no-license third-party text is never copied into `src/prompts/` — link only.)
 
-Dropped one into your own deployment and want the top-bar button to switch between bases? Add it under `src/prompts/bases/`, deploy, and the button picks it up.
+Dropped into your own deployment and want it behind the top-bar button? This one clearly belongs on the "custom" side — put what you want under `src/prompts/custom/`, deploy, and switch the button to **Custom** (and keep that folder out of your public repository).
 
 ## Privacy & License
 
@@ -104,6 +111,6 @@ Dropped one into your own deployment and want the top-bar button to switch betwe
 See [AGENTS.md](AGENTS.md) for architecture notes and development conventions. Two house rules worth knowing before you send a PR:
 
 - **Commit messages and GitHub metadata (repo description, release notes, PR titles) are written in English.**
-- The prompt files under `src/prompts/bases/` are payloads, not documents — byte-exact text matters.
+- The prompt files under `src/prompts/bases/` and `src/prompts/custom/` are payloads, not documents — byte-exact text matters.
 
 Third-party credits: prompt libraries (`src/prompts/CREDITS.md`), ambient audio (`public/assets/ambient/CREDITS.txt`), and the wallpaper used in the screenshots (see README of `docs/`).

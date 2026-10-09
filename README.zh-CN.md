@@ -70,17 +70,24 @@ Tauri 2 打包工程在 `src-tauri/`；CI（`.github/workflows/tauri-build.yml`�
    私钥放仓库 Secrets：`TAURI_SIGNING_PRIVATE_KEY`（+ 密码）；公钥填进 `tauri.conf.json` → `plugins.updater.pubkey`，更新源 `plugins.updater.endpoints` 指向你自己的 Releases。
 3. **改 bundle identifier**（`tauri.conf.json` 的 `identifier`）如果你想让自己的构建成为一个独立应用。注意它就是安卓的 `applicationId`，上线后再改等于换应用（需卸载重装）。
 
-## 添加自己的基座提示词
+## 两套基座目录
 
-**基座**是 system 提示词的第一段，决定模型在整个应用里的行为方式。本仓库只带**一套**通用基座（`src/prompts/bases/基础.md`）。
+**基座**是 system 提示词的第一段，决定模型在整个应用里的行为方式。仓库自带**两套目录**，顶栏那个按钮在两者之间切换：
+
+| 目录 | 按钮态 | 放什么 |
+| --- | --- | --- |
+| `src/prompts/bases/` | 内置 | 随包一份通用「基础」；你自己的正经提示词也可以放这里 |
+| `src/prompts/custom/` | 自定义 | 你自己留着用的那份 —— 只有你的部署看得见 |
 
 要加自己的：
 
-1. 把任意 `.md` / `.txt`（或一整个文件夹 = 一套多文件基座）丢进 `src/prompts/bases/`。
-2. 部署（构建步骤会自动扫描该目录；**文件名 / 文件夹名就是设置里「对话 → 基座」下拉显示的 id**）。
-3. 部署里有**两套及以上**基座时，顶栏那个按钮点一下就能循环切换；只有一套时它会提示你来看这段说明。
+1. 把任意 `.md` / `.txt`（或一整个文件夹 = 一套多文件基座）丢进你要用的那个目录。
+2. 部署（构建步骤会自动扫描这两个目录；**文件名 / 文件夹名就是设置里「对话 → 基座」对应下拉显示的 id**）。
+3. 同一目录里有多份时，在 **设置 → 对话 → 基座** 里选具体档位；顶栏按钮只管切换目录。`custom/` 目录为空时按钮不会切过去（会提示你怎么放文件）。
 
-> **本仓库不提供什么。** 只含上面那一套通用基座。项目不附带、不审核、也不为任何其他基座文本背书 —— 使用者自行添加、自行负责，并有责任遵守所在地区的法律与你所用模型服务商的条款。
+> **别把 `custom/` 提交进公开仓库。** 如果你 fork 了本仓库并公开推送，把该目录加进 `.gitignore`。
+
+> **本仓库不提供什么。** 只含 `bases/` 里那一套通用基座，`custom/` 随包是空的。项目不附带、不审核、也不为任何其他基座文本背书 —— 使用者自行添加、自行负责，并有责任遵守所在地区的法律与你所用模型服务商的条款。
 
 基座文件是**载荷不是文档**：逐字节进入模型请求（保持 LF，`.gitattributes` 已钉死）。
 
@@ -92,7 +99,7 @@ Tauri 2 打包工程在 `src-tauri/`；CI（`.github/workflows/tauri-build.yml`�
 
 - **[Spiritual-Spell-Red-Teaming](https://github.com/Goochbeater/Spiritual-Spell-Red-Teaming)** —— 面向多种大模型的越狱 / 红队提示词合集（以 Claude 为主）。**点进去之前先看警告**：它**没有 LICENSE**，含可产生成人向内容的越狱提示词与收集来的各家厂商系统提示词，**且其 README 里嵌了一段针对 AI 的隐藏提示词注入** —— 别把它整份喂给 AI 助手 / agent，请自己人眼看。若你在自己的部署里用了其中内容，后果自负：请遵守当地法律与各模型服务商的条款。（按本仓库一贯政策，无协议文本从不复制进 `src/prompts/`，只做链接。）
 
-放进自己部署后想让顶栏按钮在两套基座间切换？把它放到 `src/prompts/bases/` 下并部署，按钮就会自动认到。
+放进自己部署后想让它跟在顶栏按钮后面？这类内容明显属于「自定义」那一档 —— 把你要用的部分放进 `src/prompts/custom/` 并部署，顶栏按钮切到「自定义」即可（记得别把该目录提交进公开仓库）。
 
 ## 隐私与许可
 
@@ -104,6 +111,6 @@ Tauri 2 打包工程在 `src-tauri/`；CI（`.github/workflows/tauri-build.yml`�
 架构说明与开发约定见 [AGENTS.md](AGENTS.md)。提 PR 前值得知道的两条：
 
 - **提交信息与 GitHub 元数据（仓库简介、Release 说明、PR 标题）一律用英文。**
-- `src/prompts/bases/` 下的提示词是**载荷不是文档** —— 逐字节都要保持原样。
+- `src/prompts/bases/` 与 `src/prompts/custom/` 下的提示词是**载荷不是文档** —— 逐字节都要保持原样。
 
 第三方致谢：提示词库（`src/prompts/CREDITS.md`）、氛围音（`public/assets/ambient/CREDITS.txt`）、截图所用壁纸（见 `docs/` 说明）。

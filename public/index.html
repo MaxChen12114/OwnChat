@@ -469,8 +469,8 @@
         if (isAndroidShell && localStorage.getItem("cfw_app_fx_rich_v1") === "1") document.documentElement.classList.add("fx-rich");
         var t = localStorage.getItem("cfw_theme_v1");
         if (t === "glass" || t === "candle") document.documentElement.setAttribute("data-theme", t);
-        // 公开版：顶栏按钮改「基座档位切换」——部署里 ≥2 套基座时循环切换；只有一套时提示怎么加（见 README）
-        window.__baseCycleMode = true;
+        // 公开版：顶栏按钮改「基座目录切换」——内置（bases/）⇄ 自定义（custom/）两态；档位在 设置 → 对话 → 基座 里选
+        window.__baseSwitchMode = true;
       } catch (e) {}
     })();
   </script>
@@ -1008,7 +1008,7 @@
             <!-- 2026-10-09 顶栏「内置/自定义」提示词注入开关:开=注入内置提示词,关=不注入(只发自定义提示词);两种状态下语义一致,详见 AGENTS.md -->
             <!-- app.js 已绑定 #personaToggle 事件,DOM 仅换位,不动逻辑(图标 + 文字标签) -->
             <!-- 初始内容留空,交由 app.js 按当前模式渲染,避免静态 emoji 先显示后被脚本替换造成的跳变 -->
-            <button class="iconbtn" id="personaToggle" title="内置提示词注入开关（关：不注入，只用自定义提示词）" aria-label="内置/自定义"></button>
+            <button class="iconbtn" id="personaToggle" title="基座目录：内置（src/prompts/bases/）。点击切到自定义" aria-label="切到自定义基座"></button>
 
             <!-- ☁️ 云同步实时状态(仅桌面显示;手机顶栏空间紧不显) -->
             <div id="syncStatusIndicator" class="desktop-only" title="云同步状态">
