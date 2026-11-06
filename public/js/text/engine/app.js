@@ -893,18 +893,51 @@
   }
 
   // ─── 模式切换 ───
-  function applyMode(mode) {
-    currentMode = mode;
-    localStorage.setItem(LS_MODE, mode);
-    const isFast = mode === "fast";
-
-    if (modeToggle) {
+  // 2026-11-06：顶栏按钮跟随活跃渠道 —— 预设显示渠道名、自定义显示自定义名、未选则免费/快速。
+  function activeChannelInfo() {
+    try {
+      const P = window.__providers;
+      if (!P || !P.read) return null;
+      const st = P.read();
+      const key = st && st.activeId;
+      if (!key) return null;
+      const k = P.parseKey ? P.parseKey(key) : null;
+      if (!k) return null;
+      if (k.kind === "preset") {
+        const m = P.presetMeta ? P.presetMeta(k.id) : null;
+        return { name: (m && (m.title || m.label)) || k.id, kind: "preset", mode: P.modeForActive ? P.modeForActive() : null };
+      }
+      if (k.kind === "custom") {
+        let name = k.id;
+        try {
+          const list = P.channels ? P.channels() : [];
+          for (const c of list) if (c && c.key === key) { name = c.name || c.id || name; break; }
+        } catch (e) {}
+        return { name: name, kind: "custom" };
+      }
+    } catch (e) {}
+    return null;
+  }
+  function paintModeToggle() {
+    if (!modeToggle) return;
+    const isFast = currentMode === "fast";
+    const ch = activeChannelInfo();
+    if (ch) {
+      const label = String(ch.name).slice(0, 14);
+      setIcon(modeToggle, ch.kind === "custom" ? "modeFast" : (ch.mode === "fast" ? "modeFast" : "modeFree"), label);
+      modeToggle.title = "当前渠道：" + ch.name + "；点击切换免费/快速预设（渠道详情见 设置→模型 API）";
+    } else {
       modeToggle.textContent = isFast ? "\u26A1 快速" : "\u{1F7E2} 免费";
       setIcon(modeToggle, isFast ? "modeFast" : "modeFree", isFast ? "快速" : "免费"); // 2026-06-07: 线性 SVG 图标 + 文字(覆盖上一行 emoji)
       modeToggle.title = isFast
         ? "当前：快速档（按量计费）；渠道与默认模型见 设置→模型 API"
         : "当前：免费档；渠道与默认模型见 设置→模型 API";
     }
+  }
+  function applyMode(mode) {
+    currentMode = mode;
+    localStorage.setItem(LS_MODE, mode);
+    paintModeToggle();
 
     // 重建下拉
     initModels();
@@ -2282,6 +2315,7 @@
       try {
         const want = window.__providers && window.__providers.modeForActive && window.__providers.modeForActive();
         if (want && want !== currentMode) { applyMode(want); return; }
+        paintModeToggle();
         initModels();
       } catch (e) {}
     });
