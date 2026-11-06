@@ -533,36 +533,6 @@
     paint();
   }
 
-  // ─── 2026-10-13 批 I：精简模式卡（隐藏角色扮演/出图向入口；主线默认关；见 shared/slim.js） ───
-  function mountSlimCard() {
-    var slot = document.getElementById('setCostSlot');
-    if (!slot || document.getElementById('slimCard')) return;
-    var card = document.createElement('div'); card.className = 'card'; card.id = 'slimCard';
-    card.innerHTML = '<h4>精简模式 · 隐藏角色扮演/出图向入口</h4>'
-      + '<p>给专业场景用的界面精简。开启后隐藏：设置「发图」分类、左栏「图像(生/改)」、模型 API 里的图像 Key 卡、角色卡「发图基准图」段、工作台里的 创作工坊/写作台/音频工作台，以及 agent 的 send_image 工具（下次发送生效）。<b>只收 UI 入口，代码与功能不删</b>；/tools/ 页面直链照常可达。仅本设备。</p>'
-      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="slimModeToggle"><label for="slimModeToggle">开启精简模式</label></div></div>'
-      + '<div id="slimStatus" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>';
-    slot.appendChild(card);
-    var el = document.getElementById('slimModeToggle');
-    var sts = document.getElementById('slimStatus');
-    function render() {
-      var on = false;
-      try { on = !!(window.__slim && window.__slim.on()); } catch (e) {}
-      el.checked = on;
-      sts.textContent = on ? '已开启：入口已隐藏（关掉即恢复，无需刷新）。' : '已关闭：全部入口正常显示。';
-    }
-    el.addEventListener('change', function () {
-      var on = el.checked;
-      try {
-        if (window.__slim) window.__slim.set(on);
-        else { localStorage.setItem('cfw_slim_mode_v1', on ? '1' : '0'); document.documentElement.classList.toggle('slim', on); }
-      } catch (e) {}
-      render();
-    });
-    window.addEventListener('slim:changed', render);
-    render();
-  }
-
   // ─── Agent 工具集档位(对应 shared/tools.js 里的 CORE_TOOLS 门控 · LS cfw_agent_tools_v1) ───
   // 两档: core(常用) / full(全量,自检时才开)。档位数在卡内动态点数（作者会持续加工具）。
   function mountAgentToolsCard() {
@@ -865,7 +835,6 @@
     mountAutopilotCard();
     mountAgentToolsCard();
     mountMultiAgentCard();   // 2026-10-08 独立成卡（编排玩法与工作能力分开）
-    mountSlimCard();         // 2026-10-13 批 I 精简模式（收掉角色扮演/出图向入口）
     mountDevToolsCard();     // 2026-11-06 开发工具（源码/产物检索，本地服务）
     mountPersonaCard();      // M1
     // 2026-10-13 (批 E1b): 旧「模型候选池」卡已并入下面 mountByoCard() 的渠道管理卡 ——

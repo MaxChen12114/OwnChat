@@ -1878,22 +1878,3 @@ html[data-theme="glass"] .msg-action-btn.icon-only:hover { background: rgba(127,
 .uc-wrap:not(.folded) ~ .uc-toggle svg { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) { .uc-toggle svg { transition: none; } }
 /* ══════════ 2026-09-14 消息操作条 完 ══════════ */
-
-/* ═══════════════════════════════════════════════════════════════════
-   2026-10-13 批 I：精简模式（html.slim）—— 隐藏角色扮演/出图向入口
-   开关在 设置→高级（shared/slim.js；主线默认关，随时可开）。
-   只收 UI 入口：/tools/ 页面直链照常可达；功能与代码零删除。
-   ═══════════════════════════════════════════════════════════════════ */
-html.slim #imageStudioModalBtn,
-html.slim .rs-tab[data-rs-tab="image"],
-html.slim .rs-panel[data-rs-panel="image"],
-html.slim .scn-item[data-cat="image"],
-html.slim .set-cat[data-cat="image"],
-html.slim #imgKeyCard,
-html.slim #imgChCard,
-html.slim #studioBtn,
-html.slim #writeStudioBtn,
-html.slim #audioStudioBtn,
-html.slim .char-baseimg-label,
-html.slim .char-baseimg-hint,
-html.slim .char-baseimg-row { display: none !important; }
