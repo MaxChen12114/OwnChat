@@ -60,9 +60,13 @@
 		function _maOn() { try { return localStorage.getItem("tavern_multi_agent_mode_v1") === "multi"; } catch (e) { return false; } }
 		function _maFlag(k) { try { const v = localStorage.getItem(k); return v == null ? true : v === "1"; } catch (e) { return true; } }
 		function _maEnabled(k) { return _profile !== "sub" && _maOn() && _maFlag(k); }
+		// 2026-10-13 批 I：精简模式（html.slim）时不注册角色扮演/出图向工具（开关在 设置→高级，见 shared/slim.js）
+		const SLIM_HIDDEN = ["send_image"]
+		function _slimOn() { try { return document.documentElement.classList.contains("slim") } catch (e) { return false } }
 		function define(def) {
 			if (_allowed && _allowed.indexOf(def && def.name) < 0) return registry
 			if (def && MA_GATED[def.name] && !_maEnabled(MA_GATED[def.name])) return registry
+			if (def && _slimOn() && SLIM_HIDDEN.indexOf(def.name) >= 0) return registry
 			return _realDefine(def)
 		}
 
