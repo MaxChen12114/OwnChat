@@ -1199,17 +1199,13 @@
   <!-- /#app -->
 
   <!-- ══ 右侧栏:4.41-ui 标签化(群聊控制台 / 图像),避免图像快捷面板挤占、遮挡多智能体控制台 ══ -->
-  <!-- #fishbowlSlot 仍由 multi-agent.js 挂载(id 不变);图像面板由 image-quickgen.js 注入 #imageSlot(保留 .sidebar-slot-placeholder 类,选择器零改动)。两 tab 各自独立滚动,永不重叠 -->
+  <!-- #fishbowlSlot 仍由 multi-agent.js 挂载(id 不变)。2026-10-16 批 Q：右栏「图像」tab/面板整体移除（所有者点名：右栏空间宝贵，两版通用改动；工具链模块保留服务工坊/左栏路径） -->
   <aside class="right-sidebar" id="rightSidebar" aria-label="侧辅面板">
     <div class="sidebar-header rs-header">
       <div class="rs-tabs" role="tablist" aria-label="右侧面板切换">
         <button class="rs-tab active" data-rs-tab="fishbowl" role="tab" aria-selected="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h16a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-9l-4.5 3.5V16.5H4A1.5 1.5 0 0 1 2.5 15V7A1.5 1.5 0 0 1 4 5.5z"/><circle cx="8.5" cy="11" r="1"/><circle cx="12" cy="11" r="1"/><circle cx="15.5" cy="11" r="1"/></svg>
           <span>群聊</span><span class="rs-dot" aria-hidden="true"></span>
-        </button>
-        <button class="rs-tab" data-rs-tab="image" role="tab" aria-selected="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><circle cx="8.8" cy="9.8" r="1.6"/><path d="M4.5 17l4.8-4.3 3.2 2.8 3-2.5 4 3.5"/></svg>
-          <span>图像</span><span class="rs-dot" aria-hidden="true"></span>
         </button>
         <button class="rs-tab" data-rs-tab="status" role="tab" aria-selected="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5h16"/><path d="M7.5 19.5v-5.5"/><path d="M12 19.5V6.5"/><path d="M16.5 19.5v-8.5"/></svg>
@@ -1226,9 +1222,6 @@
         </button>
         <div id="fishbowlSlot" class="sidebar-slot"></div>
         <div class="rs-empty" id="fishbowlEmptyHint">还没有进行中的群聊。点上方「建群聊」拉角色进群，或开启顶栏「多智能体」手动编排发言。</div>
-      </section>
-      <section class="rs-panel" data-rs-panel="image" role="tabpanel" hidden>
-        <div id="imageSlot" class="sidebar-slot-placeholder"></div>
       </section>
       <!-- 2026-09-14 UI第二轮:状态面板(上下文容量/最近请求/系统状态),status-panel.js 双挂载之一 -->
       <section class="rs-panel" data-rs-panel="status" role="tabpanel" hidden>

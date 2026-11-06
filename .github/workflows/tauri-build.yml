@@ -60,7 +60,7 @@ jobs:
           # 避免测试构建把 release 建到正式 tag 上。
           tagName: ${{ github.event_name == 'push' && github.ref_name || 'app-v__VERSION__' }}
           releaseName: "OwnChat v__VERSION__"
-          releaseBody: "Windows installer (NSIS). Download the .exe and run it."
+          releaseBody: "Windows installer (NSIS) and Android APK. Download the .exe for desktop or the .apk for Android."
           releaseDraft: ${{ contains(github.ref_name, '-test') }}
           prerelease: false
           includeUpdaterJson: true
@@ -215,3 +215,57 @@ jobs:
         with:
           name: ownchat-android-release
           path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+
+  publish-android:
+    # 桌面 job 用 tauri-action 建/更新 Release；这个 job 等两边都成功后，把 Android APK 挂到同一个 Release。
+    # 此前 APK 只进 Actions 产物（默认 90 天过期，且下载需登录），Release 页面只有 Windows 安装包。
+    needs: [build-windows, build-android]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (workflow_dispatch 时用于读版本号)
+        uses: actions/checkout@v4
+
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ownchat-android-release
+          path: dist-apk
+
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${{ github.ref_name }}"
+          else
+            # workflow_dispatch 没有 tag 引用；tauri-action 的 tagName 模板是 app-v__VERSION__
+            VER=$(python3 -c "import json; print(json.load(open('src-tauri/tauri.conf.json'))['version'])")
+            TAG="app-v${VER}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#app-v}" >> "$GITHUB_OUTPUT"
+
+      - name: Attach APK to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          apks=(dist-apk/**/*.apk)
+          if [ ${#apks[@]} -eq 0 ]; then
+            echo "::error::No APK found in artifact ownchat-android-release"; exit 1
+          fi
+          for f in "${apks[@]}"; do
+            if [ ${#apks[@]} -eq 1 ]; then
+              name="OwnChat_${VERSION}_android.apk"
+            else
+              name="OwnChat_${VERSION}_$(basename "$f")"
+            fi
+            cp "$f" "$RUNNER_TEMP/$name"
+            gh release upload "$TAG" "$RUNNER_TEMP/$name" --clobber
+          done
+          echo "Uploaded ${#apks[@]} APK file(s) to release $TAG"
