@@ -229,6 +229,8 @@
     #topbar .pill.model-pill { display: inline-flex; align-items: center; height: 34px; padding: 0 8px; border-radius: 9px; flex: 0 0 auto; }
     #topbar .model-pill .model-label { display: none; }
     #topbar .model-pill #modelSel { flex: 0 0 auto; min-width: 130px; max-width: 230px; width: auto; height: 30px; border: none; background: transparent; color: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+    /* 焦点环画在 select 内侧：.model-pill 的 overflow:hidden 会裁掉外扩 outline 的上半圈（模型下拉截图里的断口） */
+    #topbar .model-pill #modelSel:focus { outline: 2px solid var(--focus-ring, rgba(127,164,201,.55)); outline-offset: -2px; border-radius: 8px; }
     #topbar #costDisplay.topbar-cost-inline { flex: 0 0 auto; height: 34px; white-space: nowrap; }
     #topbar #modeToggle, #topbar #personaToggle, #topbar #settingsBtn { height: 34px; }
     /* 2026-06-11 手机端模型名框定宽:免费/快速切换时旧 width:auto 让 select 随模型名长短变宽(两态框大小不一)。手机让 model-pill 占满中段 + select 填满到定宽,切模式不再跳动。此选择器含 #modelSel(2 id)特异性 >= 旧规则,且更靠后 */
