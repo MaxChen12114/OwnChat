@@ -17,23 +17,7 @@ function setGroupName(n) { try { localStorage.setItem(LS_NAME, typeof n === "str
 function safe(s) {
   return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
-// 2026-11-06: 群聊面板去 emoji —— 成员头像改「有图用图，无图用名字首字」；标题改用线性 SVG。
-function avaUrl(id) {
-  if (!id) return "";
-  try {
-    if (window.__avatar && typeof window.__avatar.get === "function") { const u = window.__avatar.get(id); if (u) return u; }
-    const raw = localStorage.getItem("cfw_char_avatar_v1");
-    if (raw) { const m = JSON.parse(raw); if (m && m[id]) return m[id]; }
-  } catch (e) {}
-  return "";
-}
-function avaHtml(c, cls, withTitle) {
-  const name = (c && c.name) || "";
-  const url = avaUrl(c && c.id);
-  const head = '<span class="' + cls + '"' + (withTitle ? ' title="' + safe(name) + '"' : '');
-  if (url) return head + ' style="background-image:url(&quot;' + safe(url) + '&quot;);background-size:cover;background-position:center;"></span>';
-  return head + '>' + safe(String(name).trim().slice(0, 1) || "?") + '</span>';
-}
+// 2026-11-06: 群聊面板标题去 emoji —— 线性对话气泡图标（成员头像保留角色 emoji）。
 const SVG_CHAT = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><path d="M20 12.5a7.5 7.5 0 0 1-7.5 7.5H7l-3 2v-6.2A7.4 7.4 0 0 1 3.5 12 7.5 7.5 0 0 1 11 4.5h1.5a7.5 7.5 0 0 1 7.5 7.5z"/></svg>';
 function allCards() {
   try { return (window.__character && window.__character.listAllCards) ? (window.__character.listAllCards() || []) : []; }
@@ -103,7 +87,7 @@ function ensureStyles() {
     ".wg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:16px;}",
     ".wg-card{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:12px;cursor:pointer;text-align:left;border:1px solid var(--border);background:var(--bubble-ai);color:inherit;transition:border-color .15s,background .15s;}",
     ".wg-card.on{border-color:" + WX_GREEN + ";background:" + WX_GREEN_SOFT + ";}",
-    ".wg-card-ava{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;border-radius:5px;overflow:hidden;flex:0 0 auto;}",
+    ".wg-card-ava{font-size:20px;flex:0 0 auto;}",
     ".wg-card-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;}",
     ".wg-card-mark{flex:0 0 auto;width:20px;height:20px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted);border:1px solid var(--border);}",
     ".wg-card.on .wg-card-mark{color:#fff;background:" + WX_GREEN + ";border-color:" + WX_GREEN + ";}",
@@ -165,7 +149,7 @@ function renderBuilder() {
   const itemsHtml = cards.map(c => {
     const on = _sel.has(c.id);
     return '<button type="button" class="wg-card' + (on ? " on" : "") + '" data-id="' + safe(c.id) + '">'
-      + avaHtml(c, "wg-card-ava", false)
+      + '<span class="wg-card-ava">' + safe(c.icon || "🙂") + '</span>'
       + '<span class="wg-card-name">' + safe(c.name || "未命名") + '</span>'
       + '<span class="wg-card-mark">' + (on ? "✓" : "+") + '</span>'
       + '</button>';
@@ -225,7 +209,7 @@ function renderHeader() {
   }
   const cards = sceneCards();
   const name = getGroupName() || "群聊";
-  const avatars = cards.slice(0, 5).map(c => avaHtml(c, "wg-h-av", true)).join("")
+  const avatars = cards.slice(0, 5).map(c => '<span class="wg-h-av" title="' + safe(c.name) + '">' + safe(c.icon || "🙂") + '</span>').join("")
     + (cards.length > 5 ? '<span class="wg-h-extra">+' + (cards.length - 5) + '</span>' : '');
   header.innerHTML =
     '<div class="wg-h-avs">' + avatars + '</div>'
