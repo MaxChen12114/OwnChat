@@ -662,6 +662,37 @@
     "渠道（需支持改图）": "Channel (editing support required)",
     "没有支持改图的渠道。请到 设置 → 模型 API → 图像渠道 选 Gitee 预设（站点代理 + Qwen-Image-Edit）。":
       "No channel supports editing. Go to Settings → Model API → Image channels and pick the Gitee preset (site proxy + Qwen-Image-Edit).",
+    "图像模型 · 渠道管理": "Image models · Channel management",
+    "图像走哪个渠道，这里说了算。左侧选渠道（点击即切换），右侧看详情：填端点 / Key、模型列表，点「使用此渠道」后，图像工坊、角色立绘、聊天发图和创作工坊页都跟着它走。内置 Gitee 预设走站点代理；自定义渠道由浏览器直连（服务商需允许 CORS，本机 ComfyUI 也需允许 CORS），Key 仅存本设备。":
+      "Choose the channel images use here. Pick a channel on the left, then edit the endpoint, key and model list on the right. Click \"Use this channel\" and the image studio, character portraits, chat images and story studio all follow it. The built-in Gitee preset goes through the site proxy; custom channels are called directly from the browser (CORS required, including local ComfyUI). Keys stay on this device.",
+    "内置预设（站点代理）": "Built-in preset (site proxy)",
+    "自定义渠道（本机保存）": "Custom channels (saved locally)",
+    "＋ 新增图像渠道": "+ Add image channel",
+    "内置预设 · 站点代理": "Built-in preset · Site proxy",
+    "自定义 · 本机 ComfyUI": "Custom · Local ComfyUI",
+    "自定义 · OpenAI 兼容": "Custom · OpenAI-compatible",
+    "站点代理 · Key 已配置": "Site proxy · Key configured",
+    "站点代理 · Key 未配置": "Site proxy · Key not configured",
+    "本机 ComfyUI · 未填 ckpt": "Local ComfyUI · ckpt not set",
+    "OpenAI 兼容 · 未选模型": "OpenAI-compatible · no model selected",
+    "使用此渠道": "Use this channel",
+    "● 当前渠道": "● Current channel",
+    "　● 使用中": "　● In use",
+    "保存此渠道": "Save this channel",
+    "已切换到这个渠道": "Switched to this channel",
+    "已保存此渠道": "Channel saved",
+    "已新增渠道 · 填好后点「保存此渠道」": "Channel added — fill it in and click Save this channel",
+    "已删除，并切到当前渠道": "Deleted; switched to the current channel",
+    "测试中…": "Testing…",
+    "模型列表（逗号分隔）": "Model list (comma-separated)",
+    "模型名，逗号分隔": "Model names, comma-separated",
+    "默认模型": "Default model",
+    "渠道类型": "Channel type",
+    "ckpt 文件名": "ckpt filename",
+    "API Key": "API key",
+    "Gitee API Key": "Gitee API key",
+    "可留空（本地端点）": "Optional (local endpoint)",
+    "（先填模型列表）": "(fill in the model list first)",
     "，需要单独的 Gitee API Key（LS": ", needs its own Gitee API key (LS",
     "Gitee 免费图像额度每天约": "The Gitee free tier allows about",
     "张。": " images a day.",
@@ -1096,6 +1127,9 @@
   };
 
   g.__i18nPatterns = [
+    // 图像渠道列表标签
+    [/^OpenAI 兼容 · 模型 (.+)$/, "OpenAI-compatible · model $1"],
+    [/^本机 ComfyUI · (.+)$/, "Local ComfyUI · $1"],
     // 图像渠道状态行
     [/^当前：(.+)$/, "Current: $1"],
     [/^可达，返回 (\d+) 个模型$/, "Reachable — $1 models"],

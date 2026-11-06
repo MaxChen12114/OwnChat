@@ -10,6 +10,8 @@
  * - 自定义 OpenAI 兼容渠道默认 transport:'direct'（浏览器直连 baseUrl）
  * - 本地 ComfyUI kind:'comfyui'（浏览器直连 /prompt、/history、/view）
  *
+ * save() 只落盘，不自动切 active；切换当前渠道用 setActive()（与聊天渠道卡语义一致）。
+ *
  * 必须在 image-common.js 之前加载；本模块不碰 DOM。
  */
 (function () {
@@ -115,7 +117,7 @@
     var i = a.findIndex(function (x) { return x.id === n.id; });
     if (i >= 0) a[i] = n; else a.push(n);
     write(a);
-    try { localStorage.setItem(LS_ACTIVE, n.id); } catch (e) {}
+    // 保存 ≠ 启用：切换当前渠道走 setActive（与聊天渠道卡一致，避免新增时把原渠道顶掉）
     emit();
     return n;
   }
