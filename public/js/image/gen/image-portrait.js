@@ -73,7 +73,7 @@
     }
     var key = '';
     try { key = localStorage.getItem('cfw_image_key_v1') || localStorage.getItem('moark_api_key') || ''; } catch (e) {}
-    if (!key) throw new Error('\u8bf7\u5148\u5728\u8bbe\u7f6e \u2192 \u56fe\u50cf API Key \u586b\u5199 Gitee Key');
+    if (!key) throw new Error('\u8bf7\u5148\u5728\u8bbe\u7f6e \u2192 \u6a21\u578b API \u2192 \u56fe\u50cf\u6e20\u9053\u586b\u5199\u5f53\u524d\u6e20\u9053\u7684 Key');
     var _h = { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' };
     try { var _t = (window.__auth && window.__auth.getToken && window.__auth.getToken()) || localStorage.getItem('cfw_auth_token_v1') || ''; if (_t) _h['X-Sync-Token'] = _t; } catch (e) {}
     var r = await fetch('/img/v1/images/generations', {

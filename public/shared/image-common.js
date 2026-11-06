@@ -17,13 +17,24 @@
   };
 
   // ── key / 鉴权(对齐 image-quickgen / image-chat / image-embed 约定)──
+  // 渠道是数据：Gitee 只是内置的 openai/site 预设；自定义渠道用自己的 key。
+  function getChannel() {
+    try { return window.__imageChannels && window.__imageChannels.getActive ? window.__imageChannels.getActive() : null; }
+    catch (e) { return null; }
+  }
   function getKey() {
+    var ch = getChannel();
+    if (ch && ch.key) return ch.key;
     try { return localStorage.getItem('cfw_image_key_v1') || localStorage.getItem('moark_api_key') || ''; }
     catch (e) { return ''; }
   }
   function authHeaders(extra) {
+    return headersFor(getChannel(), extra);
+  }
+  // 指定渠道的鉴权头：per-call 渠道(工坊下拉)优先，不能误用当前激活渠道的 key
+  function headersFor(ch, extra) {
     var h = extra || {};
-    var k = getKey();
+    var k = (ch && ch.key) || getKey();
     if (k) h['Authorization'] = 'Bearer ' + k;
     // 2026-10-09：设了 CHAT_PASSWORD 的部署，/img/* 要求带应用登录态（服务端 checkSync 读 X-Sync-Token）。
     // 不能借 Authorization —— 那个位置是上游 Gitee Key 的透传位。
@@ -56,7 +67,8 @@
     var init = { method: 'GET', signal: opts.signal || null };
     if (/^data:/i.test(u)) return fetch(u, init);
     if (u.charAt(0) === '/') return fetch(u, init);
-    init.headers = authHeaders({}); // /img/dl 也过 checkSync：带登录态才通得过设了密码的部署
+    var h = {}; var t = appToken(); if (t) h['X-Sync-Token'] = t;
+    init.headers = h; // /img/dl 也过 checkSync；不把渠道 key 透给下载代理
     return fetch(ENDPOINTS.download + encodeURIComponent(u), init);
   }
 
@@ -73,17 +85,91 @@
   }
 
   // ── 文生图原语：返回 url 数组(调用方决定取第几张；prompt 必须已是最终词，画风由调用方拼好)──
+  function parseSize(size) {
+    var m = /^(\d+)\s*x\s*(\d+)$/i.exec(String(size || ''));
+    return m ? [Math.max(64, +m[1]), Math.max(64, +m[2])] : [1024, 1024];
+  }
+  function blobToDataURL(blob) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload = function () { resolve(fr.result); };
+      fr.onerror = function () { reject(fr.error || new Error('图片读取失败')); };
+      fr.readAsDataURL(blob);
+    });
+  }
+  async function genComfy(ch, opts, model, size) {
+    var base = String(ch.baseUrl || '').replace(/\/+$/, '');
+    if (!base) throw new Error('ComfyUI 渠道未配置 Base URL');
+    var wh = parseSize(size), w = Math.round(wh[0] / 8) * 8, h = Math.round(wh[1] / 8) * 8;
+    var steps = Math.max(1, Math.min(80, +ch.steps || 9));
+    var cfg = Math.max(0, +ch.cfg || 1);
+    var wf = {
+      '1': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: ch.ckpt || 'z-image-turbo-fp8-aio.safetensors' } },
+      '2': { class_type: 'CLIPTextEncode', inputs: { text: opts.prompt || '', clip: ['1', 1] } },
+      '3': { class_type: 'CLIPTextEncode', inputs: { text: opts.negative || '', clip: ['1', 1] } },
+      '4': { class_type: 'ModelSamplingAuraFlow', inputs: { model: ['1', 0], shift: 3 } },
+      '5': { class_type: 'EmptyLatentImage', inputs: { width: w, height: h, batch_size: 1 } },
+      '6': { class_type: 'KSampler', inputs: { model: ['4', 0], positive: ['2', 0], negative: ['3', 0], latent_image: ['5', 0], seed: Math.floor(Math.random() * 2147483647), steps: steps, cfg: cfg, sampler_name: ch.sampler || 'res_multistep', scheduler: ch.scheduler || 'simple', denoise: 1 } },
+      '7': { class_type: 'VAEDecode', inputs: { samples: ['6', 0], vae: ['1', 2] } },
+      '8': { class_type: 'SaveImage', inputs: { images: ['7', 0], filename_prefix: 'site_channel' } }
+    };
+    var cid = 'site_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    var pr = await fetchWithTimeout(base + '/prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: wf, client_id: cid }) }, 30000);
+    if (!pr.ok) throw new Error('ComfyUI 提交失败 ' + pr.status + ' ' + (await pr.text().catch(function () { return ''; })));
+    var pj = await pr.json();
+    var pid = pj.prompt_id;
+    if (!pid) throw new Error('ComfyUI 未返回 prompt_id');
+    var start = Date.now();
+    while (Date.now() - start < 180000) {
+      await new Promise(function (rs) { setTimeout(rs, 2000); });
+      var hr = await fetchWithTimeout(base + '/history/' + encodeURIComponent(pid), {}, 15000);
+      if (!hr.ok) continue;
+      var hj = await hr.json();
+      var e = hj[pid];
+      if (!e) continue;
+      if (e.status && e.status.status_str === 'error') throw new Error('ComfyUI 执行失败');
+      var im = null;
+      Object.keys(e.outputs || {}).forEach(function (nid) {
+        var o = e.outputs[nid];
+        if (o && o.images && o.images.length) im = o.images[o.images.length - 1];
+      });
+      if (im) {
+        var q = 'filename=' + encodeURIComponent(im.filename) + '&subfolder=' + encodeURIComponent(im.subfolder || '') + '&type=' + encodeURIComponent(im.type || 'output');
+        var ir = await fetchWithTimeout(base + '/view?' + q, {}, 30000);
+        if (!ir.ok) throw new Error('ComfyUI 取图失败 ' + ir.status);
+        return [await blobToDataURL(await ir.blob())];
+      }
+    }
+    throw new Error('ComfyUI 出图超时');
+  }
   async function genImage(opts) {
     opts = opts || {};
-    var body = {
-      prompt: opts.prompt || '',
-      model: opts.model || 'z-image-turbo',
-      n: opts.n || 1,
-      size: opts.size || '1024x1024'
-    };
+    var ch = opts.channel || getChannel();
+    var model = opts.model || (ch && (ch.model || (ch.models && ch.models[0]))) || '';
+    var n = opts.n || 1;
+    var size = opts.size || '1024x1024';
+    if (ch && ch.kind === 'comfyui') return genComfy(ch, opts, model, size);
+    if (ch && ch.kind === 'openai' && ch.transport === 'direct') {
+      if (!model) throw new Error('渠道未配置模型：请在设置 → 图像渠道填写模型名');
+      var base = String(ch.baseUrl || '').replace(/\/+$/, '');
+      if (!base) throw new Error('渠道未配置 Base URL');
+      var dh = { 'Content-Type': 'application/json' };
+      if (ch.key) dh['Authorization'] = 'Bearer ' + ch.key;
+      var dr = await fetchWithTimeout(base + '/images/generations', {
+        method: 'POST', headers: dh,
+        body: JSON.stringify({ prompt: opts.prompt || '', model: model, n: n, size: size })
+      }, opts.timeoutMs || 120000);
+      if (!dr.ok) throw new Error('生图失败 ' + dr.status + ' ' + (await dr.text().catch(function () { return ''; })));
+      var dj = await dr.json();
+      var darr = (dj.data || []).map(function (d) { return d.url || (d.b64_json ? 'data:image/png;base64,' + d.b64_json : ''); }).filter(Boolean);
+      if (!darr.length) throw new Error('无返回图片');
+      return darr;
+    }
+    // 站点代理（Gitee 预设 / transport:'site'）
+    var body = { prompt: opts.prompt || '', model: model || 'z-image-turbo', n: n, size: size };
     var r = await fetchWithTimeout(ENDPOINTS.generations, {
       method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      headers: headersFor(ch, { 'Content-Type': 'application/json' }),
       body: JSON.stringify(body)
     }, 90000); // 4.81: z-image 同步出图最长 90s,超时即失败,不再无限挂手机端
     if (!r.ok) throw new Error('生图失败 ' + r.status + ' ' + (await r.text().catch(function () { return ''; })));
@@ -110,7 +196,7 @@
       // 连续 5 次失败才放弃,期间靠总超时兜底,不再因一次断流就永久挂起或直接报错。
       var pj;
       try {
-        var pr = await fetchWithTimeout(ENDPOINTS.task + encodeURIComponent(taskId), { headers: authHeaders({}) }, 25000);
+        var pr = await fetchWithTimeout(ENDPOINTS.task + encodeURIComponent(taskId), { headers: headersFor(o.channel || getChannel(), {}) }, 25000);
         if (!pr.ok) throw new Error('轮询失败 ' + pr.status);
         pj = await pr.json();
         netErrs = 0;
@@ -132,21 +218,25 @@
   //    steps/guidance/model/taskTypes/intervalMs 全部由调用方传(三链语义不同，不写死)──
   async function genEdit(opts) {
     opts = opts || {};
+    var ch = opts.channel || getChannel();
+    if (ch && (ch.kind !== 'openai' || ch.transport !== 'site' || !(window.__imageChannels && window.__imageChannels.hasEdit(ch)))) {
+      throw new Error('当前渠道不支持改图：请在设置里选择带站点代理的 OpenAI 兼容渠道（Gitee 预设）');
+    }
     var blob = opts.blob || await (await dlFetch(opts.srcUrl, { signal: opts.signal })).blob();
     var fd = new FormData();
     fd.append('prompt', opts.prompt || '');
-    fd.append('model', opts.model || 'Qwen-Image-Edit-2511');
+    fd.append('model', opts.model || (ch && ch.editModel) || 'Qwen-Image-Edit-2511');
     if (opts.steps != null) fd.append('num_inference_steps', String(opts.steps));
     if (opts.guidance != null) fd.append('guidance_scale', String(opts.guidance));
     if (opts.taskTypes && opts.taskTypes.length) opts.taskTypes.forEach(function (t) { fd.append('task_types', t); });
     fd.append('image', blob, opts.filename || 'src.png');
     if (opts.image2) fd.append('image', opts.image2, opts.filename2 || 'src2.png');
-    var r = await fetch(ENDPOINTS.editsAsync, { method: 'POST', headers: authHeaders({}), body: fd, signal: opts.signal || null });
+    var r = await fetch(ENDPOINTS.editsAsync, { method: 'POST', headers: headersFor(ch, {}), body: fd, signal: opts.signal || null });
     if (!r.ok) throw new Error('改图提交失败 ' + r.status + ' ' + (await r.text().catch(function () { return ''; })));
     var j = await r.json();
     var taskId = j.id || j.task_id || (j.data && (j.data.id || j.data.task_id));
     if (!taskId) throw new Error('未取到任务 id');
-    var fileUrl = await pollTask(taskId, { intervalMs: opts.intervalMs, timeoutMs: opts.timeoutMs, onTick: opts.onTick, isAborted: opts.isAborted });
+    var fileUrl = await pollTask(taskId, { intervalMs: opts.intervalMs, timeoutMs: opts.timeoutMs, onTick: opts.onTick, isAborted: opts.isAborted, channel: ch });
     return { fileUrl: fileUrl, taskId: taskId };
   }
 
@@ -201,7 +291,7 @@
 
   window.__imageCommon = {
     ENDPOINTS: ENDPOINTS,
-    getKey: getKey, authHeaders: authHeaders,
+    getKey: getKey, getChannel: getChannel, authHeaders: authHeaders,
     syncToken: syncToken, syncHeaders: syncHeaders,
     dlFetch: dlFetch, persistToR2: persistToR2,
     genImage: genImage, genEdit: genEdit, pollTask: pollTask,

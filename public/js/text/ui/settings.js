@@ -1373,6 +1373,9 @@
 
   function mountImgKeyCard() {
     // 2026-06-24: 图像 API Key 归「模型 API」分类(setModelApiSlot),原在「发图」settingsImageSlot
+    // 2026-11-06: 升级为「图像渠道」卡(渠道=数据, Gitee 只是内置预设)，由 image-channels-ui.js 挂载；
+    // 旧版单 Key 卡仅在新 UI 未加载时兜底。
+    if (window.__imageChannelsUI && window.__imageChannelsUI.mount) { window.__imageChannelsUI.mount(); return; }
     var slot=document.getElementById('setModelApiSlot')||getSlot(); if(!slot||document.getElementById('imgKeyCard'))return;
     var K='cfw_image_key_v1';
     var card=document.createElement('div'); card.className='card'; card.id='imgKeyCard';
@@ -1390,7 +1393,7 @@
     var slot=getSlot(); if(!slot||document.getElementById('imgQuotaCard'))return;
     var q=window.__imageQuota; if(!q)return;
     var card=document.createElement('div'); card.className='card'; card.id='imgQuotaCard';
-    card.innerHTML='<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M7 16v-4M12 16V8M17 16v-6"/></svg>图像额度计数（每日）</h4><p>Gitee 免费图像额度每天约 <b>100 次</b>。本站发图成功时按图片张数累加，<b>仅本设备本地统计</b>。</p><div id="imgQuotaDisplay" style="margin:6px 0 8px;"></div><div style="height:6px;border-radius:4px;background:rgba(127,127,127,.2);overflow:hidden;margin-bottom:12px;"><div id="imgQuotaBar" style="height:100%;width:0;transition:width .25s;"></div></div><div class="rowline" style="align-items:center;gap:10px;"><label style="font-size:12px;color:var(--muted);">每日额度</label><input type="number" id="imgQuotaLimit" min="1" max="9999" style="width:90px;padding:5px 8px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;"><div class="btns"><button class="smallbtn" id="imgQuotaMinus">-1</button><button class="smallbtn" id="imgQuotaPlus">+1</button><button class="smallbtn danger" id="imgQuotaReset">今日归零</button></div></div>';
+    card.innerHTML='<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M7 16v-4M12 16V8M17 16v-6"/></svg>图像额度计数（每日）</h4><p>Gitee 免费图像额度每天约 <b>100 次</b>。本站发图成功时按图片张数累加，<b>仅本设备本地统计</b>；直连渠道与本地 ComfyUI 不计入。</p><div id="imgQuotaDisplay" style="margin:6px 0 8px;"></div><div style="height:6px;border-radius:4px;background:rgba(127,127,127,.2);overflow:hidden;margin-bottom:12px;"><div id="imgQuotaBar" style="height:100%;width:0;transition:width .25s;"></div></div><div class="rowline" style="align-items:center;gap:10px;"><label style="font-size:12px;color:var(--muted);">每日额度</label><input type="number" id="imgQuotaLimit" min="1" max="9999" style="width:90px;padding:5px 8px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;"><div class="btns"><button class="smallbtn" id="imgQuotaMinus">-1</button><button class="smallbtn" id="imgQuotaPlus">+1</button><button class="smallbtn danger" id="imgQuotaReset">今日归零</button></div></div>';
     slot.appendChild(card);
     var lim=document.getElementById('imgQuotaLimit'); if(lim)lim.addEventListener('change',function(){q.setLimit(lim.value);});
     var qp=document.getElementById('imgQuotaPlus'); if(qp)qp.addEventListener('click',function(){q.add(1);});

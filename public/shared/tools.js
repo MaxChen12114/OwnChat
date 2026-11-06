@@ -832,14 +832,14 @@
 
 		// 4.x 导演接力:全自动多段 I2V 接力生成连贯长视频(上段尾帧→下段起始图)。
 		// 复用图像工坊已验证的 Gitee Wan2_2-I2V-A14B 接口(/img 同源代理)+ 浏览器端 canvas 提尾帧。
-		// 串行,单段约20分钟,最多5段;全程标签页不能关。需先在图像工坊存过 moark_api_key。
+		// 串行,单段约20分钟,最多5段;全程标签页不能关。需先给图像渠道的 Gitee 预设填 Key。
 		define({
 			name: "generate_video_story",
 			destructive: true, // 多片段视频,一跑可能数小时且不能关页
 			description:
 				"【导演模式·全自动接力生成连贯视频】把一个连贯故事拆成 1-5 段 3-5 秒分镜,用『上一段最后一帧』当下一段起始图接力,串成连贯长视频。" +
 				"你(模型)当导演写好每段分镜 prompt(务必写明『从上一段最后一帧无缝接续』并锁定同角色/同光线/同机位/同画风等一致性锚点),本工具负责逐段调 Gitee Wan2.2-I2V 生成、提取尾帧、接力。" +
-				"串行执行,单段约20分钟,最多5段(封顶防失控),全程标签页不能关。需要:① 已在图像工坊存过 Gitee API Key;② 一张首帧起始图 image_url(可先用 send_image 生成)。返回各段 file_url,下载后用剪映/FFmpeg 拼接(建议加轻微溶解转场)。",
+				"串行执行,单段约20分钟,最多5段(封顶防失控),全程标签页不能关。需要:① 已在 设置 → 模型 API → 图像渠道 给 Gitee 预设填过 Key;② 一张首帧起始图 image_url(可先用 send_image 生成)。返回各段 file_url,下载后用剪映/FFmpeg 拼接(建议加轻微溶解转场)。",
 			parameters: {
 				type: "object",
 				properties: {
@@ -870,8 +870,12 @@
 				const doc = global.document
 				if (!doc) return { ok: false, error: "无 document,非浏览器环境,无法做视频接力" }
 				let apiKey = ""
-				try { apiKey = (localStorage.getItem("cfw_image_key_v1") || localStorage.getItem("moark_api_key") || "").trim() } catch (e) {}
-				if (!apiKey) return { ok: false, error: "未找到 Gitee API Key：请先到 设置 → 图像 API Key 填一次（只存本机）" }
+				try {
+					// 视频接力固定走 Gitee Wan2.2：优先取内置 Gitee 渠道，再回落旧 Key（渠道迁移后旧键可能为空）
+					const g = global.__imageChannels && global.__imageChannels.get ? global.__imageChannels.get("gitee") : null
+					apiKey = ((g && g.key) || localStorage.getItem("cfw_image_key_v1") || localStorage.getItem("moark_api_key") || "").trim()
+				} catch (e) {}
+				if (!apiKey) return { ok: false, error: "未找到 Gitee API Key：请先到 设置 → 模型 API → 图像渠道 给 Gitee 预设填 Key（只存本机）" }
 				// 设了访问密码的部署：/img/* 要求带应用登录态（X-Sync-Token）；Authorization 让给上游 Key
 				let syncTok = ""
 				try { syncTok = (localStorage.getItem("cfw_auth_token_v1") || "").trim() } catch (e) {}

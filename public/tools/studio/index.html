@@ -73,7 +73,7 @@
         <span class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.2"/><circle cx="8.5" cy="10" r="1.7"/><path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4"/></svg></span>
         <h2>图文融合（可选）</h2>
       </div>
-      <p class="card-desc">把上面的故事按段落排版，给想配图的段落单独点「配图」，图就插在那段下面，最后可复制或导出一篇图文混排稿。配图用「图像工坊」标签里填入的 API Key。</p>
+      <p class="card-desc">把上面的故事按段落排版，给想配图的段落单独点「配图」，图就插在那段下面，最后可复制或导出一篇图文混排稿。配图跟随主站 <b>设置 → 模型 API → 图像渠道</b> 的当前渠道（Gitee / 自定义 OpenAI 兼容 / 本地 ComfyUI）。</p>
       <div class="row">
         <button id="fuse" class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg> 排版配图</button>
         <button id="fuseCopy" class="btn ghost" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg> 复制图文</button>
@@ -119,6 +119,9 @@
 <!-- 2026-09-14 UI第一轮:统一反馈组件(toast/confirm,自注入样式),须在 app.js 前 -->
 <script src="/shared/feedback.js"></script>
 <script src="/shared/i18n.js"></script>
-<script src="./app.js?v=2"></script>
+<!-- 图像渠道与统一生图管线（与主站同源，共享 localStorage 里的当前渠道） -->
+<script src="/shared/image-channels.js"></script>
+<script src="/shared/image-common.js"></script>
+<script src="./app.js?v=3"></script>
 </body>
 </html>

@@ -631,9 +631,41 @@
     "角色头像（当前角色）": "Character avatar (current one)",
     "发图基准图": "Chat image reference",
     "图像 API Key（Gitee）": "Image API key (Gitee)",
+    "图像渠道": "Image channels",
+    "渠道是数据，Gitee 只是内置预设；可新增任意 OpenAI 兼容渠道，或本地 ComfyUI。Key 只存本设备，不进云同步。":
+      "Channels are data: Gitee is only a built-in preset. Add any OpenAI-compatible endpoint or a local ComfyUI server. Keys stay on this device and are not synced.",
+    "渠道名称": "Channel name",
+    "+ 新增": "+ Add",
+    "OpenAI 兼容": "OpenAI-compatible",
+    "本地 ComfyUI": "Local ComfyUI",
+    "Base URL（OpenAI 兼容填 /v1；ComfyUI 填 http://127.0.0.1:8188）":
+      "Base URL (OpenAI-compatible: .../v1; ComfyUI: http://127.0.0.1:8188)",
+    "浏览器直连": "Browser direct",
+    "站点代理（/img/v1）": "Site proxy (/img/v1)",
+    "API Key（Gitee / 自定义）": "API key (Gitee / custom)",
+    "模型列表，逗号分隔": "Models, comma-separated",
+    "改图模型（仅站点代理/Gitee）": "Edit model (site proxy / Gitee only)",
+    "改图模型": "Edit model",
+    "ComfyUI ckpt 文件名": "ComfyUI checkpoint filename",
+    "测试": "Test",
+    "OpenAI 兼容渠道必须是浏览器可直连（CORS）或站点代理白名单；本地 ComfyUI 只在你自己机器上可用。创建/聊天页的出图会跟随这里的当前渠道。":
+      "OpenAI-compatible endpoints must allow browser CORS (or be the site proxy); local ComfyUI works only on your own machine. Generation in the studio and chats follows the current channel here.",
+    "已切换渠道": "Channel switched",
+    "已新增，填好后保存": "Added — fill it in and save",
+    "已删除": "Deleted",
+    "至少保留一个渠道": "Keep at least one channel",
+    "Base URL 不能为空": "Base URL is required",
+    "至少填一个模型名": "Add at least one model name",
+    "已保存并设为当前渠道": "Saved and set as the current channel",
+    "先填 Base URL": "Fill in the Base URL first",
+    "ComfyUI 可达": "ComfyUI is reachable",
+    "渠道（需支持改图）": "Channel (editing support required)",
+    "没有支持改图的渠道。请到 设置 → 模型 API → 图像渠道 选 Gitee 预设（站点代理 + Qwen-Image-Edit）。":
+      "No channel supports editing. Go to Settings → Model API → Image channels and pick the Gitee preset (site proxy + Qwen-Image-Edit).",
     "，需要单独的 Gitee API Key（LS": ", needs its own Gitee API key (LS",
     "Gitee 免费图像额度每天约": "The Gitee free tier allows about",
     "张。": " images a day.",
+    "；直连渠道与本地 ComfyUI 不计入。": "; direct channels and local ComfyUI are not counted.",
     "集成": "Integration",
     "跳过验证": "Skip verification",
     "给助手定的 system 行为准则——语言口吻、事实与诚实、扮演与创作、代码与技术、排版格式。":
@@ -1064,6 +1096,10 @@
   };
 
   g.__i18nPatterns = [
+    // 图像渠道状态行
+    [/^当前：(.+)$/, "Current: $1"],
+    [/^可达，返回 (\d+) 个模型$/, "Reachable — $1 models"],
+    [/^连接失败：(.+)$/, "Connection failed: $1"],
     // 顶栏基座按钮 / 公开版提示
     [/^基座已切换：(.+)$/, "Base switched: $1"],
     [/^切换基座（当前：(.+)，共 (\d+) 套）$/, "Switch base (current: $1, $2 available)"],

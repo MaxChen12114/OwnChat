@@ -279,8 +279,21 @@ async function expandPortraitPrompt(idx){
   }catch(e){}
   return base+"，半身立绘，单人，看向镜头，干净背景，masterpiece, best quality";
 }
-function imgKey(){try{if(window.__imageCommon&&window.__imageCommon.getKey)return window.__imageCommon.getKey();}catch(e){}return (localStorage.getItem("moark_api_key")||"").trim();}
+function activeImageChannel(){try{return (window.__imageChannels&&window.__imageChannels.getActive)?window.__imageChannels.getActive():null;}catch(e){return null;}}
 function blobToDataUrl(blob){return new Promise(function(res,rej){var fr=new FileReader();fr.onload=function(){res(fr.result);};fr.onerror=function(){rej(fr.error);};fr.readAsDataURL(blob);});}
+async function genViaChannel(prompt,size,maxPx){
+  var IC=window.__imageCommon;
+  if(!IC||!IC.genImage)throw new Error("图像模块未加载，请刷新页面");
+  var ch=activeImageChannel();
+  if(ch&&ch.kind==="openai"&&ch.transport==="site"&&!IC.getKey())throw new Error("缺少图像 API Key：先到主站 设置 → 模型 API → 图像渠道 填写当前渠道 Key");
+  var urls=await IC.genImage({prompt:prompt,n:1,size:size,channel:ch||undefined});
+  var u=urls&&urls[0];
+  if(!u)throw new Error("接口未返回图片");
+  var full;
+  if(/^data:/i.test(u))full=u;
+  else{var r=await IC.dlFetch(u);if(!r.ok)throw new Error("图片下载失败 "+r.status);full=await blobToDataUrl(await r.blob());}
+  return await shrinkDataUrl(full,maxPx||1024,0.85);
+}
 function shrinkDataUrl(dataUrl,maxPx,quality){
   return new Promise(function(res){
     var img=new Image();
@@ -295,20 +308,7 @@ function shrinkDataUrl(dataUrl,maxPx,quality){
   });
 }
 async function genPortrait(prompt){
-  var key=imgKey();
-  if(!key)throw new Error("缺少图像 API Key：先到「图像工坊」标签填入并勾「记住」");
-  var res=await fetch("/img/v1/images/generations",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({prompt:prompt,model:"z-image-turbo",n:1,size:"768x1024"})});
-  var txt="";try{txt=await res.text();}catch(e){}
-  var j=null;try{j=JSON.parse(txt);}catch(e){}
-  if(!res.ok)throw new Error("出图失败 "+res.status+(txt?(" · "+txt.slice(0,120)):""));
-  var data=(j&&Array.isArray(j.data))?j.data:[];
-  if(!data.length)throw new Error("接口未返回图片");
-  var it=data[0]||{};
-  var full;
-  if(it.b64_json)full="data:image/png;base64,"+it.b64_json;
-  else if(it.url){var r=await fetch("/img/dl?url="+encodeURIComponent(it.url));if(!r.ok)throw new Error("图片下载失败 "+r.status);full=await blobToDataUrl(await r.blob());}
-  else throw new Error("返回数据里没有图片");
-  return await shrinkDataUrl(full,768,0.85);
+  return genViaChannel(prompt,"768x1024",768);
 }
 function dlDataUrl(dataUrl,filename){var a=document.createElement("a");a.href=dataUrl;a.download=filename;document.body.appendChild(a);a.click();a.remove();}
 async function runPortrait(idx,box){
@@ -381,19 +381,7 @@ async function fuseScenePrompt(text){
   return text.slice(0,120)+"，场景插画，cinematic, masterpiece, best quality";
 }
 async function genSceneImage(prompt){
-  var key=imgKey();
-  if(!key)throw new Error("缺少图像 API Key：先到「图像工坊」标签填入并勾「记住」");
-  var res=await fetch("/img/v1/images/generations",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({prompt:prompt,model:"z-image-turbo",n:1,size:"1024x768"})});
-  var txt="";try{txt=await res.text();}catch(e){}
-  var j=null;try{j=JSON.parse(txt);}catch(e){}
-  if(!res.ok)throw new Error("出图失败 "+res.status+(txt?(" · "+txt.slice(0,120)):""));
-  var data=(j&&Array.isArray(j.data))?j.data:[];
-  if(!data.length)throw new Error("接口未返回图片");
-  var it=data[0]||{};var full;
-  if(it.b64_json)full="data:image/png;base64,"+it.b64_json;
-  else if(it.url){var r=await fetch("/img/dl?url="+encodeURIComponent(it.url));if(!r.ok)throw new Error("图片下载失败 "+r.status);full=await blobToDataUrl(await r.blob());}
-  else throw new Error("返回数据里没有图片");
-  return await shrinkDataUrl(full,1024,0.85);
+  return genViaChannel(prompt,"1024x768",1024);
 }
 async function runFusePara(idx){
   var p=fuseState[idx];if(!p)return;

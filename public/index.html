@@ -1140,7 +1140,7 @@
 
         <!-- 2026-06-24 模型 API 独立分类:外接模型 API 的统一入口(横切关注点,不属于任何单个玩法)。settings.js 把以下卡都注入 #setModelApiSlot:
              · 聊天模型直连(原 BYO,原挂 #setChatSlot/「对话」)
-             · 图像 API Key(Gitee,原挂 #settingsImageSlot/「发图」)
+             · 图像渠道(内置 Gitee 预设 + 自定义 OpenAI 兼容 + 本地 ComfyUI,原挂 #settingsImageSlot/「发图」)
              以后接生图/各类外接模型 API 都归这,不再往各玩法 tab 里塞。注:本地 TTS 是本机服务(GPT-SoVITS,无外接端点/Key),不属此类,留在「语音」tab。 -->
         <div class="set-cat" data-cat="modelapi">
         <div class="settings-group-title">模型 API / 外接模型</div>
@@ -1589,7 +1589,11 @@
 <script src="/js/text/ui/cost-log-ui.js"></script>
 <!-- 2026-05-29 微信发图 文本侧编排(raw):配合图像侧 window.__chatImage 契约,契约未上线走 mock -->
 <!-- 2026-05-29 image side chat-photo contract (raw): provides window.__chatImage; load before chat-image.js -->
+<!-- 2026-11-06 图像渠道注册表（数据驱动）：Gitee 只是内置 openai/site 预设，可新增任意 OpenAI 兼容渠道/本地 ComfyUI。
+     必须在 image-common.js 之前加载；UI 卡在设置·模型 API 分类里，由 image-channels-ui.js 挂载。 -->
+<script src="/shared/image-channels.js"></script>
 <script src="/shared/image-common.js"></script>
+<script src="/js/image/core/image-channels-ui.js"></script>
 <script src="/js/image/core/image-chat.js"></script>
 <script src="/js/image/core/chat-image.js"></script>
 <script src="/js/text/ui/chat-ux.js"></script>

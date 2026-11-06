@@ -5,22 +5,20 @@
  * 仿 prompt-editor.js 壳：自注入 DOM + 自注入主题无关 CSS（currentColor）
  * + window.__image API + ESC/遮罩/✕ 关闭。
  *
- * 两个模式：
- *   - 文生图  z-image-turbo        → /img/v1/images/generations（同步）
- *   - 改图    Qwen-Image-Edit-2511 → /img/v1/async/images/edits（异步轮询 task/{id}）
+ * 两个模式（渠道/模型由工坊顶部下拉决定，跟随 __imageChannels）：
+ *   - 文生图  → image-common.genImage（站点代理 / 自定义 OpenAI 兼容 / 本地 ComfyUI）
+ *   - 改图    → image-common.genEdit（需支持站点代理的 OpenAI 兼容渠道，如 Gitee 预设）
  *
- * 网络：全部走 image-routes.js 暴露的 /img/v1/*（代理 ai.gitee.com/v1）+ /img/dl?url=（下载）。
- * Key：设置卡已迁移至 settings.js（LS key cfw_image_key_v1，迁移旧 moark_api_key）。
+ * 网络：统一委托 image-common.js（/img/v1/* 代理 + /img/dl 下载）。
+ * Key：设置 → 模型 API → 图像渠道（LS cfw_image_channels_v1，迁移旧 cfw_image_key_v1）。
  * 主线 footprint：仅需一行 <script src=\"/image-embed.js\">；按钮启用由本模块运行时完成。
  *
  * 公开 API：window.__image = { open, close, switchMode, generate, abort }
  * 画廊 R2+跨设备同步（image-gallery.js）与插入聊天（image-album.js）均已上线。
  *
  * ── 统一管线（image-common 接入版）──
- * 依赖 window.__imageCommon（image-common.js），须在本模块前加载。
- * 委托范围：getKey / ENDPOINTS 常量 / dlFetch（下载代理）。
- * 保留本模块特有语义：pollTask 返回 {status,raw} 状态对象（非抛错）、
- *   用户可调 steps/guidance/task_types、取消按钮 + 状态徽标、pollAbort 旗标。
+ * 依赖 window.__imageCommon（image-common.js）与 window.__imageChannels（image-channels.js），
+ * 两者须在本模块前加载。鉴权 / 端点 / 下载 / 渠道分发全部下沉，本模块只保留工坊 UI 与状态条。
  */
 (function () {
   'use strict';
@@ -29,6 +27,8 @@
   // ── 统一管线：底层鉴权 / 端点 / 下载代理委托 image-common.js ──
   var IC = window.__imageCommon;
   if (!IC) { console.error('[image-embed] 缺少 image-common.js，请确认其在本模块前加载'); return; }
+  // 渠道是数据：Gitee 只是内置预设，工坊里的下拉只负责选择/覆盖，不写死任何供应商。
+  var C = window.__imageChannels;
 
   var MASK_ID = 'imageStudioMask';
   var KEY_LS = 'cfw_image_key_v1';
@@ -58,6 +58,38 @@
   var pollAbort = { aborted: false };
 
   function byId(id) { return document.getElementById(id); }
+  // ── 渠道/模型下拉：数据来自 __imageChannels；不在此处写死供应商 ──
+  function fillChannelSelect(sel, onlyEdit) {
+    if (!sel || !C) return;
+    sel.innerHTML = '';
+    var list = C.list().filter(function (ch) { return !onlyEdit || C.hasEdit(ch); });
+    list.forEach(function (ch) {
+      var o = document.createElement('option');
+      o.value = ch.id; o.textContent = ch.name + (ch.kind === 'comfyui' ? '（本地）' : '');
+      sel.appendChild(o);
+    });
+    var want = C.activeId();
+    if (!list.some(function (ch) { return ch.id === want; })) want = list[0] ? list[0].id : '';
+    if (want) sel.value = want;
+    return list;
+  }
+  function fillModelSelect(sel, ch, preferred) {
+    if (!sel) return;
+    sel.innerHTML = '';
+    var list = (ch && ch.models) ? ch.models.slice() : [];
+    if (preferred && list.indexOf(preferred) < 0) list.unshift(preferred);
+    list.forEach(function (m) {
+      var o = document.createElement('option'); o.value = m; o.textContent = m;
+      sel.appendChild(o);
+    });
+    if (preferred) sel.value = preferred;
+    else if (list.length) sel.value = list[0];
+  }
+  function selectedChannel() {
+    if (!C) return null;
+    var sel = byId('imgChannelSel');
+    return (sel && sel.value) ? C.get(sel.value) : C.getActive();
+  }
   // 鉴权委托 image-common（读 cfw_image_key_v1，校验，抛错消息与原版一致）
   function getKey() { return IC.getKey(); }
   function nowTs() {
@@ -74,16 +106,6 @@
   }
 
   // ── 网络：端点常量委托 image-common；/img/dl 代理亦委托（自动处理 data:/同源直传）──
-  function apiFetch(path, opts) {
-    opts = opts || {};
-    var p = String(path).replace(/^\/+/, '');
-    var url;
-    if (p === 'images/generations') url = IC.ENDPOINTS.generations;
-    else if (p === 'async/images/edits') url = IC.ENDPOINTS.editsAsync;
-    else if (p.indexOf('task/') === 0) url = IC.ENDPOINTS.task + p.slice(5);
-    else url = '/img/v1/' + p;
-    return fetch(url, { method: opts.method || 'GET', headers: opts.headers || {}, body: opts.body || null, signal: opts.signal || null });
-  }
   function dlFetch(url, opts) { return IC.dlFetch(url, opts); }
   async function readJsonSafely(res) {
     var t = await res.text();
@@ -97,28 +119,6 @@
     }
     var blob = await r.blob();
     return { blob: blob, objUrl: URL.createObjectURL(blob) };
-  }
-
-  // ── 轮询 task/{id} ──
-  async function pollTask(taskId, key, o) {
-    o = o || {};
-    var timeoutMs = o.timeoutMs || 30 * 60 * 1000;
-    var intervalMs = o.intervalMs || 6000;
-    var start = Date.now(), tick = 0;
-    pollAbort.aborted = false;
-    while (Date.now() - start < timeoutMs) {
-      if (pollAbort.aborted) return { status: 'cancelled', raw: { status: 'cancelled', message: '用户取消' } };
-      tick++;
-      if (o.onTick) o.onTick({ tick: tick, elapsedMs: Date.now() - start });
-      var res = await apiFetch('task/' + encodeURIComponent(taskId), {
-        method: 'GET', headers: { 'Authorization': 'Bearer ' + key }
-      });
-      var j = await readJsonSafely(res);
-      var st = j.status || 'unknown';
-      if (st === 'success' || st === 'failed' || st === 'cancelled') return { status: st, raw: j };
-      await new Promise(function (r) { setTimeout(r, intervalMs); });
-    }
-    return { status: 'timeout', raw: { status: 'timeout' } };
   }
 
   // ── 状态条 ──
@@ -162,77 +162,98 @@
   }
   function clearOutput() { var o = byId('imgOutput'); if (o) o.innerHTML = ''; }
 
-  // ── 文生图 z-image-turbo（同步）──
+  // ── 文生图（渠道/模型由工坊下拉决定）──
   async function runZImage() {
-    var key = getKey();
+    var ch = selectedChannel();
+    if (ch && ch.kind === 'openai' && ch.transport === 'site' && !getKey()) {
+      throw new Error('请先在 设置 → 模型 API → 图像渠道 填写当前渠道的 Key');
+    }
     var prompt = (byId('imgZPrompt').value || '').trim();
     if (!prompt) throw new Error('请输入提示词');
     var n = clampInt(byId('imgZN').value, 1, 4, 1);
     var res = Z_RESOLUTIONS[byId('imgZRes').value] || [1024, 1024];
     var size = res[0] + 'x' + res[1];
-    setStatus('文生图 生成中…');
-    var r = await apiFetch('images/generations', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: prompt, model: 'z-image-turbo', n: n, size: size })
-    });
-    var j = await readJsonSafely(r);
-    if (!r.ok) { setStatus('文生图 失败', 'err'); addOutput({ title: '文生图失败 HTTP ' + r.status, meta: JSON.stringify(j).slice(0, 200) }); return; }
-    var data = Array.isArray(j.data) ? j.data : [];
-    if (!data.length) { setStatus('文生图 无数据', 'err'); addOutput({ title: '返回无数据', meta: JSON.stringify(j).slice(0, 200) }); return; }
-    for (var i = 0; i < data.length; i++) {
-      var item = data[i] || {}, bi = null;
-      if (item.url) bi = await fetchAsBlob(item.url);
-      else if (item.b64_json) {
-        var bc = atob(item.b64_json), bytes = new Uint8Array(bc.length);
-        for (var k = 0; k < bc.length; k++) bytes[k] = bc.charCodeAt(k);
-        var blob = new Blob([bytes], { type: 'image/png' });
-        bi = { blob: blob, objUrl: URL.createObjectURL(blob) };
-      } else { addOutput({ title: '第 ' + (i + 1) + ' 张无数据' }); continue; }
+    var mSel = byId('imgModelSel');
+    var model = (mSel && mSel.value) || (ch && ch.model) || 'z-image-turbo';
+    setStatus('文生图 生成中…（' + ((ch && ch.name) || '默认渠道') + ' / ' + model + '）');
+    var urls;
+    try {
+      urls = await IC.genImage({ prompt: prompt, n: n, size: size, model: model, channel: ch || undefined });
+    } catch (e) {
+      setStatus('文生图 失败', 'err');
+      addOutput({ title: '文生图失败', meta: (e && e.message) || String(e) });
+      throw e;
+    }
+    if (!urls || !urls.length) { setStatus('文生图 无数据', 'err'); addOutput({ title: '返回无数据' }); return; }
+    for (var i = 0; i < urls.length; i++) {
+      var bi;
+      try { bi = await fetchAsBlob(urls[i]); }
+      catch (e) { addOutput({ title: '第 ' + (i + 1) + ' 张下载失败', meta: (e && e.message) || String(e) }); continue; }
       var img = document.createElement('img');
       img.src = bi.objUrl; img.className = 'img-out-img';
-      addOutput({ title: '文生图 #' + (i + 1), meta: 'size=' + size + '，n=' + n, element: img, download: { href: bi.objUrl, filename: 'z-image-' + nowTs() + '-' + (i + 1) + '.png' } });
+      addOutput({
+        title: '文生图 #' + (i + 1),
+        meta: '渠道=' + ((ch && ch.name) || '默认') + '，模型=' + model + '，size=' + size + '，n=' + n,
+        element: img,
+        download: { href: bi.objUrl, filename: 'gen-' + nowTs() + '-' + (i + 1) + '.png' }
+      });
     }
     setStatus('文生图 成功', 'ok');
   }
 
-  // ── 改图 Qwen-Image-Edit-2511（异步；支持 1 或 2 张源图）──
+  // ── 改图（渠道需支持站点代理改图；支持 1 或 2 张源图）──
   async function runEdit() {
-    var key = getKey();
+    var ch = selectedChannel();
+    if (C && ch && !C.hasEdit(ch)) {
+      throw new Error('当前渠道不支持改图：请在设置里选择带站点代理的 OpenAI 兼容渠道（Gitee 预设）');
+    }
     var f1 = (byId('imgEditImg1').files || [])[0];
     var f2 = (byId('imgEditImg2').files || [])[0];
     var prompt = (byId('imgEditPrompt').value || '').trim();
     if (!f1 || !prompt) throw new Error('请至少上传 1 张图片并输入提示词');
-    var types = Array.prototype.slice.call(document.querySelectorAll('input[name=\"imgEditType\"]:checked')).map(function (x) { return x.value; });
+    var types = Array.prototype.slice.call(document.querySelectorAll('input[name="imgEditType"]:checked')).map(function (x) { return x.value; });
     if (!types.length) throw new Error('至少选择一个 task_type');
     var steps = clampInt(byId('imgEditSteps').value, 1, 50, 4);
     var guidance = clampFloat(byId('imgEditGuidance').value, 0, 10, 1.0);
-    var fd = new FormData();
-    fd.append('prompt', prompt);
-    fd.append('model', 'Qwen-Image-Edit-2511');
-    fd.append('num_inference_steps', String(steps));
-    fd.append('guidance_scale', String(guidance));
-    types.forEach(function (t) { fd.append('task_types', t); });
-    fd.append('image', f1, f1.name);
-    if (f2) fd.append('image', f2, f2.name); // 2 张时追加；1 张时省略，待实测接口是否接受
-    setStatus('改图 创建任务…');
-    var r = await apiFetch('async/images/edits', { method: 'POST', headers: { 'Authorization': 'Bearer ' + key }, body: fd });
-    var j = await readJsonSafely(r);
-    if (!r.ok || !j.task_id) { setStatus('改图 创建失败', 'err'); addOutput({ title: '改图创建失败 HTTP ' + r.status, meta: JSON.stringify(j).slice(0, 200) }); return; }
-    var taskId = j.task_id;
-    setStatus('改图 轮询中… (' + taskId.slice(0, 8) + ')');
-    var result = await pollTask(taskId, key, {
-      intervalMs: 6000,
-      onTick: function (info) { setStatus('改图 轮询中… 已等待 ' + Math.floor(info.elapsedMs / 1000) + 's，第 ' + info.tick + ' 次检查，正常等待并非卡死'); }
-    });
-    if (result.status !== 'success') { setStatus('改图 ' + result.status, result.status === 'failed' ? 'err' : 'info'); addOutput({ title: '改图任务结束：' + result.status, meta: 'task=' + taskId.slice(0, 8) }); return; }
-    var fileUrl = result.raw && result.raw.output && result.raw.output.file_url;
+    var mSel = byId('imgEditModelSel');
+    var model = (mSel && mSel.value) || (ch && ch.editModel) || 'Qwen-Image-Edit-2511';
+    pollAbort.aborted = false;
+    var ticks = 0;
+    setStatus('改图 创建任务…（' + ((ch && ch.name) || '默认渠道') + ' / ' + model + '）');
+    var out;
+    try {
+      out = await IC.genEdit({
+        blob: f1, filename: f1.name,
+        image2: f2 || null, filename2: f2 ? f2.name : '',
+        prompt: prompt, model: model, steps: steps, guidance: guidance,
+        taskTypes: types, channel: ch || undefined,
+        intervalMs: 6000,
+        timeoutMs: 10 * 60 * 1000,
+        isAborted: function () { return pollAbort.aborted; },
+        onTick: function (status) {
+          ticks++;
+          setStatus('改图 轮询中… 第 ' + ticks + ' 次检查（' + (status || '处理中') + '），正常等待并非卡死');
+        }
+      });
+    } catch (e) {
+      var aborted = pollAbort.aborted || /已取消/.test((e && e.message) || '');
+      setStatus('改图 ' + (aborted ? '已取消' : '失败'), aborted ? 'info' : 'err');
+      addOutput({ title: '改图' + (aborted ? '已取消' : '失败'), meta: (e && e.message) || String(e) });
+      return;
+    }
+    var fileUrl = out && out.fileUrl;
+    var taskId = (out && out.taskId) || '';
     if (!fileUrl) { setStatus('改图 无 file_url', 'err'); addOutput({ title: '成功但无 file_url' }); return; }
     setStatus('改图 下载中…');
     var bi = await fetchAsBlob(fileUrl);
     var img = document.createElement('img');
     img.src = bi.objUrl; img.className = 'img-out-img';
-    addOutput({ title: '改图输出', meta: 'task=' + taskId.slice(0, 8) + '，' + (f2 ? '2 图' : '1 图') + '，' + types.join('+'), element: img, download: { href: bi.objUrl, filename: 'edit-2511-' + nowTs() + '.png' } });
+    addOutput({
+      title: '改图输出',
+      meta: '渠道=' + ((ch && ch.name) || '默认') + '，模型=' + model + '，task=' + String(taskId).slice(0, 8) + '，' + (f2 ? '2 图' : '1 图') + '，' + types.join('+'),
+      element: img,
+      download: { href: bi.objUrl, filename: 'edit-' + nowTs() + '.png' }
+    });
     setStatus('改图 成功', 'ok');
   }
 
@@ -284,6 +305,10 @@
     if (galPanel) galPanel.remove();
     if (currentMode === 'z') {
       body.innerHTML = [
+        '<div class=\"img-grid2\">',
+          '<div><label class=\"img-lab\">渠道</label><select class=\"img-input\" id=\"imgChannelSel\"></select></div>',
+          '<div><label class=\"img-lab\">模型</label><select class=\"img-input\" id=\"imgModelSel\"></select></div>',
+        '</div>',
         '<label class=\"img-lab\">提示词 Prompt</label>',
         '<textarea class=\"img-textarea\" id=\"imgZPrompt\" rows=\"5\" placeholder=\"例如：一只戴墨镜的柴犬，赛博朋克风，超清\"></textarea>',
         '<div class=\"img-grid2\">',
@@ -297,11 +322,25 @@
         var o = document.createElement('option'); o.value = kk; o.textContent = kk; sel.appendChild(o);
       });
       sel.value = Object.keys(Z_RESOLUTIONS)[1]; // 默认 1024，避开 2048 高成本
+      var chSel = byId('imgChannelSel'), mSel = byId('imgModelSel');
+      fillChannelSelect(chSel, false);
+      var initCh = selectedChannel();
+      fillModelSelect(mSel, initCh, initCh && initCh.model);
+      if (chSel) chSel.addEventListener('change', function () {
+        if (C) C.setActive(this.value);
+        var ch = selectedChannel();
+        fillModelSelect(mSel, ch, ch && ch.model);
+      });
       byId('imgZRun').addEventListener('click', function () {
         runZImage().catch(function (e) { setStatus('错误：' + e.message, 'err'); });
       });
     } else {
       body.innerHTML = [
+        '<div class=\"img-grid2\">',
+          '<div><label class=\"img-lab\">渠道（需支持改图）</label><select class=\"img-input\" id=\"imgChannelSel\"></select></div>',
+          '<div><label class=\"img-lab\">改图模型</label><select class=\"img-input\" id=\"imgEditModelSel\"></select></div>',
+        '</div>',
+        '<div id=\"imgEditNoChannel\" style=\"display:none;font-size:12px;color:#e5484d;margin:0 0 10px;\">没有支持改图的渠道。请到 设置 → 模型 API → 图像渠道 选 Gitee 预设（站点代理 + Qwen-Image-Edit）。</div>',
         '<div class=\"img-grid2\">',
           '<div><label class=\"img-lab\">图1（必填）</label><input class=\"img-input\" id=\"imgEditImg1\" type=\"file\" accept=\"image/png,image/jpeg,image/webp\"></div>',
           '<div><label class=\"img-lab\">图2（可选）</label><input class=\"img-input\" id=\"imgEditImg2\" type=\"file\" accept=\"image/png,image/jpeg,image/webp\"></div>',
@@ -316,6 +355,22 @@
         '</div>',
         '<div class=\"img-row\"><button class=\"img-btn img-btn-primary\" id=\"imgEditRun\">执行 / 改图</button></div>'
       ].join('');
+      var echSel = byId('imgChannelSel'), emSel = byId('imgEditModelSel');
+      var editChs = C ? fillChannelSelect(echSel, true) : null;
+      var noCh = byId('imgEditNoChannel');
+      if (C && (!editChs || !editChs.length)) {
+        if (noCh) noCh.style.display = '';
+        if (emSel) emSel.innerHTML = '';
+        var run0 = byId('imgEditRun'); if (run0) run0.disabled = true;
+      } else {
+        var initE = selectedChannel();
+        fillModelSelect(emSel, initE, initE && initE.editModel);
+        if (echSel) echSel.addEventListener('change', function () {
+          if (C) C.setActive(this.value);
+          var ch = selectedChannel();
+          fillModelSelect(emSel, ch, ch && ch.editModel);
+        });
+      }
       var box = byId('imgEditTypes');
       EDIT_TASK_TYPES.forEach(function (t) {
         var lab = document.createElement('label'); lab.className = 'img-chk';
@@ -360,18 +415,18 @@
     currentMode = mode; refreshTabs(); renderBody();
   }
 
-  // ── 程序化生成 API（供以后 形象/场景 调用）──
+  // ── 程序化生成 API（供 形象/场景 调用）：跟随当前渠道，返回 [{url}] ──
   async function generate(opts) {
     opts = opts || {};
-    var key = getKey();
-    var r = await apiFetch('images/generations', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: opts.prompt || '', model: 'z-image-turbo', n: opts.n || 1, size: opts.size || '1024x1024' })
+    var ch = opts.channel || (IC.getChannel && IC.getChannel());
+    var urls = await IC.genImage({
+      prompt: opts.prompt || '',
+      n: opts.n || 1,
+      size: opts.size || '1024x1024',
+      model: opts.model || (ch && ch.model) || undefined,
+      channel: ch || undefined
     });
-    var j = await readJsonSafely(r);
-    if (!r.ok) throw new Error('生成失败 HTTP ' + r.status);
-    return Array.isArray(j.data) ? j.data : [];
+    return (urls || []).map(function (u) { return { url: u }; });
   }
   function abort() { pollAbort.aborted = true; }
 

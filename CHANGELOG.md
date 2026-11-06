@@ -5,9 +5,14 @@ Notable changes per public release. Release notes live in
 
 ## Unreleased
 
+- **Image channels (data-driven)** — image generation is no longer hardwired to Gitee. Settings →
+  Model API → Image channels now has a dropdown with the built-in Gitee preset plus user-defined
+  OpenAI-compatible endpoints (browser-direct, CORS required) and local ComfyUI servers. The image
+  workshop and the studio page follow the active channel and expose a model dropdown; Gitee remains
+  the only editing path (`Qwen-Image-Edit-2511`). Channel settings and keys stay on-device.
 - **Docs: images & voice in plain words** — the README now states what the image features actually
   use (your own **Gitee AI** key via the built-in proxy; `z-image-turbo` / `Qwen-Image-Edit-2511` /
-  `Wan2_2-I2V-A14B`; ~100 images/day free tier; other image providers not supported yet) and how
+  `Wan2_2-I2V-A14B`; ~100 images/day free tier; other image providers were not supported at the time) and how
   desktop TTS works (local GPT-SoVITS `api_v2` on 9880, tray start/auto-start, local reference audio).
   Community resources gained a TTS-backend entry (GPT-SoVITS + other self-hosted options, with the
   usual caveats about differing HTTP shapes and model-weight licenses).
