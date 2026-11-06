@@ -1254,6 +1254,32 @@ async function searchViaExa(env, q, n) {
   }
 }
 
+// 2026-11-06: DeepSeek 搜索后端 —— /v1/tools/search(Bearer，按次计费 ¥5/1000 次)。
+// 与 Exa 同构返回 { ok, source:"deepseek", query, results:[{title,url,snippet}] }；失败/未配 key 返回 null。
+async function searchViaDeepSeek(env, q, n) {
+  const key = ((env.DEEPSEEK_SEARCH_API_KEY || env.DEEPSEEK_API_KEY) || "").trim();
+  if (!key) return null;
+  try {
+    const upstream = await fetchWithTimeout("https://api.deepseek.com/v1/tools/search", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: String(q).slice(0, 128), count: n, need_content: false }),
+    }, 15000);
+    if (!upstream.ok) return null;
+    const data = await upstream.json().catch(() => null);
+    const items = data && Array.isArray(data.results) ? data.results : null;
+    if (!items) return null;
+    const results = items.slice(0, n).map(function (it) {
+      const snippet = String(it.snippet || it.summary || "").trim().slice(0, 300);
+      return { title: it.title || it.url || "", url: it.url || "", snippet: snippet };
+    }).filter(function (r) { return r.url; });
+    if (!results.length) return null;
+    return { ok: true, source: "deepseek", query: q, results: results };
+  } catch (e) {
+    return null;
+  }
+}
+
 // 2026-06-18 / 4.70: /api/search — 服务端搜索。主通道 Exa(env.EXA_API_KEY,服务端 API、不按 IP 封),
 // 未配 key 或 Exa 失败时降级到 DDG html 抓取(对 CF 数据中心出口 IP 易被限速)。无 GFW / 无 CORS。
 // 等价 Claude Code 的服务端 WebSearch：搜索在 Cloudflare Worker 执行，客户端无需直连境外站。
@@ -1262,10 +1288,15 @@ async function searchViaExa(env, q, n) {
 async function runSearch(env, q, opts) {
   opts = opts || {};
   const n = Math.min(10, Math.max(1, parseInt(opts.n || 5, 10) || 5));
-  // 默认走免费 DDG；仅当显式要求深搜且配了 EXA_API_KEY 时才升级 Exa（按次计费 ≈$0.007），Exa 失败再降级。
-  if (opts.deep && env && (env.EXA_API_KEY || "").trim()) {
-    const exa = await searchViaExa(env, q, n);
-    if (exa && exa.results && exa.results.length) return exa;
+  // 默认走免费 DDG；显式深搜时按「DeepSeek → Exa」升级（都按次计费；DeepSeek ≈¥0.005/次更便宜），
+  // 任一失败/未配 key 自动降级到免费 DDG/Bing。
+  if (opts.deep && env) {
+    const ds = await searchViaDeepSeek(env, q, n);
+    if (ds && ds.results && ds.results.length) return ds;
+    if ((env.EXA_API_KEY || "").trim()) {
+      const exa = await searchViaExa(env, q, n);
+      if (exa && exa.results && exa.results.length) return exa;
+    }
   }
   const ddgUrl = "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(q) + "&kl=cn-zh";
   let html = "";
@@ -1325,7 +1356,7 @@ function formatSearchForModel(q, r) {
   if (!r || r.ok === false) return "搜索失败：" + ((r && r.error) || "未知错误");
   const list = (r.results || []).slice(0, 6);
   if (!list.length) return "（没有找到与「" + q + "」相关的结果）";
-  const src = r.source === "exa" ? "Exa" : (r.source === "bing" ? "Bing" : "DuckDuckGo");
+  const src = r.source === "deepseek" ? "DeepSeek" : (r.source === "exa" ? "Exa" : (r.source === "bing" ? "Bing" : "DuckDuckGo"));
   return "搜索「" + q + "」的结果（来源：" + src + "）：\n"
     + list.map(function (it, i) { return (i + 1) + ". " + it.title + "\n   " + (it.snippet || "") + "\n   " + it.url; }).join("\n");
 }

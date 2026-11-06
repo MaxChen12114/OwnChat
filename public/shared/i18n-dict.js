@@ -452,8 +452,8 @@
     "开启后，普通聊天遇到需要实时信息的问题（新闻、价格、版本、赛事…）时会自己搜索再回答，并在引用处附来源链接。搜索由你自己的 Worker 执行 —— 官方 API 里没有内置搜索，这里是把搜索工具挂在聊天请求上、由 Worker 侧跑。":
       "When on, regular chats that need fresh facts (news, prices, versions, scores…) search first and answer with source links. The search runs on your own Worker — the official API has no built-in search, so it is attached to the chat request server-side.",
     "启用联网搜索": "Enable web search",
-    "深度搜索（Exa · 按次计费 ≈¥0.05/次）": "Deep search (Exa · billed per call ≈¥0.05)",
-    "已启用：深搜(Exa)优先，未配 key 自动降级": "On · deep search (Exa) first, falls back if no key is set",
+    "深度搜索（DeepSeek / Exa，按次计费；DeepSeek ≈¥0.005/次）": "Deep search (DeepSeek / Exa, billed per call; DeepSeek ≈¥0.005/call)",
+    "已启用：深搜(DeepSeek/Exa)优先，未配 key 自动降级": "On · deep search (DeepSeek/Exa) first, falls back if no key is set",
     "本地对话记忆": "Local chat memory",
     "开启后发消息会带上本机历史上下文，AI 能记住你们说过的话。仅本设备（不进云同步）。":
       "When on, messages carry this device's history so the AI remembers what you said. This device only (not cloud-synced).",

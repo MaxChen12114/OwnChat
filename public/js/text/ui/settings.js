@@ -288,8 +288,8 @@
     }
   }
   // ─── §联网搜索卡（2026-10-07 新增）───
-  // 背景：DeepSeek 官方 API 没有服务端搜索（官方文档里内置工具标 Ignored，定价页也无搜索项），
-  // 所以「联网」由本项目的 Worker 代查：免费的 DuckDuckGo 兜底，配了 EXA_API_KEY 才升级深搜。
+  // 背景：联网由本项目的 Worker 代查：免费 DuckDuckGo/Bing 兜底；勾「深度搜索」时优先 DeepSeek
+  // 搜索 API（2026-10-17 上线，/v1/tools/search），未配 key 再用 Exa。
   // 开关默认关（不静默把查询外发）；只对普通聊天生效，Agent 模式本来就有 web_search 工具。
   function mountWebSearchCard() {
     var slot = document.getElementById('setChatSlot');
@@ -298,9 +298,9 @@
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>联网搜索（Web Search）</h4>'
       + '<p>开启后，普通聊天遇到需要实时信息的问题（新闻、价格、版本、赛事…）时会自己搜索再回答，并在引用处附来源链接。搜索由<b>你自己的 Worker</b> 执行 —— 官方 API 里没有内置搜索，这里是把搜索工具挂在聊天请求上、由 Worker 侧跑。</p>'
       + '<div class="rowline"><div class="toggle"><input type="checkbox" id="webSearchToggle"><label for="webSearchToggle">启用联网搜索</label></div>'
-      + '<div class="toggle" style="margin-top:6px;"><input type="checkbox" id="webSearchDeepToggle"><label for="webSearchDeepToggle">深度搜索（Exa，按次计费 ≈¥0.05/次）</label></div></div>'
+      + '<div class="toggle" style="margin-top:6px;"><input type="checkbox" id="webSearchDeepToggle"><label for="webSearchDeepToggle">深度搜索（DeepSeek / Exa，按次计费；DeepSeek ≈¥0.005/次）</label></div></div>'
       + '<div id="webSearchStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div>'
-      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>默认走免费的 DuckDuckGo,它不通时自动改用 <b>Bing</b>(同样免费);只有 Worker 侧配置了 <code>EXA_API_KEY</code>（<code>wrangler secret put EXA_API_KEY</code>）且这里勾了「深度搜索」时才会用 Exa,没配则自动降级。开了联网的回复会比平时慢一些——要多 1~2 轮「搜索 + 复述结果」。查询词会发到你自己的 Worker 再转给搜索服务;Agent 模式的 <code>web_search</code> 工具不受此开关影响。</span></div>';
+      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>默认走免费的 DuckDuckGo,它不通时自动改用 <b>Bing</b>(同样免费);勾了「深度搜索」且 Worker 侧配了 <code>DEEPSEEK_SEARCH_API_KEY</code>（或复用 <code>DEEPSEEK_API_KEY</code>）时优先走 DeepSeek 搜索（<code>wrangler secret put DEEPSEEK_SEARCH_API_KEY</code>）；否则配了 <code>EXA_API_KEY</code> 走 Exa；都没配或调用失败则自动降级。开了联网的回复会比平时慢一些——要多 1~2 轮「搜索 + 复述结果」。查询词会发到你自己的 Worker 再转给搜索服务;Agent 模式的 <code>web_search</code> 工具不受此开关影响。</span></div>';
     slot.appendChild(card);
     var t = card.querySelector('#webSearchToggle');
     var d = card.querySelector('#webSearchDeepToggle');
@@ -310,7 +310,7 @@
       var deep = localStorage.getItem('cfw_web_search_deep_v1') === '1';
       t.checked = on; d.checked = deep;
       d.disabled = !on;
-      if (st) st.textContent = !on ? '未启用（聊天只靠模型自身知识）' : (deep ? '已启用：深搜(Exa)优先，未配 key 自动降级' : '已启用：免费搜索(DuckDuckGo)');
+      if (st) st.textContent = !on ? '未启用（聊天只靠模型自身知识）' : (deep ? '已启用：深搜(DeepSeek/Exa)优先，未配 key 自动降级' : '已启用：免费搜索(DuckDuckGo)');
     }
     t.addEventListener('change', function () {
       localStorage.setItem('cfw_web_search_v1', t.checked ? '1' : '0');
