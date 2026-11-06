@@ -668,6 +668,8 @@
     "内置预设（站点代理）": "Built-in preset (site proxy)",
     "自定义渠道（本机保存）": "Custom channels (saved locally)",
     "＋ 新增图像渠道": "+ Add image channel",
+    "恢复 Gitee 预设": "Restore Gitee preset",
+    "已恢复 Gitee 预设": "Gitee preset restored",
     "内置预设 · 站点代理": "Built-in preset · Site proxy",
     "自定义 · 本机 ComfyUI": "Custom · Local ComfyUI",
     "自定义 · OpenAI 兼容": "Custom · OpenAI-compatible",

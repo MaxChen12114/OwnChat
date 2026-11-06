@@ -93,6 +93,9 @@
           + '<small style="color:var(--muted);font-size:11px;display:block;margin-top:1px;word-break:break-all;">' + esc(channelTag(ch)) + '</small></button>';
       });
       html += '<button type="button" data-new="1" style="' + BTN + 'border-style:dashed;color:var(--muted);">＋ 新增图像渠道</button>';
+      if (!chs.some(isGitee)) {
+        html += '<button type="button" data-restore="1" style="' + BTN + 'border-style:dashed;color:var(--muted);">恢复 Gitee 预设</button>';
+      }
       listEl.innerHTML = html;
     }
 
@@ -237,6 +240,14 @@
     }
 
     listEl.addEventListener('click', function (e) {
+      var restore = e.target.closest && e.target.closest('[data-restore]');
+      if (restore) {
+        var saved = C.save(C.DEFAULT_GITEE);
+        selId = saved.id;
+        renderList(); renderDetail();
+        setStatus('已恢复 Gitee 预设', 'ok');
+        return;
+      }
       var add = e.target.closest && e.target.closest('[data-new]');
       if (add) {
         commitDraft();
