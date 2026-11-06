@@ -1719,8 +1719,15 @@
   const AGENT_PLAN_DIRECTIVE = "\n\n【本次为计划模式】你可以调用只读工具(fetch_page / web_search / read_file / list_files 等)做调查,但**不要执行任何有副作用的操作**(写文件、改角色卡/设定集/指令模块/设置、换主题换模型等)。调查清楚后,输出一份分步计划(要做什么、涉及哪些文件、风险点),等用户确认后再执行。";
   const LS_AGENT_MAX_ROUNDS = "cfw_agent_max_rounds_v1";
   function getAgentMaxRounds() {
-    const n = parseInt(localStorage.getItem(LS_AGENT_MAX_ROUNDS) || "8", 10);
-    return (n >= 1 && n <= 50) ? n : 8;
+    // 2026-10-13 批 H：默认不限——未设/留空/0/非法值一律返回 1000（实务上限，与自驱引擎
+    // MAX_ROUNDS_HARD 同款防线：仅防意外失控烧钱）；手填 1~1000 = 硬上限。
+    try {
+      const raw = (localStorage.getItem(LS_AGENT_MAX_ROUNDS) || "").trim();
+      if (!raw) return 1000;
+      const n = parseInt(raw, 10);
+      if (!isFinite(n) || n <= 0) return 1000;
+      return Math.min(1000, n);
+    } catch (e) { return 1000; }
   }
   // 切到某个会话之后要做的事:清 UI + 应用角色 + 还原历史(新建与切换共用)
   function loadConvIntoUI(id) {

@@ -505,8 +505,8 @@
       + '<div class="rowline" style="align-items:center;gap:10px;margin-top:12px;"><label style="font-size:12px;color:var(--muted);min-width:42px;">工具</label>'
       + '<select id="agentToolsSel" style="' + SS + '"></select></div>'
       + '<div class="rowline" style="align-items:center;gap:10px;margin-top:8px;"><label style="font-size:12px;color:var(--muted);min-width:42px;">轮数</label>'
-      + '<input id="agentMaxRounds" type="number" min="1" max="50" step="1" style="' + SS + 'max-width:110px;" title="一次回复里模型最多可以「思考→调工具」多少个来回">'
-      + '<span style="font-size:11px;color:var(--muted);">最大工具轮数(1~50,默认 8)</span></div>'
+      + '<input id="agentMaxRounds" type="number" min="0" max="1000" step="1" style="' + SS + 'max-width:110px;" placeholder="不限" title="一次回复里模型最多可以「思考→调工具」多少个来回；留空/0 = 不限（实务上限 1000）">'
+      + '<span style="font-size:11px;color:var(--muted);">最大工具轮数(默认不限；填 1~1000 自设上限)</span></div>'
       // 4.70 本地能力:工作目录。**并进这张卡**而不是另开一张 ——
       // index.html 的注释写明 Agent 分类由本卡注入主要配置；多智能体编排 2026-10-08 起已拆走
       // （mountMultiAgentCard），因为"工作能力"与"编排玩法"是两件事，混在一张卡里互相干扰阅读。
@@ -515,7 +515,7 @@
       + '<button id="agentWorkdirPick" style="padding:7px 12px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;cursor:pointer;white-space:nowrap;">选择…</button></div>'
       + '<div id="agentLocalStatus" style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6;"></div>'
       + '<div id="agentToolsDesc" style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6;"></div>'
-      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>文件工具(list/search/read/write/edit/delete/export)与联网工具(搜索 / 抓网页)由各自模块单独注册,<b>两档都有</b>,不受这里影响：先 search_file 定位、read_file 按行分页读(大文件不怕截断)、长文 fetch_page 可续读 —— 由模型按需灵活组合。改完<b>下一次开 Agent 生效</b>(当前正在跑的不变)。<br>轮数决定一次回复能跑多少来回:读写多个文件、多轮检索这类任务要调大;太小会在中途被"已达最大轮数"截断。</span></div>';
+      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>文件工具(list/search/read/write/edit/delete/export)与联网工具(搜索 / 抓网页)由各自模块单独注册,<b>两档都有</b>,不受这里影响：先 search_file 定位、read_file 按行分页读(大文件不怕截断)、长文 fetch_page 可续读 —— 由模型按需灵活组合。改完<b>下一次开 Agent 生效</b>(当前正在跑的不变)。<br>轮数决定一次回复能跑多少来回:读写多个文件、多轮检索这类任务要调大;<b>现在默认不限</b>(留空即可)——只有手填了具体数,才会在中途被"已达最大轮数"截断。</span></div>';
     slot.appendChild(card);
     var sel = card.querySelector('#agentToolsSel'), desc = card.querySelector('#agentToolsDesc');
     // 档位数**动态点数**（2026-10-08）：另一个会话加了 search_file / 分页读 / fetch 续读等新工具后，
@@ -562,11 +562,22 @@
     var roundsEl = card.querySelector('#agentMaxRounds');
     if (roundsEl) {
       var RK = 'cfw_agent_max_rounds_v1';
-      var cur = 8; try { cur = parseInt(localStorage.getItem(RK) || '8', 10) || 8; } catch (e) {}
-      roundsEl.value = String((cur >= 1 && cur <= 50) ? cur : 8);
+      var _curR = null;
+      try {
+        var _raw = (localStorage.getItem(RK) || '').trim();
+        var _n = parseInt(_raw, 10);
+        _curR = (_raw && isFinite(_n) && _n > 0) ? Math.min(1000, _n) : null;
+      } catch (e) {}
+      roundsEl.value = (_curR == null) ? '' : String(_curR);
       roundsEl.addEventListener('change', function () {
-        var v2 = parseInt(roundsEl.value, 10);
-        if (!(v2 >= 1 && v2 <= 50)) v2 = 8;
+        var raw = String(roundsEl.value || '').trim();
+        var v2 = parseInt(raw, 10);
+        if (!raw || !isFinite(v2) || v2 <= 0) { // 留空/0 = 不限
+          try { localStorage.removeItem(RK); } catch (e) {}
+          roundsEl.value = '';
+          return;
+        }
+        v2 = Math.min(1000, v2);
         roundsEl.value = String(v2);
         try { localStorage.setItem(RK, String(v2)); } catch (e) {}
       });
