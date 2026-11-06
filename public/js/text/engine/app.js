@@ -812,8 +812,8 @@
       modeToggle.textContent = isFast ? "\u26A1 快速" : "\u{1F7E2} 免费";
       setIcon(modeToggle, isFast ? "modeFast" : "modeFree", isFast ? "快速" : "免费"); // 2026-06-07: 线性 SVG 图标 + 文字(覆盖上一行 emoji)
       modeToggle.title = isFast
-        ? "当前：快速模式（DeepSeek 官方，按量计费）"
-        : "当前：免费模式（NVIDIA NIM）";
+        ? "当前：快速档（按量计费）；渠道与默认模型见 设置→模型 API"
+        : "当前：免费档；渠道与默认模型见 设置→模型 API";
     }
 
     // 重建下拉
@@ -2322,7 +2322,7 @@
   });
 
 
-  // Phase 4 阶段 6：从 LS 读取启用的预设，按 order 排序，filter enabled，COT 在快速(DeepSeek)模式下自动禁用
+  // Phase 4 阶段 6：从 LS 读取启用的预设，按 order 排序，filter enabled，COT 在快速档下自动禁用
   // （2026-10-06: 原「语音情绪白名单」(emotionTagDirective) 已随多情绪系统删除 —— 本函数曾残留对它的
   //   活调用导致所有聊天路径 ReferenceError 中止(agent 模式报"emotionTagDirective is not defined")，已清。）
   function getExtraSystemPrompts(mode, card) {
@@ -2331,14 +2331,14 @@
       if (!raw) return "";
       const arr = JSON.parse(raw);
       if (!Array.isArray(arr)) return "";
-      const isDeepSeek = mode === "fast";
+      const isFast = mode === "fast";
       // 2026-10-08 角色能力档：该角色配了 presetIds 就按它取（忽略全局 enabled 勾选），否则走全局。
       const cap = charCap(card);
       const ids = (cap && Array.isArray(cap.presetIds) && cap.presetIds.length) ? cap.presetIds : null;
       return arr
         .filter(p => p && typeof p.content === "string" && p.content.trim())
         .filter(p => ids ? ids.indexOf(p.id) >= 0 : !!p.enabled)
-        .filter(p => !(isDeepSeek && p.name === "COT"))
+        .filter(p => !(isFast && p.name === "COT"))
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
         .map(p => p.content.trim())
         .join("\n\n");

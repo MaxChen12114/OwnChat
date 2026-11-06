@@ -580,7 +580,7 @@
 			name: "set_model",
 			destructive: true, // 改当前模型/模式,影响后续全部请求
 			description:
-				"切换聊天用的模型档位与具体模型。mode: free(免费·NVIDIA NIM) / fast(快速·DeepSeek,按量计费)。可选 model=具体模型 id(须属于该档位的模型列表;会先切 mode 再设 model)。不传 model 只切档位、用该档默认模型。",
+				"切换聊天用的模型档位与具体模型。mode: free(免费档,默认 NVIDIA NIM) / fast(快速档,默认 DeepSeek 官方,按量计费;渠道与默认模型在「设置→模型 API」配置)。可选 model=具体模型 id(须属于该档位的模型列表;会先切 mode 再设 model)。不传 model 只切档位、用该档默认模型。",
 			parameters: {
 				type: "object",
 				properties: {
@@ -719,7 +719,7 @@
 		define({
 			name: "query_cost",
 			description:
-				"查询本应用「对话消耗」统计(仅快速档/DeepSeek 按量计费;免费档不计费)。" +
+				"查询本应用「对话消耗」统计(仅快速档按量计费;免费档不计费)。" +
 				"返回今日/本周/本月/累计的人民币花费。用户问『花了多少钱』『这次烧了多少』『我的消耗』时调用,做决策前也可先查。" +
 				"注意:这是模型对话 token 费(主要开销),与联网搜索的 reach_cost(Exa 搜索费)是两本账。",
 			parameters: {
@@ -743,8 +743,8 @@
 				const all = { today: fmt(stats.today), week: fmt(stats.week), month: fmt(stats.month), total: fmt(stats.total) }
 				const billing = mode === "fast"
 				const note = billing
-					? "快速档按量计费(DeepSeek)。此为模型对话 token 费,不含联网搜索费(见 reach_cost)。"
-					: "当前为免费档(NVIDIA NIM),对话不计费;以下为历史快速档累计。"
+					? "快速档按量计费（默认 DeepSeek 官方）。此为模型对话 token 费,不含联网搜索费(见 reach_cost)。"
+					: "当前为免费档,对话不计费;以下为历史快速档累计。"
 				const range = (args && args.range) || "all"
 				if (range !== "all" && all[range]) {
 					return { ok: true, mode, range, cost: all[range], billing, note }

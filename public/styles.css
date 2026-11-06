@@ -4,15 +4,25 @@
 
 :root {
   --ag-surface: rgba(127,127,127,.10); --ag-hover: rgba(127,127,127,.07); --ag-border: rgba(127,127,127,.30); /* 4.83: agent 面板主题化令牌 */
+  /* 2026-10-13 批 E3「层次灰」: 三级面(底→面板→卡片) + 描边两档 + 焦点环。
+     原来 minimal 用 #0b0b0b/#0f0f0f/#101010 三个几乎同色的面 + #222 描边 → 一片死黑"干巴巴"。
+     现在: 底=--bg(最深) < 面板=--surface-2 < 卡片/输入=--surface-3, 描边 --border 提亮一档、
+     弱描边 --border-soft 走行分隔/虚线。四主题(亮/玻璃/烛光)同名对齐。 */
+  --surface-2: #131316;
+  --surface-3: #1a1c21;
+  --border: #2c2f36;
+  --border-soft: #222429;
+  /* 2026-10-13 批 J2 高亮配色：极简黑配蓝（钢蓝家族——参考图取色 #587A9D 基调；去饱和、无霓虹，避开 Tailwind/AI 亮蓝紫） */
+  --focus-ring: rgba(127, 164, 201, .55);
+  --accent: #7fa4c9; --accent-2: #587a9d; --accent-soft: rgba(88, 122, 157, .18); --accent-border: rgba(120, 155, 190, .42);
   --bg: #0b0b0b;
-  --border: #222;
   --muted: #9a9a9a;
-  --bubble-ai: #141414;
+  --bubble-ai: #141416;
   --bubble-user: #2a2a2a; /* 极简·暗: 比背景 #0b0b0b / AI #141414 明显浅一档, 中性灰不带蓝 */
-  --input-bg: #2d2d2d;
-  --input-border: #444;
-  --btn-bg: #3b3b3b;
-  --btn-bg-hover: #4a4a4a;
+  --input-bg: #1a1c21; /* E3: 与卡片同族(原 #2d2d2d 在暗底上跳一大格) */
+  --input-border: #333740;
+  --btn-bg: #2f333a; /* E3: 原 #3b3b3b 偏亮 */
+  --btn-bg-hover: #3a3f47;
   --composer-gap: 18px;
   --spacer-extra: 28px;
   --content-max: 760px;
@@ -31,8 +41,13 @@
    ════════════════════════════════════════════════════════════ */
 html[data-scheme="light"]:not([data-theme]) {
   --ag-surface: rgba(255,255,255,.62); --ag-hover: rgba(255,255,255,.5); --ag-border: #e3e3e0; /* 4.83 */
-  --bg: #ffffff;
+  --surface-2: #f7f7f5; /* E3: 面板 */
+  --surface-3: #fbfbfa; /* E3: 卡片(亮色里卡片比面板更白一档) */
   --border: #ececea;
+  --border-soft: #efefec;
+  --focus-ring: rgba(55, 53, 47, .42);
+  --accent: #37352f; --accent-2: #2a2925; --accent-soft: rgba(55, 53, 47, .08); --accent-border: rgba(55, 53, 47, .38); /* 批 J2：白配深色（Notion 墨黑系） */
+  --bg: #ffffff;
   --muted: #787774;
   --bubble-ai: #f7f7f5;
   --bubble-user: #f1f0ee; /* 极简·亮: Notion 中性暖灰, 去掉蓝感 */
@@ -83,22 +98,22 @@ html[data-scheme="light"]:not([data-theme]) .card p { color: #787774; }
 html[data-scheme="light"]:not([data-theme]) #settings .card { box-shadow: none; }
 /* 分组标题: #c8c8c8 在白底近乎隐形 -> 可读灰; 左侧色条由遗留紫 #9aa3ff -> Notion 蓝 */
 html[data-scheme="light"]:not([data-theme]) #settings .settings-group-title { color: #787774; }
-html[data-scheme="light"]:not([data-theme]) #settings .settings-group-title::before { background: #2383e2; }
+html[data-scheme="light"]:not([data-theme]) #settings .settings-group-title::before { background: #37352f; }
 html[data-scheme="light"]:not([data-theme]) .rowline { border-top-color: #ececea; }
 html[data-scheme="light"]:not([data-theme]) .smallbtn { background: #f3f3f1; border-color: #e3e2e0; color: #37352f; }
 html[data-scheme="light"]:not([data-theme]) .smallbtn:hover { background: #e9e9e6; }
 html[data-scheme="light"]:not([data-theme]) .smallbtn.danger { background: #fdf0ee; border-color: #f3c9c2; color: #b3261e; }
 html[data-scheme="light"]:not([data-theme]) .smallbtn.danger:hover { background: #fbe3df; }
 html[data-scheme="light"]:not([data-theme]) #customPrompt { background: #ffffff; border-color: #e3e2e0; color: #37352f; }
-html[data-scheme="light"]:not([data-theme]) #customPrompt:focus { border-color: #2383e2; }
+html[data-scheme="light"]:not([data-theme]) #customPrompt:focus { border-color: #37352f; }
 
 /* 外观风格 radio 卡 */
 html[data-scheme="light"]:not([data-theme]) .theme-option { background: #f7f7f5; border-color: #ececea; }
 html[data-scheme="light"]:not([data-theme]) .theme-option:hover { background: #efedea; border-color: #e0dfdc; }
 html[data-scheme="light"]:not([data-theme]) .theme-option input[type="radio"] { border-color: #c4c3bf; }
 /* 选中态: 基础规则写死夜间值(圆点 #9aa3ff 紫 / 选中标题 #fff 白), 日间漏改 -> 白底下紫点 off-brand、白标题直接隐形。补 Notion 蓝圆点 + 深灰标题 */
-html[data-scheme="light"]:not([data-theme]) .theme-option input[type="radio"]:checked { border-color: #2383e2; }
-html[data-scheme="light"]:not([data-theme]) .theme-option input[type="radio"]:checked::after { background: #2383e2; }
+html[data-scheme="light"]:not([data-theme]) .theme-option input[type="radio"]:checked { border-color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .theme-option input[type="radio"]:checked::after { background: #37352f; }
 html[data-scheme="light"]:not([data-theme]) .theme-option input[type="radio"]:checked ~ .theme-text .theme-title { color: #37352f; }
 html[data-scheme="light"]:not([data-theme]) .theme-title { color: #37352f; }
 html[data-scheme="light"]:not([data-theme]) .theme-sub { color: #787774; }
@@ -113,18 +128,18 @@ html[data-scheme="light"]:not([data-theme]) .char-rel-btn:hover { color: #37352f
 html[data-scheme="light"]:not([data-theme]) .char-rel-btn.active { background: #37352f; border-color: #37352f; color: #fff; }
 html[data-scheme="light"]:not([data-theme]) .char-item { background: #f7f7f5; border-color: #ececea; }
 html[data-scheme="light"]:not([data-theme]) .char-item:hover { background: #efedea; border-color: #e0dfdc; }
-html[data-scheme="light"]:not([data-theme]) .char-item.active { background: #eef4fc; border-color: #2383e2; box-shadow: 0 0 0 2px rgba(35,131,226,.18); }
+html[data-scheme="light"]:not([data-theme]) .char-item.active { background: rgba(55,53,47,.06); border-color: rgba(55,53,47,.38); box-shadow: 0 0 0 2px rgba(55,53,47,.08); }
 html[data-scheme="light"]:not([data-theme]) .char-item-name { color: #37352f; }
 html[data-scheme="light"]:not([data-theme]) .char-item-btn { background: #ffffff; color: #37352f; border: 1px solid #e3e2e0; }
 html[data-scheme="light"]:not([data-theme]) .char-input,
 html[data-scheme="light"]:not([data-theme]) .char-textarea { background: #ffffff; border-color: #e3e2e0; color: #37352f; }
 html[data-scheme="light"]:not([data-theme]) .char-input:focus,
-html[data-scheme="light"]:not([data-theme]) .char-textarea:focus { border-color: #2383e2; }
+html[data-scheme="light"]:not([data-theme]) .char-textarea:focus { border-color: #37352f; }
 
 /* 快捷 chip / 思考块 / 消息操作 */
 html[data-scheme="light"]:not([data-theme]) .chip-btn { background: #f3f3f1; border-color: #e3e2e0; color: #787774; }
 html[data-scheme="light"]:not([data-theme]) .chip-btn:hover:not(:disabled) { background: #e9e9e6; color: #37352f; border-color: #dcdbd7; }
-html[data-scheme="light"]:not([data-theme]) .chip-btn.active { background: #eef4fc; border-color: rgba(35,131,226,.5); color: #1a6fc4; }
+html[data-scheme="light"]:not([data-theme]) .chip-btn.active { background: rgba(55,53,47,.08); border-color: rgba(55,53,47,.40); color: #37352f; }
 html[data-scheme="light"]:not([data-theme]) .reasoning-block { background: #f7f7f5; border-color: #ececea; color: #787774; }
 html[data-scheme="light"]:not([data-theme]) .reasoning-block summary:hover { color: #37352f; }
 html[data-scheme="light"]:not([data-theme]) .reasoning-block .reasoning-text { border-top-color: #ececea; color: #6f6e6b; }
@@ -133,7 +148,7 @@ html[data-scheme="light"]:not([data-theme]) .msg-action-btn:hover { background: 
 
 /* 费用日志 (4.82: 删掉日间段的 preset-* 死选择器,同主清理) */
 html[data-scheme="light"]:not([data-theme]) .cost-cell { background: #f7f7f5; border-color: #ececea; }
-html[data-scheme="light"]:not([data-theme]) .cost-cell.total { background: #eef4fc; border-color: rgba(35,131,226,.4); }
+html[data-scheme="light"]:not([data-theme]) .cost-cell.total { background: rgba(55,53,47,.06); border-color: rgba(55,53,47,.35); }
 html[data-scheme="light"]:not([data-theme]) .cost-label { color: #787774; }
 html[data-scheme="light"]:not([data-theme]) .cost-val { color: #37352f; }
 html[data-scheme="light"]:not([data-theme]) .cost-sub { color: #9b9a97; }
@@ -166,7 +181,7 @@ html[data-scheme="light"]:not([data-theme]) .fb-side-header { color: #37352f; bo
 html[data-scheme="light"]:not([data-theme]) .fb-side-status { background: #f7f7f5; border-color: #ececea; color: #787774; }
 html[data-scheme="light"]:not([data-theme]) .fb-side-status .fb-state-line,
 html[data-scheme="light"]:not([data-theme]) .fb-side-status b { color: #37352f; }
-html[data-scheme="light"]:not([data-theme]) .fb-side-ended { background: #eef4fc; border-color: rgba(35,131,226,.4); color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .fb-side-ended { background: rgba(55,53,47,.06); border-color: rgba(55,53,47,.4); color: #37352f; }
 html[data-scheme="light"]:not([data-theme]) .fb-side-ended .fb-ended-line { color: #787774; }
 html[data-scheme="light"]:not([data-theme]) .fb-side-ended .fb-ended-line b { color: #37352f; }
 html[data-scheme="light"]:not([data-theme]) .fb-side-ended .fb-ended-reason { color: #9b9a97; }
@@ -297,6 +312,8 @@ select option { background: #0f0f0f; color: #fff; }
 #topbar #personaToggle,
 #topbar #modeToggle { height: 34px; border-radius: 9px; width: auto; min-width: 0; padding: 0 11px; flex: 0 0 auto; white-space: nowrap; }
 #topbar #syncStatusIndicator { height: 34px; border-radius: 9px; }
+/* 批 F：演示台开态视觉（原按钮无任何开态反馈）——用主题化中性 token，四主题自动随行 */
+#topbar #stageToggle[aria-pressed="true"] { background: var(--accent-soft, rgba(127,127,127,.14)); border-color: var(--accent-border, rgba(127,127,127,.4)); color: var(--accent-2, #fff); }
 
 #topbar #personaToggle,
 #topbar #modeToggle { background: #101010; border: 1px solid #2a2a2a; }
@@ -531,8 +548,8 @@ html:not([data-theme]) button#sendBtn:disabled { background: #333 !important; }
 
 #settings {
   width: min(760px, 92vw);
-  border: 1px solid #2a2a2a;
-  background: #0f0f0f;
+  border: 1px solid var(--border, #2c2f36); /* E3: 面板=surface-2 层 */
+  background: var(--surface-2, #131316);
   border-radius: 18px;
   box-shadow: 0 30px 80px rgba(0,0,0,.6);
   padding: 18px 20px;
@@ -550,12 +567,14 @@ html:not([data-theme]) button#sendBtn:disabled { background: #333 !important; }
 #settingsHeader .hint { font-size: 11.5px; color: #8a8a8a; }
 
 .card {
-  border: 1px solid #242424;
-  background: #101010;
+  border: 1px solid var(--border-soft, #222429); /* E3: 卡片=surface-3 层, 描边用弱档 */
+  background: var(--surface-3, #1a1c21);
   border-radius: 14px;
   padding: 14px 16px;
   margin: 12px 0;
+  transition: border-color .15s; /* E3: 悬停时描边提亮一档(原 transition 在 index.html 只对 #settings .card) */
 }
+.card:hover { border-color: var(--border, #2c2f36); }
 .card h4 {
   margin: 0 0 6px 0;
   font-size: 12px;
@@ -564,7 +583,7 @@ html:not([data-theme]) button#sendBtn:disabled { background: #333 !important; }
   letter-spacing: .4px;
   text-transform: uppercase;
 }
-.card p  { margin: 0 0 10px 0; font-size: 12.5px; color: #a8a8a8; line-height: 1.6; }
+.card p  { margin: 0 0 10px 0; font-size: 12.5px; color: #a8a8a8; line-height: 1.7; } /* E3: 行距 1.6→1.7 */
 
 .rowline {
   display: flex;
@@ -572,7 +591,7 @@ html:not([data-theme]) button#sendBtn:disabled { background: #333 !important; }
   justify-content: space-between;
   gap: 10px;
   padding: 10px 0 4px;
-  border-top: 1px dashed #1f1f1f;
+  border-top: 1px dashed var(--border-soft, #222429); /* E3: 弱描边档 */
 }
 .rowline:first-of-type { border-top: none; padding-top: 4px; }
 
@@ -583,13 +602,14 @@ html:not([data-theme]) button#sendBtn:disabled { background: #333 !important; }
 
 .smallbtn {
   /* 4.83 面板按钮协调化: 补 font-family(旧版缺省走 UA 字体,与页面 PingFang 不一致),
-     字号/字重与分类导航(12.5px/600)对齐,内边距加大(手机端触摸目标) */
+     字号/字重与分类导航(12.5px/600)对齐,内边距加大(手机端触摸目标)
+     E3(2026-10-13): 底色改中性覆盖层 —— 任何 surface 上都有可见的一档,悬停提亮不再"悬了跟没悬一样" */
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border: 1px solid #2a2a2a;
-  background: #141414;
+  border: 1px solid var(--border-soft, #222429);
+  background: rgba(127, 127, 127, .14);
   color: #d8d8d8;
   border-radius: 9px;
   padding: 7px 12px;
@@ -601,7 +621,7 @@ html:not([data-theme]) button#sendBtn:disabled { background: #333 !important; }
   cursor: pointer;
   transition: background .15s, border-color .15s, color .15s;
 }
-.smallbtn:hover { background: #1b1b1b; }
+.smallbtn:hover { background: rgba(127, 127, 127, .24); } /* E3: 悬停提一档(原 #1b1b1b 与底几乎同色) */
 .smallbtn.danger { border-color: #3a1f1f; background: #1a0f0f; }
 .smallbtn.danger:hover { background: #241010; }
 
@@ -757,7 +777,7 @@ html:not([data-theme]) button#sendBtn:disabled { background: #333 !important; }
 }
 .amb-chip:hover { opacity: .9; background: rgba(127,127,127,.13); transform: translateY(-1px); }
 .amb-chip:active { transform: translateY(0) scale(.97); }
-.amb-chip.active { opacity: 1; background: rgba(127,127,127,.2); border-color: rgba(127,127,127,.5); }
+.amb-chip.active { opacity: 1; background: var(--accent-soft, rgba(127,127,127,.2)); border-color: var(--accent-border, rgba(127,127,127,.5)); }
 /* 播放中的轨前置一个小呼吸点,用主题强调色,和普通 hover 区分 */
 .amb-chip.active::before {
   content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
@@ -890,7 +910,7 @@ html:not([data-theme]) button#sendBtn:disabled { background: #333 !important; }
   transition: .15s;
 }
 .char-rel-btn:hover { color: #ccc; background: #1e1e1e; }
-.char-rel-btn.active { border-color: #4a4a4a; background: #222; color: #fff; }
+.char-rel-btn.active { border-color: var(--accent-border, #4a4a4a); background: var(--accent-soft, #222); color: var(--accent, #fff); }
 
 .char-grid {
   display: grid;
@@ -914,7 +934,7 @@ html:not([data-theme]) button#sendBtn:disabled { background: #333 !important; }
   text-align: center;
 }
 .char-item:hover { background: #161616; border-color: #3a3a3a; }
-.char-item.active { border-color: #555; background: #1a1a1a; box-shadow: 0 0 0 2px rgba(255,255,255,.08); }
+.char-item.active { border-color: var(--accent-border, #555); background: var(--accent-soft, #1a1a1a); box-shadow: 0 0 0 2px var(--accent-soft, rgba(255,255,255,.08)); }
 
 .char-item-avatar { font-size: 26px; line-height: 1; }
 /* 4.60 头像图:角色卡网格缩略图,有图显示圆形图片(同样需显式尺寸,emoji 态不受影响) */
@@ -1021,8 +1041,8 @@ html:not([data-theme]) button#sendBtn:disabled { background: #333 !important; }
   border-color: #3a3a3a;
 }
 .chip-btn.active {
-  background: rgba(80, 70, 160, 0.35);
-  border-color: rgba(140, 120, 230, 0.55);
+  background: var(--accent-soft, rgba(88, 122, 157, 0.35));
+  border-color: var(--accent-border, rgba(120, 155, 190, 0.55));
   color: #fff;
 }
 .chip-btn:disabled {
@@ -1097,6 +1117,11 @@ button#sendBtn, .chip-btn, .smallbtn, .char-input, .char-textarea,
    强调色：蓝染青（取代原紫色，素雅去俗套） */
 html[data-theme="glass"] {
   --ag-surface: rgba(255,255,255,.46); --ag-hover: rgba(255,255,255,.55); --ag-border: rgba(15,30,60,.14); /* 4.83 */
+  --surface-2: rgba(255, 255, 255, .55); /* E3: 面板 */
+  --surface-3: rgba(248, 250, 253, .80); /* E3: 卡片(与原 glass .card 同值,收编为 token) */
+  --border-soft: rgba(15, 30, 60, .06);
+  --focus-ring: rgba(63, 111, 143, .55);
+  --accent: #3f6f8f; --accent-2: #345d7c; --accent-soft: rgba(63, 111, 143, .12); --accent-border: rgba(63, 111, 143, .42);
   --bg: #f4f7f6;
   --border: rgba(255, 255, 255, .65);
   --muted: #6b7b84;
@@ -1383,8 +1408,8 @@ html[data-theme="glass"] .theme-swatch { border-color: rgba(15, 30, 60, .12); }
   min-width: 0;
 }
 .cost-cell.total {
-  background: linear-gradient(135deg, rgba(80,70,160,.22), rgba(60,90,180,.22));
-  border-color: rgba(140,120,230,.35);
+  background: linear-gradient(135deg, var(--accent-soft), rgba(88, 122, 157, .16));
+  border-color: var(--accent-border, rgba(120, 155, 190, .35));
 }
 
 .cost-label { font-size: 10.5px; color: #8a8a8a; white-space: nowrap; letter-spacing: .2px; }
@@ -1544,12 +1569,12 @@ html[data-theme="glass"] .msg-action-btn:hover {
 
 /* —— Glass 主题覆盖 —— */
 @keyframes fishbowl-pulse-glass {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, .5); }
-  50%      { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79, 136, 168, .5); }
+  50%      { box-shadow: 0 0 0 6px rgba(79, 136, 168, 0); }
 }
 html[data-theme="glass"] .avatar.bot.fishbowl-active {
   animation-name: fishbowl-pulse-glass;
-  border-color: rgba(99, 102, 241, .7);
+  border-color: rgba(79, 136, 168, .7);
 }
 
 /* ════════════════════
@@ -1611,17 +1636,22 @@ html[data-theme="glass"] .msg-action-btn:hover {
 
 /* —— Glass 主题覆盖 —— */
 @keyframes fishbowl-pulse-glass {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, .5); }
-  50%      { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79, 136, 168, .5); }
+  50%      { box-shadow: 0 0 0 6px rgba(79, 136, 168, 0); }
 }
 html[data-theme="glass"] .avatar.bot.fishbowl-active {
   animation-name: fishbowl-pulse-glass;
-  border-color: rgba(99, 102, 241, .7);
+  border-color: rgba(79, 136, 168, .7);
 }
 
 /* ─── candle 烛夜私语 ─── */
 html[data-theme="candle"] {
   --ag-surface: rgba(217,168,104,.10); --ag-hover: rgba(217,168,104,.07); --ag-border: rgba(217,168,104,.28); /* 4.83 */
+  --surface-2: rgba(20, 13, 8, .55); /* E3: 面板 */
+  --surface-3: rgba(40, 28, 18, .35); /* E3: 卡片(与原 candle .card 同值,收编为 token) */
+  --border-soft: rgba(217, 168, 104, .12);
+  --focus-ring: rgba(217, 168, 104, .55);
+  --accent: #d9a868; --accent-2: #b0885a; --accent-soft: rgba(217, 168, 104, .12); --accent-border: rgba(217, 168, 104, .42);
   --bg: #171009;
   --border: rgba(217, 168, 104, .18);
   --muted: #8a7a6a;
@@ -1897,3 +1927,17 @@ html[data-theme="candle"]:not(.pulse-on) body {
 }/* 4.82: 已删除旧版「人体剪影装饰」全套规则(约 80 行) ——
    自绘点云/SVG 剪影功能已在 HTML 侧移除(index.html 注释可证),DOM 无该元素、JS 无引用,
    全套规则零命中。需要找回参考 git 历史。 */
+
+/* ════════════════════════════════════════════════════════════
+   2026-10-13 批 E3「层次灰」收尾：焦点环 / 设置内输入底 / 悬停底
+   · :focus-visible 环 —— 键盘可达性(此前全站无统一焦点样式);环色走 --focus-ring 四主题各自定义
+   · 设置面板内输入框底改走 --surface-3 家族 —— 旧代码写 inline background:transparent,
+     只能 !important 收编(范围严格限定 #settings 内,不伤输入框外的任何元素)
+   ════════════════════════════════════════════════════════════ */
+:focus-visible { outline: 2px solid var(--focus-ring, rgba(127,164,201,.55)); outline-offset: 2px; }
+#settings input:focus-visible, #settings select:focus-visible, #settings textarea:focus-visible,
+#settings .smallbtn:focus-visible, #settings .toggle input:focus-visible { outline-offset: 1px; }
+#settings input[type="text"], #settings input[type="password"], #settings input[type="number"],
+#settings input[type="url"], #settings select, #settings textarea {
+  background: var(--surface-3, #1a1c21) !important;
+}

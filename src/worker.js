@@ -630,7 +630,7 @@ async function handleChat(request, env) {
     return resp("Bad JSON", "text/plain; charset=utf-8", 400);
   }
 
-  // mode: "free"=NVIDIA NIM | "fast"=DeepSeek 官方
+  // mode: "free"=免费档 | "fast"=快速档（渠道经 provider 注册表解析；预设默认 NVIDIA 免费档 / DeepSeek 官方，可在「设置→模型 API」改）
   const mode = payload?.mode === "fast" ? "fast" : "free";
 
   // 两套注册表在 src/prompts/registry.js 里严格隔离 —— 锁定分支根本不读 BASES。

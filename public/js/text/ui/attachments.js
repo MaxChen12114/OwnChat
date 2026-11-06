@@ -137,7 +137,7 @@
     [/^(md|markdown|mdx|rst|txt|text|log)$/, "#6b7280"],
     [/^(json|jsonc|json5|ya?ml|toml|ini|conf|env|xml)$/, "#a16207"],
     [/^(html?|css|scss|less|vue|svelte)$/, "#0891b2"],
-    [/^(js|mjs|cjs|jsx|ts|tsx|py|rb|go|rs|java|kt|c|h|cpp|hpp|cc|cs|php|sh|bash|zsh|sql|graphql|gql|lua|dart|swift|r|pl)$/, "#7c3aed"]
+    [/^(js|mjs|cjs|jsx|ts|tsx|py|rb|go|rs|java|kt|c|h|cpp|hpp|cc|cs|php|sh|bash|zsh|sql|graphql|gql|lua|dart|swift|r|pl)$/, "#587a9d"]
   ];
   function typeColor(name) {
     var e = extOf(name);

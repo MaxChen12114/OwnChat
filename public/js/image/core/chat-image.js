@@ -194,7 +194,7 @@
     var esc = function (s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); };
     var tspans = lines.map(function (ln, k) { return '<tspan x="160" dy="' + (k === 0 ? 0 : 22) + '">' + esc(ln) + '</tspan>'; }).join("");
     var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="400">' +
-      '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7d4fcc"/><stop offset="1" stop-color="#cc4f7d"/></linearGradient></defs>' +
+      '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#587a9d"/><stop offset="1" stop-color="#8fb2d4"/></linearGradient></defs>' +
       '<rect width="320" height="400" fill="url(#g)"/>' +
       '<text x="160" y="46" fill="#fff" font-size="15" text-anchor="middle" opacity="0.9">📷 模拟出图 (mock)</text>' +
       '<text x="160" y="150" fill="#fff" font-size="13" text-anchor="middle" opacity="0.95">' + tspans + '</text>' +

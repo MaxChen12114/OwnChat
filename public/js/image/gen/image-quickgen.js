@@ -312,8 +312,8 @@
     return '<div class="qg-modebar">' +
       '<span class="qg-modebar-label">提示词引擎</span>' +
       '<div class="qg-mode-grid">' +
-      '<button data-qg-mode="free" class="qg-btn qg-mode-btn" title="免费模式：NVIDIA gpt-oss，连接最稳、零费用">免费 gpt-oss</button>' +
-      '<button data-qg-mode="fast" class="qg-btn qg-mode-btn" title="快速模式：DeepSeek，稳定但计费">快速 DeepSeek</button>' +
+      '<button data-qg-mode="free" class="qg-btn qg-mode-btn" title="免费档：默认 NVIDIA gpt-oss，连接最稳、零费用（渠道可在「设置→模型 API」改）">免费档</button>' +
+      '<button data-qg-mode="fast" class="qg-btn qg-mode-btn" title="快速档：默认 DeepSeek 官方，稳定但计费（渠道可在「设置→模型 API」改）">快速档</button>' +
       '</div>' +
       '</div>';
   }

@@ -14,13 +14,13 @@
 :root{
   --bg:#0b0b0b; --panel:#141414; --panel2:#1a1a1a; --panel3:#222222;
   --border:#26262b; --text:#ececec; --muted:#9a9a9a;
-  --ac:#cfcfcf; --ac-soft:rgba(207,207,207,.14); --ac-strong:#e8e8e8; --danger:#e8607d; --ac-contrast:#10131a;
+  --ac:#7fa4c9; --ac-soft:rgba(88,122,157,.14); --ac-strong:#a9c4de; --danger:#e8607d; --ac-contrast:#10131a; /* 批 J2：黑配蓝（钢蓝） */
   /* studio 族别名 */
   --card:#141414; --card-2:#101010; --border-soft:#2a2a2a; --line:#1d1d20;
-  --accent:#cfcfcf; --accent-2:#e0e0e0; --accent-3:#b8b8b8;
-  --accent-soft:rgba(207,207,207,.14); --accent-border:rgba(207,207,207,.4);
+  --accent:#7fa4c9; --accent-2:#587a9d; --accent-3:#a9c4de;
+  --accent-soft:rgba(88,122,157,.14); --accent-border:rgba(120,155,190,.4);
   --input-bg:#0e0e11; --input-border:#2d2d32; --btn-bg:#1a1a1a; --btn-bg-hover:#232329;
-  --grad:linear-gradient(135deg,#dcdcdc,#bcbcbc);
+  --grad:linear-gradient(135deg,#8fb2d4,#587a9d);
   --radius:10px; --radius-sm:7px;
 }
 
@@ -28,12 +28,12 @@
 [data-scheme="light"]:not([data-theme]){
   --bg:#ffffff; --panel:#fbfbfa; --panel2:#f7f7f5; --panel3:#efefec;
   --border:#e9e9e7; --text:#37352f; --muted:#787774;
-  --ac:#2383e2; --ac-soft:rgba(35,131,226,.10); --ac-strong:#1a73d1; --danger:#b3261e; --ac-contrast:#ffffff;
+  --ac:#37352f; --ac-soft:rgba(55,53,47,.08); --ac-strong:#2a2925; --danger:#b3261e; --ac-contrast:#ffffff; /* 批 J2：白配深色（墨黑） */
   --card:#fbfbfa; --card-2:#ffffff; --border-soft:#e3e3e0; --line:#ececea;
-  --accent:#2383e2; --accent-2:#1a73d1; --accent-3:#4a90d9;
-  --accent-soft:rgba(35,131,226,.10); --accent-border:rgba(35,131,226,.35);
+  --accent:#37352f; --accent-2:#2a2925; --accent-3:#6b6a66;
+  --accent-soft:rgba(55,53,47,.08); --accent-border:rgba(55,53,47,.35);
   --input-bg:#ffffff; --input-border:#e3e3e0; --btn-bg:#ffffff; --btn-bg-hover:#f1f1ef;
-  --grad:linear-gradient(135deg,#4a90d9,#2383e2);
+  --grad:linear-gradient(135deg,#4f4e49,#37352f);
 }
 
 /* ═══ glass · 晴空竹屋(亮色毛玻璃) ═══ */

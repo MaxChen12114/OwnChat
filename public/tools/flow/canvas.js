@@ -135,7 +135,7 @@
     return { nodes: nodes, edges: edges };
   }
 
-  // ── 选 mode:选中的是 FAST(DeepSeek 官方)模型 → fast 走稳定付费线;否则 free(NVIDIA NIM)。 ──
+  // ── 选 mode:属于快速档的模型（APP_MODELS_FAST 列表）→ 走 fast 计费线;否则免费档。档位/渠道映射见主站「模型 API」设置（预设默认 NVIDIA / DeepSeek 官方）。 ──
   // 修正远古遗留 bug:旧版写死 mode:'free',即便在节点里选了 fast 模型,worker 也会把它静默降级回免费默认模型,
   // 全程走 NVIDIA 免费线;免费线不稳定时整条流跑空,下游 AI 节点报「输入为空 / AI 无输入」。
   function modeForModel(model) {

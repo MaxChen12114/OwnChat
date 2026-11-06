@@ -94,11 +94,11 @@
       // 按下瞬间: 缩放反馈 + 启动光晕
       g.style.transition="transform .15s ease, box-shadow .15s ease";
       g.style.transform="scale(0.92)";
-      g.style.boxShadow="0 0 0 0 rgba(140,100,220,.6)";
+      g.style.boxShadow="0 0 0 0 rgba(127,164,201,.6)";
       // 1.2s 内光晕渐进扩散 (模拟蓄力倒计时)
       requestAnimationFrame(()=>{
         g.style.transition="transform .15s ease, box-shadow "+HOLD_MS+"ms ease";
-        g.style.boxShadow="0 0 0 18px rgba(140,100,220,0)";
+        g.style.boxShadow="0 0 0 18px rgba(127,164,201,0)";
       });
       // 三段震动: 按下 / 中段 / 触发
       try{navigator.vibrate&&navigator.vibrate(15);}catch{}

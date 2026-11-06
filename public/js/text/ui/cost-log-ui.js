@@ -13,7 +13,7 @@
       card.className = "card";
       card.id = "costLogCard";
       card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h3"/></svg>费用日志（API 调用计费）</h4>'
-        + '<p>快速模式（DeepSeek）按 token 实时计费,记录在本地(LS <code>cfw_cost_log_v1</code>)。开启云同步后费用会跨设备合并;下方按设备分桶汇总。免费模式(NVIDIA)不计费。</p>'
+        + '<p>快速档按 token 实时计费（默认走 DeepSeek 官方，渠道见「设置→模型 API」）,记录在本地(LS <code>cfw_cost_log_v1</code>)。开启云同步后费用会跨设备合并;下方按设备分桶汇总。免费档不计费。</p>'
         + '<div id="costSummary" class="cost-summary"></div>'
         + '<div id="costDailyList" class="cost-daily"></div>'
         + '<div class="rowline" style="margin-top:10px;"><div></div><div class="btns">'
@@ -88,7 +88,7 @@
       var list = document.getElementById("costDailyList");
       if (list) {
         if (!days.length) {
-          list.innerHTML = '<div class="cost-empty">暂无数据。快速模式（DeepSeek）下发出第一条计费消息后开始记录。</div>';
+          list.innerHTML = '<div class="cost-empty">暂无数据。快速档下发出第一条计费消息后开始记录。</div>';
         } else {
           list.innerHTML = days.map(function (d) {
             var e = _sumDay(log[d]);
