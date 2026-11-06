@@ -2664,6 +2664,10 @@
       // 接上等于给 agent 任意文件读取。
       if (window.AgentLocalTools && typeof window.AgentLocalTools.defineTools === "function") {
         try { window.AgentLocalTools.defineTools(registry); } catch (e) { console.warn('[AgentLocalTools] defineTools 失败:', e); }
+      // 2026-11-06: 源码/产物检索（可选开发工具；未启用时 defineTools 直接返回，零占用）
+      if (window.__sourceTools && typeof window.__sourceTools.defineTools === "function") {
+        try { window.__sourceTools.defineTools(registry); } catch (e) { console.warn('[SourceTools] defineTools 失败:', e); }
+      }
       }
       // 2026-10-06 氛围音导演:set_ambient（环境声/背景音乐两条独立音轨 + 气息垫）。
       // 用裸 registry.define 注册,不走 tools.js 的 core/full 分档 —— 工具很小、只改音量状态,常驻无负担。

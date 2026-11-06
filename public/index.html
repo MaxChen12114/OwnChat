@@ -1542,6 +1542,8 @@
 <!-- 网页内核(魂)· 工具调用内核 SDK。agent-kernel.js 用 ESM export,必须 type="module"(classic <script> 读到 export 会抛 SyntaxError → window.AgentKernel 不挂载);它底部仍会挂 globalThis.AgentKernel 供非模块代码取用。tools.js 是 IIFE,挂 window.OwnChatTools,仅在 buildRegistry() 运行时才取 AgentKernel,故 classic 加载、顺序无碍。app.js 的 agent 模式分支在「发送」时按需调用 window.AgentKernel.runAgentLoop + window.OwnChatTools.buildRegistry({onImage})。须在 app.js 之后。 -->
 <script type="module" src="/shared/agent-kernel.js"></script>
 <script src="/shared/tools.js"></script>
+<!-- 2026-11-06: 源码/产物检索工具组（可选开发工具，后端=scripts/dev/source-server.mjs） -->
+<script src="/shared/source-tools.js"></script>
 <script type="module" src="/shared/agent-kernel.js"></script>
 <script src="/shared/tools.js"></script>
 <!-- 2026-10-13 GEO 作业台客户端:token 派生(submit_job 用)+作业轮询推舞台时间线;配置在 设置→Agent→GEO 作业台 -->

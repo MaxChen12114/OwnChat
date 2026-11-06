@@ -493,6 +493,46 @@
     });
   }
 
+  // ─── 2026-11-06：开发工具卡（源码/产物检索；本地 source-server） ───
+  function mountDevToolsCard() {
+    var slot = document.getElementById('setCostSlot');
+    if (!slot || document.getElementById('devToolsCard')) return;
+    var card = document.createElement('div'); card.className = 'card'; card.id = 'devToolsCard';
+    card.innerHTML = '<h4>开发工具 · 源码/产物检索</h4>'
+      + '<p>给 agent 的 <code>list_source / search_source / read_source / list_artifacts / read_artifact</code> 提供本地只读服务。先在本机运行：<code>node scripts/dev/source-server.mjs --root .</code>（可选 <code>--artifacts 目录</code>）。服务只绑 127.0.0.1，不上传数据。</p>'
+      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="font-size:12px;color:var(--muted);min-width:72px;">源码服务</label><input id="devSrcUrl" type="text" placeholder="http://127.0.0.1:8797" style="' + SS + '"></div>'
+      + '<div class="rowline" style="align-items:center;gap:10px;margin-top:8px;"><label style="font-size:12px;color:var(--muted);min-width:72px;">产物 URL</label><input id="devArtUrl" type="text" placeholder="http://127.0.0.1:8796/artifacts" style="' + SS + '"></div>'
+      + '<div class="rowline" style="margin-top:8px;"><div class="toggle"><input type="checkbox" id="devToolsOn"><label for="devToolsOn">启用（下次开 Agent 生效）</label></div></div>'
+      + '<div class="btns" style="margin-top:6px;"><button class="smallbtn" id="devToolsTest">测试连接</button></div>'
+      + '<div id="devToolsStatus" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>';
+    slot.appendChild(card);
+    var u = card.querySelector('#devSrcUrl'), a = card.querySelector('#devArtUrl'), on = card.querySelector('#devToolsOn'), st = card.querySelector('#devToolsStatus');
+    function read() { try { return { u: localStorage.getItem('cfw_source_url_v1') || '', a: localStorage.getItem('cfw_artifact_url_v1') || '', on: localStorage.getItem('cfw_source_tools_on_v1') || '' }; } catch (e) { return { u: '', a: '', on: '' }; } }
+    function paint() {
+      var c = read(); u.value = c.u; a.value = c.a; on.checked = c.on === '1';
+      st.textContent = c.on === '1' ? '已启用（服务未启动时工具会报不可达）。' : (c.on === '0' ? '已关闭。' : '未设置：localhost 默认开、线上默认关。');
+    }
+    function save() {
+      try {
+        localStorage.setItem('cfw_source_url_v1', u.value.trim());
+        localStorage.setItem('cfw_artifact_url_v1', a.value.trim());
+        localStorage.setItem('cfw_source_tools_on_v1', on.checked ? '1' : '0');
+      } catch (e) {}
+      paint();
+    }
+    u.addEventListener('change', save); a.addEventListener('change', save); on.addEventListener('change', save);
+    card.querySelector('#devToolsTest').addEventListener('click', async function () {
+      var url = (u.value.trim() || 'http://127.0.0.1:8797').replace(/\/+$/, '');
+      st.textContent = '测试中…';
+      try {
+        var r = await fetch(url + '/health', { cache: 'no-store' });
+        var j = await r.json();
+        st.textContent = j && j.ok ? ('连接成功：roots=' + (j.roots || []).join(', ')) : '返回异常';
+      } catch (e) { st.textContent = '连不上：' + String((e && e.message) || e); }
+    });
+    paint();
+  }
+
   // ─── 2026-10-13 批 I：精简模式卡（隐藏角色扮演/出图向入口；主线默认关；见 shared/slim.js） ───
   function mountSlimCard() {
     var slot = document.getElementById('setCostSlot');
@@ -826,6 +866,7 @@
     mountAgentToolsCard();
     mountMultiAgentCard();   // 2026-10-08 独立成卡（编排玩法与工作能力分开）
     mountSlimCard();         // 2026-10-13 批 I 精简模式（收掉角色扮演/出图向入口）
+    mountDevToolsCard();     // 2026-11-06 开发工具（源码/产物检索，本地服务）
     mountPersonaCard();      // M1
     // 2026-10-13 (批 E1b): 旧「模型候选池」卡已并入下面 mountByoCard() 的渠道管理卡 ——
     // 每模型勾选从「按 free/fast 源」改为「按渠道」,存量选择由 providers.js 首拉时自动迁移。
