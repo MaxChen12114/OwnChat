@@ -742,7 +742,7 @@
     thinkToggle.disabled = false;
     thinkToggle.style.opacity = "1";
     thinkToggle.title = thinkingOn
-      ? "思考模式：开启 · 强度" + thinkLevelLabel(getThinkLevel()) + "（更准，但更慢、费用较高、输出含思考过程）。点击可改开关/强度"
+      ? "思考模式：开启（强度：" + thinkLevelLabel(getThinkLevel()) + "）。更准，但更慢、费用较高、输出含思考过程；点击可改开关/强度"
       : ("思考模式：关闭（快、便宜）。点击选择开关与强度" + (isFast ? "" : "。免费档是否生效取决于所选模型是否支持推理"));
   }
   let _thinkMenu = null;
@@ -766,7 +766,7 @@
     menu.style.background = isLight ? "#ffffff" : "#1c1c22";
     menu.style.border = "1px solid " + (isLight ? "#ddd" : "#3a3a44");
     menu.style.color = isLight ? "#222" : "#eee";
-    const opts = [{ v: "__off__", label: "思考关闭" }].concat(THINK_LEVELS.map((l) => ({ v: l.v, label: "思考开启 · " + l.label })));
+    const opts = [{ v: "__off__", label: "关闭" }].concat(THINK_LEVELS.map((l) => ({ v: l.v, label: "开启（" + l.label + "）" })));
     opts.forEach((o) => {
       const it = document.createElement("div");
       const active = (o.v === "__off__" && !thinkingOn) || (o.v !== "__off__" && thinkingOn && getThinkLevel() === o.v);
