@@ -137,14 +137,8 @@
     return Promise.resolve();
   }
 
-  // ─── 扩写编排(gpt-oss-120b 免费扩写;失败或独立测试时回退本地模板)───
-  function pickFreeModel() {
-    // 4.72 §十.A: 优先跟随设置里的扩写器模型(LS cfw_expander_model_v1);留空则沿用自动探测 gpt-oss
-    try { var pref = lsGet('cfw_expander_model_v1', ''); if (pref) return pref; } catch (e) {}
-    try { var list = window.APP_MODELS_FREE || []; for (var i = 0; i < list.length; i++) { if ((list[i].id || '').indexOf('gpt-oss') >= 0) return list[i].id; } } catch (e) {}
-    return 'openai/gpt-oss-120b';
-  }
-  var EXPAND_SYS = 'You are an image-prompt engineer for an instruction-based image-edit model that keeps the SAME person from a base selfie. Given a short Chinese scene note, output ONE single-line English description of pose, facial expression, outfit, location/background, lighting, mood, and a camera framing that fits the scene (close selfie, full-body, or wide environmental shot as appropriate). Do NOT describe face or identity (the base photo fixes those). Output ONLY the description, no quotes.';
+  // ─── 画面描述：直接用主模型的结构化信号，不再单独调扩写模型 ───
+  // 主模型的 [[img|主体=…|动作=…|场景=…]] 已经把画面写清楚；z-image / Qwen 吃中文自然语言，
   function localExpand(scene, card) {
     var name = (card && card.name) ? card.name : "角色";
     var parts = [];
@@ -156,28 +150,16 @@
     parts.push(subj);
     parts.push("画面:" + scene);
     parts.push("写实、自然光、手机自拍视角、清晰");
-    return Promise.resolve(parts.join("，") + "。");
+    return parts.join("，") + "。";
   }
-  var EXPAND_SYS_SCENE = 'You are an image-prompt engineer for a natural-language text-to-image model. The Chinese note says what a character is currently looking at or showing — it may be a PET (cat/dog), food/takeout, an object/product, a game or phone screenshot, OR scenery. Output ONE single-line Chinese description that keeps the MAIN SUBJECT from the note as the clear, central focus (a cat stays a cat, food stays food, a screenshot stays a screenshot — never silently turn it into an empty room or landscape), then add its immediate setting, lighting, mood and color tone. The picture has NO people: do NOT describe any person or face. Output ONLY the description, no quotes.';
   function localExpandScene(scene) {
-    return Promise.resolve("一张实景照片。画面:" + scene + "。聚焦环境与氛围、没有人物、自然真实的光线、清晰。");
+    return "一张实景照片。画面:" + scene + "。聚焦环境与氛围、没有人物、自然真实的光线、清晰。";
   }
 
   // ─── 出图(优先契约,缺省 mock)───
-  // expander: free gpt-oss-120b expands the Chinese 发图 signal into an English selfie-scene description; falls back to local template on failure / standalone.
+  // 画面描述 = 主模型结构化信号 + 角色卡信息；不再调用独立的「发图扩写器」模型。
   async function expandScene(scene, card, kind) {
-    var isScene = kind === 'scene';
-    var fallback = isScene ? localExpandScene(scene) : localExpand(scene, card);
-    try {
-      var note = scene;
-      if (!isScene && card) { var cap = function (x) { x = String(x || ''); return x.length > 200 ? x.slice(0, 200) : x; }; var c = []; if (card.name) c.push('role:' + cap(card.name)); if (card.identity) c.push('identity:' + cap(card.identity)); if (card.personality) c.push('persona:' + cap(card.personality)); if (c.length) note = c.join(', ') + ' / scene:' + scene; }
-      var res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'free', model: pickFreeModel(), promptProfile: 'assist', use_builtin_persona: false, custom_system_prompt: isScene ? EXPAND_SYS_SCENE : EXPAND_SYS, replyStyle: 'default', messages: [{ role: 'user', content: note }] }) });
-      if (!res.ok) return fallback;
-      var reader = res.body.getReader(), dec = new TextDecoder(), out = '';
-      while (true) { var stp = await reader.read(); if (stp.done) break; var lines = dec.decode(stp.value, { stream: true }).split('\n'); for (var i = 0; i < lines.length; i++) { var ln = lines[i]; if (ln.indexOf('data: ') !== 0) continue; var ss = ln.slice(6).trim(); if (!ss || ss === '[DONE]') continue; try { var pj = JSON.parse(ss); var d = pj.choices && pj.choices[0] && pj.choices[0].delta && pj.choices[0].delta.content; if (d) out += d; } catch (e) {} } }
-      out = out.trim().replace(/^["'`]+|["'`]+$/g, '').trim();
-      return out || fallback;
-    } catch (e) { return fallback; }
+    return kind === 'scene' ? localExpandScene(scene) : localExpand(scene, card);
   }
   function callSendPhoto(charId, scenePrompt, baseImageUrl, kind) {
     if (window.__chatImage && window.__chatImage.sendPhoto) {

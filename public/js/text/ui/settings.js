@@ -1338,7 +1338,7 @@
     mountImgStyleCard();
     mountImgKeyCard();
     mountImgQuotaCard();
-    mountImgExpanderCard();
+    // 2026-11-06: 发图扩写器卡已移除 —— 画面描述直接用主模型的结构化信号，不再多调一次免费模型。
     // ── 角色立绘 ──
     (function(){
       var s=getSlot(); if(s&&!document.getElementById('imgSecTitle1')){
@@ -1443,19 +1443,8 @@
     window.addEventListener('imagecache:changed',refresh); refresh();
   }
 
-  // 4.72 §十.A: 发图扩写器模型选择(LS cfw_expander_model_v1;留空=自动选 gpt-oss)
-  function mountImgExpanderCard(){
-    var slot=getSlot(); if(!slot||document.getElementById('imgExpanderCard'))return;
-    var K='cfw_expander_model_v1';
-    var list=[]; try{list=window.APP_MODELS_FREE||[];}catch(e){}
-    var opts='<option value="">默认（自动选 gpt-oss-120b）</option>';
-    for(var i=0;i<list.length;i++){var id=(list[i]&&list[i].id)||'';if(!id)continue;var nm=(list[i].name||id);opts+='<option value="'+id+'">'+nm+'</option>';}
-    var card=document.createElement('div'); card.className='card'; card.id='imgExpanderCard';
-    card.innerHTML='<h4>发图扩写器模型</h4><p>非限制级发图时，用这个免费模型把中文发图信号扩写成英文画面描述；限制级(≥1)走本地模板、不调此模型。留「默认」即自动选 gpt-oss-120b。<b>仅本设备</b>。</p><div class="rowline" style="align-items:center;gap:10px;margin-top:6px;"><label style="font-size:12px;opacity:.6;">扩写模型</label><select id="imgExpanderSelect" style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;">'+opts+'</select></div>';
-    slot.appendChild(card);
-    var sel=document.getElementById('imgExpanderSelect');
-    if(sel){try{sel.value=localStorage.getItem(K)||'';}catch(e){}sel.addEventListener('change',function(){try{if(sel.value)localStorage.setItem(K,sel.value);else localStorage.removeItem(K);}catch(e){}});}
-  }
+  // 2026-11-06: 发图扩写器模型卡已移除 —— 主模型的结构化信号（主体/动作/场景）直接作为画面描述，
+  // 不再多调一次免费模型；旧的 LS cfw_expander_model_v1 留空即可，不再读取。
 
   function mountImgAlbumCard(){
     var slot=getSlot(); if(!slot||document.getElementById('imgAlbumCard'))return;

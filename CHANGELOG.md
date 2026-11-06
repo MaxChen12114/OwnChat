@@ -5,6 +5,10 @@ Notable changes per public release. Release notes live in
 
 ## Unreleased
 
+- **Image sending no longer uses a separate expander model** — the main model already writes the
+  structured scene fields (`主体 / 动作 / 场景`); those are now passed to the image model directly.
+  The **Settings → Image prompt expander model** card is gone, along with the extra free-model call
+  (less latency, and no content-filter rewriting of the scene). Local templates remain as fallback.
 - **Image channels (data-driven)** — image generation is no longer hardwired to Gitee. Settings →
   Model API → Image channels now manages a channel list (built-in Gitee preset plus user-defined
   OpenAI-compatible endpoints — browser-direct, CORS required — and local ComfyUI servers), with the
