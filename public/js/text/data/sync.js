@@ -66,6 +66,9 @@
     // 2026-09-12 / 4.70 API 云端化:同步自定义直连的非敏感配置与自定义定价。
     // API Key 仍留在 cfw_byo_provider_v1(受保护本地私密),跨端只带 endpoint/model/models/thinking。
     "cfw_byo_provider_public_v1", "cfw_custom_pricing_v1",
+    // 2026-10-13 (批 E1b): 渠道注册表 v3 公开副本(剥掉 apiKey) —— 自定义渠道/每模型开关/活跃渠道
+    // 跨端一致;本机私密全量在 cfw_providers_v3(见 PROTECTED,永不同步)。
+    "cfw_providers_public_v3",
     // 2026-10-08: 角色能力档（每张卡的底座/指令模块/技能覆盖）与多智能体编排开关 ——
     // 它们是"用户配置"而非设备属性，跨设备一致（真正设备本地的两项见 PROTECTED 注释）。
     "cfw_char_caps_v1",
@@ -85,6 +88,9 @@
     "cfw_auth_token_v1",
     "cfw_chat_protect_v1",
     "cfw_byo_provider_v1", // 自定义 API 私密配置:含 apiKey,永不同步;公开副本走 cfw_byo_provider_public_v1
+    // 2026-10-13 (批 E1b): 渠道注册表 v3 全量(含 apiKey)/ v2 旧键(含 apiKey) —— 永不同步;
+    // 跨端一致性交给 cfw_providers_public_v3(公开副本)。
+    "cfw_providers_v3", "cfw_byo_providers_v2",
     // 2026-10-08 设备本地偏好（不应跨设备传播）：壳内特效档位与"空闲自动释放内存"是设备属性。
     // 勘误：这两个键**本来就不在 LS_EXPLICIT、从来没被同步过**（上一轮注释误信了"全量兜底"那句旧话）。
     // 列进 PROTECTED 是记录意图 —— 防止将来有人把它们当"用户配置"加进同步清单。

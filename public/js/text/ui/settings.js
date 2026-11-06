@@ -17,19 +17,28 @@
 // 路径: public/js/text/ui/settings.js
 // 版本: 4.70 — 全部 emoji 清除，h4 改 SVG 图标
 (() => {
-  // ─── 0. 暴露 BYO 自定义模型配置给 app.js / agent 适配器 ───
-  // get() 仅在 endpoint+model 齐全时返回配置对象,否则 null(回落内置 free/fast)。
-  // app.js / 适配器组 /api/chat 请求体时: body.customProvider = window.__byoProvider.get() || undefined
+  // ─── 0. BYO 自定义模型配置（批 E1b：薄壳转发 window.__providers，形状不变）───
+  // 真正的注册表在 /shared/providers.js（window.__providers）：预设渠道 + 自定义渠道 + 每模型开关。
+  // 这里只保留老契约 get()（app.js / 适配器读取形状照旧）；providers.js 缺席时退回 v2 直读兜底（旧缓存页）。
+  // 语义修正：兜底路径也要求 activeId 命中才返回 —— 修掉 v2「列表里有任何服务商就劫持全部请求」的旧病。
   window.__byoProvider = {
     get() {
       try {
-        var priv = JSON.parse(localStorage.getItem('cfw_byo_provider_v1') || '{}') || {};
-        var pub = JSON.parse(localStorage.getItem('cfw_byo_provider_public_v1') || '{}') || {};
-        var o = Object.assign({}, pub, priv);
-        if (priv && typeof priv.apiKey === 'string') o.apiKey = priv.apiKey;
-        else delete o.apiKey;
-        return (o && o.endpoint && o.model) ? o : null;
-      } catch (e) { return null; }
+        if (window.__providers && window.__providers.byoSnapshot) return window.__providers.byoSnapshot();
+      } catch (e) {}
+      try {
+        var o = JSON.parse(localStorage.getItem('cfw_byo_providers_v2') || 'null');
+        if (o && Array.isArray(o.providers) && o.activeId) {
+          var p = null;
+          for (var i = 0; i < o.providers.length; i++) if (o.providers[i].id === o.activeId) p = o.providers[i];
+          if (p && p.endpoint && p.model) {
+            var out = { id: p.id, name: p.name, endpoint: p.endpoint, model: p.model, supportsThinking: !!p.supportsThinking, needsReasoningHistory: !!p.needsReasoningHistory, models: Array.isArray(p.models) ? p.models : [] };
+            if (typeof p.apiKey === 'string' && p.apiKey) out.apiKey = p.apiKey;
+            return out;
+          }
+        }
+      } catch (e) {}
+      return null;
     }
   };
 
@@ -675,99 +684,6 @@
     }
   }
 
-  // ─── 模型候选池(方案 C) · 从源站拉全量模型 → 勾几个进下拉 ───
-  // 背景: 模型半年一个版本号,写死列表 = 每次都得改代码重部。现在:
-  //   点「拉取模型列表」→ GET /api/models?mode=free|fast(key 在服务端,前端拿不到)
-  //   → 勾选 → 存 LS cfw_models_free_v1 / cfw_models_fast_v1 → /config.js 里的覆盖脚本下次加载时刷进下拉。
-  //   一个都不勾 = 回落内置兜底(厂商默认模型),不会出现空下拉。仅本设备。
-  function mountModelPoolCard() {
-    var slot = document.getElementById('setModelApiSlot') || document.getElementById('settings');
-    if (!slot || document.getElementById('modelPoolCard')) return;
-    var LSK = { free: 'cfw_models_free_v1', fast: 'cfw_models_fast_v1' };
-    var SS = 'flex:1;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;';
-    var card = document.createElement('div'); card.className = 'card'; card.id = 'modelPoolCard';
-    card.innerHTML = '<h4>模型候选池(下拉里显示哪几个)</h4>'
-      + '<p>从源站实时拉全量可用模型,勾几个放进顶栏下拉。模型出新版时<b>不用改代码</b>,回这里重拉一次勾上就行。一个不勾 = 自动回落内置默认模型。<b>仅本设备</b>。</p>'
-      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="font-size:12px;color:var(--muted);min-width:42px;">源</label><select id="mpMode" style="' + SS + '"><option value="free">免费 · NVIDIA NIM</option><option value="fast">快速 · DeepSeek 官方</option></select><div class="btns"><button class="smallbtn" id="mpFetch" type="button">拉取模型列表</button></div></div>'
-      + '<div class="rowline" style="align-items:center;gap:10px;margin-top:8px;"><input id="mpSearch" type="text" placeholder="搜模型名(如 deepseek / glm / kimi)" style="' + SS + '"><div class="btns"><button class="smallbtn" id="mpNone" type="button">全不选</button></div></div>'
-      + '<div id="mpList" style="margin-top:10px;max-height:38vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;display:flex;flex-direction:column;gap:4px;border:1px solid var(--border,#333);border-radius:8px;padding:8px;"></div>'
-      + '<div class="rowline" style="margin-top:10px;"><div id="mpStatus" style="font-size:11px;color:var(--muted);flex:1;"></div><div class="btns"><button class="smallbtn" id="mpSave" type="button">保存到下拉</button><button class="smallbtn danger" id="mpClear" type="button">清空·回内置</button></div></div>'
-      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>保存后<b>刷新页面</b>下拉才会换。基座在「基座提示词」卡里选,与型号无关;新型号不用手配。自带 API 的直连在下面「自定义直连」卡,不受本卡影响。</span></div>';
-    slot.appendChild(card);
-
-    var modeEl = card.querySelector('#mpMode'), searchEl = card.querySelector('#mpSearch'), listEl = card.querySelector('#mpList'), statusEl = card.querySelector('#mpStatus');
-    var all = [];      // 本次拉到的全量模型
-    var chosen = {};   // id → {id,label}
-    function setMsg(t) { if (statusEl) statusEl.textContent = t || ''; }
-    function readPool(mode) {
-      try { var a = JSON.parse(localStorage.getItem(LSK[mode]) || '[]'); return Array.isArray(a) ? a.filter(function (m) { return m && m.id; }) : []; } catch (e) { return []; }
-    }
-    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-    function render() {
-      var kw = (searchEl.value || '').trim().toLowerCase();
-      // 已勾的始终置顶且始终可见(即使本次没拉列表 / 源站已下线该型号)
-      var ids = Object.keys(chosen);
-      var rest = all.filter(function (m) { return !chosen[m.id]; });
-      var rows = ids.map(function (id) { return chosen[id]; }).concat(rest)
-        .filter(function (m) { return !kw || m.id.toLowerCase().indexOf(kw) >= 0; });
-      if (!rows.length) { listEl.innerHTML = '<div style="font-size:12px;color:var(--muted);">' + (all.length ? '没有匹配的模型' : '还没拉取 —— 点右上「拉取模型列表」') + '</div>'; return; }
-      listEl.innerHTML = rows.map(function (m) {
-        var on = !!chosen[m.id];
-        return '<label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;padding:2px 0;">'
-          + '<input type="checkbox" data-id="' + esc(m.id) + '"' + (on ? ' checked' : '') + '>'
-          + '<span style="flex:1;word-break:break-all;">' + esc(m.id) + '</span>'
-          + '</label>';
-      }).join('');
-    }
-    function syncCount() { setMsg('当前勾中 ' + Object.keys(chosen).length + ' 个' + (all.length ? (' · 源站共 ' + all.length + ' 个可用') : '')); }
-    function loadChosen() {
-      chosen = {};
-      // 2026-10-05: 不再带 persona 字段 —— 它原先只喂那个 P1/P2/P3 徽标(展示"这模型默认吃哪套底座"),
-      // 而按模型自动选底座已退役,留着就是指错路。
-      readPool(modeEl.value).forEach(function (m) { chosen[m.id] = { id: m.id, label: m.label || m.id }; });
-    }
-    listEl.addEventListener('change', function (e) {
-      var cb = e.target;
-      if (!cb || cb.type !== 'checkbox') return;
-      var id = cb.getAttribute('data-id');
-      if (cb.checked) {
-        var meta = all.filter(function (m) { return m.id === id; })[0] || { id: id, label: (id.indexOf('/') >= 0 ? id.split('/').pop() : id) };
-        chosen[id] = { id: id, label: meta.label || id };
-      } else { delete chosen[id]; }
-      syncCount();
-    });
-    searchEl.addEventListener('input', render);
-    modeEl.addEventListener('change', function () { all = []; loadChosen(); render(); syncCount(); });
-    card.querySelector('#mpNone').addEventListener('click', function () { chosen = {}; render(); syncCount(); });
-    card.querySelector('#mpFetch').addEventListener('click', async function () {
-      var btn = card.querySelector('#mpFetch'); btn.disabled = true; setMsg('拉取中…');
-      try {
-        var headers = {};
-        try { var tk = window.__auth && window.__auth.getToken && window.__auth.getToken(); if (tk) headers.Authorization = 'Bearer ' + tk; } catch (e) {}
-        var r = await fetch('/api/models?mode=' + encodeURIComponent(modeEl.value), { headers: headers });
-        var d = await r.json();
-        all = (d && Array.isArray(d.models)) ? d.models : [];
-        render();
-        if (d && d.ok) syncCount();
-        else setMsg('源站没拉到(' + ((d && d.error) || r.status) + ') · 先列出内置兜底模型');
-      } catch (e) { setMsg('拉取失败:' + ((e && e.message) || e)); }
-      btn.disabled = false;
-    });
-    card.querySelector('#mpSave').addEventListener('click', function () {
-      var list = Object.keys(chosen).map(function (id) { return chosen[id]; });
-      try {
-        if (list.length) localStorage.setItem(LSK[modeEl.value], JSON.stringify(list));
-        else localStorage.removeItem(LSK[modeEl.value]);
-      } catch (e) {}
-      setMsg(list.length ? ('已保存 ' + list.length + ' 个 · 刷新页面后下拉生效') : '已清空 · 刷新后回内置默认模型');
-    });
-    card.querySelector('#mpClear').addEventListener('click', function () {
-      try { localStorage.removeItem(LSK[modeEl.value]); } catch (e) {}
-      chosen = {}; render(); setMsg('已清空本档候选池 · 刷新后回内置默认模型');
-    });
-    loadChosen(); render(); syncCount();
-  }
-
   // ─── 4.83: 生成参数（temperature / max_tokens）───
   // 归「模型 API」分类。核心设计:**留空 = 不干预** —— 未填的字段根本不发给模型，
   // 由上游用自己的默认值。这样既不会因我们猜错默认值而让输出质量退化，
@@ -911,7 +827,8 @@
     mountMultiAgentCard();   // 2026-10-08 独立成卡（编排玩法与工作能力分开）
     mountSlimCard();         // 2026-10-13 批 I 精简模式（收掉角色扮演/出图向入口）
     mountPersonaCard();      // M1
-    mountModelPoolCard(); // 2026-09-10 (方案 C): 模型候选池,放在自定义直连之前
+    // 2026-10-13 (批 E1b): 旧「模型候选池」卡已并入下面 mountByoCard() 的渠道管理卡 ——
+    // 每模型勾选从「按 free/fast 源」改为「按渠道」,存量选择由 providers.js 首拉时自动迁移。
     mountByoCard(); // 2026-06-24: 聊天模型自定义直连归「模型 API」分类(原在「对话」)
     mountCustomPricingCard(); // 2026-09-12 / 4.70: 自定义模型定价 UI,写 cfw_custom_pricing_v1(已进云同步白名单)
     mountGenParamsCard(); // 4.83: 生成参数(temperature / max_tokens),留空=不干预(app.js genParamPayload 展开)
@@ -943,6 +860,16 @@
   }
 
   // ─── 2. 面板开关 ───
+  // 2026-10-13 (批 E1c): 供其它模块按分类打开设置（失效模型自愈跳「模型 API」）——
+  // 打开面板 = settingsMask 显示 flex；切分类 = 点对应 .scn-item（initCatNav 的接线照常生效）。
+  window.__openSettingsCat = function (cat) {
+    try {
+      const mask = document.getElementById('settingsMask');
+      if (mask) mask.style.display = 'flex';
+      const it = document.querySelector('.settings-cat-nav .scn-item[data-cat="' + String(cat || '') + '"]');
+      if (it) it.click();
+    } catch (e) {}
+  };
   function initPanelToggle() {
     const settingsBtn    = document.getElementById('settingsBtn');
     const settingsMask   = document.getElementById('settingsMask');
@@ -1682,92 +1609,266 @@
     });
   }
 
-  // ─── §模型API. 聊天模型自定义直连配置卡 ───
-  // endpoint/model/key 存 LS cfw_byo_provider_v1(JSON);消费方读 window.__byoProvider.get()。
+  // ─── §模型API. 模型渠道管理卡（批 E1b：预设组 + 自定义组统一注册表）───
+  // 数据层 = window.__providers（/shared/providers.js，cfw_providers_v3）；本卡只做 DOM/接线。
+  //   · 预设渠道：服务端注册表（GET /api/providers），Key 在 Worker env，UI 只读状态；
+  //   · 自定义渠道：本机 endpoint/apiKey，走 /api/custom-endpoint/models 代理拉模型（解 CORS/GFW）；
+  //   · 每模型开关：勾选 = 出现在顶栏模型下拉；切走渠道 = 聊天即走它。
   function mountByoCard() {
-    // 2026-09-12 / 4.70 块⑤: 自定义直连完善优先 —— 支持通过 Worker 代理拉取 /v1/models，
-    // 解决浏览器 CORS/GFW；仍保留手填 fallback，兼容本地 vLLM/ollama 等不完整 OpenAI 兼容端点。
     var slot = document.getElementById('setModelApiSlot') || document.getElementById('settings');
     if (!slot || document.getElementById('byoProviderCard')) return;
-    var K = 'cfw_byo_provider_v1';
-    var PK = 'cfw_byo_provider_public_v1';
-    function readPrivate() { try { var o = JSON.parse(localStorage.getItem(K) || '{}'); return (o && typeof o === 'object') ? o : {}; } catch (e) { return {}; } }
-    function readPublic() { try { var o = JSON.parse(localStorage.getItem(PK) || '{}'); return (o && typeof o === 'object') ? o : {}; } catch (e) { return {}; } }
-    function read() { return Object.assign({}, readPublic(), readPrivate()); }
-    function publicCopy(o) {
-      return {
-        endpoint: (o && o.endpoint) || '',
-        model: (o && o.model) || '',
-        supportsThinking: !!(o && o.supportsThinking),
-        needsReasoningHistory: !!(o && o.needsReasoningHistory),
-        models: Array.isArray(o && o.models) ? o.models : []
-      };
-    }
-    function saveBoth(o) {
-      try { localStorage.setItem(K, JSON.stringify(o || {})); } catch (e) {}
-      try { localStorage.setItem(PK, JSON.stringify(publicCopy(o || {}))); } catch (e) {}
-    }
+    if (!window.__providers) return; // providers.js 未加载(旧缓存页兜底):不挂卡,不炸
+    var P = window.__providers;
+    var toastFn = (window.__feedback && window.__feedback.toast) || function (m) { try { console.warn('[providers]', m); } catch (e) {} };
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-    var cur = read();
-    var card = document.createElement('div'); card.className = 'card'; card.id = 'byoProviderCard';
-    card.innerHTML = '<h4>聊天模型 · 自定义直连</h4><p>填自带的 OpenAI 兼容端点(GPT/Qwen/GLM/Kimi/本地 vLLM 等)。现在可先拉取该端点真实模型列表再选择；拉不到也能手填。填了就<b>跳过内置白名单</b>直连该端点，自定义模型仍吃基座。Key 当前仍<b>仅存本设备</b>，云端保存放下一步。</p>'
-      + '<div style="margin-top:8px;"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Endpoint(/v1/chat/completions 全路径，或 /v1 base)</label><input id="byoEndpoint" type="text" placeholder="https://api.openai.com/v1/chat/completions" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"></div>'
-      + '<div style="margin-top:10px;"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">API Key(本地 vLLM/ollama 可留空)</label><input id="byoKey" type="password" placeholder="Bearer Token" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"></div>'
-      + '<div class="rowline" style="margin-top:10px;align-items:center;gap:10px;"><label style="font-size:12px;color:var(--muted);min-width:42px;">模型</label><select id="byoModelSelect" style="flex:1;min-width:0;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"><option value="">请先拉取模型列表，或手填</option></select><div class="btns"><button class="smallbtn" id="byoFetchModels" type="button">拉取模型列表</button></div></div>'
-      + '<div style="margin-top:8px;"><input id="byoModel" type="text" placeholder="手填 fallback：gpt-4o / qwen-max / glm-4-plus ..." style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"></div>'
-      + '<div class="rowline" style="margin-top:10px;align-items:center;gap:10px;"><label class="toggle" style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" id="byoThinking"><span>该模型支持思考(thinking,会补 reasoning 历史)</span></label></div>'
-      + '<div class="rowline" style="margin-top:10px;"><div></div><div class="btns"><button class="smallbtn" id="byoSave">保存</button><button class="smallbtn danger" id="byoClear">清除·回内置</button></div></div>'
-      + '<div id="byoStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div>';
-    slot.appendChild(card);
-    var ep = document.getElementById('byoEndpoint'), md = document.getElementById('byoModel'), ky = document.getElementById('byoKey'), tk = document.getElementById('byoThinking'), sts = document.getElementById('byoStatus'), sel = document.getElementById('byoModelSelect');
-    ep.value = cur.endpoint || ''; md.value = cur.model || ''; ky.value = cur.apiKey || ''; tk.checked = cur.supportsThinking === true;
-    function setMsg(t) { var o = read(); sts.textContent = t || ((o.endpoint && o.model) ? ('● 已启用自定义直连 · ' + o.model) : '○ 未配置 · 当前用内置 free/fast 模型'); }
-    function fillSelect(models, selected) {
-      var list = Array.isArray(models) ? models : [];
-      if (!sel) return;
-      if (!list.length) { sel.innerHTML = '<option value="">未拉取到模型 · 使用手填 fallback</option>'; return; }
-      sel.innerHTML = '<option value="">手填 fallback</option>' + list.map(function (m) {
-        var id = (m && m.id) || m;
-        return '<option value="' + esc(id) + '">' + esc(id) + '</option>';
-      }).join('');
-      if (selected) sel.value = selected;
+    function curMode() { try { return localStorage.getItem('cfw_mode') === 'fast' ? 'fast' : 'free'; } catch (e) { return 'free'; } }
+    function parseKey(key) {
+      var s = String(key || '');
+      if (s.indexOf('preset:') === 0) return { kind: 'preset', id: s.slice(7) };
+      if (s.indexOf('custom:') === 0) return { kind: 'custom', id: s.slice(7) };
+      return null;
     }
-    fillSelect(cur.models || [], cur.model || '');
-    setMsg();
-    if (sel) sel.addEventListener('change', function () { if (sel.value) md.value = sel.value; });
-    document.getElementById('byoFetchModels').addEventListener('click', async function () {
-      var btn = document.getElementById('byoFetchModels');
-      var endpoint = (ep.value || '').trim();
-      var apiKey = (ky.value || '').trim();
-      if (!endpoint) { alert('先填写 Endpoint'); return; }
-      btn.disabled = true; setMsg('拉取自定义端点模型列表中…');
-      try {
-        var headers = { 'Content-Type': 'application/json' };
-        try { var token = window.__auth && window.__auth.getToken && window.__auth.getToken(); if (token) headers.Authorization = 'Bearer ' + token; } catch (e) {}
-        var r = await fetch('/api/custom-endpoint/models', { method: 'POST', headers: headers, body: JSON.stringify({ endpoint: endpoint, apiKey: apiKey }) });
-        var d = await r.json().catch(function () { return null; });
-        var models = d && Array.isArray(d.models) ? d.models : [];
-        fillSelect(models, md.value || '');
-        if (d && d.ok && models.length) {
-          var old = read(); old.models = models; old.endpoint = endpoint; old.apiKey = apiKey; saveBoth(old);
-          setMsg('已拉取 ' + models.length + ' 个模型 · 可从下拉选择，也可继续手填');
-        } else {
-          setMsg('没拉到模型(' + ((d && d.error) || r.status) + ') · 可继续手填 model');
+    var INP = 'width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;';
+    var LBL = 'font-size:12px;color:var(--muted);display:block;margin-bottom:4px;';
+    var BTN = 'cursor:pointer;text-align:left;width:100%;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:12px;line-height:1.5;';
+
+    var card = document.createElement('div'); card.className = 'card'; card.id = 'byoProviderCard';
+    card.innerHTML = '<h4>聊天模型 · 渠道管理</h4>'
+      + '<p>聊天走哪个模型渠道，这里说了算。左侧选渠道（点击即切换），右侧看详情：拉取模型列表、<b>勾选要用的模型</b>（未勾选的不会出现在顶栏下拉里）。'
+      + '「预设渠道」的 Key 在服务端 Worker 里（本页只见状态）；「自定义渠道」可接任意 OpenAI 兼容端点（云厂商 / 本地 vLLM、ollama、LM Studio），<b>Key 仅存本设备</b>（云同步公开副本剥掉 Key）。</p>'
+      + '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;align-items:flex-start;">'
+      +   '<div id="provList" style="flex:0 0 190px;min-width:158px;display:flex;flex-direction:column;gap:4px;"></div>'
+      +   '<div id="provDetail" style="flex:1;min-width:230px;border-left:1px solid var(--border,#333);padding-left:12px;"></div>'
+      + '</div>';
+    slot.appendChild(card);
+    var listEl = card.querySelector('#provList'), detailEl = card.querySelector('#provDetail');
+    var selKey = P.read().activeId || P.effectiveKey(curMode());
+
+    function activeKey() { return P.read().activeId; }
+    function findChannel(key) {
+      var chs = P.channels();
+      for (var i = 0; i < chs.length; i++) if (chs[i].key === key) return chs[i];
+      return null;
+    }
+    function keyTag(c) {
+      if (c.kind === 'preset') {
+        var m = c.detail || {};
+        return (m.configured === true ? 'Key 已配置' : m.configured === false ? 'Key 未配置' : '') ;
+      }
+      var p = c.detail || {};
+      return p.model ? ('模型 ' + p.model) : '未选模型';
+    }
+
+    function renderList() {
+      var chs = P.channels(), act = activeKey(), eff = P.effectiveKey(curMode());
+      var html = '', curKind = '';
+      chs.forEach(function (c) {
+        if (c.kind !== curKind) {
+          curKind = c.kind;
+          html += '<div style="font-size:11px;color:var(--muted);margin:' + (html ? '8px' : '0') + ' 0 2px;">' + (c.kind === 'preset' ? '预设渠道（服务端 Key）' : '自定义直连（本机保存）') + '</div>';
         }
-      } catch (e) { setMsg('拉取失败:' + ((e && e.message) || e) + ' · 可继续手填 model'); }
-      btn.disabled = false;
+        var isAct = act === c.key, isEff = !act && eff === c.key, isSel = selKey === c.key;
+        var badge = isAct ? '<span style="color:var(--accent,#7aa2f7);">　● 使用中</span>' : (isEff ? '<span style="color:var(--muted);">　○ 跟随免费/快速</span>' : '');
+        html += '<button type="button" data-key="' + esc(c.key) + '" style="' + BTN + (isSel ? 'border-color:var(--accent,#7aa2f7);' : '') + '">'
+          + '<b style="font-size:12.5px;">' + esc(c.name) + badge + '</b>'
+          + '<small style="color:var(--muted);font-size:11px;display:block;margin-top:1px;word-break:break-all;">' + esc(keyTag(c)) + '</small></button>';
+      });
+      html += '<button type="button" data-new="1" style="' + BTN + 'border-style:dashed;color:var(--muted);">＋ 新增自定义渠道</button>';
+      listEl.innerHTML = html;
+    }
+
+    function modelsBlock(key) {
+      var all = P.modelsAll(key);
+      var rows = all.length
+        ? all.map(function (m) {
+            return '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0;cursor:pointer;word-break:break-all;">'
+              + '<input type="checkbox" data-mid="' + esc(m.id) + '"' + (m.enabled ? ' checked' : '') + '>'
+              + '<span>' + esc(m.id) + '</span></label>';
+          }).join('')
+        : '<div style="font-size:12px;color:var(--muted);padding:4px 0;">还没拉取过模型列表 · 点上面「拉取模型列表」（拉不到可手填）</div>';
+      return '<div style="margin-top:12px;">'
+        + '<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;color:var(--muted);flex:1;">模型列表（勾选 = 出现在顶栏下拉）</span>'
+        + '<button class="smallbtn" type="button" id="provFetch">拉取模型列表</button></div>'
+        + '<div style="max-height:190px;overflow:auto;margin-top:6px;">' + rows + '</div>'
+        + '<div id="provFetchMsg" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>'
+        + '</div>';
+    }
+
+    function useBtn(key, usable, why) {
+      var isAct = activeKey() === key;
+      if (isAct) return '<span style="font-size:12px;color:var(--accent,#7aa2f7);">● 当前渠道</span>';
+      return '<button class="smallbtn" type="button" id="provUse"' + (usable ? '' : ' disabled title="' + esc(why || '') + '"') + '>使用此渠道</button>';
+    }
+
+    function renderDetail() {
+      var c = findChannel(selKey);
+      if (!c) { var chs = P.channels(); c = chs[0] || null; if (c) selKey = c.key; }
+      if (!c) { detailEl.innerHTML = ''; return; }
+      if (c.kind === 'preset') {
+        var m = c.detail || {};
+        var confText = m.configured === true ? '<span style="color:#4caf50;">✓ 已配置</span>'
+          : m.configured === false ? '<span style="color:#e57373;">✗ 未配置</span>（部署侧执行 wrangler secret put ' + esc(m.keyEnv || '') + '）'
+          : '<span style="color:var(--muted);">状态未知（没连上服务端）</span>';
+        detailEl.innerHTML = '<div style="font-weight:600;font-size:14px;">' + esc(c.name) + '<span style="font-size:11px;color:var(--muted);font-weight:400;">　预设渠道 · ' + esc(m.label || '') + '</span></div>'
+          + '<div style="font-size:12px;color:var(--muted);margin-top:4px;">服务端渠道：API Key 存在 Worker 环境变量（' + esc(m.keyEnv || '') + '），本页面不见 Key、不能改。</div>'
+          + '<div style="margin-top:10px;"><label style="' + LBL + '">Endpoint（只读）</label><input readonly value="' + esc(m.endpoint || '') + '" style="' + INP + 'color:var(--muted);"></div>'
+          + '<div style="margin-top:8px;font-size:12.5px;">状态：' + confText + '　·　默认模型：' + esc(m.defaultModel || '（无）') + '</div>'
+          + modelsBlock(selKey)
+          + '<div class="btns" style="margin-top:12px;">' + useBtn(selKey, true) + '</div>';
+      } else {
+        var p = c.detail || {};
+        var enabled = P.enabledModels(selKey);
+        var selOpts = enabled.map(function (mm) { return '<option value="' + esc(mm.id) + '"' + (p.model === mm.id ? ' selected' : '') + '>' + esc(mm.id) + '</option>'; }).join('');
+        detailEl.innerHTML = '<div style="font-weight:600;font-size:14px;">' + esc(p.name || c.id) + '<span style="font-size:11px;color:var(--muted);font-weight:400;">　自定义直连 · Key 仅存本设备</span></div>'
+          + '<div style="margin-top:10px;"><label style="' + LBL + '">名称</label><input id="provName" value="' + esc(p.name || '') + '" style="' + INP + '"></div>'
+          + '<div style="margin-top:8px;"><label style="' + LBL + '">Endpoint（/v1/chat/completions 全路径，或 /v1 base）</label><input id="provEndpoint" value="' + esc(p.endpoint || '') + '" placeholder="https://integrate.api.nvidia.com/v1/chat/completions" style="' + INP + '"></div>'
+          + '<div style="margin-top:8px;"><label style="' + LBL + '">API Key（本地 vLLM/ollama/LM Studio 可留空）</label><input id="provKey" type="password" value="' + esc(p.apiKey || '') + '" placeholder="Bearer Token" style="' + INP + '"></div>'
+          + '<div class="rowline" style="margin-top:8px;align-items:center;gap:8px;"><label style="' + LBL + 'margin:0;min-width:34px;">模型</label><select id="provModelSel" style="' + INP + 'flex:1;min-width:0;">'
+          + (selOpts || '<option value="">— 启用模型为空 —</option>') + '</select></div>'
+          + '<div style="margin-top:6px;"><input id="provModelText" value="' + esc(p.model || '') + '" placeholder="手填 fallback：gpt-4o / glm-4-plus / qwen-max ..." style="' + INP + '"></div>'
+          + '<div class="rowline" style="margin-top:8px;"><label class="toggle" style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" id="provThinking"' + (p.supportsThinking ? ' checked' : '') + '><span>该渠道模型支持思考（会补 reasoning 历史）</span></label></div>'
+          + modelsBlock(selKey)
+          + '<div class="btns" style="margin-top:12px;">' + useBtn(selKey, !!(p.endpoint && p.model), '先保存端点与模型，再启用') + '<button class="smallbtn" type="button" id="provSave">保存此渠道</button><button class="smallbtn danger" type="button" id="provDelete">删除</button></div>';
+      }
+    }
+
+    // 未保存的编辑（草稿）：任何重渲染前先收走、渲染后回填 —— 拉取/事件刷新不会清空正在填的表单。
+    // 只回填到同一个渠道（key 一致）；切到别的渠道 = 放弃草稿（有保存按钮有提示，行为可预期）。
+    function captureDraft() {
+      if (!detailEl) return null;
+      var k = parseKey(selKey); if (!k || k.kind !== 'custom') return null;
+      var g = function (id) { var el = detailEl.querySelector('#' + id); return el ? el.value : undefined; };
+      var tkEl = detailEl.querySelector('#provThinking');
+      if (g('provName') === undefined && g('provEndpoint') === undefined) return null;
+      return { key: selKey, name: g('provName'), endpoint: g('provEndpoint'), apiKey: g('provKey'), model: g('provModelText'), sel: g('provModelSel'), thinking: tkEl ? tkEl.checked : undefined };
+    }
+    function restoreDraft(d) {
+      if (!d || d.key !== selKey) return;
+      var s = function (id, v) { var el = detailEl.querySelector('#' + id); if (el && v != null) el.value = v; };
+      s('provName', d.name); s('provEndpoint', d.endpoint); s('provKey', d.apiKey); s('provModelText', d.model);
+      if (d.sel != null) { var selEl = detailEl.querySelector('#provModelSel'); if (selEl) { try { selEl.value = d.sel; } catch (e) {} } }
+      var tkEl = detailEl.querySelector('#provThinking'); if (tkEl && d.thinking != null) tkEl.checked = d.thinking;
+    }
+    // 需要数据动作（拉取/启用）前，把当前渠道正在填的草稿落盘 —— 用户不用先记着点保存
+    function commitDraftIfCurrent() {
+      var d = captureDraft(); if (!d || d.key !== selKey) return;
+      var k = parseKey(selKey); if (!k || k.kind !== 'custom') return;
+      P.saveCustom(k.id, {
+        name: (d.name || '').trim() || '未命名服务商',
+        endpoint: (d.endpoint || '').trim(),
+        apiKey: (d.apiKey || '').trim(),
+        model: ((d.model || '') || (d.sel || '')).trim(),
+        supportsThinking: !!d.thinking,
+        needsReasoningHistory: !!d.thinking,
+      });
+    }
+    function renderAll() { var d = captureDraft(); renderList(); renderDetail(); restoreDraft(d); }
+
+    // —— 左栏：点击即切换 ——
+    listEl.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      if (b.hasAttribute('data-new')) {
+        var id = P.newCustom();
+        selKey = 'custom:' + id;
+        renderAll();
+        toastFn('已新建自定义渠道 · 填好端点与模型后点「保存此渠道」', 3200);
+        return;
+      }
+      var key = b.getAttribute('data-key'); if (!key) return;
+      commitDraftIfCurrent(); // 切走前把正在填的（若就是当前渠道）落盘
+      selKey = key;
+      var k = parseKey(key), c = findChannel(key);
+      if (activeKey() !== key) {
+        if (k && k.kind === 'custom' && c && (!(c.detail || {}).endpoint || !(c.detail || {}).model)) {
+          toastFn('这个渠道还没填端点/模型 · 先在右侧填好，再启用', 3200);
+        } else {
+          P.setActive(key);
+          toastFn('已切到「' + ((c && c.name) || key) + '」后续聊天走它', 2600);
+        }
+      }
+      renderAll();
     });
-    document.getElementById('byoSave').addEventListener('click', function () {
-      var chosen = (sel && sel.value) ? sel.value : (md.value || '').trim();
-      var o = { endpoint: (ep.value || '').trim(), model: chosen, apiKey: (ky.value || '').trim(), supportsThinking: !!tk.checked, needsReasoningHistory: !!tk.checked };
-      var old = read(); if (Array.isArray(old.models) && old.endpoint === o.endpoint) o.models = old.models;
-      if (o.endpoint && !o.model) { alert('填了 Endpoint 就必须选择或填写模型名'); return; }
-      if (!o.endpoint && !o.model) { try { localStorage.removeItem(K); } catch (e) {} fillSelect([], ''); setMsg(); return; }
-      saveBoth(o);
-      md.value = o.model;
-      setMsg();
+
+    // —— 右栏：拉取 / 勾选 / 保存 / 删除 / 启用 ——
+    detailEl.addEventListener('click', async function (e) {
+      var t = e.target;
+      if (t.id === 'provFetch') {
+        t.disabled = true;
+        var msgEl = detailEl.querySelector('#provFetchMsg');
+        if (msgEl) msgEl.textContent = '拉取中…（经 Worker 代理）';
+        commitDraftIfCurrent(); // 先落盘，拉取后的重渲染才丢不掉
+        var k = parseKey(selKey) || {};
+        var opts = {};
+        if (k.kind === 'custom') {
+          opts.endpoint = (detailEl.querySelector('#provEndpoint') || {}).value || '';
+          opts.apiKey = (detailEl.querySelector('#provKey') || {}).value || '';
+        }
+        var r = await P.fetchModels(selKey, opts);
+        if (r.ok) toastFn('拉到 ' + r.count + ' 个模型' + (r.title ? '（' + r.title + '）' : '') + ' · 勾选要用的', 2600);
+        else toastFn('没拉到模型：' + (r.error || '未知原因') + ' · 可手填模型名', 4200);
+        renderAll();
+        return;
+      }
+      if (t.id === 'provSave') {
+        var pid = (parseKey(selKey) || {}).id;
+        var nameEl = detailEl.querySelector('#provName'), epEl = detailEl.querySelector('#provEndpoint'), kyEl = detailEl.querySelector('#provKey');
+        var selEl = detailEl.querySelector('#provModelSel'), mdEl = detailEl.querySelector('#provModelText'), tkEl = detailEl.querySelector('#provThinking');
+        var model = ((mdEl && mdEl.value) || (selEl && selEl.value) || '').trim();
+        P.saveCustom(pid, {
+          name: (nameEl.value || '').trim() || '未命名服务商',
+          endpoint: (epEl.value || '').trim(),
+          apiKey: (kyEl.value || '').trim(),
+          model: model,
+          supportsThinking: !!(tkEl && tkEl.checked),
+          needsReasoningHistory: !!(tkEl && tkEl.checked),
+        });
+        toastFn('已保存此渠道', 1800);
+        renderAll();
+        return;
+      }
+      if (t.id === 'provDelete') {
+        var c2 = findChannel(selKey);
+        var okDel = window.__feedback && window.__feedback.confirm
+          ? await window.__feedback.confirm({ title: '删除渠道', message: '删除「' + ((c2 && c2.name) || '') + '」？本机保存的 Key 一并删除。', danger: true, okText: '删除' })
+          : window.confirm('删除这个渠道？');
+        if (!okDel) return;
+        P.deleteCustom((parseKey(selKey) || {}).id);
+        selKey = P.effectiveKey(curMode());
+        renderAll();
+        return;
+      }
+      if (t.id === 'provUse') {
+        commitDraftIfCurrent(); // 启用前先落盘草稿
+        P.setActive(selKey);
+        var c3 = findChannel(selKey);
+        toastFn('已切到「' + ((c3 && c3.name) || selKey) + '」', 2200);
+        renderAll();
+        return;
+      }
     });
-    document.getElementById('byoClear').addEventListener('click', function () { try { localStorage.removeItem(K); localStorage.removeItem(PK); } catch (e) {} ep.value = ''; md.value = ''; ky.value = ''; tk.checked = false; fillSelect([], ''); setMsg(); });
+    detailEl.addEventListener('change', function (e) {
+      var t = e.target;
+      if (t && t.hasAttribute && t.hasAttribute('data-mid')) {
+        P.toggleModel(selKey, t.getAttribute('data-mid'), !!t.checked);
+        renderAll();
+        return;
+      }
+      if (t && t.id === 'provModelSel') {
+        var mdEl = detailEl.querySelector('#provModelText');
+        if (mdEl) mdEl.value = t.value;
+      }
+    });
+
+    P.on(function () { try { renderAll(); } catch (e) {} });
+    renderAll();
+    // 首屏数据：刷新预设元数据；当前选中的预设渠道还没模型缓存时静默拉一次
+    P.refreshPresets().then(function () {
+      renderAll();
+      var k = parseKey(selKey);
+      if (k && k.kind === 'preset' && !P.modelsAll(selKey).length) {
+        P.fetchModels(selKey).then(function () { renderAll(); });
+      }
+    });
   }
 
   // ─── §模型API. 自定义模型定价 ───

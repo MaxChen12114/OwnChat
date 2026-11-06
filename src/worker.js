@@ -10,11 +10,10 @@ import {
   CTX_HINTS,
 } from "./model/data.js";
 import {
-  PROVIDERS,
-  providerForMode,
-  isAllowedModelId,
+  PRESET_PROVIDERS,
+  resolveProvider,
+  isAllowedModelIdFor,
   resolveRequestedModel,
-  normalizeByoProvider,
   fetchUpstreamModels,
 } from "./model/providers.js";
 import { isPrivateHost } from "./net-guard.js";
@@ -24,7 +23,9 @@ import { buildCharacterBasePrompt, buildLayer2, isValidCard } from "./prompts/la
 import { buildLorebookInstruction, buildReplyStyleInstruction, buildSummarizeSysPrompt, buildTurnNudge } from "./prompts/layers/chat.js";
 import { handleImageRequest } from "./image-routes.js";
 
-// 上游端点注册表 / providerForMode / 模型 id 网关 已搬到 src/model/providers.js
+// 渠道注册表 / 统一解析(resolveProvider) / 模型 id 网关 已搬到 src/model/providers.js
+// 2026-10-13 (批 E1):请求按 payload.providerId(预设) / payload.customProvider(BYO) 路由;
+// mode(fast/free) 保留为预设指针的兼容别名 —— 旧客户端不改也能跑。
 
 // ────────────────────────────
 // 提示词资产(2026-10-04 模块化)→ src/prompts/layers/
@@ -480,24 +481,29 @@ function clientConfigJs() {
 // 2026-09-10 (方案 C): GET /api/models?mode=free|fast —— 翻源站的模型列表给前端候选池抽屉。
 // key 始终留在服务端(前端拿不到),返回前先用 isAllowedModelId 过一遭厂商白名单——
 // NIM 上百来个模型,不过滤的话抽屉里糊一屏根本没法选。拉不到时回内置兜底表,UI 不至于空。
+// 2026-10-13 (E1): 加 ?provider=<id|preset:id> 参数(压过 mode)—— 前端供应商管理按渠道拉取。
 async function handleModelsList(request, env) {
   if (!requireAuth(request, env)) {
     return resp("Unauthorized", "text/plain; charset=utf-8", 401);
   }
   const url = new URL(request.url);
   const mode = url.searchParams.get("mode") === "fast" ? "fast" : "free";
-  const provider = providerForMode(mode);
-  const builtin = (mode === "fast" ? MODELS_FAST : MODELS_FREE).map((m) => ({ id: m.id, label: m.label }));
+  // 2026-10-13 (E1):provider 参数优先(预设 id / preset:<id>),否则仍按 mode 别名解析 —— 向后兼容
+  const _pcfg = resolveProvider({ mode, providerId: url.searchParams.get("provider") });
+  const provider = _pcfg.provider;
+  const builtin = provider.defaultModel
+    ? [{ id: provider.defaultModel, label: provider.defaultModel }]
+    : (mode === "fast" ? MODELS_FAST : MODELS_FREE).map((m) => ({ id: m.id, label: m.label }));
   const apiKey = env[provider.keyEnv];
   const fail = (error) => resp(
-    JSON.stringify({ ok: false, mode, error, models: builtin, source: "builtin" }),
+    JSON.stringify({ ok: false, mode, provider: provider.id || provider.label, error, models: builtin, source: "builtin" }),
     "application/json; charset=utf-8", 200, { "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" }
   );
   if (!apiKey) return fail(`Missing ${provider.keyEnv}`);
   // 取数与过滤收在 src/model/providers.js(只做模型域的事,不碰 HTTP 组装)
   const res = await fetchUpstreamModels(provider, apiKey, {
     timeoutMs: 20000,
-    filter: (id) => isAllowedModelId(mode, id),
+    filter: (id) => isAllowedModelIdFor(provider, false, id),
   });
   if (!res.ok) return fail(`Upstream ${res.error}`);
   const seen = new Set();
@@ -508,7 +514,29 @@ async function handleModelsList(request, env) {
     .map((id) => ({ id, label: id.includes("/") ? id.split("/").pop() : id }));
   if (!models.length) return fail("Upstream returned no usable model");
   return resp(
-    JSON.stringify({ ok: true, mode, source: provider.label, count: models.length, models, builtin }),
+    JSON.stringify({ ok: true, mode, provider: provider.id || provider.label, source: provider.label, sourceTitle: provider.title || provider.label, count: models.length, models, builtin }),
+    "application/json; charset=utf-8", 200, { "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" }
+  );
+}
+
+// 2026-10-13 (E1): GET /api/providers —— 渠道注册表(预设)元数据,给前端「供应商管理」页用。
+// 只暴露 UI 需要的字段;key 本体永不出服务端,configured 仅透出"服务端是否配过 key"的布尔。
+function handleProvidersList(request, env) {
+  if (!requireAuth(request, env)) {
+    return resp("Unauthorized", "text/plain; charset=utf-8", 401);
+  }
+  const presets = Object.values(PRESET_PROVIDERS).map((p) => ({
+    id: p.id,
+    label: p.label, // ASCII 外部标识(请求 provider 参数用它)
+    title: p.title || p.label, // 中文显示名
+    endpoint: p.endpoint,
+    keyEnv: p.keyEnv,
+    configured: !!(env && env[p.keyEnv]),
+    supportsThinking: !!p.supportsThinking,
+    defaultModel: p.defaultModel || "",
+  }));
+  return resp(
+    JSON.stringify({ ok: true, presets }),
     "application/json; charset=utf-8", 200, { "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" }
   );
 }
@@ -635,16 +663,19 @@ async function handleChat(request, env) {
 
   // 两套注册表在 src/prompts/registry.js 里严格隔离 —— 锁定分支根本不读 BASES。
 
-  // 2026-06-16 (4.69 BYO): 自定义模型直连 —— payload.customProvider={endpoint,model,apiKey[,supportsThinking,needsReasoningHistory]} 时,
-  // 跳过 free/fast 白名单替换,直连用户自带的 OpenAI 兼容端点(GPT/Qwen/Kimi/本地 vLLM 等)。
-  const byo = normalizeByoProvider(payload);
+  // 2026-06-16 (4.69 BYO): 自定义模型直连 —— payload.customProvider={endpoint,model,apiKey[,...]} 时,
+  // 跳过预设白名单替换,直连用户自带的 OpenAI 兼容端点(GPT/Qwen/Kimi/本地 vLLM 等)。
+  // 2026-10-13 (E1): 统一渠道解析(BYO > payload.providerId 预设 > mode 别名)。旧 payload(仅 mode)行为不变。
+  const _cfg = resolveProvider(payload);
+  const byo = _cfg.isCustom ? _cfg.provider : null; // 下游多处按 byo 判分支,保留这个变量名
 
   // 4.69 G1: 是否给 assistant 历史补 reasoning_content,由 provider 能力位决定(不再写死 mode==="fast",将来新增思考型 provider 自动生效)
-  const needsReasoningHistory = (byo || providerForMode(mode)).needsReasoningHistory;
+  const needsReasoningHistory = _cfg.provider.needsReasoningHistory;
 
   // 2026-09-14:模型解析收敛到 src/model/providers.js。原来非法 id 会**静默回落内置占位符**
-  // (`__free_placeholder__`)并发到上游 → 用户看到的是上游的费解报错;现在直接返回可操作的提示。
-  const _resolved = resolveRequestedModel(mode, payload?.model, byo);
+  // (`__free_placeholder__`)并发到上游 → 用户看到的是上游的费解报错;现在返回可操作的提示。
+  // 2026-10-13 (E1): 空/占位符按渠道 defaultModel 兜底(新装开箱即用),不对口的 id 仍报错。
+  const _resolved = resolveRequestedModel(_cfg, payload?.model);
   if (_resolved.error) {
     // 用 JSON 返回:前端能把这条提示原样显示给用户,比上游那句 "Authorization failed" 之类好懂得多
     return resp(JSON.stringify({ error: _resolved.error }), "application/json; charset=utf-8", 400);
@@ -872,8 +903,8 @@ async function handleChat(request, env) {
     return hasContent || hasCalls;
   });
 
-  // 选择 provider(OpenAI 兼容注册表)+ API Key;BYO 直连时 provider 即用户自带配置
-  const provider = byo || providerForMode(mode);
+  // 选择 provider(渠道注册表;BYO 直连时 provider 即用户自带配置;预设/providerId 解析见上方 _cfg)
+  const provider = _cfg.provider;
   const apiKey = byo ? byo.apiKey : env[provider.keyEnv];
   // BYO 允许空 key(本地 vLLM/ollama 无需鉴权);内置 provider 仍要求配置 secret
   if (!byo && !apiKey) {
@@ -951,7 +982,8 @@ async function handleChat(request, env) {
       const sendTools = (tools || []).concat([SEARCH_TOOL]);
       const probeBody = { model: model, stream: false, messages: cleanedMessages, tools: sendTools, tool_choice: "auto", ...activeThinkParams };
       const probeHeaders = { ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}), "Content-Type": "application/json" };
-      const probeTimeout = thinking === "enabled" ? 90000 : 60000;
+      // 2026-10-13 (E1d): 同 handleChat —— 首字节预算按渠道数据取 max（NIM 免费档冷启动 38s）
+      const probeTimeout = Math.max(thinking === "enabled" ? 90000 : 60000, Number(provider.ttfbTimeoutMs) || 0);
       let probe = await fetchWithTimeout(endpoint, { method: "POST", headers: probeHeaders, body: JSON.stringify(probeBody) }, probeTimeout);
       if (!probe.ok && probe.status === 400) {
         // 上游不认 strict（部分 OpenAI 兼容端点）→ 去掉 strict 重试一次，工具本身仍然可用
@@ -1027,7 +1059,10 @@ async function handleChat(request, env) {
   // 524 修复：思考模式首字节可能需 30~60s，fetch 超时从 20s 延长到 90s
   // 内核非流式(agent 循环)整段返回也可能偏慢,给 60s
   // 4.82: 超时判断同样不再绑定 fast —— 免费档开思考也需要长超时,否则首字节未到就被 20s 掐断
-  const upstreamTimeout = thinking === "enabled" ? 90000 : (!wantStream ? 60000 : 20000);
+  // 2026-10-13 (E1d): 首字节预算按渠道数据取 max —— NIM 免费档冷启动实测 38s,20s 会自我掐断
+  // (渠道注册表 provider.ttfbTimeoutMs;见 src/model/providers.js)
+  const baseUpstreamTimeout = thinking === "enabled" ? 90000 : (!wantStream ? 60000 : 20000);
+  const upstreamTimeout = Math.max(baseUpstreamTimeout, Number(provider.ttfbTimeoutMs) || 0);
   let upstream = await fetchWithTimeout(endpoint, upstreamOptions, upstreamTimeout);
   // 4.82 容错:上游不认思考参数时(典型 400 invalid request)去掉该参数重试一次,
   // 让"开了思考"最多退化成"思考未生效",而不是整个请求挂掉(尤其免费档 NIM)。
@@ -1044,6 +1079,18 @@ async function handleChat(request, env) {
 
   if (!upstream.ok) {
     // 2026-10-05:不再回显上游错误原文(理由同 summarize 路径) —— 只回状态码。
+    // 2026-10-13 (E1d) 例外:上游 404/400 且原话里带 model = 「模型已下线/不存在」——
+    // 这是用户真实遇到的那类 404 的通用形态(历史模型 id 过白名单但上游已删)。归类成可操作错误,
+    // 前端凭它挂「选择新模型」自愈按钮;其余错误仍只回状态码。
+    let _bodyText = "";
+    try { _bodyText = await upstream.clone().text(); } catch (e) {}
+    if ((upstream.status === 404 || upstream.status === 400) && /model/i.test(_bodyText)) {
+      return resp(
+        JSON.stringify({ error: `模型「${model}」在当前渠道不存在或已下线（上游 ${upstream.status}）。请选择新模型。`, code: "model_not_found" }),
+        "application/json; charset=utf-8",
+        400
+      );
+    }
     return resp(
       `Upstream error ${upstream.status}`,
       "text/plain; charset=utf-8",
@@ -1123,18 +1170,26 @@ async function handleSummarize(request, env) {
   const sysPrompt = buildSummarizeSysPrompt(priorSum);
   const userPrompt = `以下是要压缩的对话（${messages.length} 条）：\n\n${transcript}`;
   // 2026-10-05 修复:原来直接引用 DEEPSEEK_ENDPOINT —— 它是 providers.js 的模块内 const,
-  // 没 export,这里一执行就 ReferenceError。配置了 DEEPSEEK_API_KEY 时本接口 100% 坏
-  // (没配 key 会在上面的早退处 500,把 bug 遮住,所以一直没暴露)。改走 provider 注册表,
-  // 对齐 handleChat 的写法(那边是 `const provider = byo || providerForMode(mode)` ——
-  // 不写行号:行号会随改动漂移,上一版这里写的 829 早就指到别处去了)。
-  const summarizeProvider = PROVIDERS.deepseek;
+  // 没 export,这里一执行就 ReferenceError(行号别写:会随改动漂移)。
+  // 2026-10-13 (E1):与 handleChat 同源的路由(BYO > providerId > mode 别名)——自定义渠道的
+  // 用户也能用摘要;模型取本渠道闸内的 payload.model,否则渠道默认(deepseek 预设默认 deepseek-flash,
+  // 即原 v4-flash 的"摘要用便宜档"口径)。
+  const _sCfg = resolveProvider(Object.assign({ mode: "fast" }, payload || {})); // 无渠道信息的旧调用 → 仍默认 DeepSeek(对齐旧行为);带 mode/providerId 则跟随
+  const summarizeProvider = _sCfg.provider;
+  const summarizeKey = _sCfg.isCustom ? summarizeProvider.apiKey : env[summarizeProvider.keyEnv];
+  if (!summarizeKey) {
+    return resp(`Missing ${summarizeProvider.keyEnv || "API key"} (please set it with wrangler secret).`, "text/plain; charset=utf-8", 500);
+  }
+  const _sModel = (payload?.model && isAllowedModelIdFor(summarizeProvider, _sCfg.isCustom, payload.model))
+    ? String(payload.model).trim()
+    : (summarizeProvider.defaultModel || "deepseek-flash");
   const upstream = await fetchWithTimeout(
     summarizeProvider.endpoint,
     {
       method: "POST",
-      headers: { "Authorization": `Bearer ${env.DEEPSEEK_API_KEY}`, "Content-Type": "application/json" },
+      headers: { "Authorization": `Bearer ${summarizeKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "deepseek-v4-flash", // 4.69 G1: 旧 deepseek-chat 2026-07-24 弃用,迁移到 v4-flash(最便宜,摘要用)
+        model: _sModel, // 4.69 G1: 旧 deepseek-chat 2026-07-24 弃用;摘要默认走渠道最便宜档
         stream: false,
         thinking: { type: "disabled" },
         messages: [
@@ -1456,6 +1511,11 @@ export default {
     // 2026-09-10 (方案 C): 模型候选池 —— 设置页点「拉取模型列表」走这里,key 不出服务端
     if (request.method === "GET" && url.pathname === "/api/models") {
       return handleModelsList(request, env);
+    }
+
+    // 2026-10-13 (E1): 渠道注册表元数据(供应商管理页用)
+    if (request.method === "GET" && url.pathname === "/api/providers") {
+      return handleProvidersList(request, env);
     }
 
     // 2026-09-12 (4.70 块⑤): 自定义直连模型列表代理 —— 端点/API Key 由用户显式填写,

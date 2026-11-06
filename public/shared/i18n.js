@@ -17,7 +17,7 @@
   "use strict";
 
   var LS_LANG = "cfw_ui_lang_v1";
-  var DICT_SRC = "/shared/i18n-dict.js";
+  var DICT_SRC = "/shared/i18n-dict.js?v=1"; // 2026-10-13 (E1c 缓存键规范化): 字典内容改动时 bump
   var ATTRS = ["title", "placeholder", "aria-label"];
   // 跳过清单分两档（2026-10-08 修）：
   //   · 文本档：只跳真正的内容区。**不能**跳 select —— <option> 的文本是 UI 标签（截图实测：

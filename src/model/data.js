@@ -40,9 +40,12 @@ export function isPlaceholderModelId(id) {
 //   · CTX_EXACT  精确 id → tokens,优先级最高(注意用**上游真实 id**,别用别名)
 //   · CTX_HINTS  [正则字符串, tokens],按顺序匹配,先命中先用
 export const CTX_EXACT = {
-  "deepseek-flash": 131072,       // DeepSeek 官方 API 现为 128K。若你的上游代理给更长窗口,改这一行
-  "deepseek-v4-flash": 131072,    // 上游/摘要用的真实 id(与上面那条不是同一个名字,两个都留着)
-  "deepseek-v4-pro": 131072,
+  // 2026-10-13 (E1):按上游 /v1/models 元数据校正 —— context_window=1048576(1M)。
+  // 旧值 131072(128K) 是 2026 上半年的口径,已过期。
+  "deepseek-flash": 1048576,      // DeepSeek-V4.1-Flash（1M ctx、支持图像输入）。若你的上游代理给不同窗口,改这一行
+  "deepseek-v4-flash": 1048576,   // 上游/摘要用过的别名 id(与上面那条不是同一个名字,两个都留着)
+  "deepseek-v4-pro": 1048576,     // DeepSeek-V4-Pro
+  "deepseek-chat": 1048576,       // 旧名(上游现按别名接受),给历史会话兜底
 };
 
 export const CTX_HINTS = [

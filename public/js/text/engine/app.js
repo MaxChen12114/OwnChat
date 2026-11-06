@@ -52,6 +52,22 @@
     }).filter(function (m) { return m && m.id && !isPlaceholderModel(m.id); });
   }
   function getRuntimeModels(mode) {
+    // 2026-10-13 (E1c): 激活渠道优先 —— 注册表里「已启用模型」> 旧模式池；
+    // 渠道拉到过清单但全被禁 → 只留渠道默认模型（不再回落旧池，尊重"全禁"意图）。
+    try {
+      if (window.__providers) {
+        const key = window.__providers.effectiveKey(mode);
+        const all = key ? window.__providers.modelsAll(key) : [];
+        if (all.length) {
+          const enabled = all.filter((m) => m.enabled);
+          if (enabled.length) return normalizeModelList(enabled);
+          const meta = (String(key).indexOf("preset:") === 0 && window.__providers.presetMeta)
+            ? window.__providers.presetMeta(String(key).slice(7)) : null;
+          const dm = meta && meta.defaultModel;
+          return dm ? [{ id: dm, label: dm }] : [];
+        }
+      }
+    } catch (e) {}
     const base = normalizeModelList(mode === "fast" ? (window.APP_MODELS_FAST || MODELS_FAST) : (window.APP_MODELS_FREE || MODELS_FREE));
     try {
       const saved = normalizeModelList(JSON.parse(localStorage.getItem(modelPoolKey(mode)) || "[]"));
@@ -60,11 +76,32 @@
     return base;
   }
   function runtimeDefaultModel(mode, models) {
+    // 2026-10-13 (E1c): 渠道默认模型优先（注册表 defaultModel —— 如 NIM 的 deepseek-v4.1-flash），
+    // 其次 /config.js 配置，最后列表第一。
+    try {
+      if (window.__providers) {
+        const key = window.__providers.effectiveKey(mode);
+        if (key && String(key).indexOf("preset:") === 0 && window.__providers.presetMeta) {
+          const dm = window.__providers.presetMeta(String(key).slice(7)).defaultModel;
+          if (dm && (models || []).some((m) => m.id === dm)) return dm;
+        }
+      }
+    } catch (e) {}
     const configured = mode === "fast" ? window.APP_DEFAULT_MODEL_FAST : window.APP_DEFAULT_MODEL_FREE;
     if (configured && !isPlaceholderModel(configured) && (models || []).some(function (m) { return m.id === configured; })) return configured;
     return (models && models[0] && models[0].id) || "";
   }
   async function autoFetchModelsForMode(mode) {
+    // 2026-10-13 (E1c): 优先按渠道拉（每模型开关在 v3 注册表里）；失败/注册表缺席 → 回落旧 mode 口径
+    try {
+      if (window.__providers) {
+        const key = window.__providers.effectiveKey(mode);
+        if (key) {
+          const res = await window.__providers.fetchModels(key);
+          if (res && res.ok) { if (mode === currentMode) initModels(); return true; }
+        }
+      }
+    } catch (e) {}
     try {
       const headers = {};
       try { const tk = window.__auth && window.__auth.getToken && window.__auth.getToken(); if (tk) headers.Authorization = "Bearer " + tk; } catch (e) {}
@@ -85,7 +122,7 @@
     if (customProvider && customProvider.endpoint && customProvider.model) return true;
     if (model && !isPlaceholderModel(model)) return true;
     setTimeout(function () { autoFetchModelsForMode(mode); }, 0);
-    alert("当前还是模型占位符。已尝试自动拉取模型列表；如果下拉仍为空，请到「设置 → 模型 API → 模型候选池」拉取并选择模型，或配置「自定义直连」。");
+    alert("当前还是模型占位符。已尝试自动拉取模型列表；如果下拉仍为空，请到「设置 → 模型 API → 渠道管理」拉取并勾选模型，或配置「自定义直连」。");
     return false;
   }
   // 2026-09-12 / 4.70: provider-aware 计价。
@@ -215,6 +252,59 @@
   // ─── 模式：free=NVIDIA / fast=DeepSeek ───
   const LS_MODE = "cfw_mode";
   let currentMode = localStorage.getItem(LS_MODE) === "fast" ? "fast" : "free";
+
+  // ─── 2026-10-13 批 E1c：渠道体系接线（注册表在 /shared/providers.js → window.__providers）───
+  // 请求体带 providerId（预设渠道显式选择）——未加载/未选择/自定义活跃=不发，Worker 按 mode 别名回落。
+  function activeProviderIdPayload() {
+    try {
+      const pid = window.__providers && window.__providers.activePresetId && window.__providers.activePresetId();
+      return pid ? { providerId: pid } : {};
+    } catch (e) { return {}; }
+  }
+  // 失效模型自愈（学 ZCode/Proma）：上游/worker 回「模型不存在/不属于当前渠道」类错误时，
+  // 气泡里附「选择新模型」按钮 —— 跳设置·模型 API，并顺手刷新当前渠道的模型列表。
+  // 错误体美化：worker 的可操作错误是 JSON {"error":...} —— 气泡里显示人话,而不是裸 JSON。
+  function formatChatErrorBody(t) {
+    const s = String(t || "");
+    try {
+      const d = JSON.parse(s);
+      if (d && typeof d.error === "string" && d.error) return d.error;
+    } catch (e) {}
+    return s.slice(0, 400);
+  }
+  function looksLikeInvalidModel(status, text) {
+    const t = String(text || "");
+    if (/不属于当前渠道/.test(t)) return true; // worker 自己的可操作报错（渠道闸）
+    if (status !== 400 && status !== 404 && status !== 422) return false;
+    // 中文口径：worker 归类文案（模型「x」…不存在或已下线）与中文上游报错
+    if (/模型/.test(t) && /(不存在|已下线|下线|无效|未找到|已删除)/.test(t)) return true;
+    // 英文口径：上游原话（Model Not Exist / model not found / invalid model ...）
+    return /\bmodel\b/i.test(t) && /(not\s+found|not\s+exist|does\s+not\s+exist|doesn'?t\s+exist|unknown|invalid|unsupported|decommission|deprecat)/i.test(t);
+  }
+  function attachModelReselectButton(aiRow) {
+    try {
+      if (!aiRow || !aiRow.bubble || aiRow.bubble.querySelector(".model-reselect-btn")) return;
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "margin-top:6px;";
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "smallbtn model-reselect-btn"; btn.textContent = "选择新模型";
+      btn.addEventListener("click", async function () {
+        try { if (window.__openSettingsCat) window.__openSettingsCat("modelapi"); } catch (e) {}
+        try {
+          const key = (window.__providers && window.__providers.effectiveKey) ? window.__providers.effectiveKey(currentMode) : null;
+          if (key && window.__providers.fetchModels) await window.__providers.fetchModels(key);
+        } catch (e) {}
+        toastMsg("已刷新当前渠道的模型列表 · 在「渠道管理」里勾选新模型", 3600);
+      });
+      wrap.appendChild(btn);
+      const hint = document.createElement("div");
+      hint.style.cssText = "font-size:11px;color:var(--muted);margin-top:4px;";
+      hint.textContent = "这个模型在当前渠道里可能已下线/改名。";
+      wrap.appendChild(hint);
+      aiRow.bubble.appendChild(document.createElement("br"));
+      aiRow.bubble.appendChild(wrap);
+    } catch (e) {}
+  }
 
   // ─── 费用累计（仅 fast 模式）───
   let totalCostCNY = 0;
@@ -824,7 +914,18 @@
 
   if (modeToggle) {
     modeToggle.addEventListener("click", () => {
-      applyMode(currentMode === "fast" ? "free" : "fast");
+      const next = currentMode === "fast" ? "free" : "fast";
+      // 2026-10-13 (E1c): 免费/快速 pill = 预设渠道快捷位 —— 点它即把活跃渠道切回配对预设
+      // （自定义渠道活跃时显式切到配对预设；本就跟随 pill 的话维持"跟随"语义=置空）。
+      try {
+        if (window.__providers && window.__providers.setActive) {
+          const st = window.__providers.read();
+          const cur = st && st.activeId;
+          if (cur && String(cur).indexOf("custom:") === 0) window.__providers.setActive("preset:" + (next === "fast" ? "deepseek" : "nvidia"));
+          else window.__providers.setActive(null);
+        }
+      } catch (e) {}
+      applyMode(next);
     });
   }
 
@@ -2163,7 +2264,28 @@
 
   modelSel.addEventListener("change", () => {
     localStorage.setItem(LS_MODEL, modelSel.value);
+    // 2026-10-13 (E1c): 自定义渠道活跃时，顶栏换模型 = 换该渠道的当前模型（发请求时取 byo.model）
+    try {
+      if (window.__providers) {
+        const st = window.__providers.read();
+        if (st && st.activeId && String(st.activeId).indexOf("custom:") === 0 && window.__providers.setSelectedModel) {
+          window.__providers.setSelectedModel(st.activeId, modelSel.value);
+        }
+      }
+    } catch (e) {}
   });
+
+  // 2026-10-13 (E1c): 渠道切换 / 每模型开关变化（设置卡或其它标签页）→ 顶栏模式与模型下拉跟随。
+  // 预设渠道→配对模式；自定义活跃→模式不动、只重建下拉（自定义渠道的模型走 byo.model）。
+  try {
+    window.addEventListener("cfw:providers-changed", function () {
+      try {
+        const want = window.__providers && window.__providers.modeForActive && window.__providers.modeForActive();
+        if (want && want !== currentMode) { applyMode(want); return; }
+        initModels();
+      } catch (e) {}
+    });
+  } catch (e) {}
 
   personaToggle.addEventListener("click", () => {
     if (BASE_SWITCH_MODE) {
@@ -2629,6 +2751,7 @@
             ...genParamPayload(), // 4.83: 用户在设置里填了 temperature/max_tokens 才带上(留空=不干预)
             replyStyle: localStorage.getItem("cfw_reply_style_v1") || "default",
             customProvider: customProviderSnapshot, // 4.69 BYO 自定义 API 直传
+            ...activeProviderIdPayload(), // 2026-10-13 (E1c): 预设渠道显式选择（自定义活跃时不发）
             ...baseIdPayload(characterCard), // 基座版本（角色能力档可覆盖；未选=不发）
             ...stateLayerPayload(), // 2026-10-05：角色状态层(仅在设置里关掉时才发 false)
             ...webSearchPayload(), // 2026-10-07 联网搜索（开关打开时服务端才挂 web_search 工具）
@@ -2637,7 +2760,7 @@
         });
         if (!res.ok) {
           const t = await res.text().catch(() => "");
-          throw new Error("Request failed (" + res.status + "): " + t);
+          throw new Error("Request failed (" + res.status + "): " + formatChatErrorBody(t));
         }
         // 4.77: 流式解析 SSE,边收边把"最终答复"渲染进气泡;增量重组 content / reasoning_content / tool_calls。
         // 复用 sendOne 的 sseBuf 行缓冲防跨 chunk 掉字;心跳(": ping")与调试(": __dbg__")注释行非 "data: " 开头自动跳过。
@@ -2932,7 +3055,12 @@
         setStreamingUI(aiRow.rowEl, false);
         return;
       }
-      if (myGen === sendGen) aiRow.bubble.textContent = "网络错误: " + e.message;
+      if (myGen === sendGen) {
+        aiRow.bubble.textContent = "网络错误: " + e.message;
+        // 2026-10-13 (E1c): Agent 路径的失效模型自愈（throw 里带 "Request failed (status)" 口径）
+        const _m = /Request failed \((\d+)\)/.exec(String(e.message || ""));
+        if (_m && looksLikeInvalidModel(Number(_m[1]), e.message)) attachModelReselectButton(aiRow);
+      }
       _stepsEnd = "error";
       finalText = "";
     } finally {
@@ -3218,8 +3346,11 @@
 
       if (!res.ok) {
         const t = await res.text().catch(() => "");
-        aiRow.bubble.textContent = `Request failed (${res.status}):\n${t}`;
+        const errMsg = formatChatErrorBody(t);
+        aiRow.bubble.textContent = `Request failed (${res.status}):\n${errMsg}`;
         aiRow.stats.textContent = "";
+        // 2026-10-13 (E1c): 失效模型自愈 —— 模型不存在/不属于当前渠道时给「选择新模型」引导
+        if (looksLikeInvalidModel(res.status, errMsg)) attachModelReselectButton(aiRow);
         return;
       }
 
@@ -3783,6 +3914,7 @@
         thinking: "disabled", // 小会要结论不要思考链（省钱、更快）
         replyStyle: localStorage.getItem("cfw_reply_style_v1") || "default",
         customProvider: _byo,
+        ...activeProviderIdPayload(), // 2026-10-13 (E1c): 预设渠道显式选择（自定义活跃时不发）
         ...baseIdPayload(card),
         ...stateLayerPayload(),
         messages: msgs,
@@ -3790,7 +3922,7 @@
     });
     if (!res.ok) {
       const t = await res.text().catch(() => "");
-      throw new Error("Request failed (" + res.status + "): " + String(t).slice(0, 200));
+      throw new Error("Request failed (" + res.status + "): " + formatChatErrorBody(String(t).slice(0, 200)));
     }
     const j = await res.json().catch(() => null);
     // 记账：与 sendOne/callModel 同口径（快速档有 usage 才记）
