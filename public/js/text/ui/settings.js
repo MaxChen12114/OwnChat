@@ -43,7 +43,7 @@
     var card = document.createElement('div'); card.className = 'card';
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><path d="M3.5 9.2h17"/></svg>顶栏资金按钮</h4>'
       + '<p>控制顶栏那个实时资金按钮(今日 / 总计)的显示。关闭后剩余按钮(模式切换 / 内置 / 同步 / 设置)自动紧凑排列。<b>仅本设备生效</b>(不进云同步)。</p>'
-      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="showTopbarCostToggle"><label for="showTopbarCostToggle">显示实时资金按钮(顶栏 · 今日 / 总计)</label></div></div>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="showTopbarCostToggle"><label for="showTopbarCostToggle">显示实时资金按钮（顶栏：今日 / 总计）</label></div></div>'
       + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>资金数据始终在「高级 → 费用日志」卡里完整可看;关掉顶栏仅减少视觉占用,不影响计费/同步。</span></div>';
     slot.appendChild(card);
   }
@@ -189,9 +189,9 @@
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>外观风格(Visual Theme)</h4>'
       + '<p>切换整站配色与视觉氛围,三种风格随时切换。<b>仅本设备生效</b>(不进云同步)。</p>'
       + '<div class="theme-options">'
-      + '<label class="theme-option"><input type="radio" name="cfwTheme" value="minimal"><div class="theme-swatch theme-swatch-minimal"></div><div class="theme-text"><div class="theme-title">极简</div><div class="theme-sub">Notion 风格 · 日/夜双态</div></div></label>'
-      + '<label class="theme-option"><input type="radio" name="cfwTheme" value="glass"><div class="theme-swatch theme-swatch-glass"></div><div class="theme-text"><div class="theme-title">玻璃</div><div class="theme-sub">毛玻璃 · 晴空竹屋</div></div></label>'
-      + '<label class="theme-option"><input type="radio" name="cfwTheme" value="candle"><div class="theme-swatch theme-swatch-candle"></div><div class="theme-text"><div class="theme-title">烛夜私语</div><div class="theme-sub">暗调 · 烛光</div></div></label>'
+      + '<label class="theme-option"><input type="radio" name="cfwTheme" value="minimal"><div class="theme-swatch theme-swatch-minimal"></div><div class="theme-text"><div class="theme-title">极简</div><div class="theme-sub">Notion 风格，日/夜双态</div></div></label>'
+      + '<label class="theme-option"><input type="radio" name="cfwTheme" value="glass"><div class="theme-swatch theme-swatch-glass"></div><div class="theme-text"><div class="theme-title">玻璃</div><div class="theme-sub">毛玻璃，晴空竹屋</div></div></label>'
+      + '<label class="theme-option"><input type="radio" name="cfwTheme" value="candle"><div class="theme-swatch theme-swatch-candle"></div><div class="theme-text"><div class="theme-title">烛夜私语</div><div class="theme-sub">暗调，烛光</div></div></label>'
       + '</div>'
       + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>烛夜私语是暗调主题,含烛光薄雾与暗角;极简风格下方会出现日/夜切换。</span></div>';
     slot.appendChild(card);
@@ -298,7 +298,7 @@
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>联网搜索（Web Search）</h4>'
       + '<p>开启后，普通聊天遇到需要实时信息的问题（新闻、价格、版本、赛事…）时会自己搜索再回答，并在引用处附来源链接。搜索由<b>你自己的 Worker</b> 执行 —— 官方 API 里没有内置搜索，这里是把搜索工具挂在聊天请求上、由 Worker 侧跑。</p>'
       + '<div class="rowline"><div class="toggle"><input type="checkbox" id="webSearchToggle"><label for="webSearchToggle">启用联网搜索</label></div>'
-      + '<div class="toggle" style="margin-top:6px;"><input type="checkbox" id="webSearchDeepToggle"><label for="webSearchDeepToggle">深度搜索（Exa · 按次计费 ≈¥0.05/次）</label></div></div>'
+      + '<div class="toggle" style="margin-top:6px;"><input type="checkbox" id="webSearchDeepToggle"><label for="webSearchDeepToggle">深度搜索（Exa，按次计费 ≈¥0.05/次）</label></div></div>'
       + '<div id="webSearchStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div>'
       + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>默认走免费的 DuckDuckGo,它不通时自动改用 <b>Bing</b>(同样免费);只有 Worker 侧配置了 <code>EXA_API_KEY</code>（<code>wrangler secret put EXA_API_KEY</code>）且这里勾了「深度搜索」时才会用 Exa,没配则自动降级。开了联网的回复会比平时慢一些——要多 1~2 轮「搜索 + 复述结果」。查询词会发到你自己的 Worker 再转给搜索服务;Agent 模式的 <code>web_search</code> 工具不受此开关影响。</span></div>';
     slot.appendChild(card);
@@ -310,7 +310,7 @@
       var deep = localStorage.getItem('cfw_web_search_deep_v1') === '1';
       t.checked = on; d.checked = deep;
       d.disabled = !on;
-      if (st) st.textContent = !on ? '未启用（聊天只靠模型自身知识）' : (deep ? '已启用 · 深搜(Exa)优先，未配 key 自动降级' : '已启用 · 免费搜索(DuckDuckGo)');
+      if (st) st.textContent = !on ? '未启用（聊天只靠模型自身知识）' : (deep ? '已启用：深搜(Exa)优先，未配 key 自动降级' : '已启用：免费搜索(DuckDuckGo)');
     }
     t.addEventListener('change', function () {
       localStorage.setItem('cfw_web_search_v1', t.checked ? '1' : '0');
@@ -338,7 +338,7 @@
     var slot = document.getElementById('setChatSlot');
     if (!slot || document.getElementById('replyStyleSel')) return;
     var card = document.createElement('div'); card.className = 'card';
-    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19l8.5-8.5"/><path d="M15 4.5l.9 2 2 .9-2 .9-.9 2-.9-2-2-.9 2-.9z"/><path d="M6.5 4.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/></svg>回复风格(Reply Style)</h4><p>控制 AI 回复的取材与排版。</p><div style="margin-top:10px;"><div style="font-size:12px;color:var(--muted);margin-bottom:8px;">回复风格</div><select id="replyStyleSel" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border, #333);background:transparent;color:inherit;font-size:13px;"><option value="default">默认 · 交由角色卡决定</option><option value="wechat">微信连发 · 1-2 句一条·多气泡连发</option><option value="verbose">长段叙事 · 小说式丰满段落(写小说)</option></select></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>单人普通对话<b>没有字数限制</b>,写小说请选 <b>长段叙事</b> 档。字数限制(150-250 字)只存在于鱼缸接龙/讨论模式,保持多人轮转节奏。</span></div>`;
+    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19l8.5-8.5"/><path d="M15 4.5l.9 2 2 .9-2 .9-.9 2-.9-2-2-.9 2-.9z"/><path d="M6.5 4.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/></svg>回复风格(Reply Style)</h4><p>控制 AI 回复的取材与排版。</p><div style="margin-top:10px;"><div style="font-size:12px;color:var(--muted);margin-bottom:8px;">回复风格</div><select id="replyStyleSel" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border, #333);background:transparent;color:inherit;font-size:13px;"><option value="default">默认（交由角色卡决定）</option><option value="wechat">微信连发（1-2 句一条，多气泡连发）</option><option value="verbose">长段叙事（小说式丰满段落，写小说）</option></select></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>单人普通对话<b>没有字数限制</b>,写小说请选 <b>长段叙事</b> 档。字数限制(150-250 字)只存在于鱼缸接龙/讨论模式,保持多人轮转节奏。</span></div>`;
     slot.appendChild(card);
   }
   // 显示设置卡 = 聊天区呈现的唯一去处(字号 / 字体 / 内容里的显示开关)。
@@ -349,7 +349,7 @@
     var slot = document.getElementById('setAppearanceThemeSlot') || document.getElementById('setAppearanceTopSlot');
     if (!slot || document.getElementById('chatFontSizeRange')) return;
     var card = document.createElement('div'); card.className = 'card';
-    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h8M16 7h4M4 12h2M10 12h10M4 17h6M14 17h6"/><circle cx="14" cy="7" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="12" cy="17" r="2"/></svg>显示设置(Display)</h4><p>调整聊天区字号、字体，以及聊天内容里的显示开关。<b>仅本设备生效</b>(不进云同步)，刷新页面也会保留。</p><div style="margin-top:8px;"><label for="chatFontSizeRange" style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px;"><span>聊天字号</span><span id="chatFontSizeLabel" style="font-variant-numeric:tabular-nums;">13px</span></label><input type="range" id="chatFontSizeRange" min="12" max="22" step="1" value="13" style="width:100%;"></div><div style="margin-top:14px;"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;">聊天字体</div><select id="chatFontFamilySel" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border, #333);background:transparent;color:inherit;font-size:13px;"><option value="">系统默认 · 苹方/微软雅黑</option><option value='"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif'>圆体 · PingFang</option><option value='"Noto Serif SC", "Source Han Serif SC", "SimSun", serif'>宋体 · Noto Serif</option><option value='"Kaiti SC", "STKaiti", KaiTi, serif'>楷体 · Kaiti</option><option value='FangSong, STFangsong, serif'>仿宋 · FangSong</option><option value='ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'>等宽 · Monospace</option></select></div><div class="rowline" style="margin-top:14px;"><div class="toggle"><input type="checkbox" id="hideMsgActionsToggle"><label for="hideMsgActionsToggle">隐藏消息行下方的小按钮(重试/删除/复制)</label></div></div><div class="rowline"><div class="toggle"><input type="checkbox" id="hideStatsToggle"><label for="hideStatsToggle">隐藏统计小字(token / 速度 / 累计费用)</label></div></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>气泡跳动同步梳理主题请到「外观风格」卡切主题；wechat 连发模式会自动隐藏小按钮(同时被上面的 toggle 接管)。</span></div>`;
+    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h8M16 7h4M4 12h2M10 12h10M4 17h6M14 17h6"/><circle cx="14" cy="7" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="12" cy="17" r="2"/></svg>显示设置(Display)</h4><p>调整聊天区字号、字体，以及聊天内容里的显示开关。<b>仅本设备生效</b>(不进云同步)，刷新页面也会保留。</p><div style="margin-top:8px;"><label for="chatFontSizeRange" style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px;"><span>聊天字号</span><span id="chatFontSizeLabel" style="font-variant-numeric:tabular-nums;">13px</span></label><input type="range" id="chatFontSizeRange" min="12" max="22" step="1" value="13" style="width:100%;"></div><div style="margin-top:14px;"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;">聊天字体</div><select id="chatFontFamilySel" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border, #333);background:transparent;color:inherit;font-size:13px;"><option value="">系统默认（苹方/微软雅黑）</option><option value='"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif'>圆体（PingFang）</option><option value='"Noto Serif SC", "Source Han Serif SC", "SimSun", serif'>宋体（Noto Serif）</option><option value='"Kaiti SC", "STKaiti", KaiTi, serif'>楷体（Kaiti）</option><option value='FangSong, STFangsong, serif'>仿宋（FangSong）</option><option value='ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'>等宽（Monospace）</option></select></div><div class="rowline" style="margin-top:14px;"><div class="toggle"><input type="checkbox" id="hideMsgActionsToggle"><label for="hideMsgActionsToggle">隐藏消息行下方的小按钮(重试/删除/复制)</label></div></div><div class="rowline"><div class="toggle"><input type="checkbox" id="hideStatsToggle"><label for="hideStatsToggle">隐藏统计小字(token / 速度 / 累计费用)</label></div></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>气泡跳动同步梳理主题请到「外观风格」卡切主题；wechat 连发模式会自动隐藏小按钮(同时被上面的 toggle 接管)。</span></div>`;
     slot.appendChild(card);
   }
   function mountAuthCard() {
@@ -366,7 +366,7 @@
     if (!slot || document.getElementById('syncEnableToggle')) return;
     var card = document.createElement('div');
     card.className = 'card';
-    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 18.5a4.5 4.5 0 0 1-.7-8.95A5.5 5.5 0 0 1 17 9.1 3.7 3.7 0 0 1 16.8 18.5z"/></svg>云同步（Cloud Sync）</h4><p>把数据同步到 Cloudflare KV,换浏览器换设备都能看到:角色卡 · 指令模块 · 亲密度 · 费用日志,以及<b>对话历史（需勾选下方「同步聊天历史」)</b>。本地改动延迟 30 秒自动推送(为省 KV 配额;桌面端关窗与回到前台会立刻补推/补拉)。<b>不同步:</b>密码 token / 同步状态本身。</p><div class="rowline"><div class="toggle"><input type="checkbox" id="syncEnableToggle"><label for="syncEnableToggle">启用云同步</label></div><div class="toggle" style="margin-top:6px;"><input type="checkbox" id="syncIncludeChatToggle"><label for="syncIncludeChatToggle">同步聊天历史（跨设备共享对话）</label></div><div class="btns"><button class="smallbtn" id="syncNowBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v3.5h-3.5"/></svg>立即同步</button><button class="smallbtn" id="syncExportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导出备份</button><button class="smallbtn" id="syncImportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导入备份</button><input type="file" id="syncImportFile" accept=".json" style="display:none"><button class="smallbtn danger" id="syncWipeBtn" title="删除云端 KV 上的全部数据(角色卡/指令模块/费用/对话的云端副本)。本地数据保留;同步仍开启时下次本地改动会重新上传,想让云端保持空请清空后关闭云同步。"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5h15"/><path d="M9 6.5V5.2A1.7 1.7 0 0 1 10.7 3.5h2.6A1.7 1.7 0 0 1 15 5.2V6.5"/><path d="M6.8 6.5l.7 12.2a1.8 1.8 0 0 0 1.8 1.7h5.4a1.8 1.8 0 0 0 1.8-1.7l.7-12.2"/></svg>清空云端</button></div></div><div id="syncStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div><div id="syncQuotaWarn" style="font-size:11px;color:#f80;margin-top:4px;display:none;"></div><details id="cloudExcludeSection" style="margin-top:10px;"><summary style="cursor:pointer;font-size:12px;color:var(--muted);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 16.5a4.2 4.2 0 0 1-.6-8.35A5.2 5.2 0 0 1 16.5 8"/><path d="M14.5 14l5 5M19.5 14l-5 5"/></svg>按角色/会话 只清云端（保留本地）</summary><div style="font-size:11px;color:var(--muted);margin:6px 0;line-height:1.5;">只把选中项从云端 KV 抹掉,本地保留且本设备不再上传(tombstone)。<b>会话</b>仅在开了「同步聊天历史」时云端才有副本。<b>跨设备注意:</b>排除清单仅本设备生效,其他仍持有该数据且未排除的设备改动后可能把它推回。</div><div id="cloudExcludeList" style="display:flex;flex-direction:column;gap:6px;"></div></details>`;
+    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 18.5a4.5 4.5 0 0 1-.7-8.95A5.5 5.5 0 0 1 17 9.1 3.7 3.7 0 0 1 16.8 18.5z"/></svg>云同步（Cloud Sync）</h4><p>把数据同步到 Cloudflare KV,换浏览器换设备都能看到:角色卡 / 指令模块 / 亲密度 / 费用日志,以及<b>对话历史（需勾选下方「同步聊天历史」)</b>。本地改动延迟 30 秒自动推送(为省 KV 配额;桌面端关窗与回到前台会立刻补推/补拉)。<b>不同步:</b>密码 token / 同步状态本身。</p><div class="rowline"><div class="toggle"><input type="checkbox" id="syncEnableToggle"><label for="syncEnableToggle">启用云同步</label></div><div class="toggle" style="margin-top:6px;"><input type="checkbox" id="syncIncludeChatToggle"><label for="syncIncludeChatToggle">同步聊天历史（跨设备共享对话）</label></div><div class="btns"><button class="smallbtn" id="syncNowBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v3.5h-3.5"/></svg>立即同步</button><button class="smallbtn" id="syncExportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导出备份</button><button class="smallbtn" id="syncImportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导入备份</button><input type="file" id="syncImportFile" accept=".json" style="display:none"><button class="smallbtn danger" id="syncWipeBtn" title="删除云端 KV 上的全部数据(角色卡/指令模块/费用/对话的云端副本)。本地数据保留;同步仍开启时下次本地改动会重新上传,想让云端保持空请清空后关闭云同步。"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5h15"/><path d="M9 6.5V5.2A1.7 1.7 0 0 1 10.7 3.5h2.6A1.7 1.7 0 0 1 15 5.2V6.5"/><path d="M6.8 6.5l.7 12.2a1.8 1.8 0 0 0 1.8 1.7h5.4a1.8 1.8 0 0 0 1.8-1.7l.7-12.2"/></svg>清空云端</button></div></div><div id="syncStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div><div id="syncQuotaWarn" style="font-size:11px;color:#f80;margin-top:4px;display:none;"></div><details id="cloudExcludeSection" style="margin-top:10px;"><summary style="cursor:pointer;font-size:12px;color:var(--muted);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 16.5a4.2 4.2 0 0 1-.6-8.35A5.2 5.2 0 0 1 16.5 8"/><path d="M14.5 14l5 5M19.5 14l-5 5"/></svg>按角色/会话 只清云端（保留本地）</summary><div style="font-size:11px;color:var(--muted);margin:6px 0;line-height:1.5;">只把选中项从云端 KV 抹掉,本地保留且本设备不再上传(tombstone)。<b>会话</b>仅在开了「同步聊天历史」时云端才有副本。<b>跨设备注意:</b>排除清单仅本设备生效,其他仍持有该数据且未排除的设备改动后可能把它推回。</div><div id="cloudExcludeList" style="display:flex;flex-direction:column;gap:6px;"></div></details>`;
     slot.appendChild(card);
   }
   // ─── M1: 本地对话记忆卡(#historyKeep / #promptKeep / #clearHistory) ───
@@ -411,8 +411,8 @@
     card.innerHTML = '<h4>自驱叙事(Autopilot)</h4>'
       + '<p>让 AI 自己一段段往下写,不用每次催。<b>半自动</b>每段停下给「继续 / 选项 / 自己写」,<b>全自动</b>按节拍连演。「一句话把活干完」的工作模式不在这,走 Agent。随时 <b>Shift+Esc</b> 全停。<b>仅本设备</b>。</p>'
       + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">模式</label><select id="apMode" style="' + SS + '"><option value="">关</option><option value="novel">小说叙事</option></select></div>'
-      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">推进</label><select id="apAuto" style="' + SS + '"><option value="half">半自动 · 每段停一下</option><option value="full">全自动 · 连续演</option></select></div>'
-      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">视角</label><select id="apAddress" style="' + SS + '"><option value="dialogue">对话 · 只对你说话</option><option value="immersive">沉浸 · 带动作旁白</option><option value="narration">小说 · 第三人称</option></select></div>'
+      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">推进</label><select id="apAuto" style="' + SS + '"><option value="half">半自动（每段停一下）</option><option value="full">全自动（连续演）</option></select></div>'
+      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">视角</label><select id="apAddress" style="' + SS + '"><option value="dialogue">对话（只对你说话）</option><option value="immersive">沉浸（带动作旁白）</option><option value="narration">小说（第三人称）</option></select></div>'
       + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">选项</label><select id="apChoices" style="' + SS + '"><option value="off">不给选项</option><option value="fork">岔路口才给(默认)</option><option value="every">每段都给</option></select></div>'
       + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">最多段</label><input type="number" id="apMaxSeg" min="1" max="1000" style="width:90px;padding:6px 8px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"></div>'
       + '<div class="rowline"><div class="toggle"><input type="checkbox" id="apGateTts"><label for="apGateTts">读完一段再演下一段(仅桌面 TTS)</label></div></div>'
@@ -435,11 +435,11 @@
     q('#apStart').addEventListener('click', function () {
       if (!window.__autopilot) { setMsg('自驱引擎未加载(检查 index.html 是否引了 autopilot.js)'); return; }
       var r = window.__autopilot.start({ mode: mode.value });
-      if (r && r.ok) setMsg('已开始 · 小说叙事 / ' + (auto.value === 'full' ? '全自动' : '半自动'));
+      if (r && r.ok) setMsg('已开始：小说叙事 / ' + (auto.value === 'full' ? '全自动' : '半自动'));
       else setMsg('没开起来:' + ((r && r.reason) || '未知'));
     });
     q('#apStop').addEventListener('click', function () { if (window.__autopilot) window.__autopilot.stop('user-stop'); setMsg('已停止'); });
-    try { if (window.__autopilot && window.__autopilot.onTick) window.__autopilot.onTick(function (st) { setMsg('状态:' + st.state + ' · 第 ' + st.seg + ' 段'); }); } catch (e) {}
+    try { if (window.__autopilot && window.__autopilot.onTick) window.__autopilot.onTick(function (st) { setMsg('状态:' + st.state + '，第 ' + st.seg + ' 段'); }); } catch (e) {}
   }
 
   // ─── 多智能体编排（2026-10-08 从「Agent 工作模式」卡拆出）───
@@ -454,9 +454,9 @@
       // 本段刻意写成"整句单文本节点"（不带 <b> 内联标签）：双语引擎按文本节点整串匹配，
       // 带标签的句子会被切成碎片、字典键难对（这是上一批翻译踩过的坑）。
       + '<p>先在侧栏打开「多智能体」模式，再按下面开关逐个放行；模式关闭时 = 单 agent，不挂任何编排工具。平级 agent = 你配置好的角色卡（各有独立上下文）；子 agent = 主 agent 现造的临时工（最小权限、任务完成即回收，不进聊天记录）。</p>'
-      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="maDelegate"><label for="maDelegate">主子分派 · 允许派子 agent 干活</label></div></div>'
-      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="maMeeting"><label for="maMeeting">私下小会 · 向角色私下征询（结论不进时间线）</label></div></div>'
-      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="maInvite"><label for="maInvite">请角色上台 · 角色可直接在时间线回答</label></div></div>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="maDelegate"><label for="maDelegate">主子分派（允许派子 agent 干活）</label></div></div>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="maMeeting"><label for="maMeeting">私下小会（向角色私下征询，结论不进时间线）</label></div></div>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="maInvite"><label for="maInvite">请角色上台（角色可直接在时间线回答）</label></div></div>'
       + '<div class="rowline" style="align-items:center;gap:8px;flex-wrap:wrap;"><label style="font-size:12px;color:var(--muted);min-width:52px;">小会</label>'
       + '<input id="maMeetMax" type="number" min="1" max="6" step="1" style="' + SS + 'max-width:76px;" title="每次小会最多几位角色（每位都是一次独立计费调用）"> <span style="font-size:11px;color:var(--muted);">人数上限</span>'
       + '<input id="maMeetRounds" type="number" min="1" max="2" step="1" style="' + SS + 'max-width:76px;" title="2 = 第二轮参与者能看到彼此答案、互相补充或反驳（成本约翻倍）"> <span style="font-size:11px;color:var(--muted);">轮数</span>'
@@ -496,10 +496,10 @@
     card.innerHTML = '<h4>Agent 工作模式</h4>'
       + '<p>决定 Agent 执行动作时的放行策略(对齐成熟 agent 工具的做法)。<b>仅本设备</b>。</p>'
       + '<div class="rowline" style="align-items:center;gap:10px;"><label style="font-size:12px;color:var(--muted);min-width:42px;">模式</label><select id="agentWorkMode" style="' + SS + '">'
-      + '<option value="confirm">变更前确认 · 有副作用的操作先问我</option>'
-      + '<option value="auto">自动编辑 · 文件类操作直接做,其余仍问</option>'
-      + '<option value="plan">计划模式 · 先出计划,不动手</option>'
-      + '<option value="full">完全访问 · 不再确认</option>'
+      + '<option value="confirm">变更前确认：有副作用的操作先问我</option>'
+      + '<option value="auto">自动编辑：文件类操作直接做，其余仍问</option>'
+      + '<option value="plan">计划模式：先出计划，不动手</option>'
+      + '<option value="full">完全访问：不再确认</option>'
       + '</select></div>'
       + '<div id="agentWorkDesc" style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6;"></div>'
       + '<div class="rowline" style="align-items:center;gap:10px;margin-top:12px;"><label style="font-size:12px;color:var(--muted);min-width:42px;">工具</label>'
@@ -527,11 +527,11 @@
       } catch (e) { return 0; }
     }
     var nCore = toolCount('core'), nFull = toolCount('full');
-    sel.innerHTML = '<option value="core">' + (nCore ? '常用 · ' + nCore + ' 个' : '常用（默认）') + '</option>'
-      + '<option value="full">' + (nFull ? '全量 · ' + nFull + ' 个' : '全量') + '</option>';
+    sel.innerHTML = '<option value="core">' + (nCore ? '常用（' + nCore + ' 个）' : '常用（默认）') + '</option>'
+      + '<option value="full">' + (nFull ? '全量（' + nFull + ' 个）' : '全量') + '</option>';
     var TXT = {
-      core: '给选项 · 载技能 · 角色卡增删改 · 发图 · 好感度 · 朗读，外加多智能体编排（分派 / 小会 / 请角色上台，见「多智能体编排」卡）。文件与联网工具两档都有。',
-      full: '在常用基础上再加: 设定集 · 指令模块 · 换主题 · 换模型 · 改设置 · 开编辑器 · 查费用 · 生成视频故事。其中视频故事一跑就是一两小时且不能关页 —— 只建议临时开。'
+      core: '给选项 / 载技能 / 角色卡增删改 / 发图 / 好感度 / 朗读，外加多智能体编排（分派 / 小会 / 请角色上台，见「多智能体编排」卡）。文件与联网工具两档都有。',
+      full: '在常用基础上再加：设定集 / 指令模块 / 换主题 / 换模型 / 改设置 / 开编辑器 / 查费用 / 生成视频故事。其中视频故事一跑就是一两小时且不能关页 —— 只建议临时开。'
     };
     function render() { if (desc) desc.textContent = TXT[sel.value] || ''; }
     var v = 'core'; try { v = localStorage.getItem(K) === 'full' ? 'full' : 'core'; } catch (e) {}
@@ -751,7 +751,7 @@
       + '<p>微调模型的发挥风格。<b>留空 = 不干预</b>：该字段不会发给模型，由模型用自己的默认值 —— 不确定就别填。</p>'
       + '<div class="rowline" ' + row + '><label for="genTemp" style="font-size:12.5px;min-width:152px;">温度（temperature）</label><input id="genTemp" type="number" min="0" max="2" step="0.1" placeholder="默认" ' + inp + '><span style="font-size:11px;color:var(--muted);">越高越有创意，越低越稳</span></div>'
       + '<div class="rowline" ' + row + '><label for="genMax" style="font-size:12.5px;min-width:152px;">最长输出（max_tokens）</label><input id="genMax" type="number" min="1" step="256" placeholder="默认" ' + inp + '><span style="font-size:11px;color:var(--muted);">写长文 / 开思考时要留足</span></div>'
-      + '<div class="rowline" ' + row + '><span style="font-size:12px;color:var(--muted);">快速预设：</span><button class="smallbtn" data-genpreset="rp" type="button">角色扮演</button><button class="smallbtn" data-genpreset="write" type="button">长文写作</button><button class="smallbtn" data-genpreset="code" type="button">编程 · 工具</button><button class="smallbtn danger" data-genpreset="reset" type="button">全部恢复默认</button></div>'
+      + '<div class="rowline" ' + row + '><span style="font-size:12px;color:var(--muted);">快速预设：</span><button class="smallbtn" data-genpreset="rp" type="button">角色扮演</button><button class="smallbtn" data-genpreset="write" type="button">长文写作</button><button class="smallbtn" data-genpreset="code" type="button">编程 / 工具</button><button class="smallbtn danger" data-genpreset="reset" type="button">全部恢复默认</button></div>'
       + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>留空是推荐状态。开思考时 max_tokens 会被推理内容占用，设小了会出现正文被截断或空白 —— 写长文建议 8192。温度设 0 不等于更准，长对话会明显重复；若换模型后上游报错，回来清空或调低。</span></div>'
       + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span><b>默认基准（"恢复默认"回到的就是这些）：</b>温度 1.0（0~2）· max_tokens 不传时 非思考 8K / 思考 64K（DeepSeek 官方文档；免费档 NIM 为 vLLM 系，温度默认同为 1.0）。注意：<b>思考模式下温度参数无效</b>，思考中的风格由模型自己决定。</span></div>';
     slot.appendChild(card);
@@ -1037,7 +1037,7 @@
         if (r && r.error) { say('拉取云端对话失败：' + r.error); return; }
         say('已拉取云端对话，正在上传本机对话…');
         const p = await window.__sync.pushChatNow();
-        say(p && p.ok ? ('对话同步已开启 · 已上传 ' + (p.slots || 0) + ' 条会话') : '对话同步已开启（本机暂无会话可上传）');
+        say(p && p.ok ? ('对话同步已开启，已上传 ' + (p.slots || 0) + ' 条会话') : '对话同步已开启（本机暂无会话可上传）');
       } catch (e) { say('对话同步失败：' + ((e && e.message) || e)); }
     });
   }
@@ -1051,7 +1051,7 @@
       if (!sync || typeof sync.wipeCloud !== 'function') { alert('云同步模块未就绪'); return; }
       const st = (sync.getStatus && sync.getStatus()) || {};
       if (!st.enabled || !st.hasToken) { alert('请先启用云同步(需密码)再清空云端'); return; }
-      if (!confirm('确定清空云端的全部数据吗?\n\n· 删除:角色卡/指令模块/亲密度/费用/对话历史的【云端副本】\n· 保留:本设备本地数据全部不动\n· 注意:同步仍开启时,下次本地改动会把本地重新上传。想让云端保持空,请清空后关闭云同步。')) return;
+      if (!confirm('确定清空云端的全部数据吗?\n\n删除：角色卡/指令模块/亲密度/费用/对话历史的【云端副本】\n保留：本设备本地数据全部不动\n注意：同步仍开启时,下次本地改动会把本地重新上传。想让云端保持空,请清空后关闭云同步。')) return;
       const old = wb.textContent; wb.disabled = true; wb.textContent = '清空中…';
       try {
         await sync.wipeCloud();
@@ -1158,7 +1158,7 @@
       syncEnableToggle.checked = s.enabled;
       const parts = [s.enabled ? '已启用' : '未启用'];
       if (s.lastPush) parts.push('上次推送 ' + fmtTime(s.lastPush));
-      if (syncStatusEl) syncStatusEl.textContent = parts.join(' · ');
+      if (syncStatusEl) syncStatusEl.textContent = parts.join('，');
     }
 
     window.__settingsRefreshAuth = refreshAuthUI;
@@ -1218,16 +1218,16 @@
         const _when = new Date().toLocaleString('zh-CN', { hour12: false });
         if (_chat && _chat.skipped === 'chat-off') {
           syncNowBtn.textContent = '✓ 已同步(不含对话)';
-          if (syncStatusEl) syncStatusEl.textContent = '对话历史未同步:勾选上方「同步聊天历史」后,对话才会跨设备共享 · ' + _when;
+          if (syncStatusEl) syncStatusEl.textContent = '对话历史未同步:勾选上方「同步聊天历史」后,对话才会跨设备共享，' + _when;
         } else if (_chat && _chat.skipped === 'sync-off') {
           syncNowBtn.textContent = '✓ 已同步(不含对话)';
-          if (syncStatusEl) syncStatusEl.textContent = '未启用云同步/缺密码:对话未同步 · ' + _when;
+          if (syncStatusEl) syncStatusEl.textContent = '未启用云同步/缺密码:对话未同步，' + _when;
         } else if (_chat && _chat.error) {
           syncNowBtn.textContent = '部分失败';
-          if (syncStatusEl) syncStatusEl.textContent = '其余数据已同步,对话同步失败:' + _chat.error + ' · ' + _when;
+          if (syncStatusEl) syncStatusEl.textContent = '其余数据已同步,对话同步失败:' + _chat.error + '，' + _when;
         } else {
           syncNowBtn.textContent = '✓ 已同步';
-          if (syncStatusEl) syncStatusEl.textContent = '同步完成(含对话 ' + ((_chat && _chat.slots) || 0) + ' 条会话) · ' + _when;
+          if (syncStatusEl) syncStatusEl.textContent = '同步完成(含对话 ' + ((_chat && _chat.slots) || 0) + ' 条会话)，' + _when;
         }
       } catch (e) {
         syncNowBtn.textContent = '同步失败';
@@ -1389,7 +1389,7 @@
     mountTtsCard();
     _voiceCardsMounted = true;
   }
-  var _SL = [['none','默认 · 不指定'],['real','写实'],['anime','动漫 · 现代日系'],['soft','日系厚涂'],['webtoon','韩漫 · 网漫'],['uscomic','美漫 · 美式'],['gufeng','中式 · 国风'],['fantasy','欧美奇幻厚涂'],['oil','古典油画'],['water','水彩'],['render3d','3D · 皮克斯渲染'],['chibi','Q版 · 萌系'],['inkmanga','黑白漫画'],['cyber','赛博朋克']];
+  var _SL = [['none','默认（不指定）'],['real','写实'],['anime','动漫（现代日系）'],['soft','日系厚涂'],['webtoon','韩漫（网漫）'],['uscomic','美漫（美式）'],['gufeng','中式（国风）'],['fantasy','欧美奇幻厚涂'],['oil','古典油画'],['water','水彩'],['render3d','3D（皮克斯渲染）'],['chibi','Q版（萌系）'],['inkmanga','黑白漫画'],['cyber','赛博朋克']];
   function styleOpts(){return _SL.map(function(p){return'<option value="'+p[0]+'">'+p[1]+'</option>';}).join('');}
 
   function mountImgStyleCard() {
@@ -1442,7 +1442,7 @@
     function setMsg(t){if(status)status.textContent=t||'';}
     function activeCard(){try{return window.__character&&window.__character.getActiveCard&&window.__character.getActiveCard();}catch(e){return null;}}
     function refreshWho(){var who=document.getElementById('imgPortraitWho'),c=activeCard();if(who)who.innerHTML=c?'当前角色：<b>'+((c.icon?c.icon+' ':'')+(c.name||'(未命名)'))+'</b>':'<span style="color:#e5484d;">未选择角色卡 — 先去左侧「角色卡」选一个</span>';try{if(window.__chatImage&&window.__chatImage.getBaseImage&&c){Promise.resolve(window.__chatImage.getBaseImage({characterId:c.id||'default'})).then(function(b){if(b&&preview&&!preview.querySelector('[data-gen]'))preview.innerHTML='<div style="text-align:center;"><img src="'+b+'" style="max-width:140px;border-radius:8px;display:block;"><div style="font-size:11px;opacity:.6;margin-top:4px;">当前基准图</div></div>';}).catch(function(){});}}catch(e){}}
-    if(genBtn)genBtn.addEventListener('click',async function(){genBtn.disabled=true;setMsg('生成中…（约 10-30 秒）');try{var r=await pt.generateForActive();if(preview)preview.innerHTML='<div style="text-align:center;"><img data-gen="1" src="'+r.url+'" style="max-width:160px;border-radius:8px;display:block;"><div style="font-size:11px;opacity:.6;margin-top:4px;">新立绘 · '+(r.name||'')+'</div></div>';if(setBtn)setBtn.disabled=false;setMsg('生成完成，点「设为基准图」锁定。');}catch(e){setMsg('错误：'+((e&&e.message)||e));}genBtn.disabled=false;});
+    if(genBtn)genBtn.addEventListener('click',async function(){genBtn.disabled=true;setMsg('生成中…（约 10-30 秒）');try{var r=await pt.generateForActive();if(preview)preview.innerHTML='<div style="text-align:center;"><img data-gen="1" src="'+r.url+'" style="max-width:160px;border-radius:8px;display:block;"><div style="font-size:11px;opacity:.6;margin-top:4px;">新立绘：'+(r.name||'')+'</div></div>';if(setBtn)setBtn.disabled=false;setMsg('生成完成，点「设为基准图」锁定。');}catch(e){setMsg('错误：'+((e&&e.message)||e));}genBtn.disabled=false;});
     if(setBtn)setBtn.addEventListener('click',async function(){setBtn.disabled=true;setMsg('保存基准图中…');try{await pt.setAsBase();setMsg('已设为当前角色的发图基准图。');}catch(e){setMsg('错误：'+((e&&e.message)||e));setBtn.disabled=false;}});
     if(delBtn)delBtn.addEventListener('click',async function(){if(!(window.__chatImage&&window.__chatImage.clearBaseImage)){setMsg('发图模块未就绪');return;}if(!confirm('清除当前角色的发图基准图？'))return;var c=activeCard();delBtn.disabled=true;setMsg('清除中…');try{await window.__chatImage.clearBaseImage({characterId:(c&&c.id)||'default'});if(preview)preview.innerHTML='';if(setBtn)setBtn.disabled=true;setMsg('已清除。');}catch(e){setMsg('错误：'+((e&&e.message)||e));}delBtn.disabled=false;});
     refreshWho(); window.addEventListener('character:changed',refreshWho);
@@ -1455,7 +1455,7 @@
     card.innerHTML='<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>提示词缓存去重</h4><p>相同提示词在短期内再次生成时，直接复用上次的图，<b>不再消耗当日额度</b>。仅文生图，缓存 6 小时，<b>仅本设备</b>。</p><label class="rowline" style="align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="imgCacheToggle"><span>启用缓存去重</span></label><div id="imgCacheStats" style="font-size:12px;opacity:.75;margin-top:8px;"></div><div class="rowline" style="margin-top:8px;"><div></div><div class="btns"><button class="smallbtn danger" id="imgCacheClear">清空缓存</button></div></div>';
     slot.appendChild(card);
     var tog=document.getElementById('imgCacheToggle'),clr=document.getElementById('imgCacheClear'),st=document.getElementById('imgCacheStats');
-    function refresh(){if(tog)tog.checked=cache.isEnabled();if(st){var s=cache.stats();st.textContent='已缓存 '+s.count+' 条 · 累计省下 '+s.saved+' 次生成';}}
+    function refresh(){if(tog)tog.checked=cache.isEnabled();if(st){var s=cache.stats();st.textContent='已缓存 '+s.count+' 条，累计省下 '+s.saved+' 次生成';}}
     if(tog)tog.addEventListener('change',function(){cache.setEnabled(tog.checked);});
     if(clr)clr.addEventListener('click',function(){cache.clear();});
     window.addEventListener('imagecache:changed',refresh); refresh();
@@ -1466,7 +1466,7 @@
     var slot=getSlot(); if(!slot||document.getElementById('imgExpanderCard'))return;
     var K='cfw_expander_model_v1';
     var list=[]; try{list=window.APP_MODELS_FREE||[];}catch(e){}
-    var opts='<option value="">默认 · 自动选 gpt-oss-120b</option>';
+    var opts='<option value="">默认（自动选 gpt-oss-120b）</option>';
     for(var i=0;i<list.length;i++){var id=(list[i]&&list[i].id)||'';if(!id)continue;var nm=(list[i].name||id);opts+='<option value="'+id+'">'+nm+'</option>';}
     var card=document.createElement('div'); card.className='card'; card.id='imgExpanderCard';
     card.innerHTML='<h4>发图扩写器模型</h4><p>非限制级发图时，用这个免费模型把中文发图信号扩写成英文画面描述；限制级(≥1)走本地模板、不调此模型。留「默认」即自动选 gpt-oss-120b。<b>仅本设备</b>。</p><div class="rowline" style="align-items:center;gap:10px;margin-top:6px;"><label style="font-size:12px;opacity:.6;">扩写模型</label><select id="imgExpanderSelect" style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;">'+opts+'</select></div>';
@@ -1496,7 +1496,7 @@
     var LR='cfw_tts_ref_audio_v1',LP='cfw_tts_prompt_text_v1',LA='cfw_tts_autoplay_v1',LSPD='cfw_tts_speed_v1';
     function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
     var card=document.createElement('div'); card.className='card'; card.id='omniTtsCard';
-    card.innerHTML='<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>本地语音 (TTS · 仅桌面版)</h4><p>用本机 GPT-SoVITS 把 AI 回复读出来。先在托盘「语音·启动服务」，再填参考音频。<b>仅本设备</b>。</p><div style="margin-top:8px;"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">参考音频完整路径 (.wav)</label><div style="display:flex;gap:6px;"><input id="omniTtsRef" type="text" style="flex:1;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"><button class="smallbtn" id="omniTtsRefPick" type="button">选择…</button></div></div><div style="margin-top:10px;"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">参考音频对应文字 (可留空)</label><input id="omniTtsPrompt" type="text" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"></div><div style="margin-top:10px;"><label for="omniTtsSpeed" style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px;"><span>语速</span><span id="omniTtsSpeedLabel" style="font-variant-numeric:tabular-nums;">1.00×</span></label><input id="omniTtsSpeed" type="range" min="0.5" max="1.5" step="0.05" value="1" style="width:100%;"><div style="font-size:11px;color:var(--muted);margin-top:4px;">向左变慢、向右变快(1.00× 为模型原速)。觉得太快就拉到 0.85～0.9。</div></div><div class="rowline" style="margin-top:10px;"><div class="toggle"><input type="checkbox" id="omniTtsAuto"><label for="omniTtsAuto">自动朗读每条 AI 回复(默认关)</label></div><div class="btns"><button class="smallbtn" id="omniTtsTest" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 4.9v14.2L19.5 12z"/></svg>试听</button></div></div><div style="margin-top:12px;border-top:1px solid rgba(127,127,127,.12);padding-top:10px;"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">音色模型(底模 · 扫描热切,免重启)</label><div class="rowline" style="margin-top:10px;align-items:center;gap:8px;"><select id="omniTtsScanSovits" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:12px;"><option value="">SoVITS(.pth) — 点扫描列出</option></select><select id="omniTtsScanGpt" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:12px;"><option value="">GPT(.ckpt) — 可选</option></select></div><div class="rowline" style="margin-top:6px;"><div style="font-size:11px;color:var(--muted);flex:1;">扫 GPT-SoVITS 目录下 GPT_weights*/SoVITS_weights*,仿 WebUI 列出全部已装底模,免手敲路径</div><div class="btns"><button class="smallbtn" id="omniTtsScan" type="button">扫描已装</button><button class="smallbtn" id="omniTtsScanApply" type="button">应用所选</button></div></div></div><div style="margin-top:12px;border-top:1px solid rgba(127,127,127,.12);padding-top:10px;"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">稳定音色 · 多参考(可选)</label><div id="omniTtsAuxList" style="display:flex;flex-direction:column;gap:6px;"></div><div class="rowline" style="margin-top:8px;gap:6px;"><input id="omniTtsAuxInput" type="text" placeholder="手填 .wav 路径,可一次多条(用 ; 或 | 分隔);或点「选择文件」多选" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:12px;"><div class="btns"><button class="smallbtn" id="omniTtsAuxPick" type="button">选择文件(可多选)</button><button class="smallbtn" id="omniTtsAuxAdd" type="button">＋ 添加</button><button class="smallbtn danger" id="omniTtsAuxClear" type="button">清空全部</button></div></div><div style="font-size:11px;color:var(--muted);margin-top:6px;">多丢几条同一个人的干净 .wav,api_v2 融合多条参考、音色更稳不漂。留空=只用单条主参考。<br>「选择文件」可按住 Ctrl/Shift 一次多选;「添加」是把上面输入框里手填/粘贴的路径入列(选文件已自动入列,不用再点添加)。</div></div><div id="omniTtsStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div>';
+    card.innerHTML='<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>本地语音（TTS，仅桌面版）</h4><p>用本机 GPT-SoVITS 把 AI 回复读出来。先在托盘「语音启动服务」，再填参考音频。<b>仅本设备</b>。</p><div style="margin-top:8px;"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">参考音频完整路径 (.wav)</label><div style="display:flex;gap:6px;"><input id="omniTtsRef" type="text" style="flex:1;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"><button class="smallbtn" id="omniTtsRefPick" type="button">选择…</button></div></div><div style="margin-top:10px;"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">参考音频对应文字 (可留空)</label><input id="omniTtsPrompt" type="text" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"></div><div style="margin-top:10px;"><label for="omniTtsSpeed" style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px;"><span>语速</span><span id="omniTtsSpeedLabel" style="font-variant-numeric:tabular-nums;">1.00×</span></label><input id="omniTtsSpeed" type="range" min="0.5" max="1.5" step="0.05" value="1" style="width:100%;"><div style="font-size:11px;color:var(--muted);margin-top:4px;">向左变慢、向右变快(1.00× 为模型原速)。觉得太快就拉到 0.85～0.9。</div></div><div class="rowline" style="margin-top:10px;"><div class="toggle"><input type="checkbox" id="omniTtsAuto"><label for="omniTtsAuto">自动朗读每条 AI 回复(默认关)</label></div><div class="btns"><button class="smallbtn" id="omniTtsTest" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 4.9v14.2L19.5 12z"/></svg>试听</button></div></div><div style="margin-top:12px;border-top:1px solid rgba(127,127,127,.12);padding-top:10px;"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">音色模型（底模，扫描热切，免重启）</label><div class="rowline" style="margin-top:10px;align-items:center;gap:8px;"><select id="omniTtsScanSovits" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:12px;"><option value="">SoVITS(.pth) — 点扫描列出</option></select><select id="omniTtsScanGpt" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:12px;"><option value="">GPT(.ckpt) — 可选</option></select></div><div class="rowline" style="margin-top:6px;"><div style="font-size:11px;color:var(--muted);flex:1;">扫 GPT-SoVITS 目录下 GPT_weights*/SoVITS_weights*,仿 WebUI 列出全部已装底模,免手敲路径</div><div class="btns"><button class="smallbtn" id="omniTtsScan" type="button">扫描已装</button><button class="smallbtn" id="omniTtsScanApply" type="button">应用所选</button></div></div></div><div style="margin-top:12px;border-top:1px solid rgba(127,127,127,.12);padding-top:10px;"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">稳定音色 / 多参考（可选）</label><div id="omniTtsAuxList" style="display:flex;flex-direction:column;gap:6px;"></div><div class="rowline" style="margin-top:8px;gap:6px;"><input id="omniTtsAuxInput" type="text" placeholder="手填 .wav 路径,可一次多条(用 ; 或 | 分隔);或点「选择文件」多选" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:12px;"><div class="btns"><button class="smallbtn" id="omniTtsAuxPick" type="button">选择文件(可多选)</button><button class="smallbtn" id="omniTtsAuxAdd" type="button">＋ 添加</button><button class="smallbtn danger" id="omniTtsAuxClear" type="button">清空全部</button></div></div><div style="font-size:11px;color:var(--muted);margin-top:6px;">多丢几条同一个人的干净 .wav,api_v2 融合多条参考、音色更稳不漂。留空=只用单条主参考。<br>「选择文件」可按住 Ctrl/Shift 一次多选;「添加」是把上面输入框里手填/粘贴的路径入列(选文件已自动入列,不用再点添加)。</div></div><div id="omniTtsStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div>';
     slot.appendChild(card);
     var refEl=card.querySelector('#omniTtsRef'),promptEl=card.querySelector('#omniTtsPrompt'),autoEl=card.querySelector('#omniTtsAuto');
     refEl.value=c.refAudioPath; promptEl.value=c.promptText; autoEl.checked=c.autoplay;
@@ -1507,7 +1507,7 @@
       var cc=tts.cfg();
       // 据实测端口判定:不管是 App 托盘启的、还是你自己双击 .bat 启的,只要 9880 在听就算「运行中」。
       var alive=(tts.probeService)?(await tts.probeService()):(cc.serviceRunning===true);
-      s.textContent=alive?('✓ 语音服务运行中 · 端口 '+cc.port+(cc.ttsDir?' · '+cc.ttsDir:'')):'● 语音服务未启动 — 双击你的启动 .bat 或托盘「语音·启动服务」,等控制台出现 Uvicorn running';}
+      s.textContent=alive?('✓ 语音服务运行中（端口 '+cc.port+(cc.ttsDir?'，'+cc.ttsDir:'')):'● 语音服务未启动 — 双击你的启动 .bat 或托盘「语音启动服务」,等控制台出现 Uvicorn running';}
     renderStatus();
     refEl.addEventListener('change',function(){lsSet(LR,refEl.value.trim());});
     promptEl.addEventListener('change',function(){lsSet(LP,promptEl.value.trim());});
@@ -1537,13 +1537,13 @@
           // 服务在跑、但 api_v2 把合成请求拒了(最常见:所选底模与你的 GPT-SoVITS 版本不兼容)。原样亮出 api_v2 的报错,免得你去翻控制台。
           alert('GPT-SoVITS 收到请求但合成失败了 —— 多半是当前所选底模和你的 GPT-SoVITS 核心版本不兼容(换回匹配的 .pth + .ckpt,或升级 GPT-SoVITS 核心再试)。\n\napi_v2 原始报错:\n'+String(synthErr.message)+'\n\n(同样的红字也会打印在你的 api_v2 控制台窗口里)');
         }else{
-          alert('试听没出声 —— 八成是 GPT-SoVITS 服务还没起来(端口 '+port+' 连不上),或参考音频路径不对。\n\n1) 确认你的 api_v2 窗口里已经出现 Uvicorn running on http://127.0.0.1:'+port+'(双击你的 .bat 或托盘「语音·启动服务」都行),起来之后再点试听;\n2) 若服务已在跑还是没声:多半是「参考音频」填的路径不对(必须是真实存在的 .wav 完整路径),或所选底模没加载成功。');
+          alert('试听没出声 —— 八成是 GPT-SoVITS 服务还没起来(端口 '+port+' 连不上),或参考音频路径不对。\n\n1) 确认你的 api_v2 窗口里已经出现 Uvicorn running on http://127.0.0.1:'+port+'(双击你的 .bat 或托盘「语音启动服务」都行),起来之后再点试听;\n2) 若服务已在跑还是没声:多半是「参考音频」填的路径不对(必须是真实存在的 .wav 完整路径),或所选底模没加载成功。');
         }
         return;
       }
       // 合成拿到音频 ≠ 一定出声:真去播并等结果。playBlob 会在 <audio> 播不出时自动回落 Web Audio 解码播,
       // 两路都失败才如实报错 —— 不再像以前那样一拿到字节就显示「成功」、其实没声还蒙在鼓里。
-      if(s)s.textContent='✓ 合成成功 · 播放中…';
+      if(s)s.textContent='✓ 合成成功，播放中…';
       try{
         await tts.enqueuePlay(blob);
         if(s)s.textContent='✓ 合成并播放完成(若没听到:检查系统音量/输出设备,或换底模/参考音再试)';
@@ -1557,7 +1557,7 @@
     function renderAux(){
       if(!auxListEl)return;
       var list=(tts.getAuxRefs&&tts.getAuxRefs())||[];
-      if(!list.length){auxListEl.innerHTML='<div style="font-size:11px;color:var(--muted);">（未加辅助参考 · 只用单条主参考）</div>';return;}
+      if(!list.length){auxListEl.innerHTML='<div style="font-size:11px;color:var(--muted);">（未加辅助参考，只用单条主参考）</div>';return;}
       auxListEl.innerHTML='';
       list.forEach(function(p,idx){
         var row=document.createElement('div');
@@ -1585,7 +1585,7 @@
       });
       if(added){tts.setAuxRefs(l);renderAux();}
       var s=card.querySelector('#omniTtsStatus');
-      if(s)s.textContent='已加 '+added+' 条辅助参考'+(dup?(' · 跳过 '+dup+' 条重复'):'')+(bad?(' · 忽略 '+bad+' 条非 .wav'):'')+(added?' — 合成时与主参考一起融合稳定音色':'');
+      if(s)s.textContent='已加 '+added+' 条辅助参考'+(dup?('，跳过 '+dup+' 条重复'):'')+(bad?('，忽略 '+bad+' 条非 .wav'):'')+(added?' — 合成时与主参考一起融合稳定音色':'');
       if(!added&&bad&&!dup)alert('辅助参考必须是具体的 .wav 文件路径(不能是文件夹)');
       return added>0;
     }
@@ -1603,7 +1603,7 @@
       var l=(tts.getAuxRefs&&tts.getAuxRefs())||[];
       var s=card.querySelector('#omniTtsStatus');
       if(!l.length){if(s)s.textContent='辅助参考本来就是空的,无需清空';return;}
-      if(!confirm('确定清空全部 '+l.length+' 条辅助参考吗?\n\n· 只清辅助参考列表,主参考音不受影响\n· 纯本地操作,清错了重新添加即可'))return;
+      if(!confirm('确定清空全部 '+l.length+' 条辅助参考吗?\n\n只清辅助参考列表,主参考音不受影响\n纯本地操作,清错了重新添加即可'))return;
       tts.setAuxRefs([]);renderAux();
       if(s)s.textContent='已清空全部辅助参考(原 '+l.length+' 条)';
     });
@@ -1626,8 +1626,8 @@
       var s=card.querySelector('#omniTtsStatus');if(s)s.textContent='扫描中…';
       var r=(tts.listInstalledModels&&await tts.listInstalledModels())||{gpt:[],sovits:[]};
       if(r.error){if(s)s.textContent='扫描失败:'+r.error+'(先在托盘设好并启动 GPT-SoVITS 文件夹)';return;}
-      fillScan(scanSovits,r.sovits,'SoVITS(.pth) · 共 '+((r.sovits||[]).length)+' 个,选一个');
-      fillScan(scanGpt,r.gpt,'GPT(.ckpt) · 可选 · 共 '+((r.gpt||[]).length)+' 个');
+      fillScan(scanSovits,r.sovits,'SoVITS(.pth)，共 '+((r.sovits||[]).length)+' 个,选一个');
+      fillScan(scanGpt,r.gpt,'GPT(.ckpt)（可选），共 '+((r.gpt||[]).length)+' 个');
       var sw=(tts.getCurrentWeights&&tts.getCurrentWeights())||{sovits:'',gpt:''}; preselect(scanSovits,sw.sovits); preselect(scanGpt,sw.gpt);
       if(s)s.textContent='扫到 SoVITS '+((r.sovits||[]).length)+' 个 / GPT '+((r.gpt||[]).length)+' 个 — 选好点「应用所选」热切'+(sw.sovits?'(已自动选回上次:'+sw.sovits+')':'');
     });
@@ -1636,7 +1636,7 @@
       if(!sovits&&!gpt){alert('先点「扫描已装」再选一个 SoVITS(.pth)(GPT 可选)');return;}
       if(s)s.textContent='切换中…';
       var r=await tts.switchWeights({sovits:sovits,gpt:gpt});
-      if(s)s.textContent=(r&&r.ok)?('✓ 已切到所选权重 · 热生效,无需重启'):('切换失败:'+((r&&r.reason)||'未知'));
+      if(s)s.textContent=(r&&r.ok)?('✓ 已切到所选权重，热生效,无需重启'):('切换失败:'+((r&&r.reason)||'未知'));
     });
   }
 

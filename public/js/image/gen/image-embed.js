@@ -191,7 +191,7 @@
       } else { addOutput({ title: '第 ' + (i + 1) + ' 张无数据' }); continue; }
       var img = document.createElement('img');
       img.src = bi.objUrl; img.className = 'img-out-img';
-      addOutput({ title: '文生图 #' + (i + 1), meta: 'size=' + size + ' · n=' + n, element: img, download: { href: bi.objUrl, filename: 'z-image-' + nowTs() + '-' + (i + 1) + '.png' } });
+      addOutput({ title: '文生图 #' + (i + 1), meta: 'size=' + size + '，n=' + n, element: img, download: { href: bi.objUrl, filename: 'z-image-' + nowTs() + '-' + (i + 1) + '.png' } });
     }
     setStatus('文生图 成功', 'ok');
   }
@@ -223,7 +223,7 @@
     setStatus('改图 轮询中… (' + taskId.slice(0, 8) + ')');
     var result = await pollTask(taskId, key, {
       intervalMs: 6000,
-      onTick: function (info) { setStatus('改图 轮询中… 已等待 ' + Math.floor(info.elapsedMs / 1000) + 's · 第 ' + info.tick + ' 次检查 · 正常等待并非卡死'); }
+      onTick: function (info) { setStatus('改图 轮询中… 已等待 ' + Math.floor(info.elapsedMs / 1000) + 's，第 ' + info.tick + ' 次检查，正常等待并非卡死'); }
     });
     if (result.status !== 'success') { setStatus('改图 ' + result.status, result.status === 'failed' ? 'err' : 'info'); addOutput({ title: '改图任务结束：' + result.status, meta: 'task=' + taskId.slice(0, 8) }); return; }
     var fileUrl = result.raw && result.raw.output && result.raw.output.file_url;
@@ -232,7 +232,7 @@
     var bi = await fetchAsBlob(fileUrl);
     var img = document.createElement('img');
     img.src = bi.objUrl; img.className = 'img-out-img';
-    addOutput({ title: '改图输出', meta: 'task=' + taskId.slice(0, 8) + ' · ' + (f2 ? '2 图' : '1 图') + ' · ' + types.join('+'), element: img, download: { href: bi.objUrl, filename: 'edit-2511-' + nowTs() + '.png' } });
+    addOutput({ title: '改图输出', meta: 'task=' + taskId.slice(0, 8) + '，' + (f2 ? '2 图' : '1 图') + '，' + types.join('+'), element: img, download: { href: bi.objUrl, filename: 'edit-2511-' + nowTs() + '.png' } });
     setStatus('改图 成功', 'ok');
   }
 

@@ -335,7 +335,7 @@
     // 2026-06-08: 免费模式不计费 → 顶栏 💰 区原本留空,导致桌面顶栏中段一大段空隙。
     // 仅【免费模式】补占位文字(它本就无数字);【快速模式】始终显示金额——无消费时即 ¥0.0000,本来就有数字,不再塞「暂无消费」文字。
     if (currentMode !== "fast") {
-      costDisplayEl.textContent = "免费模式 · 不计费";
+      costDisplayEl.textContent = "免费模式，不计费";
       costDisplayEl.classList.add("cost-placeholder");
       return;
     }
@@ -469,7 +469,7 @@
     const txt = document.createElement("span");
     txt.style.cssText = "flex:1;cursor:pointer;text-align:center;";
     txt.title = "点击查看完整剧情摘要";
-    txt.textContent = `早期对话已压缩为剧情摘要（${priorSummary.length} 字）· 点击查看`; // 4.71: 去掉 📚
+    txt.textContent = `早期对话已压缩为剧情摘要（${priorSummary.length} 字），点击查看`; // 4.71: 去掉 📚
     txt.onclick = () => alert("【先前剧情摘要】\n\n" + priorSummary);
     const closeBtn = document.createElement("button");
     closeBtn.textContent = "✕";
@@ -2135,7 +2135,7 @@
     if (!MODELS.length) {
       const opt = document.createElement("option");
       opt.value = currentMode === "fast" ? "__fast_placeholder__" : "__free_placeholder__";
-      opt.textContent = currentMode === "fast" ? "快速模型 · 正在等待拉取" : "免费模型 · 正在等待拉取";
+      opt.textContent = currentMode === "fast" ? "快速模型，正在等待拉取" : "免费模型，正在等待拉取";
       modelSel.appendChild(opt);
       modelSel.value = opt.value;
       setTimeout(function () { autoFetchModelsForMode(currentMode); }, 0);
@@ -3826,7 +3826,7 @@
     if (!entries.length) {
       // 一张角色卡都不可用 → 通用视角（仍是各自独立的调用与上下文，只是人设换成"专家视角"）
       const aspects = (agenda.length ? agenda.map((a) => String((a && a.aspect) || "")) : ["总体评估", "风险与代价", "替代方案"]).filter(Boolean).slice(0, cfg.meetingMax);
-      entries = aspects.map((a, i) => ({ name: "视角" + (i + 1) + "·" + a, card: null, aspect: a }));
+      entries = aspects.map((a, i) => ({ name: "视角" + (i + 1) + "：" + a, card: null, aspect: a }));
     }
     const capView = (card) => {
       let view = selectSpeakerView(session, { scope: scope, card: card });

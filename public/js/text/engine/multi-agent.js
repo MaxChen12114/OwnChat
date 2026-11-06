@@ -300,9 +300,9 @@ function renderFishbowlSidePanel() {
   if (mode === "relay" || mode === "discuss") {
     if (s.state === "ended" && s.endStats) {
       const e = s.endStats;
-      statusHtml = `<div class="fb-side-ended"><div class="fb-ended-title">${fbSvg('<path d="M6 21V4"/><path d="M6 5h11l-2 3 2 3H6"/>')} 已结束</div><div class="fb-ended-line">共 <b>${e.totalRounds}</b> 轮 · 用时 <b>${e.durationSec}</b> 秒</div>${mode === "discuss" && e.topic ? `<div class="fb-ended-line">议题:${safe(e.topic)}</div>` : ""}<div class="fb-ended-reason">${endReasonLabel(e.endReason)}</div></div>`;
+      statusHtml = `<div class="fb-side-ended"><div class="fb-ended-title">${fbSvg('<path d="M6 21V4"/><path d="M6 5h11l-2 3 2 3H6"/>')} 已结束</div><div class="fb-ended-line">共 <b>${e.totalRounds}</b> 轮，用时 <b>${e.durationSec}</b> 秒</div>${mode === "discuss" && e.topic ? `<div class="fb-ended-line">议题:${safe(e.topic)}</div>` : ""}<div class="fb-ended-reason">${endReasonLabel(e.endReason)}</div></div>`;
     } else {
-      const round = (localStorage.getItem("cfw_dev_mode_v1") === "1") ? `${s.round || 0}（不限轮·开发者）` : `${s.round || 0}/${fb.getMaxRounds()}`;
+      const round = (localStorage.getItem("cfw_dev_mode_v1") === "1") ? `${s.round || 0}（不限轮，开发者）` : `${s.round || 0}/${fb.getMaxRounds()}`;
       const topic = mode === "discuss" ? (fb.getTopic() || "(未设置)") : "";
       const speaker = s.speakerName || "—";
       // v4.9 累计花费提示(替代轮数硬限，让用户自行决定何时 stop)
@@ -311,7 +311,7 @@ function renderFishbowlSidePanel() {
         if (window.__cost && window.__cost.getCostStats) {
           const cs = window.__cost.getCostStats();
           if (cs && cs.total > 0) {
-            costLine = `<div class="fb-info-line" style="opacity:.85;">${fbSvg('<path d="M12 3v18"/><path d="M16 7H9.5a2.5 2.5 0 0 0 0 5h5a2.5 2.5 0 0 1 0 5H7"/>', {size:12})} 今日 <b>¥${cs.today.toFixed(4)}</b> · 累计 <b>¥${cs.total.toFixed(4)}</b></div>`;
+            costLine = `<div class="fb-info-line" style="opacity:.85;">${fbSvg('<path d="M12 3v18"/><path d="M16 7H9.5a2.5 2.5 0 0 0 0 5h5a2.5 2.5 0 0 1 0 5H7"/>', {size:12})} 今日 <b>¥${cs.today.toFixed(4)}</b>，累计 <b>¥${cs.total.toFixed(4)}</b></div>`;
           }
         }
       } catch (e) {}
@@ -358,7 +358,7 @@ function renderFishbowlSidePanel() {
     const info = (window.__app && window.__app.getContextInfo) ? window.__app.getContextInfo() : null;
     if (info) {
       const who = info.speaker ? ("「" + safe(info.speaker) + "」") : "";
-      ctxHtml = `<div class="fb-side-ctx" style="font-size:11px;opacity:.72;padding:2px 2px 6px;">上下文：${safe(info.label)}${who} · 计入 ${info.included} 条 / 共 ${info.total} 条</div>`;
+      ctxHtml = `<div class="fb-side-ctx" style="font-size:11px;opacity:.72;padding:2px 2px 6px;">上下文：${safe(info.label)}${who}，计入 ${info.included} 条 / 共 ${info.total} 条</div>`;
     }
   } catch (e) {}
 
@@ -403,11 +403,11 @@ function renderAgentPeers() {
   const rows = cards.map((c) => {
     let n = null;
     try { n = (window.__app && window.__app.getRoleContextCount) ? window.__app.getRoleContextCount(c) : null; } catch (e) {}
-    return '<span class="chip-btn" title="' + safe(c.name) + (n != null ? (" · 自己的单聊上下文 " + n + " 条") : "") + '">'
+    return '<span class="chip-btn" title="' + safe(c.name) + (n != null ? ("（自己的单聊上下文 " + n + " 条）") : "") + '">'
       + safe(c.icon || "\u{1F642}") + " " + safe(c.name) + (n != null ? (" · " + n) : "") + "</span>";
   }).join("");
   box.innerHTML = '<div style="font-size:11px;opacity:.72;padding:0 2px 6px;">平级名单（可被私下咨询 / 可被请上台）'
-    + (info ? (' · 当前上下文计入 ' + info.included + "/" + info.total + " 条") : "")
+    + (info ? ('，当前上下文计入 ' + info.included + "/" + info.total + " 条") : "")
     + '</div><div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 2px 8px;">' + rows + "</div>";
 }
 

@@ -957,7 +957,7 @@
 
       <div class="sidebar-divider"></div>
       <!-- 2026-06-06 桌面版下载入口:指向 GitHub Releases 最新版页,GitHub 自动展示当版 NSIS .exe;放侧栏底部与 GitHub 同组。注:tauri-action 安装包文件名带版本号,故指向 /releases/latest 页,而非某个固定文件名直链(后者发新版会 404) -->
-      <a class="sidebar-btn" id="downloadDesktopBtn" href="https://github.com/MaxChen12114/OwnChat/releases/latest" target="_blank" rel="noopener" title="下载 Windows 桌面版(OwnChat · NSIS .exe,双击安装)">
+      <a class="sidebar-btn" id="downloadDesktopBtn" href="https://github.com/MaxChen12114/OwnChat/releases/latest" target="_blank" rel="noopener" title="下载 Windows 桌面版(OwnChat，NSIS .exe,双击安装)">
         <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v9.5"/><path d="M8 10l4 4 4-4"/><path d="M5 18.5h14"/></svg></span>
         <span class="sidebar-btn-label">下载桌面版</span>
       </a>
@@ -971,7 +971,7 @@
         <span class="sidebar-btn-label">GitHub</span>
       </a>
 
-      <div id="appVersionTagHome" title="">OwnChat · v4.71</div>
+      <div id="appVersionTagHome" title="">OwnChat v4.71</div>
     </nav>
   </aside>
 
@@ -1086,7 +1086,7 @@
         <div class="settings-cat-body">
 
         <div class="set-cat active" data-cat="account">
-        <div class="settings-group-title">账号 · 数据 · 同步</div>
+        <div class="settings-group-title">账号 / 数据 / 同步</div>
         <!-- 4.70 M1: 账号分类卡 DOM 移出 → settings.js mountAuthCard()(+后续云同步卡) 注入此槽 -->
         <div id="setAccountSlot"></div>
 
@@ -1097,7 +1097,7 @@
         </div><!-- /set-cat account -->
 
         <div class="set-cat" data-cat="appearance">
-        <div class="settings-group-title">外观 · 界面</div>
+        <div class="settings-group-title">外观 / 界面</div>
         <!-- 4.70 M1: 顶栏组件卡 DOM 已移出 index.html → settings.js mountTopbarCostCard() 注入此槽 -->
         <div id="setAppearanceTopSlot"></div>
         <div id="setAppearanceThemeSlot"></div>
@@ -1105,7 +1105,7 @@
         </div><!-- /set-cat appearance -->
 
         <div class="set-cat" data-cat="chat">
-        <div class="settings-group-title">对话 · 玩法</div>
+        <div class="settings-group-title">对话 / 玩法</div>
         <!-- 4.70 M1: 对话分类卡(互动模式 + 显示设置)DOM 已移出 → settings.js mountChatModeCard()/mountDisplayCard() 注入此槽 -->
         <div id="setChatSlot"></div>
 
@@ -1115,21 +1115,21 @@
 
         <!-- 2026-09-14 Agent 独立分类:工具集档位 / 最大轮数 / 工作模式 都归这里 -->
         <div class="set-cat" data-cat="agent">
-        <div class="settings-group-title">Agent · 工作模式</div>
+        <div class="settings-group-title">Agent 工作模式</div>
         <!-- settings.js 注入两张卡：mountAgentToolsCard()（工作模式 / 工具档位 / 轮数 / 工作目录）
              + mountMultiAgentCard()（编排玩法，2026-10-08 按用户口径拆出独立成卡） -->
         <div id="setAgentSlot"></div>
         </div><!-- /set-cat agent -->
 
         <div class="set-cat" data-cat="skill">
-        <div class="settings-group-title">技能 · Skill（Agent）</div>
+        <div class="settings-group-title">技能 / Skill（Agent）</div>
         <!-- 2026-06-24 Skill 系统独立分类:skills.js mountCard() 注入 #setSkillSlot(原挂 #setChatSlot,因「对话」分类卡过多而拆出独立「技能」标签)。
      2026-10-06: 分类改名「技能 · Skill（Agent）」——技能只在 agent 模式挂载,名字里点明,免得以为是聊天用的。 -->
         <div id="setSkillSlot"></div>
         </div><!-- /set-cat skill -->
 
         <div class="set-cat" data-cat="image">
-        <div class="settings-group-title">发图 · 图像</div>
+        <div class="settings-group-title">发图 / 图像</div>
         <!-- 2026-05-29 微信发图(实验):chat-image.js 配套设置卡 -->
         <div id="setImageChatSlot"></div>
 
@@ -1141,13 +1141,13 @@
              · 图像 API Key(Gitee,原挂 #settingsImageSlot/「发图」)
              以后接生图/各类外接模型 API 都归这,不再往各玩法 tab 里塞。注:本地 TTS 是本机服务(GPT-SoVITS,无外接端点/Key),不属此类,留在「语音」tab。 -->
         <div class="set-cat" data-cat="modelapi">
-        <div class="settings-group-title">模型 API · 外接模型</div>
+        <div class="settings-group-title">模型 API / 外接模型</div>
         <div id="setModelApiSlot"></div>
         </div><!-- /set-cat modelapi -->
 
         <!-- voice tab 内容区 + slot。mountVoiceCards() → getVoiceSlot() 依赖 #settingsVoiceSlot;本地 GPT-SoVITS 是本机服务、非外接 API,故独立留此 tab。initCatNav() 在非 Tauri 环境自动隐藏 voice tab,故网页版不可见,只有桌面 App 才会展示。 -->
         <div class="set-cat" data-cat="voice">
-        <div class="settings-group-title">语音 · TTS</div>
+        <div class="settings-group-title">语音 / TTS</div>
         <div id="settingsVoiceSlot"></div>
         </div><!-- /set-cat voice -->
 
@@ -1158,7 +1158,7 @@
         </div><!-- /set-cat dev -->
 
         <div class="set-cat" data-cat="advanced">
-        <div class="settings-group-title">记录 · 高级</div>
+        <div class="settings-group-title">记录 / 高级</div>
         <div id="setCostSlot"></div>
 
         <!-- 自定义人物模板卡已移出 → settings.js mountPersonaCard() 注入 #setChatSlot -->
@@ -1167,7 +1167,7 @@
         </div><!-- /settings-cat-body -->
         </div><!-- /settings-shell -->
 
-        <div id="appVersionTag" title="">OwnChat · v4.71 · build 20261007</div>
+        <div id="appVersionTag" title="">OwnChat v4.71（build 20261007）</div>
         <!-- 4.18 (fix): 关闭按钮平铺在 settings 末尾 (文档流末尾,不 sticky 占位)。原 closeSettings 在 data-dev-only 卡内会跟卡一起被普通模式隐藏导致退不出 settings,故拆出独立 rowline 放最后 -->
         <div class="rowline" id="settingsFooter" style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(127,127,127,.18);justify-content:flex-end;">
           <div></div>
