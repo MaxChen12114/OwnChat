@@ -53,6 +53,7 @@ OwnChat is a **self-hosted** application: this repository holds the source, and 
 | Conversations / character cards / settings / lorebooks | your browser `localStorage` | Local by default; gone if you clear site data |
 | Optional cloud sync | Cloudflare KV in **your own account** | Readable only by the Worker you deployed; off by default |
 | Bring-your-own model keys | your browser `localStorage` | Never synced, never uploaded |
+| Image channel settings and keys | your browser `localStorage` | Never synced; only the active channel is used |
 | Server-side model API keys | your Worker Secrets / local `.dev.vars` | Server-only, never sent to the frontend |
 | Desktop data | your `Documents/OwnChat` folder (SQLite) | Configurable in settings |
 | Ambient audio | static files shipped with the repo | 30 CC0 tracks, see `public/assets/ambient/CREDITS.txt` |
@@ -60,7 +61,7 @@ OwnChat is a **self-hosted** application: this repository holds the source, and 
 ### What leaves your machine
 
 - **Chat messages and prompts** are sent to the model provider **you** configured (DeepSeek, NVIDIA, or your own OpenAI-compatible endpoint) and are subject to that provider's policy. This is inherent to the feature.
-- **Image generation** requests go to the image service you configured.
+- **Image generation / editing** requests go to the image service you configured: Gitee AI through your Worker's `/img/*` proxy, or an OpenAI-compatible / local ComfyUI endpoint directly from your browser. Requests to a local ComfyUI server stay on your network.
 - **Web tools** (agent search/fetch) are proxied through the Worker you deployed.
 - **What we do not do**: no analytics, no telemetry, no crash reporting, no usage statistics, no identifiers sent anywhere.
 

@@ -111,7 +111,13 @@ Prompt libraries that ship with the repo are credited in `src/prompts/CREDITS.md
 
 ## Images & voice
 
-**Images.** Generation runs through a user-managed **image channel** (Settings → Model API → Image channels). The built-in **Gitee AI** preset calls `ai.gitee.com` through the deployment's `/img/*` proxy — you supply your own Gitee AI key. You can also add any **OpenAI-compatible** endpoint (called directly from your browser with its own key; the provider must allow CORS) or a local **ComfyUI** server (its `/prompt`, `/history` and `/view` endpoints). Text-to-image on the Gitee preset uses `z-image-turbo` (up to 2048×2048). **Editing** currently requires the Gitee preset (`Qwen-Image-Edit-2511`); image-to-video still uses Gitee's async task API (`Wan2_2-I2V-A14B`). Channel settings and keys stay on your device and are never synced. The Gitee free tier is around 100 images/day and the app keeps a local counter. On deployments that set an access password, proxied image APIs require being logged in, like the rest of the app.
+**Images.** Image generation is configured as **channels** under **Settings → Model API → Image channels**. Three kinds are supported:
+
+- **Gitee AI (built-in preset)** — calls `ai.gitee.com` through the deployment's `/img/*` proxy. Bring your own Gitee AI key. Text-to-image uses `z-image-turbo` (up to 2048×2048), editing uses `Qwen-Image-Edit-2511`, and the agent's image-to-video tool uses `Wan2_2-I2V-A14B` through Gitee's async task API. The free tier is around 100 images/day; the app's local counter covers proxied calls.
+- **OpenAI-compatible endpoint** — called directly from your browser with that channel's own key. The provider must allow CORS. Generation only; editing is not available on custom channels yet.
+- **Local ComfyUI** — called directly at its `/prompt`, `/history` and `/view` endpoints. The server must allow CORS and be reachable from the browser. Generation only; set the checkpoint and steps per channel.
+
+To add one, choose **+ Add**, fill in the Base URL, key (if any) and model list, then **Save**. The image workshop, character portraits, chat image paths and the studio page follow the active channel. Channel settings and keys stay on your device and are never synced. **Editing** currently requires the Gitee preset. On deployments that set an access password, proxied image APIs require being logged in, like the rest of the app.
 
 **Voice (desktop app only).** Reading replies aloud requires a local [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) `api_v2` server (default `127.0.0.1:9880`); the tray menu can start it and auto-start it on login. Reference audio is a **local file path** — it is never uploaded. `.ckpt` / `.pth` voice models are scanned and hot-swappable, and multiple reference clips are supported. The port lives in the app's local settings; there is no in-app UI for changing it yet.
 

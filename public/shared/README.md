@@ -11,7 +11,7 @@
 | `agent-reach.js` | `globalThis.AgentReach = { defineTools }` | 经典 `<script>` | ✅ 已接线（app.js 无条件追加其 7 个联网工具） |
 | `agent-console.js` | `mountAgentConsole(container, opts)` | **`<script type="module">`** | ✅ 已接线（右栏运行面板） |
 | `env-context.js` | `globalThis.__envContext` | 经典 `<script>` | ✅ 已接线（self_diagnostics 工具 + 会话环境快照） |
-| `skills.js` / `tts*.js` / `image-common.js` | `window.__skills / __omniTTS / __imageCommon ...` | 经典 `<script>` | ✅ 主站各链使用 |
+| `skills.js` / `tts*.js` / `image-channels.js` / `image-common.js` | `window.__skills / __omniTTS / __imageChannels / __imageCommon ...` | 经典 `<script>` | ✅ 主站各链使用（`image-channels.js` 须在 `image-common.js` 之前） |
 | `agent-llm-adapter.js` | ESM `createLLMClient` | **未加载** | ⚠️ 未来选项：provider-agnostic callModel 适配层（DeepSeek V4 消息清洗 / 流式 tool_calls 重组）。其清洗逻辑需先与 app.js 现内联实现比对后才能接入或删除 |
 
 ## 工具注册表（createToolRegistry）
