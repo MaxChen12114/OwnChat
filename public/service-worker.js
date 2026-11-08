@@ -1,4 +1,4 @@
-/* Cloudflare static shell SW — network-first, additive, zero-risk to dynamic routes */
+/* Service Worker（离线壳 + 请求闸门）—— network-first，动态路由零触碰 */
 // 4.82: SHELL 补上 /styles-2.css(主页面第二个样式表,之前漏了 → 首次离线访问缺样式)。
 // 注意改此列表要同步递增 CACHE 版本号,否则旧缓存不会刷新。
 const CACHE = 'cfw-shell-v2';
