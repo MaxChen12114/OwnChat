@@ -1860,21 +1860,6 @@
     window.__agentConsole = null;
   }
 
-  // 2026-11-08: 右栏「活动」tab 状态驱动 —— 多智能体或 Agent 模式任一开=显示（标签恒为「活动」，2026-11-08 所有者定名），都关=隐藏。
-  // 旧版标签写死「群聊」，多智能体没开也常驻，与面板内空态提示（会引导去开多智能体）不一致。
-  function syncFishbowlTab(){
-    if (!fishbowlTab) return;
-    var agentOn = false, multiOn = false;
-    try { agentOn = isAgentOn(); } catch (e) {}
-    try { multiOn = !!(window.__multi && window.__multi.isMulti && window.__multi.isMulti()); } catch (e) {}
-    var show = agentOn || multiOn;
-    fishbowlTab.style.display = show ? '' : 'none';
-    if (!show && fishbowlTab.classList.contains('active')) {
-      var st = document.querySelector('.rs-tab[data-rs-tab="status"]');
-      if (st) st.click();
-    }
-  }
-
   // 2026-09-14:html.agent-mode 供 CSS 切换 Agent 模式的视觉(AI 输出平铺、去气泡)
   function syncAgentClass(on){
     try { document.documentElement.classList.toggle('agent-mode', !!on); } catch(e) {}
@@ -1892,7 +1877,6 @@
     } else {
       unmountAgentPanel();
     }
-    try { syncFishbowlTab(); } catch (e) {}
     updateBtnUI();
   }
 
@@ -1906,9 +1890,7 @@
     mobileAgentPanel = document.getElementById('mobileTabPanel-agent');
 
     if (btn) btn.addEventListener('click', function(){ applyAgentMode(!isAgentOn()); });
-    // 2026-11-08: 「群聊」tab 显隐跟随两个开关（多智能体 / Agent 模式）+ 手机 Agent tab 兜底挂载
-    try { window.addEventListener('multi-agent:changed', function(){ try { syncFishbowlTab(); } catch (e) {} }); } catch (e) {}
-    try { syncFishbowlTab(); } catch (e) {}
+    // 2026-11-08: 手机 Agent tab 兜底挂载（已开 Agent 但控制台未挂载时，点 tab 补挂）
     if (mobileAgentTabEl) mobileAgentTabEl.addEventListener('click', function(){
       try { if (isAgentOn() && !window.__agentConsole) mountAgentPanel(true); } catch (e) {}
     });
