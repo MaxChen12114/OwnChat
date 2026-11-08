@@ -17,9 +17,7 @@
   var LS_GRAPH = 'cfw_coding_graph_v1';
   var LS_MODEL = 'cfw_coding_model_v1';
 
-  function esc(s) {
-    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
+  var esc = window.__ownEscape.esc;
 
   function models() {
     var free = (window.APP_MODELS_FREE && window.APP_MODELS_FREE.length) ? window.APP_MODELS_FREE : ['deepseek-ai/deepseek-v4-pro', 'z-ai/glm-5.1', 'openai/gpt-oss-120b'];

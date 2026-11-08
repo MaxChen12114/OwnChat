@@ -233,7 +233,7 @@
   function mountBaseIdCard() {
     var slot = document.getElementById('setChatSlot');
     if (!slot || document.getElementById('baseIdCard')) return;
-    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    var esc = window.__ownEscape.esc;
     var card = document.createElement('div');
     card.className = 'card'; card.id = 'baseIdCard';
     card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>基座提示词（系统提示第一段）</h4><p>底座是 system 提示词的第一段，所有聊天都吃它——内置模型与自定义直连一样。</p><div style="margin-top:10px;"><select id="baseIdSel" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"></select></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>选项就是 <code>src/prompts/bases/</code> 里的文件名（<b>默认</b> = 排序第一份；想让某份当默认，就在它名字最前面加个数字）。切换后<b>下一轮</b>生效（上游缓存前缀会重算一次）。两个目录：<code>src/prompts/bases/</code> 放正经的（随包一份「基础」），<code>src/prompts/custom/</code> 放你自己留着的那些 —— 顶栏那个按钮在两者之间切换。各放一个 <code>.md</code> / <code>.txt</code>（或一整个子目录 = 多文件基座），部署后下拉里自动多一项。<b><code>custom/</code> 里的东西别提交进公开仓库</b>（加进 <code>.gitignore</code>）。</span></div>`;
@@ -1050,7 +1050,7 @@
     wireWarn();
     const listEl = document.getElementById('cloudExcludeList');
     if (!listEl) return;
-    function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    var esc = window.__ownEscape.esc;
     function cards() { try { return (window.__character && window.__character.listAllCards) ? (window.__character.listAllCards() || []) : []; } catch(e) { return []; } }
     function slots() { try { const raw = localStorage.getItem('cfw_chat_session_v1'); if (!raw) return []; const m = JSON.parse(raw); return (m && typeof m === 'object' && !Array.isArray(m)) ? Object.keys(m) : []; } catch(e) { return []; } }
     function excluded() { try { return (window.__sync && window.__sync.getExcluded) ? window.__sync.getExcluded() : { roles: [], sessions: [] }; } catch(e) { return { roles: [], sessions: [] }; } }
@@ -1614,7 +1614,7 @@
     if (!window.__providers) return; // providers.js 未加载(旧缓存页兜底):不挂卡,不炸
     var P = window.__providers;
     var toastFn = (window.__feedback && window.__feedback.toast) || function (m) { try { console.warn('[providers]', m); } catch (e) {} };
-    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    var esc = window.__ownEscape.esc;
     function curMode() { try { return localStorage.getItem('cfw_mode') === 'fast' ? 'fast' : 'free'; } catch (e) { return 'free'; } }
     function parseKey(key) {
       var s = String(key || '');
@@ -1874,7 +1874,7 @@
     var K = 'cfw_custom_pricing_v1';
     function read() { try { var o = JSON.parse(localStorage.getItem(K) || '{}'); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; } catch (e) { return {}; } }
     function write(o) { try { localStorage.setItem(K, JSON.stringify(o || {})); } catch (e) {} }
-    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    var esc = window.__ownEscape.esc;
     var card = document.createElement('div'); card.className = 'card'; card.id = 'customPricingCard';
     card.innerHTML = '<h4>自定义模型定价</h4>'
       + '<p>给自定义直连或候选池里的新模型补价格。单位是 <b>¥ / 百万 token</b>；保存后费用估算立即生效，并随云同步跨端保存。</p>'

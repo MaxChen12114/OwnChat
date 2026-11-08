@@ -123,12 +123,13 @@
     if (!registry || typeof registry.define !== "function") return;
     // 2026-09-14:逐个独立 try/catch —— registry.define 对重名会抛错,若整体包一个 try,
     // 第一个重名就会把后面所有文件工具一起带崩(工具全没了)。
-    var _rawDefine = registry.define.bind(registry);
-    registry.define = function (def) {
-      try { _rawDefine(def); } catch (e) { console.warn("[agent-workspace] 注册工具失败:", def && def.name, e); }
+    // 2026-11-08 修(审查 P1): 旧版永久改写共享 registry.define 吞重名错误,其它模块注册重名
+    // 只剩 console.warn,重复调用 defineTools 还会层层嵌套包裹。改成本地 helper 只包本模块的注册。
+    var def = function (d) {
+      try { registry.define(d); } catch (e) { console.warn("[agent-workspace] 注册工具失败:", d && d.name, e); }
     };
 
-    registry.define({
+    def({
       name: "list_files",
       description: "列出当前会话工作区里的文件(路径 / 大小 / 最后修改时间)。工作区是本设备的 IndexedDB,跨会话隔离。",
       parameters: { type: "object", properties: {} },
@@ -140,7 +141,7 @@
       },
     });
 
-    registry.define({
+    def({
       name: "read_file",
       description: "读取工作区文件（**按行分页**）。默认返回前 400 行；文件更长时结果里带 totalLines 与 nextOffset，" +
         "继续读就把 offset 传成 nextOffset。要找内容先用 search_file（先搜后读，比整读省得多，也不会被截断挖掉中段）。",
@@ -175,7 +176,7 @@
       },
     });
 
-    registry.define({
+    def({
       name: "search_file",
       description: "在工作区文件里检索（grep 语义）：返回命中**行号 + 上下文**。" +
         "默认**字面**匹配（快、零误报）；regex:true 才按正则解释 pattern（带长度上限与嵌套量词拒绝，防回溯炸弹）。" +
@@ -247,7 +248,7 @@
       },
     });
 
-    registry.define({
+    def({
       name: "write_file",
       description: "把内容写入当前会话工作区(IndexedDB,真持久化,可被 read_file 立刻读回)。" +
         "适合产出报告/代码/数据,或作为多步任务的中间产物。要导出到真实磁盘用 export_file。",
@@ -267,7 +268,7 @@
       },
     });
 
-    registry.define({
+    def({
       name: "edit_file",
       description: "在工作区文件里做精确替换(把 old_string 换成 new_string)。old_string 必须在文件里唯一出现,否则报错让你补足上下文。是最常用的「改文件」工具。",
       destructive: true,
@@ -299,7 +300,7 @@
       },
     });
 
-    registry.define({
+    def({
       name: "delete_file",
       description: "从工作区删除一个文件。",
       destructive: true,
@@ -316,7 +317,7 @@
     });
 
     // 导出到真实磁盘:桌面端走 Tauri 保存对话框,网页端触发浏览器下载
-    registry.define({
+    def({
       name: "export_file",
       description: "把工作区文件导出到**真实磁盘**(桌面端弹保存对话框,网页端触发下载)。要落盘给用户时才用;" +
         "只是产出中间文件请用 write_file(写工作区,不需要用户干预)。",

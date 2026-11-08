@@ -54,11 +54,7 @@
 .conv-menu button.danger:hover{background:rgba(232,96,125,.16);}
 `;
 
-  function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-    });
-  }
+  var esc = window.__ownEscape.esc;
   function ensureCss() {
     if (document.getElementById(STYLE_ID)) return;
     var s = document.createElement("style");

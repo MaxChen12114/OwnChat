@@ -290,6 +290,12 @@ export function mountAgentConsole(container, opts = {}) {
 				setStatus("done", "已完成"); stopClock(); break
 			case "max_iterations":
 				setStatus("warn", "已达最大轮数"); stopClock(); break
+			// 2026-11-08(审查 P2): kernel 在 abortNow 与 beforeStep 否决时必发这两类事件,
+			// 旧版 switch 没有分支 → 状态条与计时器一直跑到下次 clear
+			case "aborted":
+				setStatus("warn", "已中止"); stopClock(); break
+			case "blocked":
+				setStatus("warn", "已拦截（权限未放行）"); stopClock(); break
 			default:
 				break
 		}

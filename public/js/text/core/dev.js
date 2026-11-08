@@ -149,19 +149,16 @@
 
   // ============== 4.23 Dev 测试增强 · 状态 ==============
   const OVR_KEY="cfw_dev_overrides_v1";
-  const NOTES_KEY="cfw_dev_notes_v1";
-  const HUD_KEY="cfw_dev_hud_v1";
-  const INJECT_ID="__dev_inject__";
-  let ovr=(function(){try{return JSON.parse(localStorage.getItem(OVR_KEY)||"{}")||{};}catch(e){return{};}})();
+    const HUD_KEY="cfw_dev_hud_v1";
+    let ovr=(function(){try{return JSON.parse(localStorage.getItem(OVR_KEY)||"{}")||{};}catch(e){return{};}})();
   let fault=null;
   let faultMs=4000;
   function saveOvr(){try{localStorage.setItem(OVR_KEY,JSON.stringify(ovr));}catch(e){}}
   const hud={inflight:false,ms:0,bytes:0,at:0,model:""};
-  let snapshots=[];
 
   // === Prompt 调试: monkey-patch fetch,旁路存 /api/chat payload ===
   // 2026-06-15 升级: 单条 lastPayload → 环形缓冲(最多 MAX_PAYLOADS 条),面板可列表切换查看历史请求;
-  // 每条记录 status/ms/bytes(由 measureStream 回填)。lastPayload 保留为"最新一条"做向后兼容(buildReport/replay 等仍可用)。
+  // 每条记录 status/ms/bytes(由 measureStream 回填)。lastPayload 保留为"最新一条"(setLastPayload 公开 API 可写)。
   const MAX_PAYLOADS=25;
   // 2026-10-08: 开发者模式关着时只留最后几条（够"开着模式回看刚才那条"用）——
   // 环是无条件装的（谁都进），但每条 payload 是完整消息历史，25 条在最坏情况下是几十 MB 常驻。
@@ -469,7 +466,7 @@
           try{
             let b=typeof init.body==="string"?JSON.parse(init.body):init.body;
             _curEntry=setLastPayload(b);
-            b._debugEcho=true; // dev 面板:请求服务端只读回显真实装配(仅通过访问校验的请求响应,只反射不改 prompt)
+            if(isOn())b._debugEcho=true; // dev 面板:请求服务端只读回显真实装配(仅通过访问校验的请求响应,只反射不改 prompt)
             const dbgStream=localStorage.getItem("cfw_dev_stream_probe_v1")==="1";
             if(dbgStream){
               const h=new Headers((init&&init.headers)||{});
@@ -615,21 +612,6 @@
     }catch(e){await clip("下载失败:"+String(e).slice(0,50));}
   }
 
-  function readLsAll(){const o={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k)o[k]=localStorage.getItem(k);}return o;}
-  function modelOptions(){const sel=document.getElementById("modelSel");return sel?Array.prototype.map.call(sel.options,function(o){return{v:o.value,t:o.textContent};}):[];}
-  function setModel(v){const sel=document.getElementById("modelSel");if(sel){sel.value=v;sel.dispatchEvent(new Event("change",{bubbles:true}));}}
-    function clickThink(){const b=document.getElementById("thinkToggle");if(b)b.click();}
-  function setReplyStyle(v){localStorage.setItem("cfw_reply_style_v1",v);}
-  function getInject(){try{const a=JSON.parse(localStorage.getItem("cfw_prompt_presets_v1")||"[]");const p=(Array.isArray(a)?a:[]).find(function(x){return x&&x.id===INJECT_ID;});return p?p.content:"";}catch(e){return"";}}
-  function setInject(text){let a;try{a=JSON.parse(localStorage.getItem("cfw_prompt_presets_v1")||"[]");if(!Array.isArray(a))a=[];}catch(e){a=[];}a=a.filter(function(x){return !(x&&x.id===INJECT_ID);});if(text&&text.trim()){const mo=a.reduce(function(m,x){return Math.max(m,x.order||0);},0);a.push({id:INJECT_ID,name:"🧪 DEV注入",content:text,enabled:true,order:mo+1,group:"DEV"});}try{localStorage.setItem("cfw_prompt_presets_v1",JSON.stringify(a));}catch(e){}}
-  function snapTake(name){const slot={name:name||("存档 "+(snapshots.length+1)),at:Date.now(),ls:readLsAll()};snapshots.push(slot);return slot;}
-  function snapRestore(i){const s=snapshots[i];if(!s)return;if(!confirm("回滚到「"+s.name+"」？\n会覆盖当前 localStorage 并刷新(IndexedDB 角色卡不受影响)。"))return;try{localStorage.clear();Object.keys(s.ls).forEach(function(k){localStorage.setItem(k,s.ls[k]);});}catch(e){alert("回滚失败:"+e);return;}location.reload();}
-  function snapDownload(i){const s=(i>=0&&snapshots[i])?snapshots[i]:{name:"current",at:Date.now(),ls:readLsAll()};const blob=new Blob([JSON.stringify(s,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="snapshot-"+Date.now()+".json";a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
-  function snapUpload(file){const r=new FileReader();r.onload=function(){try{const s=JSON.parse(r.result);if(!s||!s.ls)throw new Error("格式不对");if(!confirm("从文件回滚?会覆盖当前 localStorage 并刷新。"))return;localStorage.clear();Object.keys(s.ls).forEach(function(k){localStorage.setItem(k,s.ls[k]);});location.reload();}catch(e){alert("读取失败:"+e);}};r.readAsText(file);}
-  function notesLoad(){try{const r=JSON.parse(localStorage.getItem(NOTES_KEY)||"[]");return Array.isArray(r)?r:[];}catch(e){return[];}}
-  function notesSave(a){try{localStorage.setItem(NOTES_KEY,JSON.stringify(a));}catch(e){}}
-  function noteAdd(text){if(!text||!text.trim())return;const a=notesLoad();const ch=window.__character;const cardName=(ch&&ch.getActiveCard&&(ch.getActiveCard()||{}).name)||"";const ctx={model:hud.model||"",theme:localStorage.getItem("cfw_theme_v1")||"minimal",card:cardName};a.push({at:Date.now(),text:text.trim(),ctx:ctx});notesSave(a);}
-  function noteDel(i){const a=notesLoad();a.splice(i,1);notesSave(a);}
   let hudEl=null;
   function showHud(){if(!hudEl){hudEl=document.createElement("div");hudEl.id="dev-hud";hudEl.style.cssText="position:fixed;left:12px;bottom:72px;z-index:9000;background:var(--bg,#16161e);color:inherit;border:1px solid var(--border,rgba(127,127,127,.35));border-radius:12px;padding:9px 11px;font:11px/1.5 ui-monospace,Menlo,Consolas,monospace;max-width:240px;box-shadow:0 8px 24px rgba(0,0,0,.4);backdrop-filter:blur(8px);cursor:move;";document.body.appendChild(hudEl);dragify(hudEl);}localStorage.setItem(HUD_KEY,"1");hudEl.style.display="block";updateHud();}
   function hideHud(){localStorage.setItem(HUD_KEY,"0");if(hudEl)hudEl.style.display="none";}
@@ -641,27 +623,6 @@
       const _rows=(function(){try{return document.querySelectorAll("#chat .row").length;}catch(e){return "—";}})();
       hudEl.innerHTML='<div style="display:flex;justify-content:space-between;gap:8px;"><b style="color:inherit;opacity:.65;letter-spacing:.04em;">DEV HUD</b><span data-hud-x style="cursor:pointer;color:#e8607d;">关闭</span></div><div>模型 '+esc(hud.model||"—")+'</div><div>'+esc(th)+'</div><div>'+esc(think)+'</div><div>同步 '+sync+' · push '+push+'</div><div>堆 '+_mem+' · 消息行 '+_rows+'</div><div>'+(hud.inflight?'<span style="color:#fd6;">请求中…</span>':('上次 '+(hud.ms||0)+'ms · '+spd))+'</div>'+(fault?'<div style="color:#f66;">故障注入:'+fault+'</div>':'');const x=hudEl.querySelector("[data-hud-x]");if(x)x.onclick=hideHud;}
   setInterval(function(){try{updateHud();}catch(e){}},2000);
-  function buildReport(){const notes=notesLoad();const lines=["# 测试报告 "+new Date().toLocaleString(),"","## 环境","- 模型(最近): "+(hud.model||"—"),"- 主题: "+(localStorage.getItem("cfw_theme_v1")||"minimal"),"- UA: "+navigator.userAgent,"","## Bug / 笔记 ("+notes.length+")"];notes.forEach(function(n,i){lines.push((i+1)+". ["+new Date(n.at).toLocaleString()+"] "+n.text+"  \n   _ctx: 模型="+n.ctx.model+" 主题="+n.ctx.theme+(n.ctx.card?" 角色="+n.ctx.card:"")+"_");});if(lastPayload){lines.push("","## 最近一次请求 payload","```json",JSON.stringify(lastPayload.payload,null,2),"```");}return lines.join("\n");}
-  function chaos(){const themes=["minimal","glass","candle"];const t=themes[Math.floor(Math.random()*themes.length)];if(window.__theme&&window.__theme.set)window.__theme.set(t);else localStorage.setItem("cfw_theme_v1",t);const opts=modelOptions();if(opts.length)setModel(opts[Math.floor(Math.random()*opts.length)].v);const styles=["default","wechat","verbose"];setReplyStyle(styles[Math.floor(Math.random()*styles.length)]);toast("🎰 混沌:"+t,2000);setTimeout(function(){if(mask&&mask.style.display!=="none")renderPanel();},120);}
-  async function replay(){if(!lastPayload){alert("还没捕获到 payload,先发一条消息");return;}const t0=Date.now();try{const r=await window.fetch("/api/chat",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(lastPayload.payload)});const txt=await r.text();alert("重放完成 "+(Date.now()-t0)+"ms · HTTP "+r.status+"\n\n"+txt.slice(0,800));}catch(e){alert("重放失败:"+e);}}
-  function dtParam(){
-    const opts=modelOptions(),cur=(document.getElementById("modelSel")||{}).value||"";
-    const rs=localStorage.getItem("cfw_reply_style_v1")||"default";
-    return '<div class="devx-card"><div class="devx-h">参数快切台</div><div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;"><select data-q-model class="dev-in">'+opts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===cur?" selected":"")+'>'+esc(o.t)+'</option>';}).join("")+'</select><select data-q-style class="dev-in"><option value="default"'+(rs==="default"?" selected":"")+'>默认</option><option value="wechat"'+(rs==="wechat"?" selected":"")+'>微信连发</option><option value="verbose"'+(rs==="verbose"?" selected":"")+'>长段叙事</option></select><button class="dev-btn" data-q-think>思考模式</button></div><div style="display:flex;gap:6px;margin-top:6px;align-items:center;"><span style="color:var(--muted);">temp</span><input data-q-temp class="dev-in" type="number" step="0.1" style="width:60px;" value="'+(typeof ovr.temp==="number"?ovr.temp:"")+'" placeholder="默认"><span style="color:var(--muted);">max</span><input data-q-max class="dev-in" type="number" style="width:80px;" value="'+(typeof ovr.maxTokens==="number"?ovr.maxTokens:"")+'" placeholder="默认"></div><div class="devx-tip">temp/max 为追加叠加;worker 不读则无害</div></div>';
-  }
-  function dtPrompt(){
-    return '<div class="devx-card"><div class="devx-h">Prompt 透视 + 实时注入</div><button class="dev-btn" data-x-payload>解析最近 payload</button><div class="devx-tip" style="margin:6px 0 4px;">下面内容作为追加预设(🧪DEV注入)走真实通道,只追加不动基座:</div><textarea data-inject class="dev-in" rows="3" style="width:100%;" placeholder="临时追加到 system…">'+esc(getInject())+'</textarea><div style="display:flex;gap:6px;margin-top:4px;"><button class="dev-btn" data-inject-save>启用注入</button><button class="dev-btn" data-inject-clear>清除注入</button></div></div>';
-  }
-  function dtSnap(){
-    return '<div class="devx-card"><div class="devx-h">状态快照 / 回滚</div><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="dev-btn" data-snap-take>存档(内存)</button><button class="dev-btn" data-snap-dl>下载当前</button><label class="dev-btn" style="cursor:pointer;">从文件回滚<input type="file" data-snap-up accept=".json" style="display:none;"></label></div><div data-snap-list style="margin-top:6px;font-size:11px;"></div><div class="devx-tip">快照只含 localStorage;IndexedDB 的角色卡不在内</div></div>';
-  }
-  function dtNotes(){
-    return '<div class="devx-card"><div class="devx-h">Bug 速记 / 测试报告</div><div style="display:flex;gap:6px;"><input data-note class="dev-in" style="flex:1;" placeholder="记一条 bug/观察(自动附环境)…"><button class="dev-btn" data-note-add>+ 记</button></div><div data-note-list style="margin-top:6px;font-size:11px;max-height:160px;overflow:auto;"></div><div style="display:flex;gap:6px;margin-top:6px;"><button class="dev-btn" data-report-md>复制报告(MD)</button><button class="dev-btn" data-report-dl>下载报告</button></div></div>';
-  }
-  function dtHud(){
-    const sp=localStorage.getItem("cfw_dev_stream_probe_v1")==="1";
-    return '<div class="devx-card"><div class="devx-h">实时 HUD 浮层</div><div style="display:flex;gap:6px;"><button class="dev-btn" data-hud-on>显示 HUD</button><button class="dev-btn" data-hud-off>隐藏 HUD</button></div><div style="margin-top:8px;"><label style="display:flex;gap:7px;align-items:center;cursor:pointer;"><input type="checkbox" data-stream-probe '+(sp?"checked":"")+'>Debug Stream 包装探针</label></div><div class="devx-tip">默认关闭:Worker 纯透传上游 SSE,降低 CF 免费版 CPU 截断风险。打开后请求带 X-Debug-Stream: 1,才走包装流并回显真实 Prompt/入站探针。</div></div>';
-  }
   // 2026-06-15 瘦身:删掉与主站重复的参数快切 + 酒馆味玩法(造场景/混沌/重放/快照/笔记),只留主站 UI 没有的采样覆盖 + 故障注入 + HUD。
   function dtSampling(){
     return '<div class="devx-card"><div class="devx-h">采样参数覆盖(仅调试 · 主站 UI 无此项)</div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span style="color:var(--muted);">temperature</span><input data-q-temp class="dev-in" type="number" step="0.1" style="width:72px;" value="'+(typeof ovr.temp==="number"?ovr.temp:"")+'" placeholder="默认"><span style="color:var(--muted);">max_tokens</span><input data-q-max class="dev-in" type="number" style="width:90px;" value="'+(typeof ovr.maxTokens==="number"?ovr.maxTokens:"")+'" placeholder="默认"></div><div class="devx-tip">留空=不覆盖。fetch 拦截层会把这两个值追加进 /api/chat body(worker 不读则无害),用于对照同一对话不同采样下的输出。</div></div>';
@@ -673,47 +634,8 @@
     const style='<style>#dev-panel .devx-card{background:var(--bubble-ai,#101010);border:1px solid var(--border,#242424);border-radius:14px;padding:14px 16px;margin-bottom:12px;}#dev-panel .devx-h{font-weight:600;margin-bottom:8px;font-size:13px;letter-spacing:.01em;color:inherit;}#dev-panel .devx-tip{color:var(--muted,#8a8a8a);font-size:11px;margin-top:6px;line-height:1.55;}#dev-panel .dev-in{background:rgba(127,127,127,.1);color:inherit;border:1px solid rgba(127,127,127,.28);border-radius:8px;padding:5px 8px;font-size:12px;max-width:100%;}#dev-panel .dev-in:focus{outline:none;border-color:var(--btn-bg,#9aa3ff);}</style>';
     return '<div style="margin:4px 0 12px;padding-top:6px;font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#9a9aab);">底层调试工具 · 2026-06-15</div>'+dtSampling()+dtFault()+dtHud()+style;
   }
-  function dtPlay(){
-    return '<div class="devx-card"><div class="devx-h">玩法 / 容错测试</div><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="dev-btn" data-chaos>混沌随机</button><button class="dev-btn" data-replay>重放上条</button></div><div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;"><span style="color:var(--muted);">故障注入</span><select data-fault class="dev-in"><option value="">关</option><option value="error"'+(fault==="error"?" selected":"")+'>网络中断</option><option value="http500"'+(fault==="http500"?" selected":"")+'>HTTP 500</option><option value="slow"'+(fault==="slow"?" selected":"")+'>慢响应</option></select><input data-fault-ms class="dev-in" type="number" style="width:74px;" value="'+faultMs+'"><span style="color:var(--muted);">ms</span></div>'+(fault?'<div style="color:#f66;font-size:11px;margin-top:4px;">故障注入生效中,测完记得关</div>':'')+'</div>';
-  }
-  function renderDevDynamic(p){
-    const sl=p.querySelector("[data-snap-list]");
-    if(sl)sl.innerHTML=snapshots.length?snapshots.map(function(s,i){return '<div style="display:flex;justify-content:space-between;gap:6px;padding:2px 0;"><span>'+esc(s.name)+' · '+new Date(s.at).toLocaleTimeString()+'</span><span><button class="dev-btn" data-snap-restore="'+i+'">回滚</button> <button class="dev-btn" data-snap-dli="'+i+'">下载</button></span></div>';}).join(""):'<span style="color:var(--muted);">暂无内存存档</span>';
-    const nl=p.querySelector("[data-note-list]");const notes=notesLoad();
-    if(nl)nl.innerHTML=notes.length?notes.map(function(n,i){return '<div style="display:flex;justify-content:space-between;gap:6px;padding:2px 0;border-bottom:1px solid var(--border);"><span>['+new Date(n.at).toLocaleTimeString()+'] '+esc(n.text)+'</span><button class="dev-btn" data-note-del="'+i+'">删</button></div>';}).join(""):'<span style="color:var(--muted);">还没记录</span>';
-  }
-  function wireDevTools(p){wireParamTools(p);wirePromptTools(p);wireSnapTools(p);wireNoteTools(p);wirePlayTools(p);wireHudTools(p);}
-  function wireParamTools(p){
-    p.querySelector("[data-q-model]")?.addEventListener("change",function(e){setModel(e.target.value);toast("模型→"+e.target.value,1000);});
-    p.querySelector("[data-q-style]")?.addEventListener("change",function(e){setReplyStyle(e.target.value);});
-    p.querySelector("[data-q-think]")?.addEventListener("click",function(){clickThink();});
-    p.querySelector("[data-q-temp]")?.addEventListener("change",function(e){const v=parseFloat(e.target.value);if(isNaN(v))delete ovr.temp;else ovr.temp=v;saveOvr();});
-    p.querySelector("[data-q-max]")?.addEventListener("change",function(e){const v=parseInt(e.target.value,10);if(isNaN(v))delete ovr.maxTokens;else ovr.maxTokens=v;saveOvr();});
-  }
-  function wirePromptTools(p){
-    p.querySelector("[data-x-payload]")?.addEventListener("click",function(){if(!lastPayload){alert("还没捕获 payload");return;}const b=lastPayload.payload||{};const msgs=Array.isArray(b.messages)?b.messages:[];const lastU=(msgs.filter(function(m){return m.role==="user";}).pop()||{}).content||"";const lines=["模型: "+(b.model||"—"),"消息数: "+msgs.length,"角色卡: "+((b.characterCard&&b.characterCard.name)||b.characterCard||"—"),"关系: "+(b.relation||"—")+" 情绪: "+(b.emotion||"—"),"temperature: "+(b.temperature==null?"(默认)":b.temperature),"max_tokens: "+(b.max_tokens==null?"(默认)":b.max_tokens),"","最后一条 user: "+String(lastU).slice(0,300)];alert("🔬 payload 解析\n\n"+lines.join("\n"));});
-    p.querySelector("[data-inject-save]")?.addEventListener("click",function(){const v=p.querySelector("[data-inject]").value;setInject(v);toast(v.trim()?"💉 注入已启用(走预设通道)":"已清空注入",1400);});
-    p.querySelector("[data-inject-clear]")?.addEventListener("click",function(){setInject("");p.querySelector("[data-inject]").value="";toast("已清除注入",1000);});
-  }
-  function wireSnapTools(p){
-    p.querySelector("[data-snap-take]")?.addEventListener("click",function(){const n=prompt("存档名:","存档 "+(snapshots.length+1));if(n===null)return;snapTake(n);renderDevDynamic(p);toast("📸 已存档(内存)",1000);});
-    p.querySelector("[data-snap-dl]")?.addEventListener("click",function(){snapDownload(-1);});
-    p.querySelector("[data-snap-up]")?.addEventListener("change",function(e){const f=e.target.files&&e.target.files[0];if(f)snapUpload(f);});
-    const sl=p.querySelector("[data-snap-list]");
-    if(sl)sl.addEventListener("click",function(e){const b=e.target.closest("button");if(!b)return;if(b.dataset.snapRestore!=null)snapRestore(parseInt(b.dataset.snapRestore,10));else if(b.dataset.snapDli!=null)snapDownload(parseInt(b.dataset.snapDli,10));});
-  }
-  function wireNoteTools(p){
-    const add=function(){const inp=p.querySelector("[data-note]");if(!inp)return;noteAdd(inp.value);inp.value="";renderDevDynamic(p);};
-    p.querySelector("[data-note-add]")?.addEventListener("click",add);
-    p.querySelector("[data-note]")?.addEventListener("keydown",function(e){if(e.key==="Enter")add();});
-    p.querySelector("[data-report-md]")?.addEventListener("click",function(){navigator.clipboard.writeText(buildReport());toast("📋 报告已复制(Markdown)",1400);});
-    p.querySelector("[data-report-dl]")?.addEventListener("click",function(){const blob=new Blob([buildReport()],{type:"text/markdown"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="test-report-"+Date.now()+".md";a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);});
-    const nl=p.querySelector("[data-note-list]");
-    if(nl)nl.addEventListener("click",function(e){const b=e.target.closest("button[data-note-del]");if(b){noteDel(parseInt(b.dataset.noteDel,10));renderDevDynamic(p);}});
-  }
-  function wirePlayTools(p){
-    p.querySelector("[data-chaos]")?.addEventListener("click",chaos);
-    p.querySelector("[data-replay]")?.addEventListener("click",replay);
+  function wireDevTools(p){wireFaultTools(p);wireHudTools(p);}
+  function wireFaultTools(p){
     p.querySelector("[data-fault]")?.addEventListener("change",function(e){fault=e.target.value||null;renderPanel();toast(fault?"🐛 故障注入:"+fault:"故障注入已关",1400);});
     p.querySelector("[data-fault-ms]")?.addEventListener("change",function(e){const v=parseInt(e.target.value,10);if(!isNaN(v))faultMs=Math.max(100,v);});
   }
@@ -739,7 +661,7 @@
     // 打开面板时把上次会话落盘的记录并回列表(只做一次;并回后会自己重渲一次)
     try{ioLoadHistory();}catch(e){}
   }
-  function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+  var esc = window.__ownEscape.esc;
   // ===== 2026-06-15 请求 I/O 探查器渲染 =====
   function fmtBytes(n){n=n||0;if(n<1024)return n+"B";if(n<1048576)return (n/1024).toFixed(1)+"KB";return (n/1048576).toFixed(2)+"MB";}
   function agoStr(at){const s=Math.max(0,Math.floor((Date.now()-(at||0))/1000));if(s<60)return s+"s 前";if(s<3600)return Math.floor(s/60)+"m 前";if(s<86400)return Math.floor(s/3600)+"h 前";return Math.floor(s/86400)+"d 前";}
@@ -846,7 +768,7 @@
     }
     h.push(`<style>#dev-panel,#dev-panel *{box-sizing:border-box;}#dev-panel code{color:inherit;}#dev-panel select,#dev-panel input,#dev-panel textarea{max-width:100%;}#dev-panel .dev-btn{display:inline-flex;align-items:center;gap:6px;background:rgba(127,127,127,.14);color:inherit;border:1px solid rgba(127,127,127,.3);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;transition:background .15s,border-color .15s;}#dev-panel .dev-btn:hover{background:rgba(127,127,127,.24);border-color:rgba(127,127,127,.5);}#dev-panel .dev-btn.danger{border-color:rgba(232,96,125,.4);background:rgba(232,96,125,.12);color:#e8607d;}#dev-panel .dev-btn.danger:hover{background:rgba(232,96,125,.22);border-color:rgba(232,96,125,.6);}#dev-panel input[type=checkbox]{accent-color:var(--btn-bg,#9aa3ff);}@media(max-width:640px){#dev-panel-mask{padding:0!important;align-items:stretch!important;height:100vh!important;height:100dvh!important;}#dev-panel{max-width:100%!important;width:100%!important;max-height:100vh!important;max-height:100dvh!important;height:100vh!important;height:100dvh!important;border-radius:0!important;border:none!important;padding:16px 14px calc(40px + env(safe-area-inset-bottom))!important;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}}</style>`);
     p.innerHTML=h.join("");
-    try{wireDevTools(p);renderDevDynamic(p);}catch(e){console.warn("[dev] tools wire fail",e);}
+    try{wireDevTools(p);}catch(e){console.warn("[dev] tools wire fail",e);}
     p.querySelector("[data-close]")?.addEventListener("click",()=>{mask.style.display="none";});
     p.querySelector("[data-debug-toggle]")?.addEventListener("change",(e)=>{api.debug=e.target.checked;localStorage.setItem(DBG,api.debug?"1":"0");});
     p.querySelector("[data-export-cfw]")?.addEventListener("click",()=>{const o=exportCfwLs();toast("已复制 cfw_* · "+Object.keys(o).length+" 项",1200);});

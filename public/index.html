@@ -1472,6 +1472,7 @@
 </script>
 <!-- 脚本加载顺序:鉴权 → 同步 → 基础模块 → app.js 主应用 → 面板 UI 模块 → 交互增强 -->
 <!-- auth.js 必须最早加载:它拦截全局 fetch,给 /sync 和 /api/* 自动注入 Authorization header -->
+<script src="/shared/escape.js"></script>
 <script src="/js/text/core/auth.js"></script>
 <!-- 4.17: dev.js 必须在 auth.js 后、其他模块前。它 monkey-patch fetch 抓 /api/chat payload,需要包裹 auth.js 的 Authorization 注入 -->
 <script src="/js/text/core/dev.js"></script>

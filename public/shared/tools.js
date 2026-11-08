@@ -930,7 +930,18 @@
 				async function pollTask(taskId) {
 					const start = Date.now()
 					while (Date.now() - start < 60 * 60 * 1000) {
-						const res = await fetch("/img/v1/task/" + encodeURIComponent(taskId), { method: "GET", headers: authHdr() })
+						// 2026-11-08(审查 P1): 单次轮询 25s 超时 —— 旧版裸 fetch,连接停滞则整个
+						// 视频接力与 agent 轮次挂死(同仓 image-common 同型轮询已有 25s 先例)
+						const _ctl = (typeof AbortController === "function") ? new AbortController() : null
+						const _tm = _ctl ? setTimeout(function(){ _ctl.abort(); }, 25000) : null
+						let res
+						try {
+							res = await fetch("/img/v1/task/" + encodeURIComponent(taskId), { method: "GET", headers: authHdr(), signal: _ctl ? _ctl.signal : undefined })
+						} catch (e) {
+							if (_tm) clearTimeout(_tm)
+							return { status: "error", raw: { error: "轮询网络异常: " + String((e && e.message) || e) } }
+						}
+						if (_tm) clearTimeout(_tm)
 						const j = await readJson(res)
 						const st = j.status || "unknown"
 						if (st === "success" || st === "failed" || st === "cancelled") return { status: st, raw: j }

@@ -15,10 +15,7 @@
   if (!C) { console.warn('[image-channels-ui] 缺少 image-channels.js'); return; }
 
   function q(id) { return document.getElementById(id); }
-  function esc(s) {
-    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
+  var esc = window.__ownEscape.esc;
   function parseModels(v) {
     return String(v || '').split(/[,，\n]/).map(function (x) { return x.trim(); }).filter(Boolean);
   }

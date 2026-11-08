@@ -12,8 +12,6 @@
     editsAsync:  '/img/v1/async/images/edits',
     task:        '/img/v1/task/',     // + encodeURIComponent(taskId)
     download:    '/img/dl?url=',      // + encodeURIComponent(url)
-    r2Save:      '/img/r2/save?url=', // + encodeURIComponent(url)  POST
-    r2Get:       '/img/r2/get'
   };
 
   // ── key / 鉴权(对齐 image-quickgen / image-chat / image-embed 约定)──
@@ -73,16 +71,6 @@
   }
 
   // ── 把任意图转存 R2 拿同源直链；未绑 R2(501)或失败 → 原链兜底 ──
-  async function persistToR2(srcUrl) {
-    if (!srcUrl) return srcUrl;
-    if (srcUrl.indexOf('/img/r2/get') === 0) return srcUrl;
-    if (srcUrl.indexOf('data:') === 0) return srcUrl;
-    try {
-      var r = await fetch(ENDPOINTS.r2Save + encodeURIComponent(srcUrl), { method: 'POST', headers: syncHeaders() });
-      if (r.ok) { var j = await r.json(); return j.url || srcUrl; }
-    } catch (e) {}
-    return srcUrl;
-  }
 
   // ── 文生图原语：返回 url 数组(调用方决定取第几张；prompt 必须已是最终词，画风由调用方拼好)──
   function parseSize(size) {
@@ -278,9 +266,9 @@
     if (/^data:/i.test(src) && src.length > 300 * 1024) {
       src = await shrinkDataUrl(src, 1024, 0.85);
     }
-    var persisted = await persistToR2(src);
-    var m = loadBaseMap(); m[characterId || 'default'] = persisted; saveBaseMap(m);
-    return persisted;
+    // 2026-11-08(审查 P1): R2 路由已删,转存调用恒失败回落 srcUrl —— 直用 src,删掉死调用
+    var m = loadBaseMap(); m[characterId || 'default'] = src; saveBaseMap(m);
+    return src;
   }
   function clearBaseImage(characterId) {
     var id = characterId || 'default';
@@ -293,7 +281,7 @@
     ENDPOINTS: ENDPOINTS,
     getKey: getKey, getChannel: getChannel, authHeaders: authHeaders,
     syncToken: syncToken, syncHeaders: syncHeaders,
-    dlFetch: dlFetch, persistToR2: persistToR2,
+    dlFetch: dlFetch,
     genImage: genImage, genEdit: genEdit, pollTask: pollTask,
     styleSuffix: styleSuffix,
     baseImage: { get: getBaseImage, set: setBaseImage, clear: clearBaseImage, LS_KEY: LS_BASE }

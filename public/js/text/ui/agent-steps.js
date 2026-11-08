@@ -104,11 +104,7 @@
       .map(function (k) { return k + "=" + String(args[k]).slice(0, 40); });
     return rest.length ? rest.join(" ") : "";
   }
-  function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-    });
-  }
+  var esc = window.__ownEscape.esc;
   function fmtResult(text) {
     var t = String(text == null ? "" : text);
     try {

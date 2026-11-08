@@ -6,14 +6,7 @@
   if (window.__chatExtras) return;
 
   function $(id) { return document.getElementById(id); }
-  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
-
-  // ───────── ① 文件上传 ─────────
-  var TEXT_EXT = /\.(txt|text|md|markdown|mdx|rst|json|jsonc|json5|csv|tsv|log|ya?ml|toml|ini|conf|env|xml|html?|css|scss|less|js|mjs|cjs|jsx|ts|tsx|vue|svelte|py|rb|go|rs|java|kt|c|h|cpp|hpp|cc|cs|php|sh|bash|zsh|sql|graphql|gql|lua|dart|swift|r|pl)$/i;
-  // 4.83: 阈值唯一真源在 attachments.js(__attach.ATT_MAX_CHARS),运行时读取防两处漂移
-  function maxChars() {
-    try { return (window.__attach && window.__attach.ATT_MAX_CHARS) || 20000; } catch (e) { return 20000; }
-  }
+  var esc = window.__ownEscape.esc;
   // 4.83: 截断可见反馈 —— 旧版只写 chip 的 title 悬浮提示,手机端无 hover 完全看不到
   function toast(msg) {
     try { if (window.__feedback && window.__feedback.toast) return window.__feedback.toast(msg, { ms: 4200 }); } catch (e) {}

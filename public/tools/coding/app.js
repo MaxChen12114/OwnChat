@@ -38,34 +38,7 @@
   // 公开版：基座只有一套，恒用内置（use_builtin_persona = true）
   
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
-  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;"); }
-  function normPath(p) { return String(p || "").replace(/\\/g, "/").replace(/\/{2,}/g, "/").replace(/^\/+|\/+$/g, "").trim(); }
-
-  // ───── 语法高亮(零依赖,手写扫描器:注释/字符串/数字/关键字) ─────
-  var KEYWORDS = {};
-  ("const let var function return if else for while do switch case break continue new class extends super this " +
-   "typeof instanceof in of try catch finally throw async await yield import from export default void delete " +
-   "null true false undefined NaN static get set def lambda None True False elif pass with as not and or is " +
-   "self print public private protected interface enum type namespace package").split(" ").forEach(function (k) { KEYWORDS[k] = 1; });
-  var HASH_EXT = { py: 1, rb: 1, sh: 1, bash: 1, yml: 1, yaml: 1, toml: 1, ini: 1, conf: 1, r: 1, pl: 1 };
-  function hlSpan(cls, text) { return '<span class="t-' + cls + '">' + esc(text) + '</span>'; }
-  function isWordChar(c) { return c && (c === "_" || c === "$" || (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || (c >= "0" && c <= "9")); }
-  function highlightCode(src, ext) {
-    src = String(src == null ? "" : src);
-    var hash = HASH_EXT[ext] === 1, out = "", i = 0, n = src.length;
-    while (i < n) {
-      var c = src[i], c2 = src[i + 1], j;
-      if (c === "/" && c2 === "*") { j = src.indexOf("*/", i + 2); j = j < 0 ? n : j + 2; out += hlSpan("comment", src.slice(i, j)); i = j; continue; }
-      if (c === "<" && src.substr(i, 4) === "<!--") { j = src.indexOf("-->", i + 4); j = j < 0 ? n : j + 3; out += hlSpan("comment", src.slice(i, j)); i = j; continue; }
-      if (c === "/" && c2 === "/") { j = src.indexOf("\n", i); if (j < 0) j = n; out += hlSpan("comment", src.slice(i, j)); i = j; continue; }
-      if (hash && c === "#") { j = src.indexOf("\n", i); if (j < 0) j = n; out += hlSpan("comment", src.slice(i, j)); i = j; continue; }
-      if (c === "\"" || c === "'" || c === "`") { var q = c; j = i + 1; while (j < n) { var cc = src[j]; if (cc === "\\") { j += 2; continue; } if (cc === q) { j++; break; } if (q !== "`" && cc === "\n") break; j++; } out += hlSpan("string", src.slice(i, j)); i = j; continue; }
-      if (c >= "0" && c <= "9") { j = i + 1; while (j < n && (isWordChar(src[j]) || src[j] === ".")) j++; out += hlSpan("number", src.slice(i, j)); i = j; continue; }
-      if (isWordChar(c)) { j = i + 1; while (j < n && isWordChar(src[j])) j++; var w = src.slice(i, j); out += KEYWORDS[w] ? hlSpan("keyword", w) : esc(w); i = j; continue; }
-      out += esc(c); i++;
-    }
-    return out;
-  }
+  var esc = window.__ownEscape.esc;
   function syncScroll() { var pre = $("#edPre"), ed = $("#editor"); if (pre && ed) { pre.scrollTop = ed.scrollTop; pre.scrollLeft = ed.scrollLeft; } }
   function updateHighlight() {
     var code = $("#edHL"); if (!code) return;

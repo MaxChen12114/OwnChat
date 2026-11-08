@@ -118,11 +118,7 @@
   }
 
   // ───────── 工具 ─────────
-  function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-    });
-  }
+  var esc = window.__ownEscape.esc;
   function uid() { return "att_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
   function fmtChars(n) {
     n = parseInt(n, 10) || 0;

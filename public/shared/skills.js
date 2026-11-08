@@ -212,31 +212,7 @@
   }
 
   // ─── 设置卡（仿 settings.js mount*Card 模式，挂 #setSkillSlot · 独立「技能」分类）───
-  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
-
-  function renderList() {
-    const el = document.getElementById("skillList");
-    const gt = document.getElementById("skillGlobalToggle");
-    if (gt) gt.checked = isGlobalEnabled();
-    if (!el) return;
-    const arr = getAll().slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    if (!arr.length) { el.innerHTML = '<div style="font-size:11px;color:var(--muted);">（还没有导入技能）</div>'; return; }
-    el.innerHTML = arr.map(function (s) {
-      const refN = (s.references && s.references.length) || 0;
-      const n = String(s.content || "").length;
-      const badge = refN ? '<span style="font-size:10px;color:var(--muted);border:1px solid var(--border,#333);border-radius:4px;padding:1px 5px;margin-left:6px;">含 ' + refN + ' 个 reference · 不加载</span>' : '';
-      const sizeB = '<span style="font-size:10px;color:var(--muted);border:1px solid var(--border,#333);border-radius:4px;padding:1px 5px;margin-left:6px;">' + n + ' 字' + (n > SKILL_BODY_WARN ? ' · ⚠ 超 ' + SKILL_BODY_WARN + '，加载会被裁剪' : '') + '</span>';
-      const noDesc = s.description ? '' : '<span style="font-size:10px;color:var(--muted);border:1px solid var(--border,#333);border-radius:4px;padding:1px 5px;margin-left:6px;">缺 description · 目录里只能靠名字触发</span>';
-      const desc = s.description ? '<div style="font-size:11px;color:var(--muted);margin-top:2px;">' + esc(s.description) + '</div>' : '';
-      return '<div style="border:1px solid var(--border,#333);border-radius:8px;padding:8px 10px;">'
-        + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">'
-        + '<div style="min-width:0;"><b style="font-size:13px;">' + esc(s.name) + '</b>' + badge + sizeB + noDesc + desc + '</div>'
-        + '<div class="btns" style="flex:none;align-items:center;">'
-        + '<label class="toggle" style="margin:0;" title="列入目录：agent 才看得到，正文按需加载"><input type="checkbox" data-act="toggle" data-id="' + esc(s.id) + '" ' + (s.enabled ? 'checked' : '') + '></label>'
-        + '<button class="smallbtn danger" data-act="del" data-id="' + esc(s.id) + '">删除</button>'
-        + '</div></div></div>';
-    }).join("");
-  }
+  var esc = window.__ownEscape.esc;
 
   function wireCard(card) {
     const status = card.querySelector("#skillImportStatus");

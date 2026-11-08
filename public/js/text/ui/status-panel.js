@@ -116,7 +116,7 @@ html[data-scheme="light"]:not([data-theme]){--sp-c1:#0969da;--sp-c2:#8250df;--sp
     const mult = (u === "万" || u === "w") ? 1e4 : (u === "m") ? 1e6 : (u === "千" || u === "k") ? 1e3 : 1;
     return Math.round(n * mult);
   }
-  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    var esc = window.__ownEscape.esc;
 
   // ───── 数据收集(一次 collect,两个宿主共用)─────
   function collect(){

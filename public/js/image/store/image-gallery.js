@@ -10,8 +10,6 @@
 
   // ── 鉴权:复用文本侧云同步 token(= CHAT_PASSWORD)──
   function token() { try { return (window.__auth && window.__auth.getToken && window.__auth.getToken()) || ''; } catch (e) { return ''; } }
-  function syncHeaders(extra) { var h = extra || {}; var t = token(); if (t) h['Authorization'] = 'Bearer ' + t; return h; }
-  function syncOn() { try { return !!(window.__sync && window.__sync.syncEnabled && window.__sync.syncEnabled()) && !!token(); } catch (e) { return false; } }
 
   // ── 本地元数据 ──
   var STATE = { items: load() };
@@ -36,55 +34,20 @@
   }
 
   // ── 同步:拉 / 合并(id-union, 较新覆盖, 保留 tombstone) / 推 ──
-  function merge(a, b) {
-    var map = {};
-    (a || []).forEach(function (it) { if (it && it.id) map[it.id] = it; });
-    (b || []).forEach(function (it) { if (!it || !it.id) return; var p = map[it.id]; if (!p || (it.ts || 0) >= (p.ts || 0)) map[it.id] = it; });
-    var arr = Object.keys(map).map(function (k) { return map[k]; });
-    arr.sort(function (x, y) { return (y.ts || 0) - (x.ts || 0); });
-    return arr;
-  }
-  async function pull() {
-    if (!syncOn()) { renderGrid(); return; }
-    try {
-      var r = await fetch('/img/gallery', { headers: syncHeaders() });
-      if (!r.ok) return;
-      var j = await r.json();
-      STATE.items = merge(STATE.items, j.items || []);
-      persist(); renderGrid();
-    } catch (e) {}
-  }
-  var pushTimer = null;
-  function pushSoon() { if (!syncOn()) return; if (pushTimer) clearTimeout(pushTimer); pushTimer = setTimeout(doPush, 1500); }
-  async function doPush() {
-    pushTimer = null;
-    if (!syncOn()) return;
-    try {
-      var r = await fetch('/img/gallery', { method: 'PUT', headers: syncHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ items: STATE.items }) });
-      if (!r.ok) return;
-      var j = await r.json();
-      STATE.items = merge(STATE.items, j.items || []);
-      persist(); renderGrid();
-    } catch (e) {}
-  }
+  // 2026-11-08(审查 P1): R2/云画廊路由已删,本地即真相 —— 旧版 GET/PUT /img/gallery 恒 404 静默失败
+  function pull() { renderGrid(); }
 
   // ── 收藏 / 删除 ──
   async function favorite(srcUrl, info) {
     info = info || {};
     if (!srcUrl) return;
-    var savedUrl = srcUrl, key = '', r2Missing = false;
-    if (syncOn()) {
-      try {
-        var r = await fetch('/img/r2/save?url=' + encodeURIComponent(srcUrl), { method: 'POST', headers: syncHeaders() });
-        if (r.ok) { var j = await r.json(); key = j.key || ''; savedUrl = j.url || srcUrl; }
-        else if (r.status === 501) { r2Missing = true; } // 未绑 R2 → 纯本地降级
-      } catch (e) {}
-    }
-    var item = { id: uuid(), key: key, url: savedUrl, src: srcUrl, kind: info.kind || '', prompt: info.prompt || '', ts: Date.now(), deleted: false, local: !key };
+    // 2026-11-08(审查 P1): R2 转存路由已删,收藏只存本机(IDB 缓存 blob 保证离线/过期可显示)
+    var savedUrl = srcUrl, key = '';
+    var item = { id: uuid(), key: key, url: savedUrl, src: srcUrl, kind: info.kind || '', prompt: info.prompt || '', ts: Date.now(), deleted: false, local: true };
     STATE.items.unshift(item);
     persist();
     // 缓存 blob 到 IDB(R2 用 key,纯本地用 local:<id>),保证缩略图离线 / 过期后仍可显示
-    var cacheKey = key || ('local:' + item.id);
+    var cacheKey = ('local:' + item.id);
     try {
       // 走 /img/dl 时带登录态：设了访问密码的部署由服务端 checkSync 校验（X-Sync-Token）
       var dlUrl = key ? savedUrl : ('/img/dl?url=' + encodeURIComponent(srcUrl));
@@ -94,9 +57,7 @@
     } catch (e) {}
     renderGrid();
     // 仅当图已进 R2 才把元数据推 KV;没 R2 的纯本地条目不同步,避免别的设备拿到裂图
-    if (key) pushSoon();
-    toast(key ? (syncOn() ? '已收藏并同步到画廊' : '已收藏到本地画廊')
-              : (r2Missing ? '未配置云存储,收藏仅保存在本机' : '已收藏到本地画廊(未开云同步,暂不跨设备)'));
+    toast('已收藏到本地画廊');
     return item;
   }
   function remove(id) {

@@ -754,7 +754,10 @@
 
     const outSessions = {}, outMeta = {};
     const conflicts = [];
+    // 2026-11-08 修(审查 P1): 排除清单里的会话槽位不参与合并也不进推包 ——「只清云端」依赖这条
+    const _exclSess = new Set(getExcluded().sessions);
     for (const k of new Set([...Object.keys(localSessions), ...Object.keys(rSlots)])) {
+      if (_exclSess.has(k)) continue;
       const lArr = Array.isArray(localSessions[k]) ? localSessions[k] : null;
       const rArr = Array.isArray(rMsgs[k]) ? rMsgs[k] : null;
       const lMeta = localMeta[k] || {};
@@ -1262,6 +1265,10 @@
     addExclusion(kind, key);
     await pushExcludeNow(); // 4.21-F: 先把排除登记推上云(跨设备生效)
     await pushNow();        // 再推 main blob(该实体已被剔除 → 云端抹掉)
+    // 2026-11-08 修(审查 P1): 4.76/4.78 通道拆分后 main blob 已不含角色卡/聊天 ——
+    // 会话实体重推 /sync/chat(mergeChatSessions 跳过排除槽位 → 云端残留被抹掉),角色重推 /sync/chars。
+    // 旧版只推 main blob,排除的东西在云端原样留着,60 秒后被合回。
+    if (kind === "session") { await pushChatNow(); } else { await pushCharsNow(); }
     emit("entity-wiped", { kind, key });
     return { kind, key };
   }
@@ -1270,6 +1277,7 @@
     removeExclusion(kind, key);
     await pushExcludeNow(); // 4.21-F: 恢复登记推上云(跨设备生效)
     await pushNow();        // 本地副本重新进 blob → 云端回填
+    if (kind === "session") { await pushChatNow(); } else { await pushCharsNow(); }
     emit("entity-restored", { kind, key });
     return { kind, key };
   }

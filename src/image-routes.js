@@ -5,9 +5,6 @@
  * 路由（在主 worker.js 的 fetch 里优先匹配，未命中返回 null 交回主逻辑）：
  *   /img/v1/*      -> 代理到 https://ai.gitee.com/v1/<path>
  *   /img/dl?url=   -> 下载代理（带 Range，剥 CSP/X-Frame，解决跨域下载）
- *   /img/r2/save   -> 转存图片到 R2 拿同源直链（POST，鉴权用云同步 token）
- *   /img/r2/get    -> 读 R2 图片（画廊/基准图同源直链）
- *   /img/gallery   -> 云画廊列表（R2 + KV）
  *
  * 用法（主 worker.js）：
  *   import { handleImageRequest } from "./image-routes.js";
@@ -86,10 +83,8 @@ function jsonResp(obj, status) {
   return new Response(JSON.stringify(obj), { status: status || 200, headers: { "Content-Type": "application/json", ...corsHeaders() } });
 }
 
-// 2026-10-05(C-2): 删除 /img/r2/save、/img/r2/get、/img/gallery 三个路由 ——
 // wrangler.toml 从未声明 IMAGES_BUCKET/IMAGES_SYNC 绑定,线上一直是 501,
 // 且前端零调用方(grep 无命中),属于从未接线的死代码。随删的还有它们的
-// 鉴权面问题(/img/r2/get 原本连 checkSync 都没有)。/img/dl 与 /img/v1 在用,保留。
 // 若将来要做图像云同步,从 git 历史恢复本段(提交 54cfbff 之后的下一个提交)。
 
 function stripCache(h) {

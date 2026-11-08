@@ -1294,7 +1294,7 @@
   // ①b 的原始表格只放行无属性的结构标签(白名单),其余标签保持转义字面量。
   function renderMarkdownLegacy(text) {
     if (!text) return "";
-    const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const esc = window.__ownEscape.esc;
     // ① 提取代码块，防止内部被误处理
     const blocks = [];
     let s = text.replace(/```([\w.-]*)\n?([\s\S]*?)```/g, (_, lang, code) => {

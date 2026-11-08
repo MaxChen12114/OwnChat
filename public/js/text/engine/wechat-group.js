@@ -14,9 +14,7 @@ const WX_GREEN_SOFT = "rgba(7,193,96,.14)";
 
 function getGroupName() { return (localStorage.getItem(LS_NAME) || "").trim(); }
 function setGroupName(n) { try { localStorage.setItem(LS_NAME, typeof n === "string" ? n : ""); } catch (e) {} }
-function safe(s) {
-  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
+var safe = window.__ownEscape.esc;
 // 2026-11-06: 群聊面板标题去 emoji —— 线性对话气泡图标（成员头像保留角色 emoji）。
 const SVG_CHAT = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><path d="M20 12.5a7.5 7.5 0 0 1-7.5 7.5H7l-3 2v-6.2A7.4 7.4 0 0 1 3.5 12 7.5 7.5 0 0 1 11 4.5h1.5a7.5 7.5 0 0 1 7.5 7.5z"/></svg>';
 function allCards() {

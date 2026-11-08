@@ -233,7 +233,6 @@
     "没开起来:": "Didn't start:",
     "未知": "Unknown",
     "状态:": "Status:",
-    "Agent 工作模式": "Agent work mode",
     "选了目录 = 命令被关在里面": "Pick a folder — commands stay inside it",
     "仅桌面端可用": "Desktop app only",
     "移动端不支持": "Not available on mobile",
@@ -454,7 +453,6 @@
     "启用联网搜索": "Enable web search",
     "深度搜索（DeepSeek / Exa，按次计费；DeepSeek ≈¥0.005/次）": "Deep search (DeepSeek / Exa, billed per call; DeepSeek ≈¥0.005/call)",
     "已启用：深搜(DeepSeek/Exa)优先，未配 key 自动降级": "On · deep search (DeepSeek/Exa) first, falls back if no key is set",
-    "本地对话记忆": "Local chat memory",
     "开启后发消息会带上本机历史上下文，AI 能记住你们说过的话。仅本设备（不进云同步）。":
       "When on, messages carry this device's history so the AI remembers what you said. This device only (not cloud-synced).",
     "记住本机对话（带上历史消息）": "Remember chats on this device (send history along)",
@@ -773,7 +771,6 @@
     "需带 token,关闭后聊天接口公开(任何扫到域名的人都能用你的余额)。":
       "requests must carry the token; with this off the chat API is public (anyone who finds the URL can spend your balance).",
     "启用聊天密码保护(强烈推荐)": "Enable chat password protection (recommended)",
-    "密码保护（Auth）": "Password protection (Auth)",
     "刷新页面后打开 Dev Panel 仍在": "Dev Panel stays open after a refresh",
     "打开调试面板——请求 I/O 探查、故障注入、参数覆盖、prompt 透视、清洗管线追踪。顶栏 Dev 按钮":
       "Opens the debug panel — request/response inspection, fault injection, parameter overrides, prompt introspection, pipeline tracing. The Dev button in the top bar",
@@ -817,7 +814,6 @@
     "（不进云同步）。": " (not cloud-synced).",
     "(不进云同步)。": " (not cloud-synced).",
     "），不进云同步。": "), not cloud-synced.",
-    "（不进云同步）": " (not cloud-synced)",
     "(不进云同步)，刷新页面也会保留。": " (not cloud-synced); it survives a page refresh.",
     "仅本设备本地统计": "Local stats on this device only",
     "回复风格(Reply Style)": "Reply style",
@@ -875,7 +871,6 @@
     "图像额度计数（每日）": "Image quota counter (daily)",
     "的画风，工坊手动文生图不受影响，仅本设备。": " style; manual generations in the studio are unaffected. This device only.",
     "，云端保存放下一步。": "; cloud storage comes later.",
-    "。仅本设备。": " This device only.",
     "每会话上限填 0 = 不限;冷却填 0 = 不限频。基准图用于\"自拍\"类发图把脸固定下来,场景/物品图不用基准图。":
       "Per-chat cap 0 = unlimited; cooldown 0 = no throttle. The reference image keeps the face consistent for \"selfie\"-style pictures; scenes and objects don't use it.",
     "档。字数限制(150-250 字)只存在于鱼缸接龙/讨论模式,保持多人轮转节奏。":
