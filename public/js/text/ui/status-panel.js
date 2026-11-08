@@ -41,8 +41,8 @@
 .sp-cat-name{opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sp-cat-val{margin-left:auto;color:var(--muted,#9a9a9a);font-variant-numeric:tabular-nums;white-space:nowrap;}
 .sp-kv{display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:12px;line-height:1.5;}
-.sp-kv .k{color:var(--muted,#9a9a9a);white-space:nowrap;}
-.sp-kv .v{font-variant-numeric:tabular-nums;text-align:right;word-break:break-all;}
+.sp-kv .k{color:var(--muted,#9a9a9a);white-space:nowrap;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+.sp-kv .v{font-variant-numeric:tabular-nums;text-align:right;word-break:break-word;flex:none;max-width:62%;}
 .sp-note{font-size:10.5px;line-height:1.55;color:var(--muted,#9a9a9a);margin-top:9px;opacity:.85;}
 .sp-ctx-auto{background:transparent;border:none;color:var(--muted,#9a9a9a);cursor:pointer;font:inherit;font-size:10.5px;padding:2px 4px;border-radius:5px;text-decoration:underline;text-underline-offset:2px;}
 .sp-ctx-auto:hover{color:inherit;background:rgba(127,127,127,.14);}
@@ -259,6 +259,16 @@
     return rows.map(r => `<div class="sp-kv"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
   }
 
+  // 2026-11-08 修(用户报告"一闪一闪/滚动条抽搐"): 旧版每个刷新周期无条件重写三段 innerHTML,
+  // 即使数据没变 —— DOM 重建触发 i18n 重译与滚动条重算,窄栏下内容高度来回振荡肉眼可见。
+  // 改为内容签名比对,没变就跳过(数据变化只在发消息/同步后发生,频率极低)。
+  function setSection(host, key, html) {
+    const el = host.querySelector('[data-sp="' + key + '"]');
+    if (!el) return;
+    if (el.__spLast === html) return;
+    el.__spLast = html;
+    el.innerHTML = html;
+  }
   function renderInto(host, s){
     if (!host || !host.__spDone) return;
     const ctx = ctxWindow();
@@ -268,9 +278,9 @@
     const bar = host.querySelector("[data-sp=\"bar\"]");
     bar.style.width = Math.min(100, pct * 100) + "%";
     bar.style.background = pct > 0.9 ? "var(--danger, #e8607d)" : "var(--accent, #7fa4c9)";
-    host.querySelector("[data-sp=\"cats\"]").innerHTML = catRowsHtml(s);
-    host.querySelector("[data-sp=\"lastreq\"]").innerHTML = lastReqHtml(s.lastReq);
-    host.querySelector("[data-sp=\"sys\"]").innerHTML = sysHtml(s);
+    setSection(host, "cats", catRowsHtml(s));
+    setSection(host, "lastreq", lastReqHtml(s.lastReq));
+    setSection(host, "sys", sysHtml(s));
     // 上限来源提示:自动识别时说明是按哪个模型认出来的;手动时提示可恢复
     const srcEl = host.querySelector("[data-sp=\"ctxsrc\"]");
     if (srcEl) {
