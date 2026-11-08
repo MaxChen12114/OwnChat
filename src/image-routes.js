@@ -77,8 +77,10 @@ function checkSync(request, env) {
   if (!env || !env.CHAT_PASSWORD) return true;
   const auth = request.headers.get("Authorization") || "";
   const tok = auth.replace(/^Bearer\s+/i, "").trim();
-  const alt = request.headers.get("X-Sync-Token") || "";
-  return tok === env.CHAT_PASSWORD || alt === env.CHAT_PASSWORD;
+  const alt = (request.headers.get("X-Sync-Token") || "").trim();
+  // 2026-11-08: 与 worker 主鉴权同口径 —— secret 两侧都 trim(尾换行导致永远 401 的老坑)
+  const expected = String(env.CHAT_PASSWORD || "").trim();
+  return tok === expected || alt === expected;
 }
 function jsonResp(obj, status) {
   return new Response(JSON.stringify(obj), { status: status || 200, headers: { "Content-Type": "application/json", ...corsHeaders() } });

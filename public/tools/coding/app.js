@@ -466,9 +466,19 @@
   function aiBusy(on) {
     $("#aiRunBtn").hidden = on; $("#aiStopBtn").hidden = !on;
   }
+  // 2026-11-08 修(审查 P1): 模型判档照抄 flow/canvas.js 的 modeForModel —— 旧版写死 mode:"free",
+  // 用户在 AI 下拉里选了快档模型会被服务端按 free 渠道静默降级
+  function aiModeForModel(model) {
+    var fast = window.APP_MODELS_FAST || [];
+    for (var i = 0; i < fast.length; i++) {
+      var id = (typeof fast[i] === 'string') ? fast[i] : (fast[i] && fast[i].id);
+      if (id && id === model) return 'fast';
+    }
+    return 'free';
+  }
   async function aiChat(system, user, model, onDelta) {
     var on = true;
-    var body = { mode: "free", model: model || "", promptProfile: "assist", use_builtin_persona: on, custom_system_prompt: system || "", thinking: "disabled", messages: [{ role: "user", content: user || "" }] };
+    var body = { mode: aiModeForModel(model), model: model || "", promptProfile: "assist", use_builtin_persona: on, custom_system_prompt: system || "", thinking: "disabled", messages: [{ role: "user", content: user || "" }] };
     try { var _bid = localStorage.getItem("cfw_base_id_v1") || ""; if (_bid) body.baseId = _bid; } catch (e) {}
     
     aiAborter = new AbortController();

@@ -35,10 +35,13 @@
   var OLD_KEY_LS = 'moark_api_key';
 
   // 迁移旧 key（原独立工具用 moark_api_key）
+  // 2026-11-08 修(审查 P1): 迁移一次性化 —— 旧版每次加载都把 moark_api_key 种回 KEY_LS,
+  // 用户清除 KEY_LS 后又被种回来,与 image-channels 的回填形成三键互喂,Key 永远清不掉。
+  // 迁完即删 legacy 源。
   try {
     if (!localStorage.getItem(KEY_LS)) {
       var legacy = localStorage.getItem(OLD_KEY_LS);
-      if (legacy) localStorage.setItem(KEY_LS, legacy);
+      if (legacy) { localStorage.setItem(KEY_LS, legacy); localStorage.removeItem(OLD_KEY_LS); }
     }
   } catch (e) {}
 

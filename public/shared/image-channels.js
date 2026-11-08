@@ -80,9 +80,14 @@
     if (!a.length) a = [norm(clone(DEFAULT_GITEE))];
     // 老版本只有一个 Gitee key：迁进 gitee 渠道（保留旧 key 作为 fallback）
     try {
+      // 2026-11-08 修(审查 P1): 迁移一次性化 —— 旧版每次 ensure 都从 legacy 回填,用户在渠道卡
+      // 清除 Key 后下一次 list() 就复活,Key 永远清不掉。迁完即删 legacy 源。
       var legacy = localStorage.getItem(LEGACY_KEY) || '';
-      var g = a.find(function (x) { return x.id === 'gitee'; });
-      if (g && legacy && !g.key) g.key = legacy;
+      if (legacy) {
+        var g = a.find(function (x) { return x.id === 'gitee'; });
+        if (g && !g.key) g.key = legacy;
+        localStorage.removeItem(LEGACY_KEY);
+      }
     } catch (e) {}
     write(a);
     return a;

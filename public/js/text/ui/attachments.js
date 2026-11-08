@@ -77,13 +77,25 @@
   function gcOrphanBlobs() {
     try {
       var keep = {};
-      var arr = (window.__app && window.__app.getSessionMessages) ? window.__app.getSessionMessages() : [];
-      (arr || []).forEach(function (m) {
+      // 2026-11-08 修(审查 P0): 保留清单不能只看当前会话 —— GC 在启动 4 秒跑一次,
+      // 旧版只收当前 session 的 id,其它会话的图片/文档 blob 全被当孤儿删掉
+      // (表现为"切回去图片不可用/文档全文变空")。改为遍历 cfw_chat_session_v1 全部槽位,
+      // 再并上当前内存会话与待发附件(历史关掉时当前会话不落盘,靠内存清单兜底)。
+      var keepMsg = function (m) {
         (m && m.images ? m.images : []).forEach(function (im) { if (im && im.id) keep[im.id] = 1; });
         // 4.83: 文档全文也已迁入 IDB(消息 files 带 id) —— 不加入保留清单会被当孤儿删掉,
         // 表现为"刷新后文档内容消失/发送时模型收到空文档"
         (m && m.files ? m.files : []).forEach(function (f) { if (f && f.id) keep[f.id] = 1; });
-      });
+      };
+      try {
+        var all = JSON.parse(localStorage.getItem("cfw_chat_session_v1") || "{}") || {};
+        if (Array.isArray(all)) all = { "__none__": all };
+        Object.keys(all).forEach(function (slot) {
+          (all[slot] || []).forEach(keepMsg);
+        });
+      } catch (e3) {}
+      var arr = (window.__app && window.__app.getSessionMessages) ? window.__app.getSessionMessages() : [];
+      (arr || []).forEach(keepMsg);
       // 待发附件(刚添加还没点发送)同样不能被当孤儿清掉
       try {
         (window.__attach && window.__attach.list ? window.__attach.list() : []).forEach(function (p) {

@@ -279,7 +279,7 @@ function renderFishbowlSidePanel() {
   const mode = s.mode || "orchestrate";
   syncChatMode(mode);
 
-  const safe = (x) => String(x == null ? "" : x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const safe = (x) => String(x == null ? "" : x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const stateLabel = ({
     idle: fbSvg('<circle cx="12" cy="12" r="7"/>') + " 待启动",
     running: fbSvg('<path d="M8 6l9 6-9 6z" fill="currentColor" stroke="none"/>') + " 进行中",
@@ -396,7 +396,7 @@ function renderAgentPeers() {
   if (!box) return;
   if (!isMulti() || getSceneIds().length < 2) { box.innerHTML = ""; box.style.display = "none"; return; }
   box.style.display = "";
-  const safe = (x) => String(x == null ? "" : x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const safe = (x) => String(x == null ? "" : x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const cards = getSceneCards();
   let info = null;
   try { info = (window.__app && window.__app.getContextInfo) ? window.__app.getContextInfo() : null; } catch (e) {}

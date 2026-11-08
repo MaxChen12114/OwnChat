@@ -485,8 +485,11 @@
   // ─── 2026-11-06：开发工具卡（源码/产物检索；本地 source-server） ───
   function mountDevToolsCard() {
     var slot = document.getElementById('setCostSlot');
-    if (!slot || document.getElementById('devToolsCard')) return;
-    var card = document.createElement('div'); card.className = 'card'; card.id = 'devToolsCard';
+    // 2026-11-08 修(审查 P0/P1): ① id 改名 sourceToolsCard —— 旧 id 与 dev.js 的开发者工具卡
+    // 冲突(同名 id 静默互吞,本卡永不出现); ② 补本地 SS(旧版引用未定义变量,潜伏 ReferenceError)
+    if (!slot || document.getElementById('sourceToolsCard')) return;
+    var SS = 'flex:1;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;';
+    var card = document.createElement('div'); card.className = 'card'; card.id = 'sourceToolsCard';
     card.innerHTML = '<h4>开发工具 · 源码/产物检索</h4>'
       + '<p>给 agent 的 <code>list_source / search_source / read_source / list_artifacts / read_artifact</code> 提供本地只读服务。先在本机运行：<code>node scripts/dev/source-server.mjs --root .</code>（可选 <code>--artifacts 目录</code>）。服务只绑 127.0.0.1，不上传数据。</p>'
       + '<div class="rowline" style="align-items:center;gap:10px;"><label style="font-size:12px;color:var(--muted);min-width:72px;">源码服务</label><input id="devSrcUrl" type="text" placeholder="http://127.0.0.1:8797" style="' + SS + '"></div>'
@@ -1412,7 +1415,7 @@
     if(sel){sel.value=pt.getStyle();sel.addEventListener('change',function(){pt.setStyle(sel.value);});window.addEventListener('imagestyle:changed',function(e){var v=(e&&e.detail&&e.detail.style)||pt.getStyle();if(sel.value!==v)sel.value=v;});}
     function setMsg(t){if(status)status.textContent=t||'';}
     function activeCard(){try{return window.__character&&window.__character.getActiveCard&&window.__character.getActiveCard();}catch(e){return null;}}
-    function refreshWho(){var who=document.getElementById('imgPortraitWho'),c=activeCard();if(who)who.innerHTML=c?'当前角色：<b>'+((c.icon?c.icon+' ':'')+(c.name||'(未命名)'))+'</b>':'<span style="color:#e5484d;">未选择角色卡 — 先去左侧「角色卡」选一个</span>';try{if(window.__chatImage&&window.__chatImage.getBaseImage&&c){Promise.resolve(window.__chatImage.getBaseImage({characterId:c.id||'default'})).then(function(b){if(b&&preview&&!preview.querySelector('[data-gen]'))preview.innerHTML='<div style="text-align:center;"><img src="'+b+'" style="max-width:140px;border-radius:8px;display:block;"><div style="font-size:11px;opacity:.6;margin-top:4px;">当前基准图</div></div>';}).catch(function(){});}}catch(e){}}
+    function refreshWho(){var who=document.getElementById('imgPortraitWho'),c=activeCard();if(who)who.innerHTML=c?'当前角色：<b>'+esc(((c.icon?c.icon+' ':'')+(c.name||'(未命名)')))+'</b>':'<span style="color:#e5484d;">未选择角色卡 — 先去左侧「角色卡」选一个</span>';try{if(window.__chatImage&&window.__chatImage.getBaseImage&&c){Promise.resolve(window.__chatImage.getBaseImage({characterId:c.id||'default'})).then(function(b){if(b&&preview&&!preview.querySelector('[data-gen]'))preview.innerHTML='<div style="text-align:center;"><img src="'+b+'" style="max-width:140px;border-radius:8px;display:block;"><div style="font-size:11px;opacity:.6;margin-top:4px;">当前基准图</div></div>';}).catch(function(){});}}catch(e){}}
     if(genBtn)genBtn.addEventListener('click',async function(){genBtn.disabled=true;setMsg('生成中…（约 10-30 秒）');try{var r=await pt.generateForActive();if(preview)preview.innerHTML='<div style="text-align:center;"><img data-gen="1" src="'+r.url+'" style="max-width:160px;border-radius:8px;display:block;"><div style="font-size:11px;opacity:.6;margin-top:4px;">新立绘：'+(r.name||'')+'</div></div>';if(setBtn)setBtn.disabled=false;setMsg('生成完成，点「设为基准图」锁定。');}catch(e){setMsg('错误：'+((e&&e.message)||e));}genBtn.disabled=false;});
     if(setBtn)setBtn.addEventListener('click',async function(){setBtn.disabled=true;setMsg('保存基准图中…');try{await pt.setAsBase();setMsg('已设为当前角色的发图基准图。');}catch(e){setMsg('错误：'+((e&&e.message)||e));setBtn.disabled=false;}});
     if(delBtn)delBtn.addEventListener('click',async function(){if(!(window.__chatImage&&window.__chatImage.clearBaseImage)){setMsg('发图模块未就绪');return;}if(!confirm('清除当前角色的发图基准图？'))return;var c=activeCard();delBtn.disabled=true;setMsg('清除中…');try{await window.__chatImage.clearBaseImage({characterId:(c&&c.id)||'default'});if(preview)preview.innerHTML='';if(setBtn)setBtn.disabled=true;setMsg('已清除。');}catch(e){setMsg('错误：'+((e&&e.message)||e));}delBtn.disabled=false;});

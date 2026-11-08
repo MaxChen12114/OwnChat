@@ -1261,13 +1261,35 @@ async function handleFetchProxy(request) {
   for (const [k, v] of request.headers) {
     const lk = k.toLowerCase();
     if (lk === "host" || lk === "content-length" || lk.startsWith("cf-") ||
-        lk === "x-forwarded-for" || lk === "x-forwarded-proto" || lk === "x-real-ip") continue;
+        lk === "x-forwarded-for" || lk === "x-forwarded-proto" || lk === "x-real-ip" ||
+        // 2026-11-08: 本站凭据绝不外发 —— auth.js 会给所有 /api/* 注入 Bearer 主密码,
+        // 浏览器同源请求还自动带 Cookie;代理到第三方站点必须剔除(审查 P0)
+        lk === "authorization" || lk === "cookie" || lk === "x-sync-token") continue;
     fwd.set(k, v);
   }
   if (!fwd.has("User-Agent")) fwd.set("User-Agent", "Mozilla/5.0 (compatible; OwnChatBot/1.0)");
-  const init = { method: request.method === "POST" ? "POST" : "GET", headers: fwd };
+  const init = { method: request.method === "POST" ? "POST" : "GET", headers: fwd, redirect: "manual" };
   if (init.method === "POST") { try { init.body = await request.text(); } catch {} }
-  const upstream = await fetchWithTimeout(targetUrl.toString(), init, 20000);
+  // 2026-11-08: redirect:"manual" 逐跳复查 —— 默认 follow 时 302→内网/自引用会绕过上面的闸
+  // (net-guard 的检查只看初始 URL)。最多跟 3 跳,每跳都过私网/自引用/协议检查。
+  let upstream = null;
+  let hopUrl = targetUrl;
+  for (let hop = 0; hop < 4; hop++) {
+    upstream = await fetchWithTimeout(hopUrl.toString(), init, 20000);
+    if (upstream.status < 300 || upstream.status >= 400) break;
+    const loc = upstream.headers.get("Location");
+    if (!loc) break;
+    let next;
+    try { next = new URL(loc, hopUrl); } catch { break; }
+    if (next.protocol !== "http:" && next.protocol !== "https:") break;
+    if (isPrivateHost(next.hostname)) {
+      return resp("Blocked: redirect to private/reserved address", "text/plain; charset=utf-8", 400);
+    }
+    if (next.host === reqUrl.host) {
+      return resp("Blocked: redirect back to this site", "text/plain; charset=utf-8", 400);
+    }
+    hopUrl = next;
+  }
   const body = await upstream.arrayBuffer();
   const ct = upstream.headers.get("Content-Type") || "application/octet-stream";
   return new Response(body, {
@@ -1537,6 +1559,14 @@ export default {
     }
 
     // 2026-06-17 (4.73): AgentReach 兜底代理 —— safeFetch 直连失败时走这里(GET ?url=,绕 CORS/GFW)
+    // 2026-11-08: 配置了聊天密码时要求有效令牌 —— 这两个端点是对外的代理/付费搜索直通面
+    // (deep=1 直烧 Exa/DeepSeek 配额),不能匿名。前端 auth.js 对所有 /api/* 自动注入令牌,无感;
+    // 未配密码的私人部署照常匿名可用(checkAuth null 放行)。
+    if (url.pathname === "/api/fetch" || url.pathname === "/api/search") {
+      if (request.method !== "OPTIONS" && (env.CHAT_PASSWORD || "").trim() && checkAuth(request, env) !== true) {
+        return resp("Unauthorized", "text/plain; charset=utf-8", 401);
+      }
+    }
     if (url.pathname === "/api/fetch") {
       return handleFetchProxy(request);
     }

@@ -1287,10 +1287,14 @@
     return '<div class="md-body">' + html + "</div>";
   }
 
-  // legacy 路径(2026-09-14 前的原实现,未动一行):CDN 库缺失/失败时的回退。
+  // legacy 路径(2026-09-14 前的原实现):CDN 库缺失/失败时的回退。
+  // 2026-11-08 修(审查 P0): 旧版普通段落与粗体分支把未转义的模型输出原样拼进 innerHTML
+  // (`<img onerror=…>` 直接执行),注释却自称"所有用户数据先 esc()"。现改为:
+  // 先摘出代码块与原始 <table> 占位,再对**余下全文**整体 esc,之后各分支不再重复 esc;
+  // ①b 的原始表格只放行无属性的结构标签(白名单),其余标签保持转义字面量。
   function renderMarkdownLegacy(text) {
     if (!text) return "";
-    const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     // ① 提取代码块，防止内部被误处理
     const blocks = [];
     let s = text.replace(/```([\w.-]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
@@ -1301,26 +1305,30 @@
     });
     // ①b 保护模型直出的原始 <table> HTML：整块抽出占位，避免被后续 \n→<br> 步骤打散成残骸（残留 </table> 等）；
     //     顺手清掉单元格里模型多写的 **/****，并把 `行内代码` 转成 <code>，渲染更干净。
+    //     2026-11-08: 内容整体 esc 后只放行**无属性**的结构标签 —— 旧版把模型 HTML 原样进 innerHTML,
+    //     <td><img onerror=…></td> 是现成的注入点(审查发现)。
     s = s.replace(/<table[\s\S]*?<\/table>/gi, (tbl) => {
       const _i = blocks.length;
       const _cleaned = tbl.replace(/\*\*+/g, "").replace(/`([^`\n]+)`/g, "<code>$1</code>");
-      blocks.push(_cleaned);
+      blocks.push(esc(_cleaned).replace(/&lt;(\/?)(table|thead|tbody|tr|td|th)&gt;/gi, "<$1$2>"));
       return "\x00B" + _i + "\x00";
     });
+    // ①c 余下全文整体转义(进入 ②~⑦ 之前) —— 各分支不再自行 esc(内容已安全)
+    s = esc(s);
     // ② 表格（GitHub Flavored Markdown）
     s = s.replace(/((?:^|\n)\|.+\|\n\|[-| :]+\|\n(?:\|.+\|\n?)+)/g, (tbl) => {
       const rows = tbl.trim().split("\n");
       const parseRow = (r) => r.split("|").slice(1, -1).map(c => c.trim());
       const head = parseRow(rows[0]);
       const body = rows.slice(2).map(parseRow);
-      const th = head.map(c => "<th>" + esc(c) + "</th>").join("");
-      const tr = body.map(r => "<tr>" + r.map(c => "<td>" + esc(c) + "</td>").join("") + "</tr>").join("");
+      const th = head.map(c => "<th>" + c + "</th>").join("");
+      const tr = body.map(r => "<tr>" + r.map(c => "<td>" + c + "</td>").join("") + "</tr>").join("");
       return '<table class="md-table"><thead><tr>' + th + '</tr></thead><tbody>' + tr + '</tbody></table>';
     });
     // ③ 标题
-    s = s.replace(/^(#{1,4}) (.+)$/gm, (_, h, t) => '<h' + h.length + ' class="md-h">' + esc(t) + '</h' + h.length + '>');
-    // ④ 行内代码（在 bold/italic 之前）
-    s = s.replace(/`([^`\n]+)`/g, (_, c) => "<code>" + esc(c) + "</code>");
+    s = s.replace(/^(#{1,4}) (.+)$/gm, (_, h, t) => '<h' + h.length + ' class="md-h">' + t + '</h' + h.length + '>');
+    // ④ 行内代码（在 bold/italic 之前；内容已转义，无需再 esc）
+    s = s.replace(/`([^`\n]+)`/g, (_, c) => "<code>" + c + "</code>");
     // ⑤ 粗体 / 斜体
     s = s.replace(/\*\*([^*\n]+)\*\*/g, (_, c) => "<strong>" + c + "</strong>");
     s = s.replace(/\*([^*\n]+)\*/g, (_, c) => "<em>" + c + "</em>");

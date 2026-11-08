@@ -134,7 +134,10 @@
     /* 2026-09-14 UI第二轮:底栏视觉层已收敛进 styles-2.css 悬浮胶囊 dock(单一样式源);此处仅保留桌面硬隐藏。
        不写 #mobileBottomTabs 的 display/position/transform,避免盖过桌面隐藏与滚动隐藏逻辑 */
     /* 2026-09-13 fix: 手机底栏 DOM 在 .app-shell 外,桌面端必须硬隐藏,避免桌面底部出现占位条/手机按钮。 */
-    @media (min-width: 769px) {
+    /* 2026-11-08 修(审查 P0): 断点 769→1024,与 styles-2 移动布局(≤1023)和 agent IIFE 的
+       isMobile()(≤1023)对齐 —— 旧版 769~1023 区间(平板竖窗/Tauri 窄窗)底栏被硬隐藏,
+       而 styles-2 在该区间走移动布局,Agent 控制台挂进永久不可见的面板。 */
+    @media (min-width: 1024px) {
       #mobileBottomTabs,
       .mobile-tab-panel {
         display: none !important;

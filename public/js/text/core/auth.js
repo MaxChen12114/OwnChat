@@ -91,8 +91,14 @@
             validating = false; ok.disabled = false;
             return;
           }
-          // 200 / 500 (KV 未绑定) 都表示密码已校验通过
-          close(v);
+          // 2026-11-08 修(审查 P1): 只有 200 / 500(KV 未绑定) 算校验通过 —— 旧版把 404/429/502
+          // 等一切非 401 都当"密码正确"落 token,服务端故障期间错误密码也能进
+          if (r.ok || r.status === 500) {
+            close(v);
+          } else {
+            err.textContent = "\u7f51\u7edc\u5f02\u5e38 (HTTP " + r.status + ")\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5";
+            validating = false; ok.disabled = false;
+          }
         } catch (e) {
           err.textContent = "\u7f51\u7edc\u9519\u8bef: " + e.message;
           validating = false; ok.disabled = false;

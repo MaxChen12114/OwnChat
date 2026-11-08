@@ -11,6 +11,12 @@
    修改令牌值 = 改所有工作页;新增主题 = 加一个 [data-theme=…] 块。 */
 
 /* ═══ minimal · 暗色(默认) ═══ */
+/* 2026-11-08(审查 P1): .btn 等元素的 display:flex 会盖掉 hidden 属性的默认 display:none ——
+   tools 各页的「停止/复制图文/导出」按钮 hidden 形同虚设常驻可见(flow/coding 自证过同一机制)。
+   统一一条全局规则收口。 */
+[hidden] { display: none !important; }
+
+
 :root{
   --bg:#0b0b0b; --panel:#141414; --panel2:#1a1a1a; --panel3:#222222;
   --border:#26262b; --text:#ececec; --muted:#9a9a9a;
