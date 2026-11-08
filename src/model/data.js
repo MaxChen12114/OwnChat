@@ -56,7 +56,8 @@ export const CTX_HINTS = [
   ["claude", 200000],
   ["deepseek", 131072],
   ["gpt-oss|gpt-4o|gpt-4\\.1", 131072],
-  ["glm-?[45]", 131072],
+  ["glm-?5", 1048576],            // GLM-5.3(含 Flash)实测 1M(2026-11-08,对齐 ZCode 显示口径)
+  ["glm-?[45]", 131072],          // GLM-4 系维持 128K
   ["llama-?3|llama-?4|nemotron", 131072],
   ["mistral|mixtral|ministral", 131072],
   ["qwen", 131072],

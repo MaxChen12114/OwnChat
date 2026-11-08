@@ -1610,6 +1610,32 @@
     return cjk + Math.ceil(ascii / 4);
   }
 
+  // ── 2026-11-08 压缩触发辅助（对标 ZCode auto-compact 的水位判定）──
+  // 当前模型上下文窗口：手动覆盖 > worker /config.js 下发的 APP_CTX_EXACT/HINTS > 128K 兜底
+  // （与右栏状态面板的 ctxWindow 同一套数据源；此处独立实现是因为核心 IIFE 不引外部模块）
+  function _ctxLimitForCompact() {
+    let v = 0;
+    try { v = parseInt(localStorage.getItem("cfw_ctx_window_v1"), 10) || 0; } catch (e) {}
+    if (v >= 1024) return v;
+    try {
+      const mid = (document.getElementById("modelSel") || {}).value || localStorage.getItem("cfw_model") || "";
+      const exact = window.APP_CTX_EXACT || {};
+      if (mid && exact[mid]) return exact[mid];
+      const hints = Array.isArray(window.APP_CTX_HINTS) ? window.APP_CTX_HINTS : [];
+      for (let i = 0; i < hints.length; i++) {
+        try { if (new RegExp(hints[i][0], "i").test(mid)) return hints[i][1]; } catch (e) {}
+      }
+    } catch (e) {}
+    return 131072;
+  }
+  // 会话 token 估算（仅文本内容；附件全文在 IDB，发送时才计价，不进水位）
+  function _sessTokensForCompact() {
+    let t = 0;
+    for (const m of session) {
+      if (m && typeof m.content === "string") t += estimateTokens(m.content);
+    }
+    return t;
+  }
   function updateSpacer() {
     if (!composerEl || !spacerEl) return;
     const rect = composerEl.getBoundingClientRect();
@@ -3198,8 +3224,14 @@
     isSending = true;
     sendBtn.disabled = true;
 
-    // 阶段 4-③：长对话自动压缩早期历史为剧情摘要后再发送
-    if (historyEnabled && summaryEnabled && !summarizing && session.length > summaryTrigger) {
+    // 阶段 4-③：长对话自动压缩 —— 2026-11-08 升级(对标 ZCode auto-compact)：触发改双通道
+    //   ① token 水位（主）：会话估算 token ≥ 70% × 当前模型上下文窗口 —— 给摘要生成与后续
+    //      请求预留空间，不等到满窗才压；窗口来源 = 手动覆盖(cfw_ctx_window_v1) > worker
+    //      /config.js 下发的 APP_CTX_EXACT/HINTS > 128K 兜底，与右栏状态面板同一套数据
+    //   ② 条数保底：session.length > summaryTrigger —— 旧口径保留（短消息密集对话兜底）
+    //   最小守护：session.length > 4（至少要有可压缩的轮次）
+    if (historyEnabled && summaryEnabled && !summarizing && session.length > 4 &&
+        (_sessTokensForCompact() >= _ctxLimitForCompact() * 0.7 || session.length > summaryTrigger)) {
       const prevCostText = costDisplayEl ? costDisplayEl.textContent : "";
       try {
         summarizing = true;
