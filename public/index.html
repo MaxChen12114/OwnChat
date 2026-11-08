@@ -1814,7 +1814,7 @@
       if (emptyHint) emptyHint.style.display = 'none';
       var wrapper = document.createElement('div');
       wrapper.id = '__agentConsoleRoot';
-      wrapper.style.cssText = 'display:flex;flex-direction:column;height:100%;min-height:0;';
+      wrapper.style.cssText = 'display:flex;flex-direction:column;flex:1 1 auto;min-height:0;';
       fishbowlSlot.innerHTML = '';
       fishbowlSlot.removeAttribute('style');
       fishbowlSlot.className = 'sidebar-slot';
@@ -1848,6 +1848,10 @@
       fishbowlSlot.innerHTML = '';
       fishbowlSlot.removeAttribute('style');
       fishbowlSlot.className = 'sidebar-slot';
+      // 2026-11-08(所有者拍板): 双开时槽位纵向 flex 堆叠 —— 平级名单 / Agent 控制台 / 鱼缸控制台
+      fishbowlSlot.style.display = 'flex';
+      fishbowlSlot.style.flexDirection = 'column';
+      fishbowlSlot.style.overflowY = 'auto';
     }
     // 移动端清理
     if (mobileAgentPanel) {
