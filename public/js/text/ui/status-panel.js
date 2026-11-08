@@ -35,7 +35,7 @@
 .sp-ctxline .sp-ctx-input{flex:1;min-width:0;}
 .sp-ctxline .sp-ctx-auto{flex:none;}
 .sp-bar{height:8px;border-radius:6px;background:rgba(127,127,127,.16);overflow:hidden;margin:8px 0 10px;}
-.sp-bar-fill{height:100%;border-radius:6px;background:#7fb3d5;width:0;transition:width .5s ease,background .3s ease;}
+.sp-bar-fill{height:100%;border-radius:6px;background:var(--accent,#7fa4c9);width:0;transition:width .5s ease,background .3s ease;}
 .sp-cat{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;line-height:1.4;}
 .sp-dot{width:8px;height:8px;border-radius:50%;flex:none;}
 .sp-cat-name{opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -48,9 +48,9 @@
 .sp-ctx-auto:hover{color:inherit;background:rgba(127,127,127,.14);}
 .sp-note code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px;background:rgba(127,127,127,.14);padding:1px 4px;border-radius:4px;word-break:break-all;}
 .sp-empty{font-size:12px;color:var(--muted,#9a9a9a);padding:6px 0 2px;line-height:1.6;}
-.sp-warn{color:#ffb648;}
-:root{--sp-c1:#7fb3d5;--sp-c2:#c39bd3;--sp-c3:#5ec98a;--sp-c4:#e5c07b;--sp-c5:#61afef;--sp-c6:#ff9f6e;--sp-c7:#8a8f98;--sp-c8:#4ec9b0;}
-html[data-scheme="light"]:not([data-theme]){--sp-c1:#0969da;--sp-c2:#8250df;--sp-c3:#1a7f37;--sp-c4:#953800;--sp-c5:#0550ae;--sp-c6:#bc4c00;--sp-c7:#6e7781;--sp-c8:#0f8a67;}
+.sp-warn{color:var(--danger,#e8607d);}
+
+
 @media (prefers-reduced-motion:reduce){.sp-bar-fill{transition:none;}}
 `;
 
@@ -179,14 +179,17 @@ html[data-scheme="light"]:not([data-theme]){--sp-c1:#0969da;--sp-c2:#8250df;--sp
     };
   }
 
+  // 2026-11-08: 分类色收进主题 —— 旧版 8 色盘(--sp-c1..8)写死不跟主题,五颜六色与极简/墨黑系不搭。
+  // 比例信息由数值+标签承载,圆点统一走 accent;超阈值由主条用 --danger 表达。
+  const _AC = "var(--accent, #7fa4c9)";
   const CATS = [
-    { key: "msgTokens",     name: "消息历史",  c: "var(--sp-c1)" },
-    { key: "attTokens",     name: "上传文档",  c: "var(--sp-c8)" },
-    { key: "sumTokens",     name: "记忆摘要",  c: "var(--sp-c2)" },
-    { key: "loreTokens",    name: "设定集",    c: "var(--sp-c3)", lore: true },
-    { key: "cardTokens",    name: "角色卡·人设", c: "var(--sp-c4)" },
-    { key: "presetTokens",  name: "预设·技能", c: "var(--sp-c5)" },
-    { key: "reasoningTokens", name: "思考归档", c: "var(--sp-c7)" },
+    { key: "msgTokens",     name: "消息历史",  c: _AC },
+    { key: "attTokens",     name: "上传文档",  c: _AC },
+    { key: "sumTokens",     name: "记忆摘要",  c: _AC },
+    { key: "loreTokens",    name: "设定集",    c: _AC, lore: true },
+    { key: "cardTokens",    name: "角色卡·人设", c: _AC },
+    { key: "presetTokens",  name: "预设·技能", c: _AC },
+    { key: "reasoningTokens", name: "思考归档", c: _AC },
   ];
 
   const SKELETON = `
@@ -264,7 +267,7 @@ html[data-scheme="light"]:not([data-theme]){--sp-c1:#0969da;--sp-c2:#8250df;--sp
     host.querySelector("[data-sp=\"bigSub\"]").textContent = "(" + fmtPct(s.total / (ctx || 1)) + ")";
     const bar = host.querySelector("[data-sp=\"bar\"]");
     bar.style.width = Math.min(100, pct * 100) + "%";
-    bar.style.background = pct > 0.9 ? "#e8607d" : pct > 0.7 ? "#ffb648" : "#7fb3d5";
+    bar.style.background = pct > 0.9 ? "var(--danger, #e8607d)" : "var(--accent, #7fa4c9)";
     host.querySelector("[data-sp=\"cats\"]").innerHTML = catRowsHtml(s);
     host.querySelector("[data-sp=\"lastreq\"]").innerHTML = lastReqHtml(s.lastReq);
     host.querySelector("[data-sp=\"sys\"]").innerHTML = sysHtml(s);

@@ -320,11 +320,20 @@
   async function setBaseImage(characterId, imageUrl) {
     if (!imageUrl) return null;
     var src = imageUrl;
-    // 4.82: 超过 ~300KB 的 data:URL 先压缩(R2 已绑定且非 data: 时走转存,不受影响)
+    // 4.82: 超过 ~300KB 的 data:URL 先压缩(避免直写 localStorage 超配额)
     if (/^data:/i.test(src) && src.length > 300 * 1024) {
       src = await shrinkDataUrl(src, 1024, 0.85);
     }
-    // 2026-11-08(审查 P1): R2 路由已删,转存调用恒失败回落 srcUrl —— 直用 src,删掉死调用
+    // 2026-11-08 修(审查 P1): 生成图直链(Gitee 等)会过期,过期后自拍/改图基准图挂掉 ——
+    // 存库前把 http(s) 直链抓下来转 dataURL 永久本地化(cfw_chat_base_v1 不在云同步白名单,
+    // 仅本机,收缩后 ~100-200KB/角色在 LS 配额内);抓取失败回落原 URL(有总比没有强)。
+    if (!/^data:/i.test(src)) {
+      try {
+        var _b = await (await dlFetch(src, {})).blob();
+        var _d = await blobToDataURL(_b);
+        if (/^data:/i.test(_d)) src = _d.length > 300 * 1024 ? await shrinkDataUrl(_d, 1024, 0.85) : _d;
+      } catch (e) {}
+    }
     var m = loadBaseMap(); m[characterId || 'default'] = src; saveBaseMap(m);
     return src;
   }
