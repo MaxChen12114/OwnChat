@@ -1195,7 +1195,7 @@
       <div class="rs-tabs" role="tablist" aria-label="右侧面板切换">
         <button class="rs-tab active" data-rs-tab="fishbowl" role="tab" aria-selected="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h16a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-9l-4.5 3.5V16.5H4A1.5 1.5 0 0 1 2.5 15V7A1.5 1.5 0 0 1 4 5.5z"/><circle cx="8.5" cy="11" r="1"/><circle cx="12" cy="11" r="1"/><circle cx="15.5" cy="11" r="1"/></svg>
-          <span>群聊</span><span class="rs-dot" aria-hidden="true"></span>
+          <span>活动</span><span class="rs-dot" aria-hidden="true"></span>
         </button>
         <button class="rs-tab" data-rs-tab="status" role="tab" aria-selected="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5h16"/><path d="M7.5 19.5v-5.5"/><path d="M12 19.5V6.5"/><path d="M16.5 19.5v-8.5"/></svg>
@@ -1836,7 +1836,7 @@
 
   function unmountAgentPanel(){
     // 桌面端清理
-    if (fishbowlTab) { var sp = fishbowlTab.querySelector('span:not(.rs-dot)'); if (sp && sp.textContent === '活动') sp.textContent = '群聊'; }
+    if (fishbowlTab) { var sp = fishbowlTab.querySelector('span:not(.rs-dot)'); if (sp) sp.textContent = '活动'; }
     if (emptyHint) emptyHint.style.display = '';
     if (fishbowlSlot) {
       fishbowlSlot.innerHTML = '';
@@ -1860,7 +1860,7 @@
     window.__agentConsole = null;
   }
 
-  // 2026-11-08: 右栏「群聊」tab 状态驱动 —— 多智能体开=群聊 / Agent 模式开=活动(挂载时改名) / 都关=隐藏。
+  // 2026-11-08: 右栏「活动」tab 状态驱动 —— 多智能体或 Agent 模式任一开=显示（标签恒为「活动」，2026-11-08 所有者定名），都关=隐藏。
   // 旧版标签写死「群聊」，多智能体没开也常驻，与面板内空态提示（会引导去开多智能体）不一致。
   function syncFishbowlTab(){
     if (!fishbowlTab) return;
