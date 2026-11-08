@@ -126,7 +126,7 @@
         type: "object",
         properties: {
           network: { type: "boolean", description: "是否执行联网逐环节探测（默认 true）。false=仅零网络的环境+加载自检" },
-          test_url: { type: "string", description: "联网探测用的目标 URL（默认 B 站接口）" },
+          test_url: { type: "string", description: "联网探测用的目标 URL（默认多目标探针：百度/example.com/B 站）" },
         },
         additionalProperties: false,
       },

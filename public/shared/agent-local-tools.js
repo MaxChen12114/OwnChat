@@ -7,7 +7,7 @@
 // 已经有一套虚拟工作区工具在跑(data/agent-workspace.js):
 //   list_files / read_file / write_file / edit_file / delete_file / export_file
 // 它们操作的是浏览器 IndexedDB,文件不落地。内核的 registry.define 遇到重名会 **throw**,
-// 而重复定义会让后续工具全部漏注册(agent-reach.js 头顶那条 Bug4 注释记的就是这个坑)。
+// 而重复定义会让后续工具全部漏注册(app.js buildRegistry 处那条 Bug4 注释记的就是这个坑)。
 // 所以本地这套统一加 local_ 前缀,两组并存、语义分明:
 //   不带前缀 = 会话内的临时工作区(随便写,不落盘)
 //   带 local_ = 你磁盘上的真实文件(受工作目录门控)

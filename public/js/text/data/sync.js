@@ -176,8 +176,8 @@
       if (PROTECTED.includes(k)) continue;
       // 2026-10-06: 同上,旧云包里的 localStorage.tavern_active_props_v1 也不再还原(道具卡已删)。
       if (k === "tavern_active_props_v1") continue;
-      // 4.17: 远端有聊天 session 但本地未开 includeChat,跳过(避免另一台设备的聊天覆盖本地)
-      if (k === "cfw_chat_session_v1" && !includeChat()) continue;
+      // 2026-11-08 修(审查 P2): 该分支永假 —— cfw_chat_session_v1 在 PROTECTED(上方 continue
+      // 先命中),聊天走独立通道。删除以免误导(真正的不还原护栏在 4.76 通道层)。
       if (typeof ls[k] === "string") localStorage.setItem(k, ls[k]);
     }
   }
@@ -1428,7 +1428,7 @@
       // 4.76/4.78: 聊天 key 走 /sync/chat、角色卡 meta/tomb 走 /sync/chars(除非正在落地远端合并);其余走 main blob
       if (CHAT_DIRTY_KEYS.indexOf(k) >= 0) { if (!_applyingRemoteChat) markChatDirty(); }
       else if (CHARS_DIRTY_KEYS.indexOf(k) >= 0) { if (!_applyingRemoteChars) markCharsDirty(); }
-      else if (!PROTECTED.includes(k)) markDirty();
+      else if (!PROTECTED.includes(k) && (LS_EXPLICIT.indexOf(k) >= 0 || LS_PREFIXES.some(function (p2) { return k.indexOf(p2) === 0; }))) markDirty();
     }
   };
   Storage.prototype.removeItem = function (k) {
@@ -1436,7 +1436,7 @@
     if (this === localStorage) {
       if (CHAT_DIRTY_KEYS.indexOf(k) >= 0) { if (!_applyingRemoteChat) markChatDirty(); }
       else if (CHARS_DIRTY_KEYS.indexOf(k) >= 0) { if (!_applyingRemoteChars) markCharsDirty(); }
-      else if (!PROTECTED.includes(k)) markDirty();
+      else if (!PROTECTED.includes(k) && (LS_EXPLICIT.indexOf(k) >= 0 || LS_PREFIXES.some(function (p2) { return k.indexOf(p2) === 0; }))) markDirty();
     }
   };
 })();

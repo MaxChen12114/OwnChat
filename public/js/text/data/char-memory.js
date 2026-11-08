@@ -24,8 +24,10 @@
   const CHUNK_SIZE = 500, CHUNK_OVERLAP = 60;
   const INJECT_MAX_CHUNKS = 3, INJECT_MAX_CHARS = 1200;
 
+  let _dbPromise = null; // 2026-11-08 修(审查 P2): 缓存连接 Promise —— 旧版每次操作都新开连接且从不 close
   function open() {
-    return new Promise((resolve, reject) => {
+    if (_dbPromise) return _dbPromise;
+    _dbPromise = new Promise((resolve, reject) => {
       try {
         const q = indexedDB.open(DB, 1);
         q.onupgradeneeded = () => {
@@ -39,7 +41,7 @@
         q.onsuccess = () => resolve(q.result);
         q.onerror = () => reject(q.error);
       } catch (e) { reject(e); }
-    });
+    }).catch(function (e) { _dbPromise = null; throw e; }); // 失败允许下次重试
   }
   const reqP = (r) => new Promise((resolve, reject) => { r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
   // 读：单个请求的 promise（事务在请求完成前后自然收尾，不再依赖 oncomplete 的时序）

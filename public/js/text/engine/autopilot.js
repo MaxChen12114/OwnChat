@@ -57,7 +57,6 @@
       const K = window.AgentKernel;
       if (K && ((K.isRunning && K.isRunning()) || K.running === true || K.state === 'running')) return 'agent-loop';
     } catch (e) {}
-    try { if (app() && app().isSending) return 'sending'; } catch (e) {}
     // 拿不到 isSending 时,用「有气泡正在流式」当占线证据 —— 比原来直接放行可靠
     try { if (document.querySelector('#chat .row.ai[data-streaming="1"]')) return 'sending'; } catch (e) {}
     return null;

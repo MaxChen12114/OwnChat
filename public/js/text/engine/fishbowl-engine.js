@@ -6,7 +6,7 @@
 //   discuss（议题驱动 N 轮，发言者策略 round-robin / ai-pick）
 // 暴露：window.__fishbowl.{ getMode, setMode, getTopic, setTopic, getMaxRounds, setMaxRounds,
 //                          getStrategy, setStrategy, start, pause, resume, stop,
-//                          insertUserMsg, getState, onTick, parseTags }
+//                          getState, onTick, parseTags }
 // 事件：window 'fishbowl:tick' detail = { state, mode, round, max, topic, strategy, speakerName }
 // 依赖：window.__app.{ sendOne, abortCurrent, injectModeratorMsg } / window.__multi / window.__character
 // 红线：借鉴洪都鱼缸范式但不复用洪都代码；不引入 RAG/议多/spatial 科研栈
@@ -22,14 +22,11 @@ const MAX_ROUNDS_HARD  = 1000;  // v4.9 从 30 提到 1000：实质取消轮数�
 const DEFAULT_MAX      = 8;
 const MAX_RELAY_STREAK = 5;     // v4.21 智能编排:连续 AI 指名接力上限,超出强制回轮询,防两人霸场
 const TICK_SLEEP_MS    = 800;
-const INSERT_DEBOUNCE  = 200;
 
 // ── 内部状态 ──
 let state        = "idle"; // idle | running | paused | ended
 let currentRound = 0;
 let speakerIndex = 0;
-let pending      = [];
-let pendingTimer = null;
 let abortFlag    = false;
 let lastSpeaker  = null;
 let lastNextHint = null;
@@ -170,34 +167,14 @@ function parseTags(text) {
 }
 
 // ── 用户插话队列（200ms 防抖合并）──
-async function flushPending() {
-  if (!pending.length) return;
-  const merged = pending.join("\n").trim();
-  pending = [];
-  if (!merged) return;
-  relayStreak = 0; // v4.21 用户介入 → 重置接力计数,下一段重新允许 ≤5 轮指名接力
-  if (window.__app && window.__app.injectModeratorMsg) {
-    try { await window.__app.injectModeratorMsg(merged); }
-    catch (e) { console.warn("[fishbowl] injectModeratorMsg failed:", e); }
-  }
-}
 
-function insertUserMsg(text) {
-  if (typeof text !== "string" || !text.trim()) return;
-  pending.push(text.trim());
-  if (pendingTimer) clearTimeout(pendingTimer);
-  pendingTimer = setTimeout(() => {
-    pendingTimer = null;
-    if (state !== "running") flushPending();
-  }, INSERT_DEBOUNCE);
-}
 
 // ── 主循环（start / resume 共用）──
 async function runLoop() {
   try {
     while (state === "running" && (devNoRoundCap() || currentRound < getMaxRounds()) && !abortFlag) {
-      // 1. flush 用户插话（让下一位 AI 看见）
-      await flushPending();
+      // 2026-11-08(审查 P2): 用户插话队列摘除(生产者 insertUserMsg 从未接线,队列恒空)——
+      // 若将来接 roast 输入,在这里恢复 flush 调用
       // 2. 选发言者
       const speaker = pickNext(getParticipants());
       if (!speaker) break;
@@ -338,7 +315,6 @@ function stop() {
   abortFlag = true;
   state = "idle";
   endStats = null;
-  pending = [];
   if (window.__app && window.__app.abortCurrent) window.__app.abortCurrent();
   setMode("orchestrate");
   emit();
@@ -363,7 +339,7 @@ window.__fishbowl = {
   getMaxRounds, setMaxRounds,
   getStrategy, setStrategy,
   start, pause, resume, stop, resetEnded,
-  insertUserMsg, getState, onTick, parseTags,
+  getState, onTick, parseTags,
   MAX_PARTICIPANTS, MAX_ROUNDS_HARD,
 };
 })();

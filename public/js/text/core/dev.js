@@ -315,7 +315,7 @@
         cur.onerror=function(){res(out);};
       }).then(function(recs){
         if(!recs.length)return;
-        recs.slice().reverse().forEach(function(r){payloads.unshift(Object.assign({},r,{fromHist:true}));});
+        recs.forEach(function(r){payloads.unshift(Object.assign({},r,{fromHist:true}));}); // 游标新→旧 + unshift = 恰为旧→新(旧版多一次 reverse,方向反了)
         // 2026-10-08 修:并回历史后必须重施内存环上限 —— 旧版 15(历史) + 25(本次) 可涨到 40 条,
         // 每条最长 40 万字符原始流 + 完整 payload,长跑就是几十 MB 常驻(那 200-330MB 渲染进程堆的一块)。
         if(payloads.length>MAX_PAYLOADS)payloads.splice(0,payloads.length-MAX_PAYLOADS);

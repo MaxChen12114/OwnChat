@@ -1,7 +1,7 @@
 // public/multi-agent.js — 多智能体场景模块
 // 拆自 character.js（场景成员+模式开关）+ app.js（scene-strip 渲染）+ topbar-controls.js（顶栏按钮）
 // 单一职责：管「谁在场景里 / 当前是不是多人模式 / scene-strip UI / 顶栏切换按钮」
-// 依赖：window.__character.listAllCards() 拿全部卡 + window.__character.archetypes 兜底
+// 依赖：window.__character.listAllCards() 拿全部卡
 // 事件：
 //   window 'multi-agent:changed' detail = { isMulti, sceneIds }
 //   同时向后兼容派发 'character:changed' 让 character.js UI 自动 rerender
@@ -178,7 +178,7 @@ function syncChatMode(mode) {
   document.body.setAttribute("data-chat-mode", isRoast ? "roast" : "group");
   const inputEl = document.getElementById("msg");
   if (inputEl) {
-    // 4.82: roast 模式的插话队列(fishbowl insertUserMsg)尚未接线,输入实际走普通发送路径 ——
+    // 4.82: roast 模式的插话输入实际走普通发送路径（fishbowl 插话队列已于 2026-11-08 摘除,从未接线）——
     // placeholder 如实描述,不承诺「主持人介入」
     inputEl.placeholder = isRoast
       ? "Message...(发言由群聊控制台指定)"

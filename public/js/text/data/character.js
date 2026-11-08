@@ -73,8 +73,8 @@ async function setAff(v){
 function getPendingThresholdEvents(){try{const r=JSON.parse(localStorage.getItem(LSPE)||"[]");return Array.isArray(r)?r:[];}catch{return[];}}
 function clearPendingThresholdEvents(){localStorage.removeItem(LSPE);}
 function resetThresholdTriggers(cardId){if(cardId)localStorage.removeItem(LSAT_PREFIX+cardId);}
-async function adjustAff(delta){if(!_card||!isAffOn())return;const cur=typeof _aff==="number"?_aff:AFF_INIT;await setAff(cur+(Number(delta)||0));}
-async function resetAff(){if(!_card||!isAffOn())return;resetThresholdTriggers(_card.id);await setAff(AFF_INIT);}
+async function adjustAff(delta){if(!isAffOn())return;const cur=typeof _aff==="number"?_aff:AFF_INIT;await setAff(cur+(Number(delta)||0));}
+async function resetAff(){if(!isAffOn())return;resetThresholdTriggers(_card.id);await setAff(AFF_INIT);}
 // 解析 AI 回复末尾的隐藏好感度标签 [好感+N] / [好感-N]（N 1-2 位；多匹配取最后一个；返回剥离后正文）
 function parseAffTag(t){if(!t||typeof t!=="string")return{delta:0,stripped:t};const re=/\[\s*好感\s*([+\-])\s*(\d{1,2})\s*\]/g;let m,last=null;while((m=re.exec(t))!==null)last=m;if(!last)return{delta:0,stripped:t};const s=last[1]==="-"?-1:1;const n=Math.min(50,Math.max(0,parseInt(last[2],10)||0));return{delta:s*n,stripped:t.replace(re,"").replace(/\s+$/,"")};}
 // 场景成员管理已搬到 multi-agent.js；setActive 仍负责切换当前角色，并通知 multi-agent 自动加入场景
@@ -273,7 +273,8 @@ function editor(b,card){
     const s={id:c.id||"u_"+Date.now().toString(36),name,gender:g("gender"),age:g("age"),identity:g("identity"),scenario:g("scenario"),icon:g("icon")||"\u{1F642}",enableAffection:isDev()?!!b.querySelector('[data-f="enableAff"]')?.checked:(c.enableAffection!==false),personality:g("personality"),speakingStyle:g("speakingStyle"),rules:[g("r0"),g("r1"),g("r2")].filter(r=>r),openingLine:g("opening"),exampleQA:[{user:g("q0u"),character:g("q0c")},{user:g("q1u"),character:g("q1c")}].filter(q=>q.user||q.character),affectionThresholds:cleanThr,avatar:c.avatar||"",spec:c.spec||null};
     while(s.rules.length<3)s.rules.push("");
     while(s.exampleQA.length<2)s.exampleQA.push({user:"",character:""});
-    await put(s);try{if(window.__sync&&window.__sync.bumpCharMeta)window.__sync.bumpCharMeta(s.id);}catch(e){}setActive(s.id);tab="mine";setTimeout(render,30);
+    // 2026-11-08 修(审查 P2): 走唯一写入口 saveCard(旧版直 put+手工 bump,绕过 normalize/校验)
+    await saveCard(s);setActive(s.id);tab="mine";setTimeout(render,30);
   });
   b.querySelector("[data-back]").addEventListener("click",()=>{tab="mine";render();});
 }

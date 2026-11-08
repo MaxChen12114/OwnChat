@@ -683,6 +683,8 @@
           // 走原生/代理请求原始 XML(带超时)；失败由外层 catch 统一处理
           let xml = ""
           const r = await safeFetch(url, { headers: { "Accept": "application/rss+xml, application/xml, text/xml" } })
+          // 2026-11-08 修(审查 P2): 不查 r.ok 时 404/反爬页会被当 XML 解析出 0 条,模型误判"订阅源为空"
+          if (!r.ok) return { ok: false, error: "HTTP " + r.status + "（订阅源不可达或拒绝访问）" }
           xml = await r.text()
 
           // 简单 XML 解析（不依赖 DOM，兼容 Worker 环境）
@@ -767,7 +769,6 @@
     defineTools,
     SKILL: AGENT_REACH_SKILL,
     // 配置代理端点（网页侧如有自定义 worker 路由可覆盖）
-    setProxy: function (endpoint) { global.__agentReachProxy = endpoint },
     // 控制台手动自检：AgentReach.diagnose().then(console.log)
     diagnose: function (url) { return diagnoseNetwork(url) },
   }

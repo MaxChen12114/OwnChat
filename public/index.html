@@ -1629,9 +1629,8 @@
     else b.removeAttribute("data-mobile-effort");
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", syncThinkEffort); else syncThinkEffort();
-  // 4.82: 删掉 500ms 常驻轮询(该函数读的两个 LS key 全项目无写入方,轮询纯空转),改事件驱动:
-  //   ① 点击 thinkToggle 后 40ms 校准一次; ② toggle 的 title/aria-label/effort 属性被其它模块改写时随变化校准。
-  document.addEventListener("click", function(e){ if (e.target && e.target.closest && e.target.closest("#thinkToggle")) setTimeout(syncThinkEffort, 40); }, true);
+  // 4.82: 删掉 500ms 常驻轮询,改事件驱动: toggle 的 title/aria-label/effort 属性被改写时随变化校准
+  //   (2026-11-08 修: 点击引发的 class 翻转必触发下方 MutationObserver,click 捕获监听是重复检测,删)
   (function(){
     var _tt = document.getElementById("thinkToggle");
     if (_tt) new MutationObserver(syncThinkEffort).observe(_tt, { attributes: true, attributeFilter: ["title", "aria-label", "data-effort", "data-thinking-effort", "class"] });

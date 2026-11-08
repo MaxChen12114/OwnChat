@@ -56,7 +56,6 @@
       if (b) await idbPut(cacheKey, b);
     } catch (e) {}
     renderGrid();
-    // 仅当图已进 R2 才把元数据推 KV;没 R2 的纯本地条目不同步,避免别的设备拿到裂图
     toast('已收藏到本地画廊');
     return item;
   }
@@ -64,7 +63,7 @@
     var it = STATE.items.filter(function (x) { return x.id === id; })[0];
     if (!it) return;
     it.deleted = true; it.ts = Date.now();
-    persist(); renderGrid(); pushSoon();
+    persist(); renderGrid();
   }
   // 2026-09-14 UI第一轮:统一反馈组件代理 —— __feedback 在则转发,缺失回退 #galToast 原实现
   function toast(msg) {

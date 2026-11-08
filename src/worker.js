@@ -894,7 +894,7 @@ async function handleChat(request, env) {
     }
     if (repaired) {
       // 留痕（不静默：仓库纪律"缺东西要响"）—— 出现即说明有客户端送来了断裂协议
-      try { console.log("[api/chat] 入站协议自愈：补写 " + repaired + " 条合成工具结果"); } catch (e) {}
+      console.log("[api/chat] 入站协议自愈：补写 " + repaired + " 条合成工具结果");
     }
     return kept;
   }
@@ -1005,7 +1005,13 @@ async function handleChat(request, env) {
       const calls = (pmsg && pmsg.tool_calls) || [];
       const wantSearch = calls.some((c) => c && c.function && c.function.name === "web_search");
       if (!wantSearch) break; // 模型不需要搜索 → 直接进正常出稿
-      cleanedMessages.push({ role: "assistant", content: (pmsg && pmsg.content) || "", tool_calls: calls });
+      // 2026-11-08 修(审查 P1): G1 契约 —— needsReasoningHistory 渠道的 assistant 历史
+      // 必带 reasoning_content(缺失/空也给 "")。探针推入的这条此前没带,下一轮探针与最终管线都会吃 400。
+      const _probeAsst = { role: "assistant", content: (pmsg && pmsg.content) || "", tool_calls: calls };
+      if (provider.needsReasoningHistory) {
+        _probeAsst.reasoning_content = (pmsg && typeof pmsg.reasoning_content === "string") ? pmsg.reasoning_content : "";
+      }
+      cleanedMessages.push(_probeAsst);
       for (const c of calls) {
         let args = {};
         try { args = JSON.parse((c.function && c.function.arguments) || "{}"); } catch (_) {}
@@ -1111,7 +1117,7 @@ async function handleChat(request, env) {
     if (!data) {
       return resp("Upstream returned invalid JSON", "text/plain; charset=utf-8", 502);
     }
-    if (_dbg) { try { data._debug = _dbg; } catch {} } // 2026-06-15 dev 回显(非流式/agent 路径)
+    if (_dbg) { data._debug = _dbg; } // 2026-06-15 dev 回显(非流式/agent 路径)
     return resp(JSON.stringify(data), "application/json; charset=utf-8", 200, {
       "X-TTFB-Ms": String(ttfb),
       "X-Model": model,
@@ -1158,9 +1164,8 @@ async function handleSummarize(request, env) {
   if (!requireAuth(request, env)) {
     return resp("Unauthorized", "text/plain; charset=utf-8", 401);
   }
-  if (!env.DEEPSEEK_API_KEY) {
-    return resp("Missing DEEPSEEK_API_KEY", "text/plain; charset=utf-8", 500);
-  }
+  // 2026-11-08 修(审查 P1): 删除前置硬门 —— E1 渠道路由后 key 检查在 resolveProvider
+  // 之后按渠道做(下方 summarizeKey),只配 NIM/自定义渠道的用户不再被 DEEPSEEK_API_KEY 一刀切 500。
   let payload;
   try { payload = await request.json(); } catch { return resp("Bad JSON", "text/plain; charset=utf-8", 400); }
   const messages = Array.isArray(payload?.messages) ? payload.messages : [];
@@ -1192,15 +1197,20 @@ async function handleSummarize(request, env) {
     {
       method: "POST",
       headers: { "Authorization": `Bearer ${summarizeKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: _sModel, // 4.69 G1: 旧 deepseek-chat 2026-07-24 弃用;摘要默认走渠道最便宜档
-        stream: false,
-        thinking: { type: "disabled" },
-        messages: [
-          { role: "system", content: sysPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      }),
+      body: JSON.stringify((function () {
+        const b = {
+          model: _sModel, // 4.69 G1: 旧 deepseek-chat 2026-07-24 弃用;摘要默认走渠道最便宜档
+          stream: false,
+          messages: [
+            { role: "system", content: sysPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        };
+        // 2026-11-08 修(审查 P1): DeepSeek 方言的关思考参数只发给 DeepSeek 系渠道 ——
+        // 旧版无条件携带,OpenAI 官方系端点对未知参数回 400
+        if (summarizeProvider.thinkingStyle === "deepseek") b.thinking = { type: "disabled" };
+        return b;
+      })()),
     },
     30000
   );
@@ -1290,9 +1300,10 @@ async function handleFetchProxy(request) {
     }
     hopUrl = next;
   }
-  const body = await upstream.arrayBuffer();
+  // 2026-11-08(审查 P2): 流式透传 —— 旧版 arrayBuffer 整段进内存,开放代理下可被用于
+  // 中转大文件打爆 Worker 内存(聊天流 4.83 已因同款教训改透传)
   const ct = upstream.headers.get("Content-Type") || "application/octet-stream";
-  return new Response(body, {
+  return new Response(upstream.body, {
     status: upstream.status,
     headers: {
       "Content-Type": ct,
@@ -1429,6 +1440,9 @@ async function runSearch(env, q, opts) {
   // DDG 没结果（常见于 504 或限速）→ 走 Bing RSS 免费兜底
   const bing = await searchViaBingRss(q, n);
   if (bing.length) return { ok: true, source: "bing", query: q, results: bing };
+  // 2026-11-08 修(审查 P2): 全后端不可达时如实报错 —— 旧版把"搜索挂了"伪装成"成功但空结果",
+  // handleSearchProxy 的 502 分支与调用方的失败文案永远不可达
+  if (ddgErr) return { ok: false, error: "搜索后端不可达: " + ddgErr, query: q, results: [] };
   return { ok: true, source: "ddg", query: q, results: [] };
 }
 

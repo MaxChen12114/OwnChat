@@ -186,10 +186,6 @@
     try { localStorage.setItem(LS_CUSTOM_PRICING, JSON.stringify(all)); } catch {}
     return all;
   }
-  function getPricingTable() {
-    // 兼容旧调试入口：返回扁平合并表；真实计算请走 getPricing()/calcCost(ctx,...)
-    return Object.assign({}, window.DEEPSEEK_PRICING || {}, getCustomPricing());
-  }
 
   const session = [];
   let totalPromptTokens = 0;
@@ -200,7 +196,6 @@
   let lastReqStats = null;
   let isSending = false;
   // 4.64 多开会话:把"上一槽 key"提到 IIFE 作用域,供 switchConversation 与 character:changed 处理器共享,避免切会话后下次切角色把当前会话误存到旧槽
-  let lastSlotKey = "";
   // 4.80 fix: 运行期内存槏缓存,与「本地存储」开关完全无关——即便未勾选本地存储,
   // 切角色卡 / 切多开会话时也不再清空对话,只有刷新页面才会真正丢失(那才是本地存储该管的事)。
   const _memSlots = {};
@@ -1700,6 +1695,8 @@
     const nodes = Array.from(chatEl.children);
     for (const n of nodes) {
       if (n === spacerEl) continue;
+      // 2026-11-08 修(审查 P2): 群聊头部/摘要 chip 由 renderHeader 自管理,清行连删会消失到下次角色切换
+      if (n.id === "wechatGroupHeader" || n.id === "summaryChip") continue;
       chatEl.removeChild(n);
     }
   }
@@ -1877,7 +1874,6 @@
     clearUIRows();
     clearPendingAttachments();
     clearChoiceChips();
-    lastSlotKey = id;
     applyConvChar(id);
     if (!memRestoreSlot(id) && historyEnabled) restoreSessionIfEnabled();
     renderSummaryChip();
@@ -2300,7 +2296,9 @@
     // 只在当前模式模型列表中才恢复已保存的值；占位符永不恢复
     const savedInList = saved && !isPlaceholderModel(saved) && MODELS.some((m) => m.id === saved);
     modelSel.value = savedInList ? saved : DEFAULT;
-    if (!savedInList && DEFAULT) localStorage.setItem(LS_MODEL, DEFAULT);
+    // 2026-11-08 修(审查 P2): 只在真的没有已选模型(未设/占位符)时才落默认值 ——
+    // 旧版切到另一模式时会把那边选好的模型覆写掉
+    if ((!saved || isPlaceholderModel(saved)) && DEFAULT) localStorage.setItem(LS_MODEL, DEFAULT);
   }
 
   modelSel.addEventListener("change", () => {
@@ -4557,11 +4555,9 @@
     // 后续回复自然换人(助理消息本就自带 speakerId/speakerName,渲染时会用)。
     // 旧实现在这里 clearUIRows() + 换槽 —— 那正是「一切角色聊天记录就全没了」的根因;
     // 旧代码为鱼缸 relay/discuss 写的豁免分支也随之不需要了(它每轮 setActiveId 现在完全无害)。
-    lastSlotKey = currentSlotKey();
     window.addEventListener("character:changed", () => {
       const key = currentSlotKey();
       try { setConvCharId(key, activeCardId()); } catch {}
-      lastSlotKey = key;
       updateSpacer();
     });
   }

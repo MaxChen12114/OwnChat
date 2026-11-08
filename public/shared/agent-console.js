@@ -84,10 +84,6 @@ export function mountAgentConsole(container, opts = {}) {
 	const timeline = el("div", "ac-timeline")
 	root.append(timeline)
 
-	// ③ 最终摘要
-	const finalBox = el("div", "ac-final")
-	finalBox.style.display = "none"
-	root.append(finalBox)
 
 	let depth = 0
 	let round = 0
@@ -220,14 +216,6 @@ export function mountAgentConsole(container, opts = {}) {
 		scrollIntoView()
 	}
 
-	function showFinal(text) {
-		finalBox.style.display = ""
-		finalBox.innerHTML = ""
-		const lbl = el("div", "ac-final__label"); lbl.textContent = "最终结果"
-		const body = el("div", "ac-final__text"); body.textContent = text || "（无内容）"
-		finalBox.append(lbl, body)
-		scrollIntoView()
-	}
 
 	function onEvent(ev) {
 		if (!ev || !ev.type) return
@@ -368,8 +356,6 @@ export function mountAgentConsole(container, opts = {}) {
 		// 清空面板前先解掉未决卡：否则循环还挂在那张卡的 Promise 上，而卡已经从 DOM 里消失
 		cancelPending("已中断（面板清空）")
 		timeline.innerHTML = ""
-		finalBox.style.display = "none"
-		finalBox.innerHTML = ""
 		pending.clear()
 		depth = 0; round = 0
 		stopClock(); startTs = 0; time.textContent = ""

@@ -18,6 +18,39 @@
 
   function asText(v) {
     if (v == null) return '';
+
+  // 2026-11-08(审查 P1): 用户代码沙盒 —— new Function 此前在页面主上下文执行,而画布连代码
+  // 一起持久化(cfw_coding_graph_v1),导入/分享别人的节点 = 其代码可拿页面里的 token/角色卡/密钥。
+  // 改为 Blob Web Worker:无 DOM/无同源访问,单次执行 5s 超时自动 terminate,结果经 postMessage 序列化。
+  var _EVAL_TIMEOUT = 5000;
+  function runUserCode(code, fnArgs, args) {
+    return new Promise(function (resolve, reject) {
+      var src = 'self.onmessage=function(e){var d=e.data;try{'
+        + 'var f=new Function(d.fnArgs.join(","),d.code);'
+        + 'var r=f.apply(null,d.fnArgs.map(function(k){return d.args[k];}));'
+        + 'try{self.postMessage({ok:true,result:(r===undefined?null:r)});}'
+        + 'catch(_c){self.postMessage({ok:true,result:String(r)});}'
+        + '}catch(err){self.postMessage({ok:false,error:String((err&&err.message)||err)});}};';
+      var url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
+      var w = new Worker(url);
+      var done = false;
+      var timer = setTimeout(function () {
+        if (done) return; done = true;
+        try { w.terminate(); } catch (e) {} URL.revokeObjectURL(url);
+        reject(new Error('用户代码执行超时 (' + (_EVAL_TIMEOUT / 1000) + 's)'));
+      }, _EVAL_TIMEOUT);
+      w.onmessage = function (e) {
+        if (done) return; done = true; clearTimeout(timer); URL.revokeObjectURL(url); w.terminate();
+        var d = e.data || {};
+        if (d.ok) resolve(d.result); else reject(new Error(d.error || '用户代码执行失败'));
+      };
+      w.onerror = function (e) {
+        if (done) return; done = true; clearTimeout(timer); URL.revokeObjectURL(url); w.terminate();
+        reject(new Error('用户代码执行环境异常: ' + String((e && e.message) || e)));
+      };
+      w.postMessage({ code: code, fnArgs: fnArgs, args: args });
+    });
+  }
     if (typeof v === 'string') return v;
     try { return JSON.stringify(v, null, 2); } catch (e) { return String(v); }
   }
@@ -105,13 +138,15 @@
   // ── JS 变换(代码节点) ──
   E.register({
     type: 'js-transform', title: 'JS 变换', group: G_CODE,
-    desc: '写一段 JS 处理上游数据:input 是上游文本,return 的值即输出。',
+    desc: '写一段 JS 处理上游数据:input 是上游文本,return 的值即输出。在沙盒 Worker 中执行(无页面/凭据访问,5s 超时),请返回可序列化结果。',
     inputs: [{ name: 'in', label: '输入' }], outputs: [{ name: 'out', label: '结果' }],
     params: [{ key: 'code', label: 'JS 代码', type: 'textarea', placeholder: '// input 为上游文本\nreturn input.trim().toUpperCase();' }],
-    run: function (inputs, params) {
+    // 2026-11-08: 沙盒化 —— desc 同步注明隔离语义
+    run: async function (inputs, params) {
       var code = params.code || 'return input;';
-      var fn = new Function('input', code);
-      var r = fn(asText(inputs.in));
+      var r;
+      try { r = await runUserCode(code, ['input'], { input: asText(inputs.in) }); }
+      catch (e) { throw new Error('JS 变换: ' + e.message); }
       return { out: (typeof r === 'string') ? r : asText(r) };
     }
   });
@@ -126,7 +161,7 @@
       { key: 'flags', label: '标志', type: 'text', placeholder: 'g' },
       { key: 'replace', label: '替换为(留空=提取)', type: 'text', placeholder: '(可选)' }
     ],
-    run: function (inputs, params) {
+    run: async function (inputs, params) {
       var src = asText(inputs.in);
       var flags = params.flags || 'g';
       var re = new RegExp(params.pattern || '', flags);
@@ -166,11 +201,11 @@
     inputs: [{ name: 'in', label: '输入' }],
     outputs: [{ name: 'yes', label: '真' }, { name: 'no', label: '假' }],
     params: [{ key: 'cond', label: '条件(JS 表达式)', type: 'textarea', placeholder: "// input 为上游文本\ninput.includes('错误')" }],
-    run: function (inputs, params) {
+    run: async function (inputs, params) {
       var val = asText(inputs.in);
       var expr = (params.cond || '').trim() || 'input.length > 0';
       var ok;
-      try { ok = !!(new Function('input', 'return (' + expr + ');')(val)); }
+      try { ok = !!(await runUserCode('return (' + expr + ');', ['input'], { input: val })); }
       catch (e) { throw new Error('条件分支：表达式出错 ' + e.message); }
       return ok ? { yes: val, no: '' } : { yes: '', no: val };
     }
@@ -189,7 +224,7 @@
       { key: 'tpl', label: '模板 / JS', type: 'textarea', placeholder: '模板：第 %i% 项=%item%\nJS：return item.toUpperCase();' },
       { key: 'join', label: '合并分隔符', type: 'text', placeholder: '默认换行' }
     ],
-    run: function (inputs, params) {
+    run: async function (inputs, params) {
       var src = asText(inputs.in);
       var how = params.split || '按行', items;
       if (how === 'JSON 数组') {
@@ -201,13 +236,16 @@
       items = items.map(function (x) { return (typeof x === 'string') ? x : asText(x); });
       if (how !== 'JSON 数组') { items = items.filter(function (s) { return s.trim() !== ''; }); }
       var mode = params.mode || '模板', tpl = params.tpl || '';
-      var out = items.map(function (item, i) {
+      var out = [];
+      for (var i = 0; i < items.length; i++) {
+        var item = items[i];
         if (mode === 'JS 表达式') {
-          try { var r = new Function('item', 'i', tpl || 'return item;')(item, i); return (typeof r === 'string') ? r : asText(r); }
+          try { var r = await runUserCode(tpl || 'return item;', ['item', 'i'], { item: item, i: i }); out.push((typeof r === 'string') ? r : asText(r)); }
           catch (e) { throw new Error('循环处理：第 ' + (i + 1) + ' 项 JS 出错 ' + e.message); }
+        } else {
+          out.push(tpl.split('%item%').join(item).split('%i%').join(String(i)));
         }
-        return tpl.split('%item%').join(item).split('%i%').join(String(i));
-      });
+      }
       var join = (params.join != null && params.join !== '') ? params.join : '\n';
       return { text: out.join(join), count: items.length };
     }

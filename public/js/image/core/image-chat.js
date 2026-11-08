@@ -41,7 +41,7 @@
         var list = (ch.listAllCards ? ch.listAllCards() : []) || [];
         var hit = list.filter(function (c) { return c && c.id === id; })[0];
         if (hit) return hit;
-        var arch = ch.archetypes || [];
+        var arch = []; // 2026-11-08(审查 P2): character.js 契约无 archetypes,兜底恒空
         var ah = arch.filter(function (c) { return c && c.id === id; })[0];
         if (ah) return ah;
       }

@@ -11,9 +11,6 @@ body.ue-open { overflow: hidden; }
 /* 2026-10-06: 图像工坊(body.img-open 由 image-embed.js 一直有切但无规则)同款滚动锁 */
 body.img-open { overflow: hidden; }
 .ue-preset-row.ue-has-drag { grid-template-columns: auto auto minmax(110px, 220px) 1fr auto; }
-.ue-preset-drag { display: inline-flex; align-items: center; cursor: grab; opacity: .35; }
-.ue-preset-drag:hover { opacity: .8; }
-.ue-preset-row.dragging { opacity: .5; }
 .ue-preset-name { display: flex; flex-direction: column; gap: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .ue-preset-name .ue-preset-file { font-size: 10.5px; font-weight: 400; opacity: .45; font-family: ui-monospace, Menlo, Consolas, monospace; }
 .ue-char-line { display: flex; align-items: center; min-width: 0; }
@@ -429,15 +426,6 @@ html[data-theme="candle"] .row.moderator .bubble {
  flex-direction: column;
  gap: 8px;
  min-height: 0;
-}
-#fishbowlSlot:empty::before {
- content: "多智能体多人模式 + 场景≥2 时,群聊控制台显示在这里";
- font-size: 11px;
- color: #666;
- font-style: italic;
- padding: 8px 6px;
- text-align: center;
- display: block;
 }
 
 /* 桌面端 fishbowl 入侧栏 slot:取消 fixed 定位 */
@@ -1270,7 +1258,6 @@ html[data-theme="candle"] .img-close:hover { background: rgba(217,168,104,.25); 
 
  .composer-toolbar { margin-bottom: 4px; gap: 6px; }
  .chip-btn { padding: 4px 9px; font-size: 11px; }
- #thinkToggle { padding: 3px 8px; }
 
  #bottom-spacer { height: 100px; }
 }
@@ -1281,8 +1268,7 @@ html[data-theme="candle"] .img-close:hover { background: rgba(217,168,104,.25); 
 }
 
 /* 隐藏消息行操作按钮 + token 统计数字(一起隐 — 干净聊天场景不需要看 prompt/completion/累计) */
-html.hide-msg-actions .my-action-btns,
-html.hide-msg-actions .stats {
+html.hide-msg-actions .my-action-btns {
  display: none !important;
 }
 
@@ -1324,17 +1310,6 @@ html[data-theme="candle"] .bubble.wechat-typing { color: #f2e7d6; }/* ═══�
  - 颜色沿用 .chip-btn 各主题规则（这里只调几何尺寸/对齐），active 态仍由 .chip-btn.active 接管
  ═══════════════════════════════ */
 .composer-toolbar:empty { display: none; margin: 0; }
-.input-inner #thinkToggle {
- align-self: center;
- flex: 0 0 auto;
- margin: 0;
- padding: 5px 11px;
- font-size: 12px;
- line-height: 1.2;
-}
-@media (max-width: 1023px) {
- .input-inner #thinkToggle { padding: 4px 9px; font-size: 11px; }
-}
 
 /* ═══════════════════════════════
  Phase 4 阶段 4.27 · 全局视觉打磨 v1（提设计感，尊重各主题气质）
