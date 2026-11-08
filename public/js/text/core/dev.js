@@ -338,6 +338,124 @@
       });
     }).catch(function(){toast("清空失败",1600);});
   }
+
+  // === §Agent I/O 读回工具(2026-11-08) ===
+  // 给 agent 的 io_list / io_read / io_search —— 读「§I/O 落盘」里那份数据(与 Dev Panel 同库同形)。
+  // 门控:与落盘同门(ioRecordOn=开发者模式开+落盘开关),没开就不注册(零占用)。
+  // 隐私:记录含完整对话 payload,且全会话混存 —— agent 能看到其他对话的 I/O,与人开 Dev Panel 的范围一致。
+  // 大小:单条响应侧封顶 IO_CAP(40 万字符),io_read 一律分窗(nextStart 续读),绝不整条回灌。
+  function ioReadAll(limit){
+    return ioTx("readonly").then(function(os){
+      if(!os)return [];
+      return new Promise(function(res){
+        const out=[];
+        const cur=os.index("at").openCursor(null,"prev"); // 新 → 旧
+        cur.onsuccess=function(){const c=cur.result;if(!c||out.length>=limit){res(out);return;}out.push(c.value);c.continue();};
+        cur.onerror=function(){res(out);};
+      });
+    }).catch(function(){return [];});
+  }
+  function ioFind(idPrefix){
+    const s=String(idPrefix||"").trim();
+    return ioReadAll(IO_KEEP).then(function(recs){
+      for(let i=0;i<recs.length;i++){ if(recs[i].id===s||recs[i].id.indexOf(s)===0)return recs[i]; }
+      return null;
+    });
+  }
+  function ioFmtWhen(at){
+    const d=new Date(at||0);const p=function(n){return (n<10?"0":"")+n;};
+    return p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds());
+  }
+  function ioFmtRec(r){
+    return "#"+r.id+"  "+ioFmtWhen(r.at)+"  model="+((r&&r.model)||"-")+"  msgs="+(r.msgCount||0)+"  "
+      +(r.error?"ERROR":(r.done?"ok":"incomplete"))+"  "+(r.ms||0)+"ms  req="+(r.requestBytes||0)+"B resp="+(r.responseBytes||0)+"B"
+      +(r.truncated?"  [truncated]":"")+(r.debugStream?"  [debugStream]":"");
+  }
+  function ioWindow(text,start,len){
+    const str=String(text||"");
+    const st=Math.max(1,parseInt(start||"1",10)||1);
+    const n=Math.min(8000,Math.max(1,parseInt(len||"3000",10)||3000));
+    const piece=str.slice(st-1,st-1+n);
+    return {text:piece,next:(st-1+n<str.length)?(st+n):null,total:str.length};
+  }
+  window.__ioTools={
+    defineTools:function(registry){
+      if(!registry||typeof registry.define!=="function")return;
+      if(!ioRecordOn())return;
+      registry.define({
+        name:"io_list",
+        description:"列出已落盘的模型 I/O 记录(最近≤50 条,与 设置→开发者 Dev Panel 同一份数据)。查「上一轮实际发了什么/回了什么」的入口;单条详情用 io_read。",
+        parameters:{type:"object",properties:{limit:{type:"number",description:"可选:最多列几条,默认 20,最大 50"}},additionalProperties:false},
+        run:async function(args){
+          const recs=await ioReadAll(Math.min(50,Math.max(1,parseInt((args&&args.limit)||20,10)||20)));
+          if(!recs.length)return "没有落盘记录(开发者模式未开,或还没有请求)。";
+          const out=["共 "+recs.length+" 条(新→旧):"];
+          recs.forEach(function(r){out.push(ioFmtRec(r));});
+          out.push("读单条:io_read(传 # 后面的完整 id);找内容用 io_search。");
+          return out.join("\n");
+        }
+      });
+      registry.define({
+        name:"io_read",
+        description:"按 id 读单条落盘 I/O 记录。part=summary(默认:元信息+消息清单+回复摘录)/payload(完整出站请求 JSON)/content(回复正文)/reasoning(思考)/raw(入站原始流)。单条可达 40 万字符,超长用 start/len 分窗,按 nextStart 续读。",
+        parameters:{type:"object",properties:{id:{type:"string",description:"记录 id(io_list 输出 # 后面的串,可只传前缀)"},part:{type:"string",description:"可选:summary(默认)/payload/content/reasoning/raw"},start:{type:"number",description:"可选:字符窗口起点,默认 1"},len:{type:"number",description:"可选:窗口长度,默认 3000,最大 8000"}},required:["id"],additionalProperties:false},
+        run:async function(args){
+          const r=await ioFind(args&&args.id);
+          if(!r)return "找不到记录(用 io_list 查现有 id;库最多留 50 条,更旧的已被删)。";
+          const part=String((args&&args.part)||"summary").toLowerCase();
+          if(part==="summary"){
+            const out=[ioFmtRec(r)];
+            const msgs=(r.payload&&r.payload.messages)||[];
+            out.push("消息清单("+msgs.length+" 条):");
+            msgs.slice(0,30).forEach(function(m,i){
+              const t=(m&&m.content)==null?"":m.content;
+              const preview=(typeof t==="string")?t.replace(/\s+/g," ").slice(0,120):("[非文本内容 "+String((t&&t.length)||0)+" 段]");
+              out.push("  ["+i+"] "+((m&&m.role)||"?")+": "+preview);
+            });
+            if(msgs.length>30)out.push("  …(还有 "+(msgs.length-30)+" 条;完整请求用 part=payload)");
+            if(r.error)out.push("错误:"+r.error+(r.errorBody?(" / "+String(r.errorBody).slice(0,300)):""));
+            out.push("回复正文("+String(r.content||"").length+" 字符):"+String(r.content||"").replace(/\s+/g," ").slice(0,1200));
+            if(r.reasoning)out.push("思考("+String(r.reasoning).length+" 字符):"+String(r.reasoning).replace(/\s+/g," ").slice(0,600));
+            if(r.usage)out.push("usage:"+JSON.stringify(r.usage));
+            return out.join("\n");
+          }
+          let body=null;
+          if(part==="payload"){try{body=JSON.stringify(r.payload,null,1);}catch(e){body=String(e);}}
+          else if(part==="content")body=r.content;
+          else if(part==="reasoning")body=r.reasoning;
+          else if(part==="raw")body=r.raw;
+          if(body==null)return "未知 part:"+part+"(可用 summary/payload/content/reasoning/raw)";
+          const w=ioWindow(body,args&&args.start,args&&args.len);
+          return "["+part+" 共 "+w.total+" 字符,本窗 "+w.text.length+" 字符"+(w.next?(";续读 start="+w.next):"")+"]\n"+w.text;
+        }
+      });
+      registry.define({
+        name:"io_search",
+        description:"在最近 ≤50 条落盘 I/O 记录里按关键词搜索(匹配请求 payload/回复正文/思考/原始流,不区分大小写)。排查「哪一轮提到过 X」时用;命中给记录行 + 上下文摘录。",
+        parameters:{type:"object",properties:{query:{type:"string",description:"关键词(字面匹配,不区分大小写)"},max:{type:"number",description:"可选:最多返回几条命中,默认 10,最大 20"}},required:["query"],additionalProperties:false},
+        run:async function(args){
+          const q=String((args&&args.query)||"").trim();
+          if(!q)return "缺少 query";
+          const cap=Math.min(20,Math.max(1,parseInt((args&&args.max)||10,10)||10));
+          const needle=q.toLowerCase();
+          const recs=await ioReadAll(IO_KEEP);
+          const hits=[];
+          for(let i=0;i<recs.length&&hits.length<cap;i++){
+            const r=recs[i];
+            let blob="";
+            try{blob=JSON.stringify(r.payload)||"";}catch(e){blob="";}
+            blob+="\n"+(r.content||"")+"\n"+(r.reasoning||"")+"\n"+(r.raw||"");
+            const idx=blob.toLowerCase().indexOf(needle);
+            if(idx<0)continue;
+            const excerpt=blob.slice(Math.max(0,idx-80),idx+needle.length+120).replace(/\s+/g," ");
+            hits.push(ioFmtRec(r)+"\n  …"+excerpt+"…");
+          }
+          if(!hits.length)return "最近 "+recs.length+" 条记录里没有命中「"+q+"」。";
+          return "命中 "+hits.length+" 条:\n"+hits.join("\n");
+        }
+      });
+    }
+  };
   (function patchFetch(){
     if(!window.fetch)return;
     const orig=window.fetch.bind(window);

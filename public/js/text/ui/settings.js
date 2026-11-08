@@ -65,26 +65,19 @@
     var slot = document.getElementById('setAppearanceThemeSlot') || document.getElementById('setAppearanceTopSlot');
     if (!slot || document.getElementById('mobileAppLayoutCard')) return;
     var K = 'cfw_mobile_bottom_tabs_v1';
-    var RK = 'cfw_mobile_tabs_restore_v1';
     var card = document.createElement('div'); card.className = 'card'; card.id = 'mobileAppLayoutCard';
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.4"/><path d="M9.5 18.5h5"/></svg>手机 App 布局</h4>'
       + '<p>Android App 专用适配。输入框已按同类聊天 App 放大为更易点按的通栏布局;底部功能栏默认折叠,需要时可在这里打开。<b>仅本设备生效</b>。</p>'
-      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="mobileBottomTabsToggle"><label for="mobileBottomTabsToggle">显示底部功能栏(鱼缸 / 形象 / 场景 / Agent)</label></div><div class="btns"><button class="smallbtn" id="mobileAppRefreshBtn" type="button">刷新页面</button></div></div>'
-      + '<div class="rowline" style="margin-top:6px;"><div class="toggle"><input type="checkbox" id="mobileTabsRestoreToggle"><label for="mobileTabsRestoreToggle">显示右下角快速唤醒按钮 ▦</label></div></div>'
-      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>底栏关闭后输入框会贴近底部安全区;快速唤醒按钮默认隐藏,打开上方开关后才显示。</span></div>';
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="mobileBottomTabsToggle"><label for="mobileBottomTabsToggle">显示底部功能栏(鱼缸 / 状态 / Agent)</label></div><div class="btns"><button class="smallbtn" id="mobileAppRefreshBtn" type="button">刷新页面</button></div></div>'
+      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>底栏关闭后输入框会贴近底部安全区;需要时回到这里重新打开。</span></div>';
     slot.appendChild(card);
     var t = card.querySelector('#mobileBottomTabsToggle');
-    var rt = card.querySelector('#mobileTabsRestoreToggle');
     function isAndroidApp() {
       try { return document.documentElement.classList.contains('android-app') || localStorage.getItem('cfw_android_app_shell_v1') === '1'; } catch (e) { return false; }
     }
     function apply(on) {
       document.documentElement.classList.toggle('hide-mobile-tabs', !on);
       try { localStorage.setItem(K, on ? '1' : '0'); } catch (e) {}
-    }
-    function applyRestore(on) {
-      document.documentElement.classList.toggle('show-mobile-tabs-restore', !!on);
-      try { localStorage.setItem(RK, on ? '1' : '0'); } catch (e) {}
     }
     var on = true;
     try {
@@ -93,11 +86,7 @@
     } catch (e) {}
     t.checked = on;
     apply(on);
-    var restoreOn = false;
-    try { restoreOn = localStorage.getItem(RK) === '1'; } catch (e) {}
-    if (rt) { rt.checked = restoreOn; applyRestore(restoreOn); }
     t.addEventListener('change', function () { apply(t.checked); });
-    if (rt) rt.addEventListener('change', function () { applyRestore(rt.checked); });
     var rb = card.querySelector('#mobileAppRefreshBtn');
     if (rb) rb.addEventListener('click', function () { location.reload(); });
   }

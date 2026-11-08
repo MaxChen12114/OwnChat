@@ -136,7 +136,6 @@
     /* 2026-09-13 fix: 手机底栏 DOM 在 .app-shell 外,桌面端必须硬隐藏,避免桌面底部出现占位条/手机按钮。 */
     @media (min-width: 769px) {
       #mobileBottomTabs,
-      #mobileTabsRestoreBtn,
       .mobile-tab-panel {
         display: none !important;
         visibility: hidden !important;
@@ -328,16 +327,6 @@
       html.hide-mobile-tabs body.nav-hidden .input-floating {
         transform: none !important;
       }
-      /* 底栏默认折叠；快速唤醒按钮也默认隐藏，只有设置中打开后才显示。 */
-      #mobileTabsRestoreBtn { display: none; }
-      html.hide-mobile-tabs.show-mobile-tabs-restore #mobileTabsRestoreBtn {
-        display: inline-flex !important;
-        position: fixed; right: 10px; bottom: calc(88px + env(safe-area-inset-bottom)); z-index: 9998;
-        width: 32px; height: 32px; border-radius: 999px; align-items: center; justify-content: center;
-        border: 1px solid rgba(127,127,127,.24); background: rgba(20,20,20,.72); color: inherit;
-        backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); opacity: .55;
-      }
-      html.hide-mobile-tabs.show-mobile-tabs-restore #mobileTabsRestoreBtn:active { opacity: 1; transform: scale(.94); }
       #composer {
         align-items: center !important;
       }
@@ -488,7 +477,6 @@
         // 2026-09-12 手机端统一:App 和网页底部功能栏都默认折叠;只有设置里显式开启(cfw_mobile_bottom_tabs_v1 === '1')才显示。
         var tabsPref = ls.getItem('cfw_mobile_bottom_tabs_v1');
         if (tabsPref !== '1') html.classList.add('hide-mobile-tabs');
-        if (ls.getItem('cfw_mobile_tabs_restore_v1') === '1') html.classList.add('show-mobile-tabs-restore');
         // 4.15 hotfix: 不再给 html 加 data-reply-style="wechat" — wechat 模式仅控拆气泲,不再隐藏小按钮(需隐藏请用上面独立 toggle)
         var fs = parseInt(ls.getItem('cfw_chat_font_size_v1') || '13', 10);
         if (fs >= 12 && fs <= 28) html.style.setProperty('--chat-font-size', fs + 'px');
@@ -1241,10 +1229,6 @@
     <span class="mobile-tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h16a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-9l-4.5 3.5V16.5H4A1.5 1.5 0 0 1 2.5 15V7A1.5 1.5 0 0 1 4 5.5z"/><circle cx="8.5" cy="11" r="1"/><circle cx="12" cy="11" r="1"/><circle cx="15.5" cy="11" r="1"/></svg></span>
     <span class="mobile-tab-label">鱼缸</span>
   </button>
-  <button class="mobile-tab-btn" data-tab="image" title="角色形象 / 场景图 · 一键生成 / 改图(图像工坊已上线)" disabled>
-    <span class="mobile-tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2.2"/><circle cx="8" cy="10" r="1.4"/><path d="M4.5 16.5l4.5-4 3 2.5 3.2-3 4.3 4"/></svg></span>
-    <span class="mobile-tab-label">图像</span>
-  </button>
   <button class="mobile-tab-btn" data-tab="status" title="上下文容量 / 最近请求 / 系统状态">
     <span class="mobile-tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5h16"/><path d="M7.5 19.5v-5.5"/><path d="M12 19.5V6.5"/><path d="M16.5 19.5v-8.5"/></svg></span>
     <span class="mobile-tab-label">状态</span>
@@ -1254,8 +1238,6 @@
     <span class="mobile-tab-label">Agent</span>
   </button>
 </nav>
-<button id="mobileTabsRestoreBtn" type="button" aria-label="恢复底部功能栏" title="恢复底部功能栏">▦</button>
-<div class="mobile-tab-panel" id="mobileTabPanel-image" data-tab="image">角色形象 / 场景图 · 加载中…</div>
 <div class="mobile-tab-panel" id="mobileTabPanel-status" data-tab="status">状态 · 加载中…</div>
 <div class="mobile-tab-panel" id="mobileTabPanel-agent" data-tab="agent" style="top:var(--topbar-h,60px);padding:0;overflow:hidden;background:var(--bg,#15161a);">
   <div id="__mobileAgentPlaceholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;color:var(--muted,#888);font-size:13px;line-height:1.6;text-align:center;padding:0 24px;">
@@ -1268,13 +1250,6 @@
 (function(){
   var tabs = document.querySelectorAll('.mobile-tab-btn');
   var panels = document.querySelectorAll('.mobile-tab-panel');
-  var restoreBtn = document.getElementById('mobileTabsRestoreBtn');
-  if (restoreBtn) restoreBtn.addEventListener('click', function(){
-    try { localStorage.setItem('cfw_mobile_bottom_tabs_v1', '1'); } catch(e) {}
-    document.documentElement.classList.remove('hide-mobile-tabs');
-    var t = document.getElementById('mobileBottomTabsToggle');
-    if (t) t.checked = true;
-  });
   if (!tabs.length) return;
   tabs.forEach(function(btn){
     btn.addEventListener('click', function(){
@@ -1544,18 +1519,6 @@
 <script src="/shared/tools.js"></script>
 <!-- 2026-11-06: 源码/产物检索工具组（可选开发工具，后端=scripts/dev/source-server.mjs） -->
 <script src="/shared/source-tools.js"></script>
-<script type="module" src="/shared/agent-kernel.js"></script>
-<script src="/shared/tools.js"></script>
-<!-- 2026-10-13 GEO 作业台客户端:token 派生(submit_job 用)+作业轮询推舞台时间线;配置在 设置→Agent→GEO 作业台 -->
-<script src="/shared/geojobs.js"></script>
-<!-- 2026-10-13 记忆与知识库客户端(__hindsight/__kb):recall 注入装配点 + memory_*/kb_query 工具后端;配置在 设置→Agent→记忆与知识库 -->
-<script src="/shared/memory.js"></script>
-<script type="module" src="/shared/agent-kernel.js"></script>
-<script src="/shared/tools.js"></script>
-<!-- 2026-10-13 GEO 作业台客户端:token 派生(submit_job 用)+作业轮询推舞台时间线;配置在 设置→Agent→GEO 作业台 -->
-<script src="/shared/geojobs.js"></script>
-<!-- 2026-10-13 记忆与知识库客户端(__hindsight/__kb):recall 注入装配点 + memory_*/kb_query 工具后端;配置在 设置→Agent→记忆与知识库 -->
-<script src="/shared/memory.js"></script>
 <!-- 2026-06-16 Agent-Reach Skill 模块:fetch_page(Jina Reader) / web_search / search_bilibili / search_github / read_rss;须在 tools.js 之后(buildRegistry 调用时会取 AgentReach.defineTools) -->
 <script src="/shared/agent-reach.js"></script>
 <!-- 4.70 本地能力:local_env / local_list_dir / local_read_file / local_write_file / local_run_command。只桌面端注册;
@@ -1629,14 +1592,6 @@
 <script src="/js/image/gen/image-expressions.js"></script>
 <!-- 2026-05-30 角色头像:以基准图裁近景头像(可选表情),存 cfw_char_avatar_v1+发 avatar:changed -->
 <script src="/js/image/gen/image-avatar.js"></script>
-<script src="/js/image/gen/image-avatar.js"></script>
-<!-- 2026-10-13 GEO-Agent 舞台宿主 v0:viewer 注册表 + 侧列容器 + __stage.open() 派发 API(自包含 DOM/CSS,主体布局零改动;geo 侧 viewer 经 URL 由 iframe 挂载,宿主不解析 GIS 格式) -->
-<!-- ?v= 是缓存键:SW/HTTP 缓存对同名资源会喂旧副本(dev 下 ETag 不变的坑),改 stage-host.js 后把 v 号 +1 -->
-<script src="/js/stage/stage-host.js"></script>
-<script src="/js/image/gen/image-avatar.js"></script>
-<!-- 2026-10-13 GEO-Agent 舞台宿主 v0:viewer 注册表 + 侧列容器 + __stage.open() 派发 API(自包含 DOM/CSS,主体布局零改动;geo 侧 viewer 经 URL 由 iframe 挂载,宿主不解析 GIS 格式) -->
-<!-- ?v= 是缓存键:SW/HTTP 缓存对同名资源会喂旧副本(dev 下 ETag 不变的坑),改 stage-host.js 后把 v 号 +1 -->
-<script src="/js/stage/stage-host.js"></script>
 <!-- 4.9 删除 4.6 折叠 IIFE:原本手机默认 .fishbowl-side-panel.collapsed 只显 header 一条,与 4.8 鱼缸 tab toggle 冲突,导致打开关闭都会有「留一条 header」挡住思考按钮。改为完全靠 4.8 body.fishbowl-shown 切换整个面板 display,不留任何残影。.collapsed CSS 规则保留为 dead code(无 JS 加 class 不生效)。 -->
 <!-- 2026-09-12 手机端思考强度归一化:从按钮状态/本地配置提取 low|medium|high,写入 data-mobile-effort。未知则移除,只显示图标。 -->
 <script>
@@ -1838,6 +1793,11 @@
     if (isMobile()) {
       // ── 移动端：挂入底部 Agent 面板 ──
       if (!mobileAgentPanel) return;
+      // 2026-11-08: 平级名单容器与桌面对齐 —— 多智能体开着时 multi-agent.js 会按 id 填充
+      var peers = document.createElement('div');
+      peers.id = '__agentPeers';
+      peers.style.cssText = 'flex:none;';
+      mobileAgentPanel.appendChild(peers);
       createConsoleIn(mobileAgentPanel, '__agentConsole');
       // 手机端开启 Agent 只挂载控制台，不自动激活全屏 Agent 面板；
       // 避免点左侧「Agent 模式」后直接弹出面板挡住聊天。用户需要查看时再点底部 Agent tab。
@@ -1900,6 +1860,21 @@
     window.__agentConsole = null;
   }
 
+  // 2026-11-08: 右栏「群聊」tab 状态驱动 —— 多智能体开=群聊 / Agent 模式开=活动(挂载时改名) / 都关=隐藏。
+  // 旧版标签写死「群聊」，多智能体没开也常驻，与面板内空态提示（会引导去开多智能体）不一致。
+  function syncFishbowlTab(){
+    if (!fishbowlTab) return;
+    var agentOn = false, multiOn = false;
+    try { agentOn = isAgentOn(); } catch (e) {}
+    try { multiOn = !!(window.__multi && window.__multi.isMulti && window.__multi.isMulti()); } catch (e) {}
+    var show = agentOn || multiOn;
+    fishbowlTab.style.display = show ? '' : 'none';
+    if (!show && fishbowlTab.classList.contains('active')) {
+      var st = document.querySelector('.rs-tab[data-rs-tab="status"]');
+      if (st) st.click();
+    }
+  }
+
   // 2026-09-14:html.agent-mode 供 CSS 切换 Agent 模式的视觉(AI 输出平铺、去气泡)
   function syncAgentClass(on){
     try { document.documentElement.classList.toggle('agent-mode', !!on); } catch(e) {}
@@ -1917,6 +1892,7 @@
     } else {
       unmountAgentPanel();
     }
+    try { syncFishbowlTab(); } catch (e) {}
     updateBtnUI();
   }
 
@@ -1930,6 +1906,12 @@
     mobileAgentPanel = document.getElementById('mobileTabPanel-agent');
 
     if (btn) btn.addEventListener('click', function(){ applyAgentMode(!isAgentOn()); });
+    // 2026-11-08: 「群聊」tab 显隐跟随两个开关（多智能体 / Agent 模式）+ 手机 Agent tab 兜底挂载
+    try { window.addEventListener('multi-agent:changed', function(){ try { syncFishbowlTab(); } catch (e) {} }); } catch (e) {}
+    try { syncFishbowlTab(); } catch (e) {}
+    if (mobileAgentTabEl) mobileAgentTabEl.addEventListener('click', function(){
+      try { if (isAgentOn() && !window.__agentConsole) mountAgentPanel(true); } catch (e) {}
+    });
 
     // 2026-10-08 模式按钮的「外部改动」刷新：这两个开关的状态会被别处改 ——
     //   ① 云同步把 main blob 回灌（cfw_agent_mode_v1 / tavern_multi_agent_mode_v1 都上云）

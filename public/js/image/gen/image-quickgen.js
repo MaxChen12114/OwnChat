@@ -359,21 +359,6 @@
     bindMode(ph);
     updateModeUI();
   }
-  // 2026-09-14 UI第二轮:形象/场景合并进单一「图像」tab(纵向堆叠,与桌面工坊结构一致)
-  function injectMobile() {
-    var ib = document.querySelector('#mobileBottomTabs .mobile-tab-btn[data-tab="image"]');
-    if (ib) { ib.disabled = false; ib.removeAttribute('disabled'); }
-    var p = document.getElementById('mobileTabPanel-image');
-    if (p && !p.__qgDone) {
-      p.__qgDone = true;
-      p.innerHTML = modeBar()
-        + '<div class="qg-sec">' + svgIcon(QG_IC.person) + '<span>角色形象</span></div>' + panelInner('character', '角色图')
-        + '<div style="height:14px;"></div>'
-        + '<div class="qg-sec">' + svgIcon(QG_IC.scene) + '<span>场景图</span></div>' + panelInner('scene', '场景图');
-      p.style.textAlign = 'left';
-      bindButtons(p); bindMode(p);
-    }
-  }
   function restoreLast() {
     ['character', 'scene'].forEach(function (k) {
       var u = lastImage(k);
@@ -384,7 +369,6 @@
   function init() {
     ensureStyles();
     injectDesktop();
-    injectMobile();
     restoreLast();
     updateModeUI();
   }
