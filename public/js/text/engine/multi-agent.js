@@ -262,6 +262,14 @@ function renderFishbowlSidePanel() {
   const slot = document.getElementById("fishbowlSlot");
   const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
   const target = (isDesktop && slot) ? slot : document.body;
+  // 2026-11-08 修(用户实测): #fishbowlSlot 双主人 —— Agent 控制台占用槽位时鱼缸面板让位。
+  // 旧版不看 Agent 模式直接 append，与 Agent 控制台堆叠(谁可见取决于挂载顺序)；
+  // Agent 挂载/卸载时派发的 multi-agent:changed 会让本函数重跑,槽位空出时鱼缸面板自动回来。
+  if (isDesktop && target === slot && slot.querySelector("#__agentConsoleRoot")) {
+    if (panel && panel.parentNode) panel.parentNode.removeChild(panel);
+    panel.style.display = "none";
+    return;
+  }
   if (!panel) {
     panel = document.createElement("aside");
     panel.id = "fishbowlSidePanel";

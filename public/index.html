@@ -1835,6 +1835,9 @@
       var ft = document.querySelector('.rs-tab[data-rs-tab="fishbowl"]');
       if (ft && !ft.classList.contains('active')) ft.click();
     }
+    // 2026-11-08 修(用户实测): 挂载/卸载后通知 multi-agent 重跑 —— 旧版清槽不发事件,
+    // 鱼缸面板被清后游离在 DOM 外,群聊控制台"不会加载"(顺序依赖的根源)
+    try { window.dispatchEvent(new CustomEvent("multi-agent:changed")); } catch (e) {}
   }
 
   function unmountAgentPanel(){
@@ -1861,6 +1864,9 @@
     var panels = document.querySelectorAll('.mobile-tab-panel');
     panels.forEach(function(p){ if (p.getAttribute('data-tab') === 'agent') p.classList.remove('active'); });
     window.__agentConsole = null;
+    // 2026-11-08 修: 卸载后通知 multi-agent 重跑 —— 多智能体还开着时鱼缸面板立即回槽,
+    // 不用等下一次不相关事件(用户实测"Agent 关掉后群聊控制台不回来"的根源)
+    try { window.dispatchEvent(new CustomEvent("multi-agent:changed")); } catch (e) {}
   }
 
   // 2026-09-14:html.agent-mode 供 CSS 切换 Agent 模式的视觉(AI 输出平铺、去气泡)
