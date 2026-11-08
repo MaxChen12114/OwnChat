@@ -120,8 +120,11 @@
         key: (keyEl && keyEl.value.trim()) || old.key || '',
         models: models,
         model: model,
-        editModel: gitee ? ((editEl && editEl.value.trim()) || old.editModel || '') : '',
-        capabilities: gitee ? ['t2i', 'edit'] : ['t2i'],
+        // 2026-11-08 修: 自定义 openai 渠道的改图模型也保存（旧版只存 gitee，其余清空 ——
+        // 「看起来支持改图其实没通」的根源）。comfyui 走 img2img 不需要该字段。
+        editModel: (kind === 'openai') ? ((editEl && editEl.value.trim()) || old.editModel || '') : '',
+        capabilities: kind === 'comfyui' ? ['t2i', 'edit'] : ((gitee ? ['t2i', 'edit'] : ['t2i']).concat(
+          (kind === 'openai' && editEl && editEl.value.trim()) ? ['edit'] : [])),
         ckpt: (ckptEl && ckptEl.value.trim()) || old.ckpt || '',
         steps: (stepsEl && +stepsEl.value) || old.steps || 9
       };

@@ -56,7 +56,7 @@
     if (!models.length && id === 'gitee') models = ['z-image-turbo', 'Qwen-Image-Edit-2511'];
     var caps = Array.isArray(ch.capabilities) ? ch.capabilities.filter(function (x) { return x === 't2i' || x === 'edit'; }) : null;
     if (!caps) caps = (kind === 'openai' && ch.editModel) ? ['t2i', 'edit'] : ['t2i'];
-    if (kind === 'comfyui') caps = ['t2i'];
+    if (kind === 'comfyui') caps = ['t2i', 'edit']; // img2img 工作流支持参考图改图
     return {
       id: id,
       name: String(ch.name || (kind === 'comfyui' ? '本地 ComfyUI' : '自定义渠道')).slice(0, 60),
@@ -150,7 +150,11 @@
   }
   function hasEdit(ch) {
     ch = ch || getActive();
-    return !!(ch && ch.kind === 'openai' && ch.transport === 'site' && ch.capabilities && ch.capabilities.indexOf('edit') >= 0);
+    // 2026-11-08: 改图能力渠道化 —— ComfyUI 走 img2img；openai 直连渠道配置了改图模型
+    // (norm() 会给 caps 补 edit) 同样可改图；site 传输(Gitee 预设)维持原有 caps 判定。
+    if (!ch) return false;
+    if (ch.kind === 'comfyui') return true;
+    return !!(ch.kind === 'openai' && ch.capabilities && ch.capabilities.indexOf('edit') >= 0);
   }
   function models(ch) {
     ch = ch || getActive();

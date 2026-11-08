@@ -32,7 +32,9 @@
   // 指定渠道的鉴权头：per-call 渠道(工坊下拉)优先，不能误用当前激活渠道的 key
   function headersFor(ch, extra) {
     var h = extra || {};
-    var k = (ch && ch.key) || getKey();
+    // 2026-11-08 修(审查 P2): legacy key 回退只允许 Gitee 系 —— 自定义渠道没填 key 时
+    // 旧版会串用本站 Gitee 旧 key（凭据跨渠道误用）。无渠道上下文的历史调用方维持旧回退。
+    var k = (ch && ch.key) ? ch.key : ((!ch || !ch.id || ch.id === 'gitee') ? getKey() : '');
     if (k) h['Authorization'] = 'Bearer ' + k;
     // 2026-10-09：设了 CHAT_PASSWORD 的部署，/img/* 要求带应用登录态（服务端 checkSync 读 X-Sync-Token）。
     // 不能借 Authorization —— 那个位置是上游 Gitee Key 的透传位。
@@ -85,22 +87,8 @@
       fr.readAsDataURL(blob);
     });
   }
-  async function genComfy(ch, opts, model, size) {
-    var base = String(ch.baseUrl || '').replace(/\/+$/, '');
-    if (!base) throw new Error('ComfyUI 渠道未配置 Base URL');
-    var wh = parseSize(size), w = Math.round(wh[0] / 8) * 8, h = Math.round(wh[1] / 8) * 8;
-    var steps = Math.max(1, Math.min(80, +ch.steps || 9));
-    var cfg = Math.max(0, +ch.cfg || 1);
-    var wf = {
-      '1': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: ch.ckpt || 'z-image-turbo-fp8-aio.safetensors' } },
-      '2': { class_type: 'CLIPTextEncode', inputs: { text: opts.prompt || '', clip: ['1', 1] } },
-      '3': { class_type: 'CLIPTextEncode', inputs: { text: opts.negative || '', clip: ['1', 1] } },
-      '4': { class_type: 'ModelSamplingAuraFlow', inputs: { model: ['1', 0], shift: 3 } },
-      '5': { class_type: 'EmptyLatentImage', inputs: { width: w, height: h, batch_size: 1 } },
-      '6': { class_type: 'KSampler', inputs: { model: ['4', 0], positive: ['2', 0], negative: ['3', 0], latent_image: ['5', 0], seed: Math.floor(Math.random() * 2147483647), steps: steps, cfg: cfg, sampler_name: ch.sampler || 'res_multistep', scheduler: ch.scheduler || 'simple', denoise: 1 } },
-      '7': { class_type: 'VAEDecode', inputs: { samples: ['6', 0], vae: ['1', 2] } },
-      '8': { class_type: 'SaveImage', inputs: { images: ['7', 0], filename_prefix: 'site_channel' } }
-    };
+  // 2026-11-08: 提交 + 轮询 + 取图 公共段（genComfy 文生图 / genComfyEdit 改图 共用）
+  async function comfyRun(base, wf) {
     var cid = 'site_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     var pr = await fetchWithTimeout(base + '/prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: wf, client_id: cid }) }, 30000);
     if (!pr.ok) throw new Error('ComfyUI 提交失败 ' + pr.status + ' ' + (await pr.text().catch(function () { return ''; })));
@@ -129,6 +117,54 @@
       }
     }
     throw new Error('ComfyUI 出图超时');
+  }
+  async function genComfy(ch, opts, model, size) {
+    var base = String(ch.baseUrl || '').replace(/\/+$/, '');
+    if (!base) throw new Error('ComfyUI 渠道未配置 Base URL');
+    var wh = parseSize(size), w = Math.round(wh[0] / 8) * 8, h = Math.round(wh[1] / 8) * 8;
+    var steps = Math.max(1, Math.min(80, +ch.steps || 9));
+    var cfg = Math.max(0, +ch.cfg || 1);
+    var wf = {
+      '1': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: ch.ckpt || 'z-image-turbo-fp8-aio.safetensors' } },
+      '2': { class_type: 'CLIPTextEncode', inputs: { text: opts.prompt || '', clip: ['1', 1] } },
+      '3': { class_type: 'CLIPTextEncode', inputs: { text: opts.negative || '', clip: ['1', 1] } },
+      '4': { class_type: 'ModelSamplingAuraFlow', inputs: { model: ['1', 0], shift: 3 } },
+      '5': { class_type: 'EmptyLatentImage', inputs: { width: w, height: h, batch_size: 1 } },
+      '6': { class_type: 'KSampler', inputs: { model: ['4', 0], positive: ['2', 0], negative: ['3', 0], latent_image: ['5', 0], seed: Math.floor(Math.random() * 2147483647), steps: steps, cfg: cfg, sampler_name: ch.sampler || 'res_multistep', scheduler: ch.scheduler || 'simple', denoise: 1 } },
+      '7': { class_type: 'VAEDecode', inputs: { samples: ['6', 0], vae: ['1', 2] } },
+      '8': { class_type: 'SaveImage', inputs: { images: ['7', 0], filename_prefix: 'site_channel' } }
+    };
+    return comfyRun(base, wf);
+  }
+  // 2026-11-08: ComfyUI img2img —— 参考图上传(LoadImage) → VAEEncode → KSampler(denoise) → 解码。
+  // denoise 用渠道的 ch.denoise（0.1~1，默认 0.6；低=更贴参考图，高=更贴提示词）。
+  async function genComfyEdit(ch, opts) {
+    var base = String(ch.baseUrl || '').replace(/\/+$/, '');
+    if (!base) throw new Error('ComfyUI 渠道未配置 Base URL');
+    var blob = opts.blob || await (await dlFetch(opts.srcUrl, { signal: opts.signal })).blob();
+    var fd = new FormData();
+    fd.append('image', blob, opts.filename || 'src.png');
+    fd.append('overwrite', 'true');
+    var ur = await fetchWithTimeout(base + '/upload/image', { method: 'POST', body: fd }, 60000);
+    if (!ur.ok) throw new Error('ComfyUI 参考图上传失败 ' + ur.status);
+    var uj = await ur.json().catch(function () { return null; });
+    if (!uj || !uj.name) throw new Error('ComfyUI 上传未返回文件名');
+    var imgRef = (uj.subfolder ? uj.subfolder + '/' : '') + uj.name;
+    var steps = Math.max(1, Math.min(80, +ch.steps || 9));
+    var cfg = Math.max(0, +ch.cfg || 1);
+    var denoise = Math.max(0.1, Math.min(1, +ch.denoise || 0.6));
+    var wf = {
+      '1': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: ch.ckpt || 'z-image-turbo-fp8-aio.safetensors' } },
+      '2': { class_type: 'CLIPTextEncode', inputs: { text: opts.prompt || '', clip: ['1', 1] } },
+      '3': { class_type: 'CLIPTextEncode', inputs: { text: opts.negative || '', clip: ['1', 1] } },
+      '4': { class_type: 'ModelSamplingAuraFlow', inputs: { model: ['1', 0], shift: 3 } },
+      '10': { class_type: 'LoadImage', inputs: { image: imgRef } },
+      '11': { class_type: 'VAEEncode', inputs: { pixels: ['10', 0], vae: ['1', 2] } },
+      '6': { class_type: 'KSampler', inputs: { model: ['4', 0], positive: ['2', 0], negative: ['3', 0], latent_image: ['11', 0], seed: Math.floor(Math.random() * 2147483647), steps: steps, cfg: cfg, sampler_name: ch.sampler || 'res_multistep', scheduler: ch.scheduler || 'simple', denoise: denoise } },
+      '7': { class_type: 'VAEDecode', inputs: { samples: ['6', 0], vae: ['1', 2] } },
+      '8': { class_type: 'SaveImage', inputs: { images: ['7', 0], filename_prefix: 'comfy_edit' } }
+    };
+    return comfyRun(base, wf);
   }
   async function genImage(opts) {
     opts = opts || {};
@@ -207,8 +243,30 @@
   async function genEdit(opts) {
     opts = opts || {};
     var ch = opts.channel || getChannel();
-    if (ch && (ch.kind !== 'openai' || ch.transport !== 'site' || !(window.__imageChannels && window.__imageChannels.hasEdit(ch)))) {
-      throw new Error('当前渠道不支持改图：请在设置里选择带站点代理的 OpenAI 兼容渠道（Gitee 预设）');
+    // 2026-11-08: 改图渠道化 —— ComfyUI 走 img2img 工作流；直连 OpenAI 兼容渠道走同步
+    // multipart /images/edits（需在渠道详情配置「改图模型」）；site 传输维持原异步任务轮询链。
+    if (ch && ch.kind === 'comfyui') return await genComfyEdit(ch, opts);
+    if (ch && ch.kind === 'openai' && ch.transport === 'direct') {
+      if (!ch.editModel) throw new Error('当前直连渠道未配置改图模型：渠道详情 → 改图模型');
+      var base = String(ch.baseUrl || '').replace(/\/+$/, '');
+      if (!base) throw new Error('渠道未配置 Base URL');
+      var _blob = opts.blob || await (await dlFetch(opts.srcUrl, { signal: opts.signal })).blob();
+      var _fd = new FormData();
+      _fd.append('model', ch.editModel);
+      _fd.append('prompt', opts.prompt || '');
+      _fd.append('image', _blob, opts.filename || 'src.png');
+      if (opts.image2) _fd.append('image', opts.image2, opts.filename2 || 'src2.png');
+      _fd.append('n', '1');
+      if (opts.size) _fd.append('size', opts.size);
+      var _r = await fetchWithTimeout(base + '/images/edits', { method: 'POST', headers: { 'Authorization': 'Bearer ' + (ch.key || '') }, body: _fd }, opts.timeoutMs || 180000);
+      if (!_r.ok) throw new Error('改图失败 ' + _r.status + ' ' + (await _r.text().catch(function () { return ''; })));
+      var _j = await _r.json();
+      var _arr = (_j.data || []).map(function (d) { return d.url || (d.b64_json ? 'data:image/png;base64,' + d.b64_json : ''); }).filter(Boolean);
+      if (!_arr.length) throw new Error('改图返回为空');
+      return { fileUrl: _arr[0], taskId: null };
+    }
+    if (!(window.__imageChannels && window.__imageChannels.hasEdit(ch))) {
+      throw new Error('当前渠道不支持改图：Gitee 预设 / 配置了改图模型的自定义渠道 / ComfyUI 可用');
     }
     var blob = opts.blob || await (await dlFetch(opts.srcUrl, { signal: opts.signal })).blob();
     var fd = new FormData();
