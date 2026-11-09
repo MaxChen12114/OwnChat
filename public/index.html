@@ -182,6 +182,14 @@
     #rightSidebar .rs-body { flex: 1; min-height: 0; display: flex; }
     #rightSidebar .rs-panel { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 10px; }
     #rightSidebar .rs-panel[hidden] { display: none; }
+    /* 2026-11-09(所有者要求): 群聊控制台固定在 Agent 时间线上方 —— 面板高度收进视口,
+       时间线自己在 .ac-timeline 内部滚动,不再把整栏撑长、把群聊控制台顶出屏幕。
+       选择器带 :not([hidden]) 是为压过上面那条(同特异度、靠顺序的话会把 tab 隐藏弄坏)。 */
+    #rightSidebar .rs-panel[data-rs-panel="fishbowl"]:not([hidden]) {
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    #rightSidebar #fishbowlSlot { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+    #rightSidebar #fishbowlSlot > .fishbowl-side-panel.in-slot { flex: none; }
     #rightSidebar .rs-empty { font-size: 11.5px; line-height: 1.6; opacity: .5; text-align: center; padding: 18px 12px; }
     #rightSidebar #fishbowlSlot:not(:empty) + .rs-empty { display: none; }
     #rightSidebar .rs-panel .sidebar-slot-placeholder { padding: 0; border: none; background: none; text-align: left; color: inherit; min-height: 0; }
@@ -1790,8 +1798,20 @@
 
   // Bug2 fix: suppressTabActivation=true 时不自动 click 底部 Agent tab（启动恢复场景）
   // 防止 Tauri 窄窗口（<1024px 触发移动端布局）在页面打开时 Agent panel 全屏覆盖聊天区。
+  // 2026-11-09 修(实测): 旧守卫只看 __agentConsole.root 存不存在,不看挂在哪 ——
+  // 视口切换/容器被清后根节点会滞留(例如首次挂到 mobileTabPanel-agent 后,桌面端
+  // 右栏永远空着且再也不会重挂,用户看到的就是"Agent 控制台不加载")。
+  // 健康 = 根节点仍连着 DOM 且就在当前布局该在的容器里;不健康就清掉重建。
+  function agentConsoleHealthy(){
+    var api = window.__agentConsole;
+    if (!api || !api.root || !api.root.isConnected) return false;
+    var box = isMobile() ? mobileAgentPanel : fishbowlSlot;
+    return !!(box && box.contains(api.root));
+  }
+
   function mountAgentPanel(suppressTabActivation){
-    if (window.__agentConsole && window.__agentConsole.root) return; // 已挂载
+    if (agentConsoleHealthy()) return; // 已挂载且位置正确
+    window.__agentConsole = null;      // 失效根(滞留/被清),走重建
 
     if (isMobile()) {
       // ── 移动端：挂入底部 Agent 面板 ──
@@ -1903,9 +1923,18 @@
     mobileAgentPanel = document.getElementById('mobileTabPanel-agent');
 
     if (btn) btn.addEventListener('click', function(){ applyAgentMode(!isAgentOn()); });
+    // 2026-11-09 修(实测): 桌面/手机断点只在挂载时判一次 —— 窗口从窄拖宽(或 Tauri 启动
+    // 先小后大)后控制台会永远留在隐藏的手机面板里,右栏一直空着。断点变化时自愈重挂。
+    var _agentResizeT = 0;
+    window.addEventListener('resize', function(){
+      clearTimeout(_agentResizeT);
+      _agentResizeT = setTimeout(function(){
+        try { if (isAgentOn() && !agentConsoleHealthy()) mountAgentPanel(true); } catch (e) {}
+      }, 250);
+    });
     // 2026-11-08: 手机 Agent tab 兜底挂载（已开 Agent 但控制台未挂载时，点 tab 补挂）
     if (mobileAgentTabEl) mobileAgentTabEl.addEventListener('click', function(){
-      try { if (isAgentOn() && !window.__agentConsole) mountAgentPanel(true); } catch (e) {}
+      try { if (isAgentOn() && !agentConsoleHealthy()) mountAgentPanel(true); } catch (e) {}
     });
 
     // 2026-10-08 模式按钮的「外部改动」刷新：这两个开关的状态会被别处改 ——
@@ -1954,7 +1983,7 @@
           // 左侧「Agent 模式」按钮只切工作模式，不再自动弹出全屏面板。
           setTimeout(function(){
             localStorage.setItem(LS_AGENT, '1');
-            if (!window.__agentConsole || !window.__agentConsole.root) mountAgentPanel(true);
+            if (!agentConsoleHealthy()) mountAgentPanel(true);
             mobileAgentTabEl.classList.add('active');
             var p = document.getElementById('mobileTabPanel-agent');
             if (p) p.classList.add('active');

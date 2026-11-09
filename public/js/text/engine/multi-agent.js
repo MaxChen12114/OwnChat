@@ -263,13 +263,26 @@ function renderFishbowlSidePanel() {
   const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
   const target = (isDesktop && slot) ? slot : document.body;
   // 2026-11-08(所有者拍板): 双开时鱼缸面板与 Agent 控制台堆叠共存 —— 本函数被
-  // mount/unmount 派发的 multi-agent:changed 触发重跑,把面板追加/移回槽位即可;
-  // DOM 顺序 = 平级名单 → Agent 控制台 → 鱼缸控制台,槽位纵向滚动。
+  // mount/unmount 派发的 multi-agent:changed 触发重跑,把面板追加/移回槽位即可。
+  // 2026-11-09(所有者要求): 群聊控制台固定在 Agent 时间线**上方** —— 时间线一路增长时
+  // 不能把编排/接龙/讨论按钮顶出视口。目标位置 = 槽内 #__agentConsoleRoot 之前;
+  // 没有 Agent 控制台时追加到末尾。DOM 顺序 = 平级名单 → 群聊控制台 → Agent 控制台。
   if (!panel) {
     panel = document.createElement("aside");
     panel.id = "fishbowlSidePanel";
     panel.className = "fishbowl-side-panel";
-    target.appendChild(panel);
+  }
+  if (target === slot) {
+    const anchor = slot.querySelector("#__agentConsoleRoot");
+    // 已在锚点前就跳过；否则(未挂载/被清槽/位置在后)插到锚点前
+    if (anchor && anchor.parentNode === slot) {
+      if (panel.parentNode !== slot || panel.nextElementSibling !== anchor) {
+        slot.insertBefore(panel, anchor);
+      }
+    } else if (panel.parentNode !== slot) {
+      if (panel.parentNode) panel.parentNode.removeChild(panel);
+      slot.appendChild(panel);
+    }
   } else if (panel.parentNode !== target) {
     if (panel.parentNode) panel.parentNode.removeChild(panel);
     target.appendChild(panel);
