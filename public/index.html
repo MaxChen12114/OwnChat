@@ -182,14 +182,8 @@
     #rightSidebar .rs-body { flex: 1; min-height: 0; display: flex; }
     #rightSidebar .rs-panel { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 10px; }
     #rightSidebar .rs-panel[hidden] { display: none; }
-    /* 2026-11-09(所有者要求): 群聊控制台固定在 Agent 时间线上方 —— 面板高度收进视口,
-       时间线自己在 .ac-timeline 内部滚动,不再把整栏撑长、把群聊控制台顶出屏幕。
-       选择器带 :not([hidden]) 是为压过上面那条(同特异度、靠顺序的话会把 tab 隐藏弄坏)。 */
-    #rightSidebar .rs-panel[data-rs-panel="fishbowl"]:not([hidden]) {
-      display: flex; flex-direction: column; overflow: hidden;
-    }
-    #rightSidebar #fishbowlSlot { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-    #rightSidebar #fishbowlSlot > .fishbowl-side-panel.in-slot { flex: none; }
+    /* 2026-11-09(所有者裁定): 右栏保持「整栏向下滚、时间线一路增高」的原行为 ——
+       不把面板收成定高内滚。群聊控制台只调 DOM 顺序(在时间线之上),高度不设限。 */
     #rightSidebar .rs-empty { font-size: 11.5px; line-height: 1.6; opacity: .5; text-align: center; padding: 18px 12px; }
     #rightSidebar #fishbowlSlot:not(:empty) + .rs-empty { display: none; }
     #rightSidebar .rs-panel .sidebar-slot-placeholder { padding: 0; border: none; background: none; text-align: left; color: inherit; min-height: 0; }
