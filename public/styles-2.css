@@ -357,10 +357,10 @@ html[data-theme="candle"] .row.moderator .bubble {
  display: inline-flex;
  align-items: center;
  justify-content: center;
- width: 30px;
- height: 30px;
+ width: 38px;
+ height: 26px;
  flex: none;
- border-radius: 9px;
+ border-radius: 8px;
  border: 1px solid var(--accent-border, rgba(127,127,127,.35));
  background: var(--accent-soft, rgba(127,127,127,.08));
  color: var(--accent, #cfcfcf);
@@ -372,6 +372,24 @@ html[data-theme="candle"] .row.moderator .bubble {
  background: var(--accent-soft, rgba(127,127,127,.14));
 }
 .sidebar-title svg { display: block; }
+/* 2026-11-10（所有者：收起按钮太丑、风格不搭）：从带底色的方按钮改成幽灵图标键 ——
+   26×26、无边框无底色，hover 才出现淡淡底色，和侧栏标题行的克制风格一致。 */
+#sidebarCollapseBtn.sidebar-collapse {
+  width: 26px !important;
+  height: 26px !important;
+  flex: 0 0 26px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--muted, #8a8a8a) !important;
+  border-radius: 7px;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+#sidebarCollapseBtn.sidebar-collapse:hover {
+  background: rgba(127,127,127,.16) !important;
+  color: inherit !important;
+}
 html[data-theme="candle"] .sidebar-title {
  border-color: rgba(217,168,104,.45);
  background: rgba(217,168,104,.10);

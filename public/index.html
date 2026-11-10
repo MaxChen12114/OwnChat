@@ -232,7 +232,10 @@
     /* 主页版隐秘触发点:左侧栏底部版本小字,样式克制(像普通版本标签),连点 7 下触发访问码 */
     #appVersionTagHome { margin: 14px 6px 4px; text-align: center; font-size: 10.5px; color: #5a5a5a; opacity: .55; user-select: none; cursor: default; letter-spacing: .03em; }
     /* 2026-06-11 顶栏统一 + 模型名防挤裁:去掉冗余 Model 文字标签给下拉腾地、控件等高 34/圆角 9、缩小间距,避免窗口偏窄时 select 被压成「DeepSeek V」 */
-    #topbar .topbar-inner { align-items: center; gap: 6px; }
+    /* 2026-11-10（所有者：顶栏按钮间距不一致）：统一 34px 高度 + 8px 间距 ——
+       旧版 iconbtn 38px、pill/cost 34px 混排，视觉间距一眼不齐。 */
+    #topbar .topbar-inner { align-items: center; gap: 8px; }
+    #topbar .iconbtn { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 9px; }
     #topbar .pill.model-pill { display: inline-flex; align-items: center; height: 34px; padding: 0 8px; border-radius: 9px; flex: 0 0 auto; }
     #topbar .model-pill .model-label { display: none; }
     #topbar .model-pill #modelSel { flex: 0 0 auto; min-width: 130px; max-width: 230px; width: auto; height: 30px; border: none; background: transparent; color: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
@@ -901,7 +904,7 @@
       </span>
       <!-- 2026-11-10（所有者）：左栏可向左折成一条窄脊，与右栏固定态对称，像翻书；状态记 cfw_left_collapsed_v1 -->
       <button class="iconbtn sidebar-close sidebar-collapse" id="sidebarCollapseBtn" aria-label="折叠侧栏" aria-expanded="true" title="折叠侧栏（收起成一条）">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 7.5L10 12l4.5 4.5"/><path d="M18.5 7.5L14 12l4.5 4.5"/></svg>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
       </button>
       <button class="iconbtn sidebar-close mobile-only" id="sidebarCloseBtn" aria-label="关闭菜单">✕</button>
     </div>
@@ -1535,7 +1538,7 @@
 <!-- 2026-10-13 批 E1b：前端渠道注册表（window.__providers）——预设渠道 + 自定义渠道 + 每模型开关，
      数据存 cfw_providers_v3（公开副本 cfw_providers_public_v3 进云同步）。app.js/settings.js 都读它，
      须在 app.js 之前加载。 -->
-<script src="/shared/providers.js"></script>
+<script src="/shared/providers.js?v=2"></script>
 <!-- 4.37: 改回加载 Worker 动态下发的 /config.js。clientConfigJs() 生成纯 window.APP_* 赋值(无 export),且 worker 路由早于静态资源命中,以 src/config.js 为唯一模型源。
        重组目录时误把带 ESM export 的服务端 config 放到了 /js/text/core/config.js,classic <script> 读到 export 即抛 SyntaxError 中断 → window.APP_MODELS_FREE 未赋值 → 模型下拉空。 -->
 <script src="/config.js"></script>
@@ -1570,8 +1573,8 @@
 <script src="/js/text/data/char-memory.js?v=3"></script>
 <!-- 角色记忆内核：Hindsight 的抽取 prompt + 条目结构 + RRF 融合（英文原文，不翻译）。存储走 IndexedDB，不需要任何服务。 -->
 <script src="/shared/memory-core.js?v=12"></script>
-<script src="/js/text/engine/app.js?v=19"></script>
-  <script src="/js/text/ui/settings.js?v=4"></script>
+<script src="/js/text/engine/app.js?v=20"></script>
+  <script src="/js/text/ui/settings.js?v=5"></script>
 <!-- 网页内核(魂)· 工具调用内核 SDK。agent-kernel.js 用 ESM export,必须 type="module"(classic <script> 读到 export 会抛 SyntaxError → window.AgentKernel 不挂载);它底部仍会挂 globalThis.AgentKernel 供非模块代码取用。tools.js 是 IIFE,挂 window.OwnChatTools,仅在 buildRegistry() 运行时才取 AgentKernel,故 classic 加载、顺序无碍。app.js 的 agent 模式分支在「发送」时按需调用 window.AgentKernel.runAgentLoop + window.OwnChatTools.buildRegistry({onImage})。须在 app.js 之后。 -->
 <script type="module" src="/shared/agent-kernel.js"></script>
 <script src="/shared/tools.js?v=2"></script>
@@ -1614,9 +1617,9 @@
 <!-- 2026-05-29 image side chat-photo contract (raw): provides window.__chatImage; load before chat-image.js -->
 <!-- 2026-11-06 图像渠道注册表（数据驱动）：Gitee 只是内置 openai/site 预设，可新增任意 OpenAI 兼容渠道/本地 ComfyUI。
      必须在 image-common.js 之前加载；UI 卡在设置·模型 API 分类里，由 image-channels-ui.js 挂载。 -->
-<script src="/shared/image-channels.js"></script>
-<script src="/shared/image-common.js"></script>
-<script src="/js/image/core/image-channels-ui.js"></script>
+<script src="/shared/image-channels.js?v=2"></script>
+<script src="/shared/image-common.js?v=2"></script>
+<script src="/js/image/core/image-channels-ui.js?v=2"></script>
 <script src="/js/image/core/image-chat.js"></script>
 <script src="/js/image/core/chat-image.js"></script>
 <script src="/js/text/ui/chat-ux.js"></script>

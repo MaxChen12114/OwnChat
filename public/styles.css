@@ -1182,10 +1182,12 @@ html[data-theme="glass"] #topbar {
 
 html[data-theme="glass"] .pill,
 html[data-theme="glass"] .iconbtn {
-  background: rgba(255, 255, 255, .78);
-  border: 1px solid rgba(255, 255, 255, .62);
+  /* 2026-11-10（所有者：毛玻璃下边框太显眼）：白描边 .62→.30、投影减半，
+     按钮融进顶栏而不是一枚枚白框 */
+  background: rgba(255, 255, 255, .66);
+  border: 1px solid rgba(255, 255, 255, .30);
   color: #1e293b;
-  box-shadow: 0 2px 12px rgba(70, 110, 140, .10), inset 0 1px 0 rgba(255,255,255,.8);
+  box-shadow: 0 1px 6px rgba(70, 110, 140, .06), inset 0 1px 0 rgba(255,255,255,.7);
   backdrop-filter: blur(12px) saturate(160%);
   -webkit-backdrop-filter: blur(12px) saturate(160%);
 }
