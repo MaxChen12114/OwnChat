@@ -20,6 +20,7 @@
     return String(v || '').split(/[,，\n]/).map(function (x) { return x.trim(); }).filter(Boolean);
   }
   function isGitee(ch) { return !!(ch && ch.id === 'gitee'); }
+  function guest() { try { return !!(window.__auth && window.__auth.getToken && !window.__auth.getToken()); } catch (e) { return false; } }
   function isComfy(ch) { return !!(ch && ch.kind === 'comfyui'); }
 
   // 与聊天渠道卡同一套内联样式
@@ -67,7 +68,10 @@
 
     var listEl = card.querySelector('#imgChList');
     var detailEl = card.querySelector('#imgChDetail');
-    var selId = C.activeId() || (C.list()[0] && C.list()[0].id) || '';
+    var _all = C.list();
+    if (guest()) _all = _all.filter(function (ch) { return !isGitee(ch); });
+    var _act = C.activeId();
+    var selId = (_all.some(function (ch) { return ch.id === _act; }) ? _act : (_all[0] && _all[0].id)) || '';
 
     function setStatus(msg, cls) {
       var s = q('imgChStatus'); if (!s) return;
@@ -76,7 +80,11 @@
     }
 
     function renderList() {
-      var chs = C.list(), html = '', group = '';
+      var chs = C.list();
+      if (guest()) chs = chs.filter(function (ch) { return !isGitee(ch); });
+      var html = '';
+      if (guest()) html += '<div style="font-size:11px;color:var(--muted);margin:0 0 6px;">访客模式：本站生图预设已关闭，请新增自己的图像渠道（自带 Key）。</div>';
+      var group = '';
       chs.forEach(function (ch) {
         var g = isGitee(ch) ? 'preset' : 'custom';
         if (g !== group) {
@@ -90,7 +98,7 @@
           + '<small style="color:var(--muted);font-size:11px;display:block;margin-top:1px;word-break:break-all;">' + esc(channelTag(ch)) + '</small></button>';
       });
       html += '<button type="button" data-new="1" style="' + BTN + 'border-style:dashed;color:var(--muted);">＋ 新增图像渠道</button>';
-      if (!chs.some(isGitee)) {
+      if (!guest() && !chs.some(isGitee)) {
         html += '<button type="button" data-restore="1" style="' + BTN + 'border-style:dashed;color:var(--muted);">恢复 Gitee 预设</button>';
       }
       listEl.innerHTML = html;

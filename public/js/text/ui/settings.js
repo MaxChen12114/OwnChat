@@ -365,7 +365,7 @@
     var card = document.createElement('div');
     card.className = 'card';
     card.setAttribute('data-dev-only', '');
-    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>密码保护（Auth）</h4><p><b>云同步</b>永远需要密码（用 Cloudflare Secret <code>CHAT_PASSWORD</code> 鉴权）。<b>接口鉴权</b>：已登录时所有 <code>/api/*</code> 请求自动带访问码。下面的开关默认开；关掉 = 模拟访客。若 Worker 设了 <code>CHAT_MODE=byo</code>，访客必须自己填模型渠道和 Key；设成 <code>private</code> 则访客不能聊天。</p><div class="rowline"><div class="toggle"><input type="checkbox" id="chatProtectToggle"><label for="chatProtectToggle">发送访问码（关闭=模拟访客）</label></div><div class="btns"><button class="smallbtn danger" id="authLogoutBtn" title="清除本地保存的密码 token">退出登录</button></div></div><div id="authStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div>`;
+    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>密码保护（Auth）</h4><p><b>云同步</b>永远需要密码（用 Cloudflare Secret <code>CHAT_PASSWORD</code> 鉴权）。<b>接口鉴权</b>：已登录时，聊天请求会自动带上访问码。关掉下面的开关后，本站按访客处理：需要使用你自己的模型渠道和 Key。</p><div class="rowline"><div class="toggle"><input type="checkbox" id="chatProtectToggle"><label for="chatProtectToggle">发送访问码</label></div><div class="btns"><button class="smallbtn danger" id="authLogoutBtn" title="清除本地保存的密码 token">退出登录</button></div></div><div id="authStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div>`;
     slot.appendChild(card);
   }
   function mountSyncCard() {
@@ -1285,11 +1285,18 @@
 
     if (authLogoutBtn) authLogoutBtn.addEventListener('click', async () => {
       if (!window.__auth) return;
-      if (!(await uiConfirm('退出登录会清除本地保存的密码 token，并关闭云同步和聊天保护。确认？', { title: '退出登录', okText: '退出', danger: true }))) return;
+      if (!(await uiConfirm('退出登录会清除本地访问码、退出私密模式，并关闭云同步。确认？', { title: '退出登录', okText: '退出', danger: true }))) return;
       window.__auth.clearToken();
       window.__auth.setChatProtect(false);
       if (window.__sync) window.__sync.setSyncEnabled(false);
+      try {
+        
+        
+        
+        localStorage.removeItem('cfw_dev_mode_v1');
+      } catch (e) {}
       refreshAuthUI(); refreshSyncUI();
+      setTimeout(function () { location.reload(); }, 250);
     });
   }
 
@@ -1654,6 +1661,8 @@
     if (!slot || document.getElementById('byoProviderCard')) return;
     if (!window.__providers) return; // providers.js 未加载(旧缓存页兜底):不挂卡,不炸
     var P = window.__providers;
+    var _guest = false;
+    try { _guest = !!(window.__auth && window.__auth.getToken && !window.__auth.getToken()); } catch (e) {}
     var toastFn = (window.__feedback && window.__feedback.toast) || function (m) { try { console.warn('[providers]', m); } catch (e) {} };
     var esc = window.__ownEscape.esc;
     function curMode() { try { return localStorage.getItem('cfw_mode') === 'fast' ? 'fast' : 'free'; } catch (e) { return 'free'; } }
@@ -1677,7 +1686,7 @@
       + '</div>';
     slot.appendChild(card);
     var listEl = card.querySelector('#provList'), detailEl = card.querySelector('#provDetail');
-    var selKey = P.read().activeId || P.effectiveKey(curMode());
+    var selKey = P.effectiveKey(curMode()) || ((P.channels()[0] && P.channels()[0].key) || '');
 
     function activeKey() { return P.read().activeId; }
     function findChannel(key) {
@@ -1696,7 +1705,9 @@
 
     function renderList() {
       var chs = P.channels(), act = activeKey(), eff = P.effectiveKey(curMode());
-      var html = '', curKind = '';
+      var html = '';
+      if (_guest) html += '<div style="font-size:11px;color:var(--muted);margin:0 0 6px;">访客模式：预设渠道已关闭，请新增自己的自定义渠道。</div>';
+      var curKind = '';
       chs.forEach(function (c) {
         if (c.kind !== curKind) {
           curKind = c.kind;

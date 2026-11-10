@@ -236,6 +236,9 @@
        旧版 iconbtn 38px、pill/cost 34px 混排，视觉间距一眼不齐。 */
     #topbar .topbar-inner { align-items: center; gap: 8px; }
     #topbar .iconbtn { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 9px; }
+    /* 2026-11-10（所有者：访客和模型选择之间距离明显更大）：topbar-spacer-left 是 0 宽度占位，
+       却会吃掉左右各一个 8px gap —— 视觉上变成 16px。它已无布局作用（模型不居中），直接从流里去掉。 */
+    #topbar .topbar-spacer-left { display: none !important; }
     #topbar .pill.model-pill { display: inline-flex; align-items: center; height: 34px; padding: 0 8px; border-radius: 9px; flex: 0 0 auto; }
     #topbar .model-pill .model-label { display: none; }
     #topbar .model-pill #modelSel { flex: 0 0 auto; min-width: 130px; max-width: 230px; width: auto; height: 30px; border: none; background: transparent; color: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }

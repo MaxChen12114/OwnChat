@@ -119,6 +119,13 @@
     } catch (e) { return false; }
   }
   function ensureUsableModelBeforeSend(mode, model, customProvider) {
+    try {
+      if (window.__auth && window.__auth.getToken && !window.__auth.getToken()) {
+        if (customProvider && customProvider.endpoint && customProvider.model) return true;
+        alert("访客模式：请先在 设置 → 模型 API 新增自己的渠道并填写 Key。");
+        return false;
+      }
+    } catch (e) {}
     if (customProvider && customProvider.endpoint && customProvider.model) return true;
     if (model && !isPlaceholderModel(model)) return true;
     setTimeout(function () { autoFetchModelsForMode(mode); }, 0);
@@ -908,6 +915,10 @@
       if (!key) return null;
       const k = P.parseKey ? P.parseKey(key) : null;
       if (!k) return null;
+      // 访客不能显示预设渠道（免费/快速都是站主 Key）
+      try {
+        if (window.__auth && window.__auth.getToken && !window.__auth.getToken() && k.kind === "preset") return null;
+      } catch (e) {}
       if (k.kind === "preset") {
         const m = P.presetMeta ? P.presetMeta(k.id) : null;
         return { name: (m && (m.title || m.label)) || k.id, kind: "preset", mode: P.modeForActive ? P.modeForActive() : null };
@@ -927,6 +938,14 @@
     if (!modeToggle) return;
     const isFast = currentMode === "fast";
     const ch = activeChannelInfo();
+    try {
+      if (window.__auth && window.__auth.getToken && !window.__auth.getToken() && !ch) {
+        modeToggle.textContent = "访客";
+        setIcon(modeToggle, "modeFree", "访客");
+        modeToggle.title = "访客模式：请在 设置 → 模型 API 填自己的渠道和 Key";
+        return;
+      }
+    } catch (e) {}
     if (ch) {
       const label = String(ch.name).slice(0, 14);
       setIcon(modeToggle, ch.kind === "custom" ? "modeFast" : (ch.mode === "fast" ? "modeFast" : "modeFree"), label);
@@ -952,6 +971,12 @@
 
   if (modeToggle) {
     modeToggle.addEventListener("click", () => {
+      try {
+        if (window.__auth && window.__auth.getToken && !window.__auth.getToken()) {
+          alert("访客模式：请先在 设置 → 模型 API 新增自己的渠道并填写 Key。");
+          return;
+        }
+      } catch (e) {}
       const next = currentMode === "fast" ? "free" : "fast";
       // 2026-10-13 (E1c): 免费/快速 pill = 预设渠道快捷位 —— 点它即把活跃渠道切回配对预设
       // （自定义渠道活跃时显式切到配对预设；本就跟随 pill 的话维持"跟随"语义=置空）。

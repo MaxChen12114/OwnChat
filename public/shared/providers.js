@@ -195,17 +195,26 @@
   function presetIdForMode(mode) { return MODE_TO_PRESET[mode === "fast" ? "fast" : "free"]; }
   function modeForPreset(pid) { return PRESET_TO_MODE[pid] || null; }
   function getCustom(st, id) { for (var i = 0; i < st.custom.length; i++) if (st.custom[i].id === id) return st.custom[i]; return null; }
+  // 2026-11-10: 访客 = 没有本地访问码。访客只能用自定义渠道；预设（免费/快速）属于站主 Key，直接关闭。
+  function guest() {
+    try { return !!(window.__auth && window.__auth.getToken && !window.__auth.getToken()); } catch (e) { return false; }
+  }
   // 活跃键：显式选择优先；未选择 → 跟随 mode（免费/快速 pill）
   function effectiveKey(mode) {
     var st = read();
+    if (guest()) {
+      return (st.activeId && String(st.activeId).indexOf("custom:") === 0) ? st.activeId : null;
+    }
     if (st.activeId) return st.activeId;
     return presetKey(presetIdForMode(mode));
   }
   function activePresetId() {
+    if (guest()) return null;
     var k = parseKey(read().activeId);
     return (k && k.kind === "preset") ? k.id : null;
   }
   function modeForActive() {
+    if (guest()) return null;
     var k = parseKey(read().activeId);
     return (k && k.kind === "preset") ? modeForPreset(k.id) : null;
   }
@@ -225,12 +234,14 @@
   function channels() {
     var st = read();
     var out = [];
-    var pids = Object.keys(st.presetsMeta || {});
-    PRESET_FALLBACK.forEach(function (f) { if (pids.indexOf(f.id) < 0) pids.push(f.id); });
-    pids.forEach(function (pid) {
-      var m = presetMeta(pid);
-      out.push({ key: presetKey(pid), kind: "preset", id: pid, name: m.title || m.label || pid, sub: m.label || "", detail: m, models: (st.presets[pid] || {}).models || [] });
-    });
+    if (!guest()) {
+      var pids = Object.keys(st.presetsMeta || {});
+      PRESET_FALLBACK.forEach(function (f) { if (pids.indexOf(f.id) < 0) pids.push(f.id); });
+      pids.forEach(function (pid) {
+        var m = presetMeta(pid);
+        out.push({ key: presetKey(pid), kind: "preset", id: pid, name: m.title || m.label || pid, sub: m.label || "", detail: m, models: (st.presets[pid] || {}).models || [] });
+      });
+    }
     (st.custom || []).forEach(function (p) {
       out.push({ key: customKey(p.id), kind: "custom", id: p.id, name: p.name || p.id, sub: p.endpoint || "未填端点", detail: p, models: p.models || [] });
     });

@@ -32,6 +32,11 @@
   // 指定渠道的鉴权头：per-call 渠道(工坊下拉)优先，不能误用当前激活渠道的 key
   function headersFor(ch, extra) {
     var h = extra || {};
+    // 2026-11-10: 访客不能用本站 Gitee/site 生图预设（站主 Key）；自定义 direct 渠道可用自己的 key
+    if (window.__auth && window.__auth.getToken && !window.__auth.getToken() &&
+        (!ch || ch.id === 'gitee' || ch.transport === 'site')) {
+      throw new Error("访客模式不能使用本站生图预设；请先在 设置 → 发图 新增自己的图像渠道（自带 Key）。");
+    }
     // 2026-11-08 修(审查 P2): legacy key 回退只允许 Gitee 系 —— 自定义渠道没填 key 时
     // 旧版会串用本站 Gitee 旧 key（凭据跨渠道误用）。无渠道上下文的历史调用方维持旧回退。
     var k = (ch && ch.key) ? ch.key : ((!ch || !ch.id || ch.id === 'gitee') ? getKey() : '');
