@@ -532,7 +532,7 @@
     @media (max-width: 560px) { #ownchatWelcome .ow-grid { grid-template-columns: 1fr; } }
   </style>
   <script>
-    (function(){ try { var html = document.documentElement; if (window.__TAURI__ || window.__TAURI_INTERNALS__ || window.isTauri || window.__TAURI_METADATA__ || /Tauri/i.test(navigator.userAgent) || location.protocol === 'tauri:' || location.hostname === 'tauri.localhost') html.classList.add('is-desktop'); if (localStorage.getItem('cfw_welcome_dismissed_v1') === '1') html.classList.add('welcome-dismissed'); if (localStorage.getItem('cfw_left_collapsed_v1') === '1') html.classList.add('left-collapsed'); } catch (e) {} })();
+    (function(){ try { var html = document.documentElement; if (window.__TAURI__ || window.__TAURI_INTERNALS__ || window.isTauri || window.__TAURI_METADATA__ || /Tauri/i.test(navigator.userAgent) || location.protocol === 'tauri:' || location.hostname === 'tauri.localhost') html.classList.add('is-desktop'); if (localStorage.getItem('cfw_welcome_dismissed_v1') === '1') html.classList.add('welcome-dismissed'); if (localStorage.getItem('cfw_left_collapsed_v1') === '1' && !window.matchMedia('(max-width: 1023px)').matches) html.classList.add('left-collapsed'); } catch (e) {} })();
   </script>
   <style>
     /* ===== 右栏分主题强风格 ===== */
@@ -2108,6 +2108,16 @@
     }
   }
   apply(html.classList.contains('left-collapsed'), false);
+  // 2026-11-10（所有者：手机端没有收起机制）：left-collapsed 是桌面窄脊状态，存 LS 后会被手机
+  // 抽屉继承，抽屉只剩一列图标、分组标题也没有。这里按断点兜底：手机强制展开，回桌面再按 LS 恢复。
+  var mqMobile = window.matchMedia('(max-width: 1023px)');
+  function syncCollapseForViewport() {
+    if (mqMobile.matches) apply(false, false);
+    else apply(localStorage.getItem(KEY) === '1', false);
+  }
+  if (mqMobile.addEventListener) mqMobile.addEventListener('change', syncCollapseForViewport);
+  else if (mqMobile.addListener) mqMobile.addListener(syncCollapseForViewport);
+  syncCollapseForViewport();
   btn.addEventListener('click', function () {
     var on = !html.classList.contains('left-collapsed');
     try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) {}
