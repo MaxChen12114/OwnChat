@@ -54,3 +54,10 @@ keystore.properties
 ownchat.key
 *.key
 *.key.pub
+
+# 2026-11-09：向量模型（43MB 二进制）不进仓库 —— 用 scripts/fetch-model.mjs 拉到本地。
+public/models/
+.tmp-fetch-model/
+
+# 2026-11-09：agent 跑测试时落的产物（fig.png / results.json 等），不进仓库
+public/_art/

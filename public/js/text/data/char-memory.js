@@ -21,6 +21,9 @@
 
   const DB = "cfw_char_memory_v1";
   const ST_KV = "kv", ST_DOCS = "docs", ST_CHUNKS = "chunks", ST_POSTINGS = "postings", ST_META = "meta";
+  // 2026-11-09：实体索引（L4 知识库的"轻图"）。一条记录 = 一个实体 + 它出现过的分片。
+  // 这是 LightRAG local search 的简化版：不做社区聚类，只做"实体 → 邻域分片"。
+  const ST_ENTS = "ents";
   const CHUNK_SIZE = 500, CHUNK_OVERLAP = 60;
   const INJECT_MAX_CHUNKS = 3, INJECT_MAX_CHARS = 1200;
 
@@ -29,7 +32,7 @@
     if (_dbPromise) return _dbPromise;
     _dbPromise = new Promise((resolve, reject) => {
       try {
-        const q = indexedDB.open(DB, 1);
+        const q = indexedDB.open(DB, 2);
         q.onupgradeneeded = () => {
           const d = q.result;
           if (!d.objectStoreNames.contains(ST_KV)) d.createObjectStore(ST_KV, { keyPath: "k" });
@@ -37,11 +40,19 @@
           if (!d.objectStoreNames.contains(ST_CHUNKS)) d.createObjectStore(ST_CHUNKS, { keyPath: "id" });
           if (!d.objectStoreNames.contains(ST_POSTINGS)) d.createObjectStore(ST_POSTINGS, { keyPath: "key" });
           if (!d.objectStoreNames.contains(ST_META)) d.createObjectStore(ST_META, { keyPath: "k" });
+          if (!d.objectStoreNames.contains(ST_ENTS)) {
+            const se = d.createObjectStore(ST_ENTS, { keyPath: "k" });
+            se.createIndex("cid", "cid", { unique: false });
+          }
         };
         q.onsuccess = () => resolve(q.result);
         q.onerror = () => reject(q.error);
       } catch (e) { reject(e); }
     }).catch(function (e) { _dbPromise = null; throw e; }); // 失败允许下次重试
+    // 2026-11-09 修：这里原来**没有 return** —— 首次调用总是返回 undefined，
+    // 于是 `const db = await open()` 拿到 undefined，紧接着 db.transaction 就炸。
+    // 之前没暴露是因为早有人先调过一次（缓存命中走上面的 return）。
+    return _dbPromise;
   }
   const reqP = (r) => new Promise((resolve, reject) => { r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
   // 读：单个请求的 promise（事务在请求完成前后自然收尾，不再依赖 oncomplete 的时序）
@@ -118,6 +129,54 @@
   }
 
   // ── 导入（建索引）：文档 + 分片 + postings（一条 key 一条记录，读改写合并）──
+  // ── 实体抽取（1 次模型调用 / 文档） ────────────────────────────
+  // 只抽"名字"（人/地/组织/规则/物/概念），然后用**字面出现**把实体挂到分片上。
+  // 这样 1 次调用给整篇文档建索引；查询侧再纯字面匹配，不需要模型。
+  var ENT_SYSTEM = [
+    'Extract the key ENTITIES a reader might later search for in this document: people, places, organizations,',
+    'named rules/policies, key objects, and important concepts.',
+    'Output a JSON array only. Each item: {"name":"…","kind":"person|place|org|policy|object|concept"}',
+    'Names must be VERBATIM from the document, in the document language. Never translate.',
+    'Return 5-30 items. No prose, no code fences.'
+  ].join(String.fromCharCode(10));
+
+  async function extractEntities(title, text) {
+    try {
+      if (!window.__app || typeof window.__app.oneShot !== "function") return [];
+      const head = String(text || "").slice(0, 8000);
+      const out = await window.__app.oneShot({ system: ENT_SYSTEM, user: "TITLE: " + String(title || "") + String.fromCharCode(10, 10) + head, timeoutMs: 40000 });
+      let t = String(out || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+      const i = t.indexOf("["), j = t.lastIndexOf("]");
+      if (i >= 0 && j > i) t = t.slice(i, j + 1);
+      const arr = JSON.parse(t);
+      return Array.isArray(arr) ? arr.map((x) => ({ name: String((x && x.name) || "").trim(), kind: String((x && x.kind) || "concept") })).filter((x) => x.name.length >= 2).slice(0, 30) : [];
+    } catch (e) { return []; }
+  }
+
+  // 把实体挂到"正文里字面出现过它"的分片上
+  async function linkEntities(db, cardId, docId, chunks, ents) {
+    if (!ents.length) return 0;
+    let linked = 0;
+    for (const e of ents) {
+      const ids = chunks.filter((c) => c.text.indexOf(e.name) >= 0).map((c) => c.id);
+      if (!ids.length) continue;
+      const k = String(cardId) + "::" + e.name;
+      await writeTx(db, ST_ENTS, (t) => {
+        const os = t.objectStore(ST_ENTS);
+        const r = os.get(k);
+        r.onsuccess = () => {
+          const cur = r.result || { k, cid: String(cardId), name: e.name, kind: e.kind, docIds: [], chunkIds: [] };
+          cur.kind = e.kind || cur.kind;
+          cur.docIds = [...new Set((cur.docIds || []).concat([docId]))];
+          cur.chunkIds = [...new Set((cur.chunkIds || []).concat(ids))];
+          os.put(cur);
+        };
+      });
+      linked++;
+    }
+    return linked;
+  }
+
   async function importText(cardId, title, text, src) {
     const clean = String(text || "").replace(/\r\n?/g, "\n").trim();
     if (!cardId) throw new Error("缺少 cardId");
@@ -160,8 +219,14 @@
         m.put({ k: "stats", v: st });
       };
     });
+    // 实体索引：1 次抽取 + 字面挂载。失败不影响导入（知识库照常可用，只是没有多跳）
+    let ents = 0;
+    try {
+      const list = await extractEntities(doc.title, clean);
+      ents = await linkEntities(db, doc.cardId, docId, chunks, list);
+    } catch (e) { ents = 0; }
     try { if (window.__charMemoryUiRefresh) window.__charMemoryUiRefresh(); } catch (e) {}
-    return { ok: true, docId, chunks: chunks.length, chars: doc.chars };
+    return { ok: true, docId, chunks: chunks.length, chars: doc.chars, entities: ents };
   }
 
   // ── 检索：trigram/词元 → postings → BM25-lite 排序（只在该角色的文档里排）──
@@ -196,8 +261,24 @@
         scores.set(chunkId, (scores.get(chunkId) || 0) + score);
       }
     }
-    if (!scores.size) return [];
-    const top = [...scores.entries()].sort((a, b) => b[1] - a[1]).slice(0, Math.max(1, Math.min(10, topK || 5)));
+    // 实体一路：查询串里出现的已知实体 → 它挂过的分片（纯字面，零模型）
+    // LightRAG local search 的简化版，补上"问法里没有字面重合"的召回。
+    let entChunkIds = [];
+    try {
+      const ents = (await readReq(db, ST_ENTS, (s2) => s2.index("cid").getAll(cid))) || [];
+      const hitEnts = ents.filter((e) => e && e.name && q.indexOf(e.name) >= 0);
+      const seen = new Set();
+      for (const e of hitEnts) for (const id of (e.chunkIds || [])) if (!seen.has(id)) { seen.add(id); entChunkIds.push(id); }
+    } catch (e) { entChunkIds = []; }
+
+    if (!scores.size && !entChunkIds.length) return [];
+
+    // RRF 融合（词法路 + 实体路）：score = Σ 1/(60+rank)
+    const lexRanked = [...scores.entries()].sort((a, b) => b[1] - a[1]).map((x) => x[0]);
+    const merged = new Map();
+    lexRanked.forEach((id, i) => merged.set(id, (merged.get(id) || 0) + 1 / (60 + i + 1)));
+    entChunkIds.forEach((id, i) => merged.set(id, (merged.get(id) || 0) + 1 / (60 + i + 1)));
+    const top = [...merged.entries()].sort((a, b) => b[1] - a[1]).slice(0, Math.max(1, Math.min(10, topK || 5)));
     const byDoc = new Map(docs.map((d) => [d.id, d]));
     const hits = [];
     for (const [chunkId, score] of top) {
@@ -205,7 +286,7 @@
       if (!c) continue; // 惰性墓碑：分片已删（文档删除）→ 自然跳过
       const d = byDoc.get(c.docId);
       if (!d) continue;
-      hits.push({ title: d.title, docId: c.docId, chunkId: c.id, chunkOrd: c.ord, score: Math.round(score * 100) / 100, text: c.text });
+      hits.push({ title: d.title, docId: c.docId, chunkId: c.id, chunkOrd: c.ord, score: Math.round(score * 10000) / 10000, text: c.text, viaEntity: entChunkIds.indexOf(c.id) >= 0 });
     }
     return hits;
   }
@@ -399,5 +480,9 @@
     input.click();
   }
 
-  window.__charMemory = { defineTools, importText, listDocs, removeDoc, removeCard, search, getDocText, buildInjection, ui, _db: DB };
+  window.__charMemory = { defineTools, importText, listDocs, removeDoc, removeCard, search, getDocText, buildInjection, ui,
+    // 2026-11-09：实体图（L4 轻图）。listEntities 查某个角色认识哪些实体。
+    extractEntities,
+    listEntities: async (cardId) => { const db = await open(); return (await readReq(db, ST_ENTS, (s2) => s2.index("cid").getAll(String(cardId || "")))) || []; },
+    _db: DB };
 })();

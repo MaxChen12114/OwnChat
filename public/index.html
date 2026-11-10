@@ -7,6 +7,7 @@
   <title>OwnChat</title>
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/styles-2.css" />
+  <link rel="stylesheet" href="/styles-panel.css?v=28" />
   <!-- PWA: 可安装应用外壳(manifest + 各平台 meta);图标依赖 /assets/icon-192.png 与 icon-512.png -->
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#15161a" />
@@ -186,6 +187,7 @@
        不把面板收成定高内滚。群聊控制台只调 DOM 顺序(在时间线之上),高度不设限。 */
     #rightSidebar .rs-empty { font-size: 11.5px; line-height: 1.6; opacity: .5; text-align: center; padding: 18px 12px; }
     #rightSidebar #fishbowlSlot:not(:empty) + .rs-empty { display: none; }
+    #rightSidebar #agentConsoleSlot:not(:empty) + .rs-empty { display: none; }   /* 活动栏的空态 */
     #rightSidebar .rs-panel .sidebar-slot-placeholder { padding: 0; border: none; background: none; text-align: left; color: inherit; min-height: 0; }
     /* 4.59: 群聊控制台「建群聊」入口(从左侧栏迁入);线性图标 + 双行文案,走主题变量 */
     #rightSidebar .rs-build-group { display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--border, #333); border-radius: 12px; background: rgba(127,127,127,.06); color: inherit; cursor: pointer; text-align: left; transition: border-color .15s, background .15s; }
@@ -508,7 +510,7 @@
     @media (max-width: 560px) { #ownchatWelcome .ow-grid { grid-template-columns: 1fr; } }
   </style>
   <script>
-    (function(){ try { var html = document.documentElement; if (window.__TAURI__ || window.__TAURI_INTERNALS__ || window.isTauri || window.__TAURI_METADATA__ || /Tauri/i.test(navigator.userAgent) || location.protocol === 'tauri:' || location.hostname === 'tauri.localhost') html.classList.add('is-desktop'); if (localStorage.getItem('cfw_welcome_dismissed_v1') === '1') html.classList.add('welcome-dismissed'); } catch (e) {} })();
+    (function(){ try { var html = document.documentElement; if (window.__TAURI__ || window.__TAURI_INTERNALS__ || window.isTauri || window.__TAURI_METADATA__ || /Tauri/i.test(navigator.userAgent) || location.protocol === 'tauri:' || location.hostname === 'tauri.localhost') html.classList.add('is-desktop'); if (localStorage.getItem('cfw_welcome_dismissed_v1') === '1') html.classList.add('welcome-dismissed'); if (localStorage.getItem('cfw_left_collapsed_v1') === '1') html.classList.add('left-collapsed'); } catch (e) {} })();
   </script>
   <style>
     /* ===== 右栏分主题强风格 ===== */
@@ -884,6 +886,10 @@
   <aside class="left-sidebar" id="leftSidebar" aria-label="侧边面板">
     <div class="sidebar-header">
       <span class="sidebar-title">面板</span>
+      <!-- 2026-11-10（所有者）：左栏可向左折成一条窄脊，与右栏固定态对称，像翻书；状态记 cfw_left_collapsed_v1 -->
+      <button class="iconbtn sidebar-close sidebar-collapse" id="sidebarCollapseBtn" aria-label="折叠侧栏" aria-expanded="true" title="折叠侧栏（收起成一条）">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 7.5L10 12l4.5 4.5"/><path d="M18.5 7.5L14 12l4.5 4.5"/></svg>
+      </button>
       <button class="iconbtn sidebar-close mobile-only" id="sidebarCloseBtn" aria-label="关闭菜单">✕</button>
     </div>
 
@@ -994,8 +1000,9 @@
               <select id="modelSel"></select>
             </div>
 
-            <!-- 💰 inline 直显 费用:桌面/手机都扫一眼可见,不再收进 popover -->
-            <span id="costDisplay" class="topbar-cost-inline" title="今日 / 总计费用(仅快速模式计费)"></span>
+            <!-- 💰 计费：金币图标按钮，点开账单卡（2026-11-09 所有者要求） -->
+            <span id="costDisplay" class="topbar-cost-inline" role="button" tabindex="0" aria-label="计费账单" title="今日 / 总计费用(仅快速模式计费)"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.2"/><path d="M9 9.5l3 3 3-3"/><path d="M12 12.5v4"/><path d="M9.5 14.5h5"/></svg></span>
+            <div id="billPop" class="bill-pop" hidden></div>
 
             <!-- 弹性间距:把 [注入开关] + ☁️ 同步 + ⚙️ 设置推到右侧 -->
             <span class="topbar-spacer"></span>
@@ -1004,6 +1011,10 @@
             <!-- app.js 已绑定 #personaToggle 事件,DOM 仅换位,不动逻辑(图标 + 文字标签) -->
             <!-- 初始内容留空,交由 app.js 按当前模式渲染,避免静态 emoji 先显示后被脚本替换造成的跳变 -->
             <button class="iconbtn" id="personaToggle" title="基座目录：内置（src/prompts/bases/）。点击切到自定义" aria-label="切到自定义基座"></button>
+
+            <!-- 内容面板开关（2026-11-09）：展开右栏为可拉伸画布，agent 用 __panel.open() 挂内容；
+                 写死的只有 活动/状态 两个仪表与 新窗 按钮，内容按钮一律不写死 -->
+            <button class="iconbtn" id="panelToggle" title="内容面板（展开：可拉伸画布 · 可拉出独立窗口）" aria-label="内容面板" aria-pressed="false"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.4"/><path d="M15 4v16"/></svg></button>
 
             <!-- ☁️ 云同步实时状态(仅桌面显示;手机顶栏空间紧不显) -->
             <div id="syncStatusIndicator" class="desktop-only" title="云同步状态">
@@ -1202,6 +1213,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h16a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-9l-4.5 3.5V16.5H4A1.5 1.5 0 0 1 2.5 15V7A1.5 1.5 0 0 1 4 5.5z"/><circle cx="8.5" cy="11" r="1"/><circle cx="12" cy="11" r="1"/><circle cx="15.5" cy="11" r="1"/></svg>
           <span>活动</span><span class="rs-dot" aria-hidden="true"></span>
         </button>
+        <button class="rs-tab" data-rs-tab="chat" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8l-3.5 2.5V14.5H4A1.5 1.5 0 0 1 2.5 13V7A1.5 1.5 0 0 1 4 5.5z"/><path d="M17 8.5h3A1.5 1.5 0 0 1 21.5 10v5.5a1.5 1.5 0 0 1-1.5 1.5h-.5v2.5L16 17.5h-3"/></svg>
+          <span>群聊</span><span class="rs-dot" aria-hidden="true"></span>
+        </button>
         <button class="rs-tab" data-rs-tab="status" role="tab" aria-selected="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5h16"/><path d="M7.5 19.5v-5.5"/><path d="M12 19.5V6.5"/><path d="M16.5 19.5v-8.5"/></svg>
           <span>状态</span><span class="rs-dot" aria-hidden="true"></span>
@@ -1210,6 +1225,13 @@
     </div>
     <div class="rs-body">
       <section class="rs-panel active" data-rs-panel="fishbowl" role="tabpanel">
+        <!-- 2026-11-09（所有者要求）：右栏拆三栏。这一栏只放「活动」= Agent 的时间线；
+             群聊控制台搬到独立的「群聊」栏 —— 控件和信息混在一起，时间线一长就把控件顶走。 -->
+        <div id="agentConsoleSlot" class="sidebar-slot"></div>
+        <div class="rs-empty" id="agentEmptyHint">还没有活动。对话里跑起来后，工具调用与轮次会显示在这里。</div>
+      </section>
+      <!-- 2026-11-09：群聊控制台独立成栏（发言者 / 模式 / 议题 / 成员） -->
+      <section class="rs-panel" data-rs-panel="chat" role="tabpanel" hidden>
         <!-- 4.59: 群聊从左侧栏「模式」迁到群聊控制台:它本质是「建群」动作而非常驻模式,且桌面端控制台空置,正好补位。唯一建跨世界群入口走 window.__wechatGroup.open() -->
         <button type="button" class="rs-build-group" id="wgConsoleBuildBtn" title="把不同世界观的角色拉进同一个群,自动接话产生戏剧效果(基于多人模式 + 微信连发)" onclick="window.__wechatGroup&&window.__wechatGroup.open()">
           <span class="rs-build-group-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.8 16.5L4 19V7.5A2 2 0 0 1 6 5.5h9A2 2 0 0 1 17 7.5v6A2 2 0 0 1 15 15.5H8z"/><circle cx="8" cy="10.5" r="1"/><circle cx="11.5" cy="10.5" r="1"/><circle cx="15" cy="10.5" r="1"/></svg></span>
@@ -1396,6 +1418,7 @@
   var tabs = rs.querySelectorAll('.rs-tab');
   var panels = rs.querySelectorAll('.rs-panel');
   var slot = document.getElementById('fishbowlSlot');
+  agentConsoleSlot = document.getElementById('agentConsoleSlot');
   function activate(name){
     tabs.forEach(function(t){
       var on = t.getAttribute('data-rs-tab') === name;
@@ -1412,15 +1435,28 @@
   tabs.forEach(function(t){
     t.addEventListener('click', function(){ activate(t.getAttribute('data-rs-tab')); });
   });
+  // 2026-11-09（拆三栏后）：默认落点要选对。
+  // 活动栏只装 Agent 时间线，没跑过 agent 就是空的 —— 拆栏后用户一打开右栏看到的就是"啥也没有"。
+  // 所以：活动栏空、群聊栏有内容时，落在「群聊」。
+  setTimeout(function () {
+    try {
+      var act = document.getElementById('agentConsoleSlot');
+      var chat = document.getElementById('fishbowlSlot');
+      var actEmpty = !act || act.childElementCount === 0;
+      var chatHas = chat && chat.childElementCount > 0;
+      if (actEmpty && chatHas) activate('chat');
+    } catch (e) {}
+  }, 900);
+
   // 群聊控制台一旦挂进 #fishbowlSlot 就自动切到「群聊」tab,否则会被图像面板挡住看不见
   if (slot){
     var was = slot.childElementCount > 0;
     try {
       var mo = new MutationObserver(function(){
         var now = slot.childElementCount > 0;
-        if (now && !was) activate('fishbowl');
+        if (now && !was) activate('chat');   // 2026-11-09：群聊有了它自己的一栏
         else if (now){
-          var ft = rs.querySelector('.rs-tab[data-rs-tab="fishbowl"]');
+          var ft = rs.querySelector('.rs-tab[data-rs-tab="chat"]');
           if (ft && !ft.classList.contains('active')) ft.classList.add('has-activity');
         }
         was = now;
@@ -1517,14 +1553,16 @@
 <!-- 2026-10-08 大文件分页读/检索（read_file offset+limit、search_file 字面/正则守卫）的纯函数 -->
 <script src="/shared/text-search.js"></script>
 <!-- 2026-10-08 角色记忆：小本子（角色 KV）+ 知识库（trigram/BM25 关键词检索，全本地 IndexedDB） -->
-<script src="/js/text/data/char-memory.js"></script>
-<script src="/js/text/engine/app.js"></script>
+<script src="/js/text/data/char-memory.js?v=3"></script>
+<!-- 角色记忆内核：Hindsight 的抽取 prompt + 条目结构 + RRF 融合（英文原文，不翻译）。存储走 IndexedDB，不需要任何服务。 -->
+<script src="/shared/memory-core.js?v=12"></script>
+<script src="/js/text/engine/app.js?v=16"></script>
   <script src="/js/text/ui/settings.js"></script>
 <!-- 网页内核(魂)· 工具调用内核 SDK。agent-kernel.js 用 ESM export,必须 type="module"(classic <script> 读到 export 会抛 SyntaxError → window.AgentKernel 不挂载);它底部仍会挂 globalThis.AgentKernel 供非模块代码取用。tools.js 是 IIFE,挂 window.OwnChatTools,仅在 buildRegistry() 运行时才取 AgentKernel,故 classic 加载、顺序无碍。app.js 的 agent 模式分支在「发送」时按需调用 window.AgentKernel.runAgentLoop + window.OwnChatTools.buildRegistry({onImage})。须在 app.js 之后。 -->
 <script type="module" src="/shared/agent-kernel.js"></script>
-<script src="/shared/tools.js"></script>
+<script src="/shared/tools.js?v=2"></script>
 <!-- 2026-11-06: 源码/产物检索工具组（可选开发工具，后端=scripts/dev/source-server.mjs） -->
-<script src="/shared/source-tools.js"></script>
+<script src="/shared/source-tools.js?v=2"></script>
 <!-- 2026-06-16 Agent-Reach Skill 模块:fetch_page(Jina Reader) / web_search / search_bilibili / search_github / read_rss;须在 tools.js 之后(buildRegistry 调用时会取 AgentReach.defineTools) -->
 <script src="/shared/agent-reach.js"></script>
 <!-- 4.70 本地能力:local_env / local_list_dir / local_read_file / local_write_file / local_run_command。只桌面端注册;
@@ -1536,10 +1574,10 @@
      命令已在 build.rs 登记并在 capabilities/remote.json 授权(未登记/未授权则远程页调不到)。
      本地工具集刻意不含 read_file → read_text_file 这类**无门控路径**:read_text_file 在 Rust 侧不限
      工作目录,接上等于给 agent 任意文件读取。 -->
-<script src="/shared/agent-local-tools.js"></script>
+<script src="/shared/agent-local-tools.js?v=2"></script>
 <!-- 2026-10-06 氛围音导演:标签协议 [[amb:id|音量]]/[[mus:…]]/[[voice:…]] + set_ambient 工具 + 导演系统提示。
      执行落在 theme.js 的 window.__ambient 双轨混音器；本文件只在调用时读它，加载顺序无要求 -->
-<script src="/shared/ambient-tools.js"></script>
+<script src="/shared/ambient-tools.js?v=2"></script>
 <!-- 2026-06-18 环境感知 / 自检:self_diagnostics(环境快照 + 加载完整性 + 联网逐环节自检,联网委托 AgentReach.diagnose)。须在 agent-reach.js 之后,只读探测 -->
 <script src="/shared/env-context.js"></script>
 <!-- 4.69 Agent 控制台渲染器:渲染 runAgentLoop 事件流 → 右栏 Agent tab;提供 mountAgentConsole(container,{autoApprove}) → {onEvent,ensurePermission,clear,root} -->
@@ -1598,6 +1636,14 @@
 <script src="/js/image/gen/image-expressions.js"></script>
 <!-- 2026-05-30 角色头像:以基准图裁近景头像(可选表情),存 cfw_char_avatar_v1+发 avatar:changed -->
 <script src="/js/image/gen/image-avatar.js"></script>
+<!-- 2026-11-09 内容面板:frame 必须先于 host 加载(host 在 boot 时取全局引用) -->
+<script src="/shared/panel-frame.js?v=2"></script>
+<script src="/shared/panel-host.js?v=40"></script>
+<script src="/shared/stage-tools.js?v=4"></script>
+<script src="/shared/job-tools.js?v=4"></script>
+<script src="/shared/council-tools.js?v=2"></script>
+<script src="/shared/local-exec-tools.js?v=2"></script>
+<script src="/shared/topbar-cost.js?v=3"></script>
 <!-- 4.9 删除 4.6 折叠 IIFE:原本手机默认 .fishbowl-side-panel.collapsed 只显 header 一条,与 4.8 鱼缸 tab toggle 冲突,导致打开关闭都会有「留一条 header」挡住思考按钮。改为完全靠 4.8 body.fishbowl-shown 切换整个面板 display,不留任何残影。.collapsed CSS 规则保留为 dead code(无 JS 加 class 不生效)。 -->
 <!-- 2026-09-12 手机端思考强度归一化:从按钮状态/本地配置提取 low|medium|high,写入 data-mobile-effort。未知则移除,只显示图标。 -->
 <script>
@@ -1757,7 +1803,7 @@
 (function(){
   var LS_AGENT = 'cfw_agent_mode_v1';
   var LS_MULTI = 'tavern_multi_agent_mode_v1';
-  var btn = null, multiBtn = null, fishbowlTab = null, fishbowlSlot = null, emptyHint = null;
+  var btn = null, multiBtn = null, fishbowlTab = null, fishbowlSlot = null, emptyHint = null, agentConsoleSlot = null;
   var mobileAgentTabEl = null, mobileAgentPanel = null;
 
   function isAgentOn(){ return localStorage.getItem(LS_AGENT) === '1'; }
@@ -1799,7 +1845,7 @@
   function agentConsoleHealthy(){
     var api = window.__agentConsole;
     if (!api || !api.root || !api.root.isConnected) return false;
-    var box = isMobile() ? mobileAgentPanel : fishbowlSlot;
+    var box = isMobile() ? mobileAgentPanel : (agentConsoleSlot || fishbowlSlot);
     return !!(box && box.contains(api.root));
   }
 
@@ -1845,9 +1891,9 @@
       } else {
         wrapper.innerHTML = '<div style="padding:16px;font-size:12px;color:#888;line-height:1.7;display:flex;align-items:flex-start;gap:8px;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" style="flex:none;margin-top:1px"><rect x="1" y="5" width="12" height="8" rx="1.5"/><path d="M4 5V3a3 3 0 0 1 6 0v2"/><circle cx="7" cy="9" r="1"/></svg><span>Agent 控制台加载中，或刷新重试</span></div>';
       }
-      // 切到群聊(Agent) tab
-      var ft = document.querySelector('.rs-tab[data-rs-tab="fishbowl"]');
-      if (ft && !ft.classList.contains('active')) ft.click();
+      // 2026-11-09（拆三栏）：**不再强制切 tab**。
+      // 原来这里会 click 一下「活动」，于是用户点「群聊」立刻被弹回去 —— 两栏看起来"内容一样"。
+      // 挂载控制台只是准备内容，不该抢夺用户当前看哪一栏。
     }
     // 2026-11-08 修(用户实测): 挂载/卸载后通知 multi-agent 重跑 —— 旧版清槽不发事件,
     // 鱼缸面板被清后游离在 DOM 外,群聊控制台"不会加载"(顺序依赖的根源)
@@ -1911,8 +1957,12 @@
     btn = document.getElementById('agentModeBtn');
     multiBtn = document.getElementById('multiAgentToggle');
     fishbowlTab = document.querySelector('.rs-tab[data-rs-tab="fishbowl"]');
-    fishbowlSlot = document.getElementById('fishbowlSlot');
-    emptyHint = document.getElementById('fishbowlEmptyHint');
+    // 2026-11-09（拆三栏）：本脚本里的 fishbowlSlot 现在指「活动」栏的槽位。
+    // 群聊控制台由 multi-agent.js 直接 getElementById('fishbowlSlot') 挂载，不受影响。
+    // 原来这里指向群聊槽，mountAgentPanel 一清空就把群聊擦掉了。
+    fishbowlSlot = document.getElementById('agentConsoleSlot') || document.getElementById('fishbowlSlot');
+    agentConsoleSlot = document.getElementById('agentConsoleSlot');   // 2026-11-09：活动栏的独立槽位
+    emptyHint = document.getElementById('agentEmptyHint') || document.getElementById('fishbowlEmptyHint');
     mobileAgentTabEl = document.getElementById('mobileAgentTab');
     mobileAgentPanel = document.getElementById('mobileTabPanel-agent');
 
@@ -2009,5 +2059,31 @@
 </script>
 <!-- 4.82: 已删除原「Dev 一键导出按钮逻辑」内联脚本 —— 它绑定的 #devExportBtn/#devExportStatus 从未被任何代码创建,
      整段是死代码;开发者面板的 localStorage 导出由 dev.js 自挂载卡(exportCfwLsBtn 等)提供,功能不受影响。 -->
+<!-- 2026-11-10（所有者）：左栏折叠成窄脊 —— 与右栏收放对称。
+     状态存 cfw_left_collapsed_v1，<head> 里的早期脚本已先上类（防闪一帧），这里只负责按钮与回写。 -->
+<script>
+(function () {
+  var btn = document.getElementById('sidebarCollapseBtn');
+  if (!btn) return;
+  var KEY = 'cfw_left_collapsed_v1';
+  var html = document.documentElement;
+  function apply(on, anim) {
+    html.classList.toggle('left-collapsed', on);
+    btn.setAttribute('aria-expanded', on ? 'false' : 'true');
+    btn.title = on ? '展开侧栏' : '折叠侧栏（收起成一条）';
+    btn.setAttribute('aria-label', btn.title);
+    if (anim) {
+      html.classList.add('left-anim');
+      setTimeout(function () { html.classList.remove('left-anim'); window.dispatchEvent(new Event('resize')); }, 300);
+    }
+  }
+  apply(html.classList.contains('left-collapsed'), false);
+  btn.addEventListener('click', function () {
+    var on = !html.classList.contains('left-collapsed');
+    try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) {}
+    apply(on, true);
+  });
+})();
+</script>
 </body>
 </html>

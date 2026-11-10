@@ -420,13 +420,23 @@
     // 2026-06-08: 免费模式不计费 → 顶栏 💰 区原本留空,导致桌面顶栏中段一大段空隙。
     // 仅【免费模式】补占位文字(它本就无数字);【快速模式】始终显示金额——无消费时即 ¥0.0000,本来就有数字,不再塞「暂无消费」文字。
     if (currentMode !== "fast") {
-      costDisplayEl.textContent = "免费模式，不计费";
+      // 图标保留，只把状态写进 title/dataset（2026-11-09 所有者：显示成图标，不显示文字）
       costDisplayEl.classList.add("cost-placeholder");
+      costDisplayEl.title = "免费模式，不计费";
+      costDisplayEl.setAttribute("aria-label", "免费模式，不计费");
+      delete costDisplayEl.dataset.today;
+      delete costDisplayEl.dataset.total;
       return;
     }
     costDisplayEl.classList.remove("cost-placeholder");
     const s = getCostStats();
-    costDisplayEl.textContent = `今日: ¥${s.today.toFixed(4)} | 总计: ¥${s.total.toFixed(4)}`;
+    // 2026-11-09：紧凑成图标（原「今日: ¥x | 总计: ¥y」把顶栏按钮组挤出容器）。
+    // 金额只进 title / aria-label / dataset（账单卡从 dataset 取）。
+    const f4 = (n) => (Math.round((Number(n) || 0) * 10000) / 10000).toFixed(4);
+    costDisplayEl.dataset.today = f4(s.today);
+    costDisplayEl.dataset.total = f4(s.total);
+    costDisplayEl.title = "今日 ¥" + f4(s.today) + " · 总计 ¥" + f4(s.total) + "（点开账单）";
+    costDisplayEl.setAttribute("aria-label", "计费：今日 ¥" + f4(s.today) + "，总计 ¥" + f4(s.total));
   }
 
   // 暴露给 Settings UI（index.html load 处理器使用）
@@ -1400,7 +1410,14 @@
   function currentScopeKey() {
     try {
       const M = window.__multi;
-      if (M && M.isMulti && M.isMulti()) return "group";
+      // 2026-11-09：群聊必须**按会话**分 scope。
+      // 原来返回常量 "group"，于是所有群聊共用一段历史 —— 新建会话也带着上一段对话，
+      // 角色会接着旧上下文说话（实测新会话里仍能复述上一轮的台词）。
+      if (M && M.isMulti && M.isMulti()) {
+        let cid = "";
+        try { cid = activeConvId ? activeConvId() : ""; } catch (e) { cid = ""; }
+        return cid ? ("group:" + cid) : "group";
+      }
     } catch (e) {}
     try {
       const c = window.__character && window.__character.getActiveCard ? window.__character.getActiveCard() : null;
@@ -1429,7 +1446,12 @@
     const out = [];
     for (const m of msgs || []) {
       if (!m || !m.role) continue;
-      if (m.sc && m.sc !== scope) continue; // ①
+      // ① 场景键过滤。兼容老数据：旧版群聊统一写 "group"，新键是 "group:<convId>"，
+      //    老消息在新键下一律放行（否则升级后历史看起来像被清空）。新写入的一律带会话号。
+      if (m.sc && m.sc !== scope && !(scope.indexOf("group:") === 0 && m.sc === "group")) continue;
+      // ③ 私有耳语：带 to 的消息只给被指定的那一位。
+      // 没有这一步，所有人看到的是同一份公开日志 —— 信息完全一样，所谓"多智能体"就只是换人设。
+      if (m.to && myName && m.to !== myName) continue;
       if (m.role === "assistant" && !(Array.isArray(m.tool_calls) && m.tool_calls.length)) {
         const speaker = typeof m.speakerName === "string" ? m.speakerName : "";
         if (myName && speaker && speaker !== myName) {
@@ -2739,6 +2761,25 @@
         try { window.__ioTools.defineTools(registry); } catch (e) { console.warn('[IoTools] defineTools 失败:', e); }
       }
       }
+      // 2026-11-09 内容画布（面板 T3）：stage_open / stage_close / stage_view。
+      // 画布未起（手机端 / panel-host 未加载）时 defineTools 直接返回，零占用。
+      if (window.__stageTools && typeof window.__stageTools.defineTools === "function") {
+        try { window.__stageTools.defineTools(registry); } catch (e) { console.warn('[StageTools] defineTools 失败:', e); }
+      }
+      // 2026-11-09 作业台客户端：submit_job / job_status / job_open_artifacts。
+      // 未配置作业台时工具照样注册（调用会返回配置指引），产物走右栏画布。
+      if (window.__jobTools && typeof window.__jobTools.defineTools === "function") {
+        try { window.__jobTools.defineTools(registry); } catch (e) { console.warn('[JobTools] defineTools 失败:', e); }
+      }
+      // 2026-11-09 三方会商工具（council_read / council_post）：打本机 8798 会商服务；
+      // 服务不可达时工具自己给清晰指引，不影响其他工具。
+      if (window.__councilTools && typeof window.__councilTools.defineTools === "function") {
+        try { window.__councilTools.defineTools(registry); } catch (e) { console.warn('[CouncilTools] defineTools 失败:', e); }
+      }
+      // 2026-11-09 网页版本的本地手脚（走本机 127.0.0.1:8801 执行服务；桌面版自动跳过）
+      if (window.__localExecTools && typeof window.__localExecTools.defineTools === "function") {
+        try { window.__localExecTools.defineTools(registry); } catch (e) { console.warn('[LocalExecTools] defineTools 失败:', e); }
+      }
       // 2026-10-06 氛围音导演:set_ambient（环境声/背景音乐两条独立音轨 + 气息垫）。
       // 用裸 registry.define 注册,不走 tools.js 的 core/full 分档 —— 工具很小、只改音量状态,常驻无负担。
       if (window.AmbientTools && typeof window.AmbientTools.defineTools === "function") {
@@ -2769,29 +2810,117 @@
       // （内核据此走 model_error 优雅收尾）。用独立子 controller 链到宿主 signal：
       // 用户主动停止（宿主 abort）与「上游没响应」（看门狗）在错误类型上可区分。
       const AGENT_CALL_IDLE_MS = 90 * 1000;
+      // 2026-11-09 加：总时长硬上限。idle 看门狗只打"静默"，但实测存在「请求已返回、
+      // 流却没关闭」的形态 —— reader 永远等不到 done，idle 也不再有 data 可重置，
+      // 表面看是 UI 卡在"思考中"数分钟。这里补一道绝对上限，到点强制中止。
+      const AGENT_CALL_TOTAL_MS = 180 * 1000;
+      // ── 2026-11-09（会商 #8 P0 之后）：重试预算 ────────────────────────────
+      // 拆了 ZCode 与 DSH 的流处理实现，两家在"上游不干净"这件事上的做法一致，都比我们完整：
+      //   · DSH @deepseek-ai/dsh-llm      provider 级 retry-policy（lib/types/retry-policy.js）：
+      //       默认 maxRetries=5；退避 500ms 起指数涨到 10s、±10% 抖动；可重试码只有
+      //       EMPTY_RESPONSE / RATE_LIMIT / SERVER / TIMEOUT / TRANSPORT；有 retry-after 头就用它。
+      //   · DSH @deepseek-ai/dsh-timeout  idleWatchdog：计时只覆盖"等下一个事件"这一瞬间
+      //       （消费方思考时间不算上游空闲），到点 abort 并抛 TIMEOUT —— 是**可重试错误**，不是干等。
+      //   · ZCode zcode.cjs readNextWithStreamIdleTimeout：同一形态，且**每重试一次把静默窗口
+      //       +30s**（base + retryNumber×30s，VHs=30000）；streamRecovery 最多 10 次，
+      //       从"最后一个已提交的工具调用"处续跑（anchorId），未提交的尾巴丢弃。
+      // 我们此前只有"network 类错误重试一次"，超时与空响应都直接打死整轮 —— 这正是长任务
+      // 半路夭折的主因。按两家并集重写：5 次尝试、指数退避带抖动、每重试静默窗口 +30s。
+      const AGENT_RETRY_MAX = 4;            // 首次之外最多再试 4 次（= DSH maxRetries 5 的语义）
+      const AGENT_RETRY_BASE_MS = 800;
+      const AGENT_RETRY_CAP_MS = 10 * 1000;
+      const AGENT_IDLE_STEP_MS = 30 * 1000; // ZCode：每重试一次静默窗口 +30s
+      const AGENT_EMPTY_STREAK_MAX = 120;   // 连续空增量事件上限（"有事件、无内容"的假活）
+      // 只有这几类值得重试：DSH retryableCodes ∪ ZCode 的 nqa/rqa
+      const AGENT_RETRYABLE = { TIMEOUT: 1, TRANSPORT: 1, EMPTY_RESPONSE: 1, SERVER: 1, RATE_LIMIT: 1 };
+      // 给错误打机器可路由的码 —— 两家都把这条写在注释里：按 code 路由，绝不解析 message
+      const _tagErr = (e, code) => { try { if (e && !e.__retryCode) e.__retryCode = code; } catch (_e) {} return e; };
+      const _classifyCallError = (e, flags) => {
+        if (flags && (flags.idle || flags.total)) return "TIMEOUT";
+        const tag = e && e.__retryCode;
+        if (tag) return tag;
+        const st = (e && e.__httpStatus) || 0;
+        if (st === 429) return "RATE_LIMIT";
+        if (st >= 500) return "SERVER";
+        if (st >= 400) return "INVALID_REQUEST";
+        const m = String((e && e.message) || e);
+        // undici 的流中断就是 TypeError: network error / fetch failed（DSH 也把这类归 TRANSPORT）
+        if ((e && e.name === "TypeError") || /\bnetwork\b|fetch failed|ECONNRESET|EPIPE|ETIMEDOUT|socket hang up/i.test(m)) return "TRANSPORT";
+        return "UNKNOWN";
+      };
       let _callCtrl = null, _idleTimer = null, _idleTimedOut = false;
-      const _armIdle = () => {
+      let _totalTimer = null, _totalTimedOut = false;
+      // 当前这一次尝试的静默窗口。必须放在闭包级：_callModelOnce 在 SSE 循环里要拿它重置看门狗，
+      // 而它是在 callModel 的 for 里算出来的 —— 之前在循环内用 const 声明，_callModelOnce 根本看不见，
+      // 第一行 data 就抛 ReferenceError，整个 agent 调用当场挂掉。
+      let _idleMsNow = AGENT_CALL_IDLE_MS;
+      const _armIdle = (ms) => {
         if (_idleTimer) clearTimeout(_idleTimer);
-        _idleTimer = setTimeout(() => { _idleTimedOut = true; try { _callCtrl.abort(); } catch (e) {} }, AGENT_CALL_IDLE_MS);
+        _idleTimer = setTimeout(() => { _idleTimedOut = true; try { _callCtrl.abort(); } catch (e) {} }, ms || AGENT_CALL_IDLE_MS);
       };
       const _disarmIdle = () => { if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; } };
+      const _disarmTotal = () => { if (_totalTimer) { clearTimeout(_totalTimer); _totalTimer = null; } };
+      // 重试是"整轮重发"：上一次尝试留在气泡里的半截正文必须清掉，否则旧字会挂在新流前面
+      const _resetLiveView = () => {
+        try { _lastAgentContent = ""; } catch (e) {}
+        try { if (aiRow && aiRow.bubble) aiRow.bubble.textContent = ""; } catch (e) {}
+      };
       const callModel = async (messages, schemas) => {
-        _callCtrl = new AbortController();
-        _idleTimedOut = false;
-        const _onHostAbort = () => { try { _callCtrl.abort(); } catch (e) {} };
-        if (controller.signal.aborted) _onHostAbort();
-        else { try { controller.signal.addEventListener("abort", _onHostAbort, { once: true }); } catch (e) {} }
-        _armIdle();
-        try {
-          return await _callModelOnce(messages, schemas);
-        } catch (e) {
-          if (_idleTimedOut && !controller.signal.aborted) {
-            throw new Error("上游 " + Math.round(AGENT_CALL_IDLE_MS / 1000) + " 秒无响应（静默卡死），已中断本轮回合");
+        for (let attempt = 0; ; attempt++) {
+          _callCtrl = new AbortController();
+          _idleTimedOut = false;
+          _totalTimedOut = false;
+          // 用户主动停止（宿主 abort）与「上游没响应」（看门狗）必须可分：前者原样抛、不重试
+          const _onHostAbort = () => { try { _callCtrl.abort(); } catch (e) {} };
+          if (controller.signal.aborted) _onHostAbort();
+          else { try { controller.signal.addEventListener("abort", _onHostAbort, { once: true }); } catch (e) {} }
+          const _idleMs = _idleMsNow = AGENT_CALL_IDLE_MS + attempt * AGENT_IDLE_STEP_MS;
+          const _capMs = AGENT_CALL_TOTAL_MS + attempt * AGENT_IDLE_STEP_MS;
+          _armIdle(_idleMs);
+          _disarmTotal();
+          _totalTimer = setTimeout(function () {
+            _totalTimedOut = true;
+            try { _callCtrl.abort(); } catch (e) {}
+          }, _capMs);
+          try {
+            return await _callModelOnce(messages, schemas);
+          } catch (e) {
+            _disarmIdle();
+            _disarmTotal();
+            // 用户按了停止：不进重试（两家的 ABORTED 都在可重试码之外）
+            if (controller.signal.aborted && !_idleTimedOut && !_totalTimedOut) throw e;
+            const _code = _classifyCallError(e, { idle: _idleTimedOut, total: _totalTimedOut });
+            // 总时长闸门与静默闸门不同：它意味着"这一整轮在 3 分钟里都没收尾"，原样重发第二次
+            // 大概率同样撞线（成本double）。只给它一次机会，之后当终局错误。
+            const _budget = (!_totalTimedOut || attempt < 1) ? AGENT_RETRY_MAX : 0;
+            if (!AGENT_RETRYABLE[_code] || attempt >= _budget) {
+              // 重试用尽，把人话原因抛给内核（内核据此 model_error 优雅收尾）
+              if (_code === "TIMEOUT" && _idleTimedOut) {
+                throw _tagErr(new Error("上游 " + Math.round(_idleMs / 1000) + " 秒无响应（静默卡死），重试 " + attempt + " 次仍失败"), _code);
+              }
+              if (_code === "TIMEOUT" && _totalTimedOut) {
+                throw _tagErr(new Error("本轮调用超过 " + Math.round(_capMs / 60000) + " 分钟（流未关闭），重试 " + attempt + " 次仍失败"), _code);
+              }
+              if (attempt > 0) throw _tagErr(new Error(String((e && e.message) || e) + "（已重试 " + attempt + " 次）"), _code);
+              throw e;
+            }
+            // 退避：指数上涨 + ±10% 抖动，封顶 10s（与 DSH localDelay 同式）
+            const _base = Math.min(AGENT_RETRY_BASE_MS * Math.pow(2, attempt), AGENT_RETRY_CAP_MS);
+            const _delay = Math.min(_base * (0.9 + Math.random() * 0.2), AGENT_RETRY_CAP_MS);
+            _resetLiveView();
+            try {
+              if (window.__feedback && typeof window.__feedback.toast === "function") {
+                const _why = _code === "TIMEOUT" ? "超时" : _code === "EMPTY_RESPONSE" ? "空响应" : "中断";
+                window.__feedback.toast("上游" + _why + "，正在重试 " + (attempt + 1) + "/" + AGENT_RETRY_MAX + "…", 2600);
+              }
+            } catch (_nt) {}
+            await new Promise(function (r) { setTimeout(r, _delay); });
+            if (controller.signal.aborted) throw e;
+          } finally {
+            _disarmIdle();
+            _disarmTotal();
+            try { controller.signal.removeEventListener("abort", _onHostAbort); } catch (e2) {}
           }
-          throw e;
-        } finally {
-          _disarmIdle();
-          try { controller.signal.removeEventListener("abort", _onHostAbort); } catch (e) {}
         }
       };
       const _callModelOnce = async (messages, schemas) => {
@@ -2834,7 +2963,9 @@
         });
         if (!res.ok) {
           const t = await res.text().catch(() => "");
-          throw new Error("Request failed (" + res.status + "): " + formatChatErrorBody(t));
+          const _he = new Error("Request failed (" + res.status + "): " + formatChatErrorBody(t));
+          _he.__httpStatus = res.status; // 供 _classifyCallError 路由（5xx/429 可重试，4xx 不可）
+          throw _he;
         }
         // 4.77: 流式解析 SSE,边收边把"最终答复"渲染进气泡;增量重组 content / reasoning_content / tool_calls。
         // 复用 sendOne 的 sseBuf 行缓冲防跨 chunk 掉字;心跳(": ping")与调试(": __dbg__")注释行非 "data: " 开头自动跳过。
@@ -2881,13 +3012,17 @@
           aiRow.reasoning.open = true;
         };
         const _handleParsed = (parsed) => {
+          // 返回值 = 这一条事件是否带来**实际进展**（正文/思考/工具调用）。
+          // 上游会发 {"delta":{}} 这类合法但无内容的增量，靠它区分"真在干活"与"心跳式假活"。
+          let _progress = false;
           if (parsed.usage) _usage = parsed.usage;
           const d = parsed.choices && parsed.choices[0] && parsed.choices[0].delta;
-          if (!d) return;
-          if (typeof d.reasoning_content === "string" && d.reasoning_content) { _reasoning += d.reasoning_content; _renderLiveReasoning(); }
-          if (typeof d.content === "string" && d.content) { _content += d.content; _lastAgentContent = _content; _renderLive(); }
+          if (!d) return _progress;
+          if (typeof d.reasoning_content === "string" && d.reasoning_content) { _reasoning += d.reasoning_content; _progress = true; _renderLiveReasoning(); }
+          if (typeof d.content === "string" && d.content) { _content += d.content; _lastAgentContent = _content; _progress = true; _renderLive(); }
           if (Array.isArray(d.tool_calls)) {
             for (const tc of d.tool_calls) {
+              _progress = true;
               const idx = (typeof tc.index === "number") ? tc.index : 0;
               const slot = _toolMap[idx] || (_toolMap[idx] = { id: "", type: "function", function: { name: "", arguments: "" } });
               if (tc.id) slot.id = tc.id;
@@ -2898,11 +3033,16 @@
               }
             }
           }
+          return _progress;
         };
+        // 2026-11-09：空增量连续计数。旧版"收到 data 行就重置看门狗"有一个缺口 ——
+        // 上游若持续吐 {"delta":{}}（合法空事件），看门狗被无限喂饱，UI 永远"思考中"。
+        // 两家参照实现都没这条（DSH/ZCode 的看门狗只认"有没有事件"），但它们都有整轮超时兜底；
+        // 我们两样都补，这里是"有事件、无内容"的那一半。
+        let _emptyStreak = 0;
         while (true) {
           const { done, value } = await reader.read();
           if (done) { _sseBuf += decoder.decode(); break; }
-          _armIdle(); // 收到字节 = 上游还活着，重置空闲计时（看门狗只打"静默"，不设总时长上限）
           _sseBuf += decoder.decode(value, { stream: true });
           let _nl;
           while ((_nl = _sseBuf.indexOf("\n")) >= 0) {
@@ -2911,7 +3051,21 @@
             if (!line.startsWith("data: ")) continue;
             const jsonStr = line.slice(6).trim();
             if (!jsonStr || jsonStr === "[DONE]") continue;
-            try { _handleParsed(JSON.parse(jsonStr)); } catch {}
+            // 2026-11-09 修：原来每收到一块字节就重置 90 秒看门狗 —— 上游的 keep-alive
+            // 心跳（`: ping` / 空行）也会喂它，于是"上游在吐心跳但模型没输出"时永远不超时，
+            // UI 停在"思考中"（实测快速档可卡住数分钟）。改为只有**真正的 data 事件**才算
+            // "上游在干活"；心跳/空行不再重置，静默 90 秒仍会被看门狗中止。
+            _armIdle(_idleMsNow);
+            let _parsedEvt = null;
+            try { _parsedEvt = JSON.parse(jsonStr); } catch (e) {}
+            if (!_parsedEvt) continue; // 半截 JSON：整体已按行缓冲，这里只是兜底
+            let _progress = false;
+            try { _progress = _handleParsed(_parsedEvt); }
+            catch (_he) { _progress = true; } // 渲染层异常不该被当成"上游没内容"
+            if (_progress) _emptyStreak = 0;
+            else if (++_emptyStreak > AGENT_EMPTY_STREAK_MAX) {
+              throw _tagErr(new Error("上游连续 " + _emptyStreak + " 个空事件（无正文/无思考/无工具调用），判定流已失效"), "TIMEOUT");
+            }
           }
         }
         // 残行兜底:服务端最后一个 data 事件可能不带结尾 \n(同 sendOne Bug⑦ 修法)
@@ -2946,6 +3100,14 @@
             }
           }
         } catch (e) {}
+        // 2026-11-09（对齐 DSH 的 EMPTY_RESPONSE）：流正常结束但一个内容块都没有 —— "空完成"。
+        // DSH 在 dsh-llm/types/error.js 里把它定为可重试失败码，注释原话：
+        //   "an empty message silently ends the turn with nothing for the user or the loop to act on"。
+        // 我们这里如果放它过去，内核会当成"模型说完了"，用一条空消息静默收掉整轮 —— 表现就是
+        // 工具跑到一半忽然"没反应了"。判定为失败并交给重试预算。
+        if (!_toolCalls.length && !String(_content || "").trim() && !String(_reasoning || "").trim()) {
+          throw _tagErr(new Error("上游返回空响应（流正常结束，但无正文、无思考、无工具调用）"), "EMPTY_RESPONSE");
+        }
         const _msg = { role: "assistant", content: _content };
         if (_toolCalls.length) _msg.tool_calls = _toolCalls;
         // 2026-06-20:本轮若「既有正文又要调工具」,正文是面向用户的前置话(问候/道歉/说明),累积下来,
@@ -3952,13 +4114,135 @@
   function _maCfg() {
     const num = (k, def, lo, hi) => { const n = parseInt(localStorage.getItem(k), 10); return isNaN(n) ? def : Math.max(lo, Math.min(hi, n)); };
     return {
-      meetingMax: num("cfw_ma_meeting_max_v1", 3, 1, 6),
+      meetingMax: num("cfw_ma_meeting_max_v1", 6, 1, 6),   // 2026-11-09：默认 3 → 6。四方推演时第四个被静默丢掉，没人发现。
       meetingRounds: num("cfw_ma_meeting_rounds_v1", 1, 1, 2),
       ctxMsgs: num("cfw_ma_ctx_msgs_v1", 60, 0, 400),
     };
   }
   // 给"平级角色"的一次独立模型调用：它自己的角色卡（rp 档案）+ 它自己的上下文视图 + 一段简报。
   // signal 链宿主 currentController（停止按钮能一起掐掉）+ 60 秒硬超时；非流式（小会只要结论，省钱）。
+  // 2026-11-09：一次中性的模型调用（记忆抽取 / 巩固用）。
+  // 不带人设、不带聊天记录、不要思考链 —— 只要它把「给定文本」按指令转成结构化结果。
+  // 记忆是增益件：这里失败一律返回空串，绝不影响对话主流程。
+  // 2026-11-09：**给角色装上手**。
+  // 群聊里的角色原来只有嘴（callPeerModel 一次调用，不带 tools）——它说的全来自上下文，
+  // 一旦上下文里没有就开始编。这里让它跑一次真正的 agent 循环：带自己的角色卡、自己的工具集，
+  // 能调工具、看结果、再想。这是"开了 Agent 模式 = 角色变成 agent"的那一层。
+  async function callWithTools(card, messages, schemas) {
+    let sig;
+    try {
+      if (currentController && typeof AbortSignal !== "undefined" && AbortSignal.any) sig = AbortSignal.any([currentController.signal, AbortSignal.timeout(90000)]);
+      else if (currentController) sig = currentController.signal;
+    } catch (e) {}
+    const _byo = (window.__byoProvider && window.__byoProvider.get && window.__byoProvider.get()) || undefined;
+    const body = {
+      stream: false,
+      mode: currentMode,
+      model: _byo ? _byo.model : (modelSel ? modelSel.value : undefined),
+      promptProfile: "rp",
+      use_builtin_persona: useBuiltin,
+      custom_system_prompt: (!useBuiltin && promptEnabled) ? (localStorage.getItem(LS_CUSTOM_PROMPT) || "") : "",
+      characterCard: card || null,
+      relation: "default", emotion: "neutral", affection: null, priorSummary: "",
+      extraSystemPrompts: getExtraSystemPrompts(currentMode, card),
+      thinking: "disabled",
+      replyStyle: localStorage.getItem("cfw_reply_style_v1") || "default",
+      customProvider: _byo,
+      messages: messages,
+    };
+    if (schemas && schemas.length) { body.tools = schemas; body.tool_choice = "auto"; }
+    const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, signal: sig, body: JSON.stringify(body) });
+    if (!res.ok) { const t = await res.text().catch(() => ""); throw new Error("Request failed (" + res.status + "): " + formatChatErrorBody(String(t).slice(0, 200))); }
+    const j = await res.json().catch(() => null);
+    const m = j && j.choices && j.choices[0] && j.choices[0].message;
+    const out = { content: String((m && m.content) || "") };
+    if (m && Array.isArray(m.tool_calls) && m.tool_calls.length) out.tool_calls = m.tool_calls;
+    if (m && m.reasoning_content) out.reasoning_content = m.reasoning_content;
+    return out;
+  }
+
+  // 让某个角色以 agent 形态干一件事（最多 maxIterations 轮工具）
+  async function runCharacterAgent(card, brief, opts) {
+    const o = opts || {};
+    if (!card) return { ok: false, error: "缺少角色" };
+    const kernel = window.AgentKernel;
+    if (!kernel || typeof kernel.runAgentLoop !== "function") return { ok: false, error: "内核未就绪" };
+    let registry;
+    try {
+      if (window.OwnChatTools && window.OwnChatTools.buildRegistry) {
+        registry = window.OwnChatTools.buildRegistry({ profile: "char" });
+        // 角色 agent 的"手"来自这些工具组（read_file / search_file / local_read_file / 画布…）。
+        // 它们不归 tools.js 的分档管，所以要显式挂上来；写类工具靠下面的 ensurePermission 一律拒绝。
+        ["__agentWorkspace", "__sourceTools", "__localExecTools", "__stageTools"].forEach(function (k) {
+          try { if (window[k] && typeof window[k].defineTools === "function") window[k].defineTools(registry); } catch (e) {}
+        });
+      } else { registry = null; }
+    } catch (e) { registry = null; }
+    if (!registry) return { ok: false, error: "工具表构建失败" };
+    const onEvent = typeof o.onEvent === "function" ? o.onEvent : function () {};
+    let memInj = "";
+    try { if (window.__memCore) memInj = await window.__memCore.buildInjection(card.id || card.name, brief || ""); } catch (e) {}
+    try {
+      const res = await kernel.runAgentLoop({
+        messages: [{ role: "user", content: String(brief || "") + memInj }],
+        registry: registry,
+        callModel: function (msgs, schemas) { return callWithTools(card, msgs, schemas); },
+        maxIterations: Math.max(1, Math.min(6, parseInt(o.maxIterations, 10) || 3)),
+        context: { characterCard: card, depth: (o.depth || 0) + 1, onEvent: onEvent },
+        // 角色 agent 一律拒绝破坏性工具（防它改用户数据）；只读工具不走闸门。
+        ensurePermission: o.ensurePermission || function () { return Promise.resolve(false); },
+        onEvent: onEvent,
+      });
+      const text = String((res && res.finalText) || "").trim();
+      if (!text) return { ok: false, error: card.name + " 没有产出内容" };
+      try {
+        if (window.__memCore && window.__memCore.enabled()) {
+          window.__memCore.remember("【" + card.name + "】" + text, { speakerCid: card.id });
+        }
+      } catch (e) {}
+      return { ok: true, said: text, iterations: res && res.iterations, stopReason: res && res.stopReason };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  }
+  async function oneShot(opts) {
+    const o = opts || {};
+    const sys = String(o.system || "");
+    const user = String(o.user || "");
+    if (!user) return "";
+    let sig;
+    try {
+      if (currentController && typeof AbortSignal !== "undefined" && AbortSignal.any) sig = AbortSignal.any([currentController.signal, AbortSignal.timeout(o.timeoutMs || 60000)]);
+      else if (currentController) sig = currentController.signal;
+    } catch (e) {}
+    const _byo = (window.__byoProvider && window.__byoProvider.get && window.__byoProvider.get()) || undefined;
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: sig,
+      body: JSON.stringify({
+        stream: false,
+        mode: currentMode,
+        model: _byo ? _byo.model : (modelSel ? modelSel.value : undefined),
+        promptProfile: "assist",
+        use_builtin_persona: false,
+        custom_system_prompt: sys,
+        characterCard: null,
+        relation: "default", emotion: "neutral", affection: null, priorSummary: "",
+        extraSystemPrompts: "",
+        thinking: "disabled",
+        replyStyle: localStorage.getItem("cfw_reply_style_v1") || "default",
+        customProvider: _byo,
+        ...activeProviderIdPayload(),
+        messages: [{ role: "user", content: user }],
+      }),
+    });
+    if (!res.ok) { const t = await res.text().catch(() => ""); throw new Error("oneShot " + res.status + " " + String(t).slice(0, 200)); }
+    const j = await res.json().catch(() => null);
+    const m = j && j.choices && j.choices[0] && j.choices[0].message;
+    return String((m && m.content) || "");
+  }
+
   async function callPeerModel(card, view, brief) {
     let sig;
     try {
@@ -4016,6 +4300,20 @@
     const m = j && j.choices && j.choices[0] && j.choices[0].message;
     return (m && typeof m.content === "string") ? m.content : "";
   }
+  // 2026-11-09：把每次召集实时推进右栏「多智能体讨论区」。
+  // 为什么需要：convene_meeting 的结果原来只回给主 agent，界面上什么都看不见，
+  // agent 于是以为"平台没有讨论区"，自己写一页 HTML、在一个上下文里把多个角色演掉。
+  // 画布不是讨论区时（例如正开着沙盘）这些调用会被对方以"没有这个函数"拒掉，静默跳过即可。
+  async function _councilPush(fn, args) {
+    try {
+      const P = window.__panel;
+      if (!P || typeof P.call !== "function") return;
+      const st = (typeof P.state === "function") ? P.state() : null;
+      if (!st || !st.hasContent) return;
+      await P.call(fn, args || [], 5000);
+    } catch (e) { /* 当前画布不是讨论区 —— 正常跳过 */ }
+  }
+
   async function runPeerMeeting(opts) {
     const o = opts || {};
     const topic = String(o.topic || "").trim();
@@ -4041,20 +4339,32 @@
         entries.push({ name: who.name, card: who, aspect: String(a.aspect || "") });
       } else if (entries[i]) entries[i].aspect = String(a.aspect || "");
     });
+    // 2026-11-09：**不再静默截断** —— 超限的名字要回给调用方，否则"少了一个人"永远查不出来。
+    const _dropped = names.slice(cfg.meetingMax);
     entries = entries.filter((e) => e.card).slice(0, cfg.meetingMax);
     if (!entries.length) {
       // 一张角色卡都不可用 → 通用视角（仍是各自独立的调用与上下文，只是人设换成"专家视角"）
       const aspects = (agenda.length ? agenda.map((a) => String((a && a.aspect) || "")) : ["总体评估", "风险与代价", "替代方案"]).filter(Boolean).slice(0, cfg.meetingMax);
       entries = aspects.map((a, i) => ({ name: "视角" + (i + 1) + "：" + a, card: null, aspect: a }));
     }
+    // 2026-11-09：默认**隔离上下文**。
+    // 旧实现给每位参与者的是 selectSpeakerView(session, {card}) —— 它遍历的是同一个 session，
+    // 只把别人的话降级成「【名字】…」的 user 行。于是四个人读的是同一段聊天记录，
+    // 那不是独立 agent，是一个模型换着人设说话（连"开会"都算不上）。
+    // 现在默认只给：自己的角色卡 + 议题简报（+ 它自己知识库里与本议题相关的段落，在 callPeerModel 里注入）。
+    // 需要他们接着群聊说话时传 context:"chat"。
+    const isolated = String(o.context || "isolated") !== "chat";
     const capView = (card) => {
+      if (isolated) return [];   // 不给聊天记录 —— 他们只知道自己被交代的事 + 自己的档案
       let view = selectSpeakerView(session, { scope: scope, card: card });
       if (cfg.ctxMsgs > 0 && view.length > cfg.ctxMsgs) view = view.slice(-cfg.ctxMsgs);
       return view;
     };
     onEvent({ type: "meeting_start", topic, participants: entries.map((e) => e.name), rounds });
+    await _councilPush("begin", [{ topic: topic, rounds: rounds, isolated: isolated, participants: entries.map((e) => e.name) }]);
     const answers = [];
     const runRound = async (roundNo, withReview) => {
+      await _councilPush("round", [roundNo]);
       return await Promise.all(entries.map(async (e) => {
         const aspectLine = e.aspect ? ("\n本会议你负责的方面：" + e.aspect) : "";
         const review = withReview
@@ -4063,14 +4373,26 @@
         const brief = "【私下小会·第 " + roundNo + " 轮】议题：" + topic + aspectLine + review + "\n请直接用你的身份给出结论（简洁、可执行；不要寒暄、不要提问、不要输出方括号标记）。";
         try {
           onEvent({ type: "meeting_speaker", who: e.name, round: roundNo, phase: "start" });
-          const text = await callPeerModel(e.card, capView(e.card), brief);
+          await _councilPush("speaking", [e.name]);
+          let _memInj = "";
+          try {
+            if (window.__memCore && e.card) _memInj = await window.__memCore.buildInjection(e.card.id || e.card.name, brief);
+          } catch (_me) { _memInj = ""; }
+          const text = await callPeerModel(e.card, capView(e.card), brief + _memInj);
           const clean = String(text || "").trim();
           // text 带全文（过程面板要能读到"小会里说了什么"）；summary 仅给右栏控制台做一行预览
           onEvent({ type: "meeting_speaker", who: e.name, round: roundNo, phase: "done", summary: clean.slice(0, 200), text: clean });
+          await _councilPush("say", [{ who: e.name, text: clean }]);
+          try {
+            if (window.__memCore && e.card && window.__memCore.enabled()) {
+              window.__memCore.remember("【" + e.name + "】" + clean, { speakerCid: e.card.id });
+            }
+          } catch (_we) {}
           return { name: e.name, aspect: e.aspect, text: clean };
         } catch (err) {
           const msg = String((err && err.message) || err);
           onEvent({ type: "meeting_speaker", who: e.name, round: roundNo, phase: "error", error: msg });
+          await _councilPush("say", [{ who: e.name, error: msg }]);
           return { name: e.name, aspect: e.aspect, text: "", error: msg };
         }
       }));
@@ -4080,13 +4402,38 @@
     let r2 = null;
     if (rounds >= 2) r2 = await runRound(2, true);
     onEvent({ type: "meeting_done", topic, participants: answers.map((a) => a.name) });
+    await _councilPush("done", [{ note: rounds + " 轮结束 · 结论已回给主 agent" }]);
     return {
       ok: true, topic, rounds,
+      room: "/tools/council/index.html",
+      dropped: _dropped.length ? _dropped : undefined,
+      context: isolated ? "isolated" : "chat",
       answers: answers.map((a) => ({ who: a.name, aspect: a.aspect || undefined, text: a.text, error: a.error || undefined })),
       review: r2 ? r2.map((a) => ({ who: a.name, text: a.text, error: a.error || undefined })) : undefined,
-      note: "以上为私下小会结论（未进聊天时间线）。可据此作答；也可用 invite_character 请其中一位上台直接回答。",
+      note: "以上为多智能体讨论结论（未进聊天时间线）。过程在右栏讨论区可见（room 字段的地址，用 stage_open 打开）。" +
+        "可据此作答；也可用 invite_character 请其中一位上台直接回答。",
     };
   }
+  // 2026-11-09：群聊里的私有通道（耳语）。
+  // 只让被指定的角色知道某件事，其他角色与其他 agent 都看不到 —— 这才是"信息差"，
+  // 也是群聊能变成真多智能体的关键：各自的上下文不同，不是同一份日志换人设。
+  function whisperTo(opts) {
+    const o = opts || {};
+    const card = _maCardByName(o.to || o.name || "");
+    if (!card) return { ok: false, error: "找不到角色：" + (o.to || o.name || "") };
+    const text = String(o.text || "").trim();
+    if (!text) return { ok: false, error: "需要 text" };
+    session.push({ role: "user", content: "（私下对" + card.name + "）" + text, sc: currentScopeKey(), to: card.name });
+    // 耳语只进接收方的记忆 —— 别的人也读不到，将来也记不起来
+    try {
+      if (window.__memCore && window.__memCore.enabled()) {
+        window.__memCore.putFacts(card.id, [{ what: text, why: "whisper", fact_type: "world", fact_kind: "conversation", entities: [] }], { kind: "whisper" });
+      }
+    } catch (e) {}
+    try { persistSessionIfEnabled(); } catch (e) {}
+    return { ok: true, to: card.name, note: "只有 " + card.name + " 能看到这条；其他角色看不到。" };
+  }
+
   async function inviteCharacterToTimeline(opts) {
     const o = opts || {};
     const card = _maCardByName(o.name);
@@ -4097,13 +4444,32 @@
       const cfg = _maCfg();
       let view = selectSpeakerView(session, { scope: currentScopeKey(), card });
       if (cfg.ctxMsgs > 0 && view.length > cfg.ctxMsgs) view = view.slice(-cfg.ctxMsgs);
-      const brief = String(o.brief || "").trim();
-      const text = await callPeerModel(
-        card, view,
-        brief
-          ? ("【被请上台】" + brief + "\n请按你的身份直接回答（不要寒暄、不要提问、不要输出方括号标记）。")
-          : "【被请上台】用户刚把你请进这段对话，请按你的身份接住当前话题、直接说话（不要寒暄、不要输出方括号标记）。"
-      );
+      const brief0 = String(o.brief || "").trim();
+      // 2026-11-09：发言前先取出"它自己记得的事"（按角色分库，别人的记忆取不到）
+      let _memInj = "";
+      try {
+        if (window.__memCore) _memInj = await window.__memCore.buildInjection(card.id || card.name, brief0 || "当前局面");
+      } catch (e) { _memInj = ""; }
+      // 2026-11-09：Agent 模式下，角色以 **agent 形态**上台（自己能调工具查证），
+      // 而不是一次裸调用。非 agent 模式仍走原来的单次调用（便宜、够用）。
+      const _agentMode = (function () {
+        try { const b = document.getElementById("agentModeBtn"); return !!(b && b.getAttribute("aria-pressed") === "true"); } catch (e) { return false; }
+      })();
+      const _useLoop = (typeof o.loop === "boolean") ? o.loop : _agentMode;
+      let text;
+      if (_useLoop) {
+        const r = await runCharacterAgent(card, (brief0 || "用户刚把你请进这段对话，请按你的身份接住当前话题、直接说话。"));
+        if (!r.ok) throw new Error(r.error || (card.name + " 没有产出内容"));
+        text = r.said;
+      } else {
+        const brief = (brief0 + _memInj);
+        text = await callPeerModel(
+          card, view,
+          brief
+            ? ("【被请上台】" + brief + "\n请按你的身份直接回答（不要寒暄、不要提问、不要输出方括号标记）。")
+            : "【被请上台】用户刚把你请进这段对话，请按你的身份接住当前话题、直接说话（不要寒暄、不要输出方括号标记）。"
+        );
+      }
       const clean = stripResidualMarkup(stripJailbreakPrefix(stripThinkBlocks(String(text || ""))));
       if (!clean.trim()) { onEvent({ type: "peer_invite", who: card.name, phase: "done" }); return { ok: false, error: card.name + " 没有产出内容" }; }
       // 渲染成时间线里的一条 AI 行（挂该角色的名字/头像）+ 落库（带场景键）
@@ -4111,6 +4477,15 @@
       row.bubble.innerHTML = renderMarkdownSafe(clean);
       if (window.__character && window.__character.decorateAiRow) { try { window.__character.decorateAiRow(row.rowEl, card); } catch (e) {} }
       setStreamingUI(row.rowEl, false);
+      // 2026-11-09：这一句进它自己的记忆，也进其他在场者"听到"的记忆。
+      // remember 内部只抽取一次再分发写入 —— 四个人听到不该做四次抽取。
+      try {
+        if (window.__memCore && window.__memCore.enabled()) {
+          const _others = (window.__multi && window.__multi.getSceneCards ? window.__multi.getSceneCards() : [])
+            .filter((c) => c && c.id !== card.id).map((c) => c.id);
+          window.__memCore.remember("【" + card.name + "】" + clean, { speakerCid: card.id, listenerCids: _others });
+        }
+      } catch (e) {}
       const msg = { role: "assistant", content: clean, speakerId: card.id, speakerName: card.name, speakerIcon: card.icon || "🙂" };
       session.push(scopeTag(msg));
       try { row.rowEl.dataset.sidx = String(session.length - 1); } catch (e) {}
@@ -4622,6 +4997,9 @@
     },
     // 2026-10-08 Agent 的多智能体能力（tools.js 的 convene_meeting / invite_character 调这两个）
     runPeerMeeting,
+    oneShot,
+    runCharacterAgent,
+    whisperTo,
     inviteCharacterToTimeline };
 
   // 云同步 + Auth UI 已迁移到 settings.js

@@ -48,7 +48,7 @@ function emit() {
 }
 
 // ── LS 读写 ──
-function getMode() { return localStorage.getItem(LSMODE) || "orchestrate"; }
+function getMode() { return localStorage.getItem(LSMODE) || "relay"; }   // 2026-11-09：默认改成"接龙"——群聊默认就该自己说话，「编排」要点名才说。
 function setMode(m) {
   if (!["orchestrate", "relay", "discuss"].includes(m)) return;
   localStorage.setItem(LSMODE, m); emit();
@@ -316,7 +316,7 @@ function stop() {
   state = "idle";
   endStats = null;
   if (window.__app && window.__app.abortCurrent) window.__app.abortCurrent();
-  setMode("orchestrate");
+  setMode("relay");
   emit();
 }
 

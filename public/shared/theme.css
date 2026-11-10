@@ -67,6 +67,13 @@
 }
 
 /* ═══ 公共基线(所有卫星页一致的小件) ═══ */
+/* 16.4 体检补缺（11-10 夜）：这四个此前被引用但从未定义——color-mix 随主题联动，无需逐主题重写 */
+:root{
+  --radius-pill:999px;
+  --muted-2:color-mix(in srgb, var(--muted) 72%, var(--text));
+  --border-hi:color-mix(in srgb, var(--border) 55%, var(--text));
+  --panel-seam:var(--line);
+}
 html{color-scheme:dark}
 [data-scheme="light"]{color-scheme:light}[data-theme="candle"]{color-scheme:dark}
 body{-webkit-font-smoothing:antialiased}

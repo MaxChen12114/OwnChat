@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>多智能体讨论区</title>
+<!-- 主题引导：与主站同一套键，必须在样式表之前 -->
+<script>
+(function(){try{
+  var q=new URLSearchParams(location.search);
+  var t=q.get("theme")||localStorage.getItem("cfw_theme_v1")||"minimal";
+  if(t&&t!=="minimal")document.documentElement.setAttribute("data-theme",t);
+  var s=q.get("scheme")||localStorage.getItem("my-theme");
+  if(s==="light"||s==="dark")document.documentElement.setAttribute("data-scheme",s);
+}catch(e){}})();
+</script>
+<link rel="stylesheet" href="/shared/theme.css">
+<style>
+  /* 多智能体讨论区（2026-11-09）
+     ──────────────────────────────────────────────────────────────────
+     为什么要有这一页：平台早就有 convene_meeting（每个参与者独立上下文、独立调用），
+     但它只把结论回给主 agent，界面上什么也看不见。于是 agent 找不到"讨论区"在哪，
+     就自己写一页 HTML，然后在一个上下文里把四个角都扮演掉 —— 自导自演。
+     这一页把「N 个独立 agent 各自发言」变成看得见的东西。
+
+     2026-11-09 第二版：**多场次**。
+     原来只有一个议题，第二场讨论会把第一场覆盖掉；而且三方会商（council）没地方看。
+     现在每一场是一个 session（会议 / 会商线程），顶部可以切换、可以回看。 */
+  :root{ --dim: var(--muted); --accent: var(--ac); }
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+    font:12px/1.6 system-ui,"Microsoft YaHei",sans-serif;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  header{padding:8px 12px 9px;border-bottom:1px solid var(--border);background:var(--panel);flex:none;}
+  #top{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+  #pick{flex:0 1 auto;min-width:0;max-width:60%;font:inherit;font-size:11.5px;
+    padding:3px 6px;border-radius:6px;border:1px solid var(--border);
+    background:var(--input-bg,#fff);color:var(--text);}
+  #kind{flex:none;font-size:10px;padding:1px 6px;border-radius:20px;
+    background:var(--ac-soft);color:var(--accent);}
+  #topic{font-size:12.5px;font-weight:600;color:var(--text);margin:0 0 4px;white-space:pre-wrap;
+    max-height:84px;overflow:auto;}
+  #meta{color:var(--dim);font-size:10.5px;display:flex;gap:10px;flex-wrap:wrap;}
+  #meta b{color:var(--accent);font-weight:600;}
+  main{flex:1 1 auto;display:flex;min-height:0;}
+  #people{width:132px;flex:none;border-right:1px solid var(--border);padding:8px;overflow:auto;background:var(--panel);}
+  .p{display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:7px;margin-bottom:4px;
+    color:var(--dim);font-size:11.5px;}
+  .p.on{background:var(--ac-soft);color:var(--text);}
+  .p .dot{width:7px;height:7px;border-radius:50%;background:var(--border);flex:none;}
+  .p.say .dot{background:var(--accent);box-shadow:0 0 0 3px var(--ac-soft);}
+  .p.done .dot{background:#4fa870;}
+  .p.err .dot{background:var(--danger);}
+  .p .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #flow{flex:1 1 auto;overflow:auto;padding:10px 12px;}
+  .round{color:var(--dim);font-size:10.5px;margin:10px 0 6px;display:flex;align-items:center;gap:8px;}
+  .round:after{content:"";flex:1 1 auto;height:1px;background:var(--border);}
+  .msg{margin:0 0 10px;}
+  .who{font-size:11px;font-weight:600;color:var(--accent);margin-bottom:2px;}
+  .txt{white-space:pre-wrap;word-break:break-word;color:var(--text);font-size:12px;}
+  .msg.err .txt{color:var(--danger);}
+  .refs{color:var(--dim);font-size:10.5px;margin-top:2px;}
+  #empty{color:var(--dim);font-size:11.5px;padding:18px 4px;line-height:1.9;}
+  footer{flex:none;border-top:1px solid var(--border);padding:6px 12px;color:var(--dim);
+    font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--panel);}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <div id="top">
+      <select id="pick" title="切换讨论（历史都在，可回看）"></select>
+      <span id="kind">会议</span>
+    </div>
+    <p id="topic">还没有议题。等一次召集。</p>
+    <div id="meta"></div>
+  </header>
+  <main>
+    <div id="people"></div>
+    <div id="flow"><div id="empty">这里显示的是<b>多个彼此独立的 agent</b> 的发言：<br>
+      每人只拿到三样东西——<b>议题</b>、<b>自己的角色卡</b>、<b>自己知识库命中的段落</b>；<br>
+      看不到聊天记录，也看不到别人说了什么（第二轮才互评）。<br><br>
+      三方会商（council 线程）也会作为一类场次出现在这里。</div></div>
+  </main>
+  <footer id="foot">独立上下文 · 并行作答 · 结论回给主 agent</footer>
+</div>
+<script>
+(function(){
+'use strict';
+  var MAX = 40;                    // 最多留多少场
+  var el = {
+    pick: document.getElementById('pick'),
+    kind: document.getElementById('kind'),
+    topic: document.getElementById('topic'),
+    meta: document.getElementById('meta'),
+    people: document.getElementById('people'),
+    flow: document.getElementById('flow'),
+    empty: document.getElementById('empty'),
+    foot: document.getElementById('foot'),
+  };
+
+  // sessions: [{ id, kind:'meeting'|'council', topic, rounds, curRound, participants:[{name,state}], msgs:[{round,who,text,err,refs}], at }]
+  var sessions = [];
+  var curId = null;
+
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function cur(){ for (var i=0;i<sessions.length;i++) if (sessions[i].id===curId) return sessions[i]; return null; }
+  function newId(){ return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
+  function fmtTime(ts){ var d=new Date(ts); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
+
+  function renderPick(){
+    if (!sessions.length) { el.pick.innerHTML = '<option>（还没有讨论）</option>'; el.pick.disabled = true; return; }
+    el.pick.disabled = false;
+    el.pick.innerHTML = sessions.slice().reverse().map(function(s){
+      var label = (s.kind === 'council' ? '会商 · ' : '会议 · ') + String(s.topic || '未命名').slice(0, 28) + '  ' + fmtTime(s.at);
+      return '<option value="' + s.id + '"' + (s.id === curId ? ' selected' : '') + '>' + esc(label) + '</option>';
+    }).join('');
+  }
+
+  function renderPeople(s){
+    if (!s || !s.participants.length) { el.people.innerHTML = '<div class="p" style="color:var(--dim)">（无参与者）</div>'; return; }
+    el.people.innerHTML = s.participants.map(function(p){
+      return '<div class="p' + (p.state ? ' ' + p.state : '') + '"><span class="dot"></span>' +
+             '<span class="nm">' + esc(p.name) + '</span></div>';
+    }).join('');
+  }
+
+  function renderMeta(s){
+    var said = s ? s.msgs.length : 0;
+    var bits = [];
+    if (s && s.rounds) bits.push('轮次 <b>' + (s.curRound||0) + '/' + s.rounds + '</b>');
+    if (s) bits.push('参与者 <b>' + s.participants.length + '</b>');
+    bits.push('发言 <b>' + said + '</b>');
+    if (sessions.length > 1) bits.push('共 <b>' + sessions.length + '</b> 场');
+    el.meta.innerHTML = bits.join('<span style="opacity:.4"> · </span>');
+  }
+
+  function renderFlow(s){
+    if (!s || !s.msgs.length) { el.flow.innerHTML = ''; el.flow.appendChild(el.empty); return; }
+    var html = '', lastRound = null;
+    s.msgs.forEach(function(m){
+      if (m.round != null && m.round !== lastRound) {
+        lastRound = m.round;
+        html += '<div class="round">第 ' + m.round + ' 轮' + (m.round > 1 ? ' · 已看到彼此上一轮结论' : ' · 各自独立作答') + '</div>';
+      }
+      html += '<div class="msg' + (m.err ? ' err' : '') + '"><div class="who">' + esc(m.who) + '</div>' +
+              '<div class="txt">' + esc(m.err ? ('（这一位失败：' + m.text + '）') : m.text) + '</div>' +
+              (m.refs && m.refs.length ? '<div class="refs">↳ ' + esc(m.refs.join(' | ')) + '</div>' : '') + '</div>';
+    });
+    el.flow.innerHTML = html;
+    el.flow.scrollTop = el.flow.scrollHeight;
+  }
+
+  function renderAll(){
+    var s = cur();
+    renderPick();
+    el.kind.textContent = s ? (s.kind === 'council' ? '会商' : '会议') : '—';
+    el.topic.textContent = s ? (s.topic || '（未命名议题）') : '还没有议题。等一次召集。';
+    renderPeople(s); renderMeta(s); renderFlow(s);
+    if (s) el.foot.textContent = (s.kind === 'council' ? '三方会商（ZCode / DSH / 主站）· 共用本机留言板' : '独立上下文 · 并行作答 · 结论回给主 agent');
+  }
+
+  function touch(s){ s.at = Date.now(); renderAll(); }
+
+  function findOrCreate(kind, key, init){
+    // 同一场（同一议题 / 同一线程）复用，不同则新建
+    for (var i=0;i<sessions.length;i++) {
+      if (sessions[i].kind === kind && sessions[i].key === key) return sessions[i];
+    }
+    var s = Object.assign({ id: newId(), kind: kind, key: key, msgs: [], participants: [], rounds: 0, curRound: 0, at: Date.now() }, init || {});
+    sessions.push(s);
+    while (sessions.length > MAX) sessions.shift();
+    return s;
+  }
+
+  el.pick.addEventListener('change', function(){ curId = el.pick.value; renderAll(); });
+
+  /* ── 对外能力（宿主/agent 通过 stage_call 调用） ── */
+  window.__stage = {
+    // 会议：{ topic, rounds, participants:[名字…], reuse? }
+    // 同一议题默认**新建一场**（这样"再讨论一次"不会覆盖上次）；reuse:true 则续写同一场。
+    begin: function(o){
+      o = o || {};
+      var topic = String(o.topic || '');
+      var s = o.reuse ? findOrCreate('meeting', topic, { topic: topic }) : null;
+      if (!s) {
+        s = { id: newId(), kind: 'meeting', key: topic, topic: topic, msgs: [], participants: [], rounds: 0, curRound: 0, at: Date.now() };
+        sessions.push(s);
+        while (sessions.length > MAX) sessions.shift();
+      }
+      s.topic = topic;
+      s.rounds = Math.max(1, parseInt(o.rounds, 10) || 1);
+      s.curRound = 0;
+      s.participants = (o.participants || []).map(function(n){ return { name: String(n), state: '' }; });
+      curId = s.id;
+      touch(s);
+      return { ok: true, id: s.id, participants: s.participants.length, sessions: sessions.length };
+    },
+    round: function(n){
+      var s = cur(); if (!s) return { ok: false, error: '没有进行中的讨论' };
+      s.curRound = parseInt(n, 10) || s.curRound;
+      for (var i=0;i<s.participants.length;i++) if (s.participants[i].state === 'done') s.participants[i].state = '';
+      touch(s);
+      return { ok: true };
+    },
+    speaking: function(name){
+      var s = cur(); if (!s) return { ok: false };
+      for (var i=0;i<s.participants.length;i++) if (s.participants[i].name === String(name)) s.participants[i].state = 'say';
+      touch(s); return { ok: true };
+    },
+    say: function(o){
+      o = o || {};
+      var s = cur(); if (!s) return { ok: false, error: '没有进行中的讨论' };
+      var who = String(o.who || '?');
+      s.msgs.push({ round: s.curRound || 1, who: who, text: String(o.error || o.text || ''), err: !!o.error });
+      for (var i=0;i<s.participants.length;i++) if (s.participants[i].name === who) s.participants[i].state = o.error ? 'err' : 'done';
+      touch(s);
+      return { ok: true, said: s.msgs.length };
+    },
+    done: function(o){
+      var s = cur(); if (!s) return { ok: false };
+      el.foot.textContent = (o && o.note) || '本轮讨论结束 · 结论已回给主 agent';
+      return { ok: true };
+    },
+
+    /* 三方会商：把一条线程作为一类"场次"导入/刷新。
+       { thread, messages:[{who, kind, text, refs}] } —— 一条 thread 对应一场，多次导入是刷新不是新建。 */
+    importCouncil: function(o){
+      o = o || {};
+      var thread = String(o.thread || '未命名线程');
+      var s = findOrCreate('council', thread, { topic: thread });
+      if (o.title) s.topic = String(o.title);
+      s.participants = [];
+      s.msgs = [];
+      var seen = {};
+      (o.messages || []).forEach(function(m){
+        var who = String(m.who || m.from || '?');
+        var kind = String(m.kind || '');
+        if (!seen[who]) { seen[who] = 1; s.participants.push({ name: who, state: 'done' }); }
+        s.msgs.push({ round: null, who: who + (kind ? ' · ' + kind : ''), text: String(m.text || m.body || ''),
+                      refs: m.refs || null, err: false });
+      });
+      s.rounds = 0; s.curRound = 0;
+      curId = s.id;
+      touch(s);
+      return { ok: true, id: s.id, messages: s.msgs.length, sessions: sessions.length };
+    },
+
+    listSessions: function(){
+      return { current: curId, sessions: sessions.map(function(s){
+        return { id: s.id, kind: s.kind, topic: s.topic, msgs: s.msgs.length, at: s.at };
+      }) };
+    },
+    selectSession: function(id){
+      if (!sessions.some(function(s){ return s.id === id; })) return { ok: false, error: '没有这一场' };
+      curId = id; renderAll(); return { ok: true, current: id };
+    },
+    state: function(){
+      var s = cur();
+      return { sessions: sessions.length, current: curId, kind: s ? s.kind : null, topic: s ? s.topic : '',
+               rounds: s ? s.rounds : 0, curRound: s ? s.curRound : 0, said: s ? s.msgs.length : 0,
+               participants: s ? s.participants.map(function(p){ return p.name + ':' + (p.state||'idle'); }) : [] };
+    },
+  };
+
+  renderPick();
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ __panel: 1, type: 'ready', data: { title: '多智能体讨论区' } }, '*');
+    }
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

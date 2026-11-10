@@ -1,0 +1,574 @@
+/* public/styles-panel.css — 右栏内容面板（panel-host / panel-frame）
+ * ─────────────────────────────────────────────────────────────────────
+ * 只负责三样：展开态布局、面板条按钮、画布容器。不动右栏原有 tab 样式。
+ * 变量：--panel-w 由 panel-host 写在 html 上（默认 460px，范围 240~640）。
+ * 手机端（<1024）由 panel-host 直接不初始化，这里只做兜底隐藏。
+ * ───────────────────────────────────────────────────────────────────── */
+
+/* ── 展开态：右栏从 240px 变宽 ── */
+html.panel-expanded .app-shell {
+  /* 面板宽度自适应：最多 --panel-w（默认 460），但必须给中间列留下至少 460px——
+     否则 1024~1200 这类窄窗口下，中间列被压到 300 多，顶栏的按钮（含设置）会被挤出容器。 */
+  grid-template-columns: 240px minmax(0, 1fr) min(var(--panel-w, 460px), calc(100vw - 700px));
+}
+
+/* 撕离缝：右栏脱离主面板，左侧留一条深色带作为拖拽把手 */
+html.panel-expanded .right-sidebar {
+  margin-left: 10px;
+  border-left: none;
+  box-shadow: -12px 0 28px rgba(0, 0, 0, .45);
+  position: relative;
+  cursor: default;
+}
+/* 拖拽把手：必须在容器**内侧**。原先 left:-10px 会被 .right-sidebar 的
+   overflow-y:auto 裁剪掉 → 左缘点不到、拖不动。 */
+html.panel-expanded .right-sidebar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  background: linear-gradient(to right, var(--panel-seam, #05060a), transparent);
+  z-index: 25; /* 盖在 iframe 之上，否则鼠标落在 iframe 里 */
+}
+
+/* 展开态：原文字 tab 行让位给图形钮（[hidden] 会被 .rs-tabs 的 display:flex 覆盖，必须显式压过） */
+#rightSidebar .rs-tabs[hidden] { display: none !important; }
+
+/* ── 面板条（展开态替换 tab 行） ── */
+.pbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pbar[hidden] { display: none !important; }
+
+/* 工具位靠左；标题占中；仪表与窗口控制靠右 */
+.pbar-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.pbar-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border-soft, #2a2b30);
+  margin: 0 3px;
+  flex: none;
+}
+.pbtn-tool { opacity: .78; }
+.pbtn-tool:hover { opacity: 1; }
+/* 未连接的外部工具（GEO 地图未配地址时） */
+.pbtn-tool.pbtn-off { opacity: .38; }
+.pbtn-tool.pbtn-off:hover { opacity: .62; }
+
+/* 面板条上的内容标题：可点开的下拉（名字 + 生成时间，可回看最近 10 份） */
+.pbar-title {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted, #9a9a9a);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.pbar-title:hover { background: rgba(127, 127, 127, .10); color: var(--text, #ececec); }
+.pbar-title-tx {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pbar-caret { width: 13px; height: 13px; flex: none; opacity: .6; }
+
+/* 下拉层 */
+.pbar-menu {
+  position: absolute;
+  top: 34px;
+  left: 56px;
+  width: 236px;
+  max-width: calc(100% - 64px);
+  z-index: 30;
+  padding: 4px;
+  background: var(--surface-2, #1b1c20);
+  border: 1px solid var(--border-soft, #2a2b30);
+  border-radius: 9px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .42);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.pbar-menu[hidden] { display: none !important; }
+.pmenu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted, #9a9a9a);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.pmenu-item:hover { background: rgba(127, 127, 127, .12); color: var(--text, #ececec); }
+.pmenu-item.on { background: var(--accent-soft, rgba(127, 164, 201, .16)); color: var(--text, #ececec); }
+.pmenu-t {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pmenu-time {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--dim, #6f6f76);
+  font-variant-numeric: tabular-nums;
+}
+.pbar-acts {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+.pbtn-close:hover { background: rgba(224, 108, 108, .16); color: #e06c6c; }
+
+/* 顶栏 ⊞ 的"有新内容"圆点（面板收起时代替自动展开） */
+#panelToggle { position: relative; }
+#panelToggle.has-new::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent, #7fa4c9);
+  box-shadow: 0 0 0 2px var(--surface-2, #16171a);
+}
+
+/* 内容与面板条之间留一点呼吸，避免"通铺到底" */
+#panelCanvasBox { padding: 8px; }
+#panelCanvasBox .pframe,
+#panelCanvasBox .pframe-text { border-radius: 8px; }
+
+.pbtn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  opacity: .62;
+  cursor: pointer;
+  padding: 0;
+  transition: background .15s, opacity .15s, border-color .15s;
+}
+.pbtn:hover { opacity: .9; background: rgba(127, 127, 127, .12); }
+.pbtn.active {
+  opacity: 1;
+  background: var(--accent-soft, rgba(127, 127, 127, .22));
+  border-color: var(--border-soft, #2a2b30);
+}
+.pbtn svg { width: 17px; height: 17px; flex: none; }
+
+/* ── 内容画布 ── */
+.rs-canvas {
+  padding: 0 !important;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden !important;
+}
+.rs-canvas[hidden] { display: none !important; }
+
+.pframe-box {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  background: var(--bg, #0e0e11);
+}
+
+/* 空态：没有内容时的引导（有内容后由 .has-content 隐藏） */
+.pframe-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 20px;
+  text-align: center;
+  pointer-events: none;
+}
+.pframe-box.has-content .pframe-empty { display: none; }
+.pframe-empty-t {
+  font-size: 12.5px;
+  color: var(--muted, #9a9a9a);
+}
+.pframe-empty-d {
+  font-size: 11.5px;
+  line-height: 1.75;
+  color: var(--dim, #6f6f76);
+}
+
+.pframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  background: transparent;
+}
+
+.pframe-text {
+  margin: 0;
+  padding: 12px;
+  height: 100%;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--text, #ececec);
+}
+
+.pframe-notice {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft, #2a2b30);
+  border-radius: 9px;
+  background: var(--surface-2, #16171a);
+  color: var(--muted, #9a9a9a);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.pframe-notice-btn {
+  border: 1px solid var(--border-soft, #2a2b30);
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 2px 9px;
+  cursor: pointer;
+}
+.pframe-notice-btn:hover { background: rgba(127, 127, 127, .14); }
+
+/* ── 显隐兜底：按 html[data-panel-view] 只留一个面板可见 ──
+   panel-host 的 apply() 会设 hidden，但初始渲染时序偶发导致两个面板同时可见
+   （实测：展开态下 activity 与 canvas 各占半屏）。这条用 CSS 强制唯一可见。 */
+html[data-panel-view="canvas"] .rs-panel:not(.rs-canvas) { display: none !important; }
+html[data-panel-view="fishbowl"] .rs-panel[data-rs-panel="canvas"],
+html[data-panel-view="fishbowl"] .rs-panel[data-rs-panel="status"] { display: none !important; }
+html[data-panel-view="status"] .rs-panel[data-rs-panel="canvas"],
+html[data-panel-view="status"] .rs-panel[data-rs-panel="fishbowl"] { display: none !important; }
+
+/* ── 工具条（仅当内容声明 chrome 时显示，例如沙盘的换皮肤/换世界/跑图） ── */
+.chrome-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-soft, #2a2b30);
+  background: var(--surface-2, #16171a);
+  overflow: hidden;
+}
+.chrome-bar[hidden] { display: none !important; }
+.chrome-bar .seg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: rgba(127, 127, 127, .08);
+  flex: none;
+}
+.chrome-bar button {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted, #9a9a9a);
+  border-radius: 6px;
+  padding: 3px 9px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, color .15s;
+}
+.chrome-bar button:hover { background: rgba(127, 127, 127, .12); color: var(--text, #ececec); }
+.chrome-bar button.on {
+  background: var(--accent-soft, rgba(127, 164, 201, .16));
+  color: var(--text, #ececec);
+  border-color: var(--border-soft, #2a2b30);
+}
+
+/* ── 独立窗口（?panel=1）：全屏覆盖层，盖住主站 UI ── */
+html.panel-window,
+html.panel-window body { background: var(--bg, #0e0e11); overflow: hidden; }
+
+#panelWindow {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg, #0e0e11);
+}
+.pw-bar {
+  height: 40px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 0 12px;
+  background: var(--surface-2, #1b1c20);
+  border-bottom: 1px solid var(--border-soft, #2a2b30);
+}
+.pw-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--text, #ececec);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-close {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted, #9a9a9a);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pw-close:hover { background: rgba(127, 127, 127, .14); color: var(--text, #ececec); }
+.pw-body { flex: 1 1 auto; min-height: 0; position: relative; }
+.pw-body .pframe-box { position: absolute; inset: 0; }
+
+/* ── 顶栏：左侧组居左（2026-11-09 所有者要求） ──
+   原设计用 .topbar-spacer-left + .topbar-spacer 夹住 model pill 做"居中"，
+   但计费一长就把右侧组挤远、中间留一大段空。改为整体居左。 */
+.topbar-spacer-left {
+  flex: 0 0 0 !important;
+  width: 0 !important;
+}
+
+/* 计费改成图标后，容器不需要横向 padding，缩成一个方形按钮 */
+#costDisplay.topbar-cost-inline {
+  padding: 7px;
+  width: 32px;
+  height: 32px;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .15s, background .15s;
+}
+#costDisplay.topbar-cost-inline svg { flex: none; display: block; }
+
+/* ── 顶栏自适应：只在中间列真的窄时才收（2026-11-09 所有者裁定） ──
+   panel-host 用 ResizeObserver 盯 #app 宽度，低于阈值给 html 加 .topbar-tight。
+   宽的时候云同步、内置文字、Model 标签全部保留；窄的时候才让位。 */
+html.topbar-tight .topbar-inner { gap: 6px; }
+html.topbar-tight .topbar-shell { padding-left: 10px; padding-right: 8px; }
+html.topbar-tight .model-pill .model-label { display: none; }
+html.topbar-tight .model-pill select { min-width: 78px; max-width: 132px; }
+html.topbar-tight #personaToggle { padding: 0; width: 34px; gap: 0; }
+html.topbar-tight #personaToggle .btn-text { display: none; }
+html.topbar-tight #syncStatusIndicator { display: none; }
+
+/* ── 计费按钮 + 账单卡 ── */
+#costDisplay.topbar-cost-inline {
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .15s, background .15s;
+}
+#costDisplay.topbar-cost-inline:hover {
+  border-color: var(--border-hi, #3a3b41);
+}
+.bill-pop {
+  position: fixed;
+  z-index: 9999;
+  min-width: 208px;
+  padding: 12px 14px;
+  background: var(--surface-2, #16171a);
+  border: 1px solid var(--border-soft, #2a2b30);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .48);
+  font: 12px/1.6 system-ui, "Microsoft YaHei", sans-serif;
+  color: var(--text, #ececec);
+}
+.bill-pop[hidden] { display: none !important; }
+.bill-big {
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -.4px;
+  font-variant-numeric: tabular-nums;
+}
+.bill-sub { font-size: 11.5px; color: var(--muted, #9a9a9a); margin-top: 1px; }
+.bill-empty { font-size: 12.5px; color: var(--muted, #9a9a9a); }
+.bill-note {
+  font-size: 11px;
+  color: var(--dim, #6f6f76);
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft, #2a2b30);
+}
+
+/* ── 面板展开时，底部输入框跟随聊天列收窄 ──
+   原 .input-floating 是 position:fixed + left:0 + width:100%（相对视口居中）。
+   左右栏等宽 240 时，"视口居中"恰好等于"聊天列居中"，所以平时看不出问题；
+   右栏一展开，输入框就盖到面板底下去了。这里改用左右边界定位。 */
+html.panel-expanded .input-floating {
+  left: 240px;
+  /* 用面板的**实际**宽度（panel-host 量完写进 --panel-actual），
+     不能用 --panel-w：那是拖拽值，窄窗口下面板会被 calc() 压缩，两者不等。 */
+  right: var(--panel-actual, var(--panel-w, 460px));
+  width: auto;
+  /* 原 padding 是 clamp(16px, 7%, 64px)，百分比按视口算 → 恒定落在 64px。
+     列宽只剩 580 时，64px 两侧白占掉 22% 的宽度。展开时对齐消息区的 16px。 */
+  padding-left: 16px;
+  padding-right: 16px;
+}
+@media (max-width: 1023px) {
+  html.panel-expanded .input-floating {
+    left: 0;
+    right: 0;
+    width: 100%;
+  }
+}
+
+/* ── 手机端兜底（panel-host 不初始化，这里防样式漏出） ── */
+@media (max-width: 1023px) {
+  html.panel-expanded .app-shell { display: block; }
+  .pbar { display: none !important; }
+}
+
+/* 2026-11-09：主站没有 --text 这个令牌（body 直接写死颜色），但本文件有 N 处 var(--text, #ececec)。
+   在浅色主题下它们全 fallback 成近白色 —— 实测「内容历史」下拉项的文字整个看不见，只剩时间。
+   这里补一个跟随主题的别名（--muted 四个主题都定义了）。 */
+:root { --text: var(--muted); }
+
+/* ═══════════════════════════════════════════════════════════════════
+ * 2026-11-10（所有者）：左栏可向左折成一条窄脊 —— 与右栏收放对称，
+ * 两边一起开合时中间那列像书页翻开/合上。
+ * 状态：<html class="left-collapsed">，key = cfw_left_collapsed_v1（index.html 早期脚本先上类，避免闪一帧）；
+ * 折叠期间 .sidebar-btn-label / 分区标题全隐，只剩图标竖排，title 属性继续给悬浮提示。
+ * ═══════════════════════════════════════════════════════════════════ */
+:root { --ls-rail-w: 52px; }
+
+/* 只在左栏自己折叠时收窄；右栏是 240px 固定态或 --panel-w 展开态，两种都要跟着写一遍，
+   否则 html.left-collapsed 的 grid 会盖掉 html.panel-expanded 的那条（同特异性、源序在后）。 */
+html.left-collapsed .app-shell {
+  grid-template-columns: var(--ls-rail-w) minmax(0, 1fr) 240px;
+}
+html.left-collapsed.panel-expanded .app-shell {
+  /* 700px = 左栏 240 + 中间列最小 460；左栏收成窄脊后要跟着减掉，否则 --panel-w 拖到 640 会被
+     calc() 提前掐在 (100vw-700) 上 —— 实测 1280 宽下只能到 580，拖拽就此卡在离中线一截的位置。 */
+  grid-template-columns: var(--ls-rail-w) minmax(0, 1fr) min(var(--panel-w, 460px), calc(100vw - var(--ls-rail-w) - 460px));
+}
+
+/* 底部输入框是 position:fixed（left:240px / right:240px 写死在 styles-2），左栏一收它还钉在 240，
+   于是就出现「左栏收窄了但输入框没变化」。这里把左边界换成窄脊宽度。 */
+html.left-collapsed .input-floating,
+html.left-collapsed.panel-expanded .input-floating { left: var(--ls-rail-w); }
+
+/* 翻书动效：只在点按钮的那一刻挂 html.left-anim，避免拖右栏宽度时也跟着补间 */
+html.left-anim .app-shell { transition: grid-template-columns .24s cubic-bezier(.4, 0, .2, 1); }
+
+html.left-collapsed #leftSidebar { padding: 14px 4px 20px; }
+html.left-collapsed #leftSidebar .sidebar-header { justify-content: center; padding: 4px 0 6px; }
+html.left-collapsed #leftSidebar .sidebar-title { display: none; }
+html.left-collapsed #leftSidebar .sidebar-section-title,
+html.left-collapsed #leftSidebar .sidebar-btn-label { display: none; }
+html.left-collapsed #leftSidebar .sidebar-btn {
+  justify-content: center !important;
+  padding: 8px 0 !important;
+  gap: 0;
+}
+html.left-collapsed #leftSidebar .sidebar-divider { margin: 6px 10px; }
+/* 收起后箭头翻向右边（点它展开） */
+html.left-collapsed #leftSidebar .sidebar-collapse svg { transform: scaleX(-1); }
+
+.sidebar-collapse { width: 28px !important; height: 28px !important; flex: 0 0 28px !important; }
+.sidebar-collapse svg { width: 16px; height: 16px; display: block; transition: transform .2s ease; }
+
+/* 手机端左栏是抽屉，没有「窄脊」这回事 */
+@media (max-width: 1023px) {
+  html.left-collapsed .app-shell,
+  html.left-collapsed.panel-expanded .app-shell { grid-template-columns: none; }
+  .sidebar-collapse { display: none !important; }
+}
+
+/* 折叠态·分组内杂项（运行时由 sidebar-groups.js / conv-list.js 注入的 DOM）
+   ① sb-group.sb-folded 的「藏子项」规则带 !important 且注入得比本文件晚 —— 窄脊里连分组头都没有，
+      再按折叠态藏图标就等于把入口全关了，所以这里反向展开并强制竖排（标签已隐，只剩图标）；
+   ② 会话列表是多行文字，52px 里没有可读空间：整列收起，只留「新建会话」的 + 号。 */
+html.left-collapsed #leftSidebar .sb-group.sb-folded > *:not(.sb-group-head) {
+  display: flex !important;
+  flex-direction: column;
+}
+html.left-collapsed #leftSidebar .sb-group > *:not(.sb-group-head) { align-items: center; }
+/* 会话行藏掉，但 .conv-list 容器要留着 —— 「新建会话」的 + 号就住在它里面。
+   容器自己带 max-height + overflow，只剩一个孩子时会把 + 号裁掉，这里一并放开。 */
+html.left-collapsed #leftSidebar .conv-item { display: none !important; }
+html.left-collapsed #leftSidebar .conv-list { max-height: none !important; overflow: visible !important; padding: 0 !important; }
+html.left-collapsed #leftSidebar .conv-new { justify-content: center !important; padding-left: 0 !important; padding-right: 0 !important; gap: 0; }
+html.left-collapsed #leftSidebar .conv-new > span { display: none; }
+/* 底部版本号小字（同时是「连点 7 下」的隐秘入口）—— 52px 里会竖着断行，
+   抹掉字形但保留元素与点击面，功能不丢。 */
+html.left-collapsed #leftSidebar #appVersionTagHome { font-size: 0; line-height: 0; height: 8px; overflow: hidden; }
+
+/* 窄脊的滚动条：左栏是 height:100vh + padding，图标列在 720 高的窗口里会溢出 13px
+   （14+39+4+651+20 = 728 > 720），aside 一旦 overflow-y:auto 就画出一条几乎占满高度的滚动条，
+   在 52px 宽的一条脊上就是一根怪竖线。
+   ① 收窄上下 padding，让它在 720 高度能真的放下；
+   ② 更矮的窗口里仍可滚（滚轮/触控板照常），但不画滚动条 —— 脊上不需要滚动条装饰。 */
+html.left-collapsed #leftSidebar {
+  padding: 8px 4px 10px;
+  scrollbar-width: none;
+}
+html.left-collapsed #leftSidebar::-webkit-scrollbar { width: 0; height: 0; }
+
+/* 左栏滚动条的观感（所有者：太明显、不好看）
+   桌面端左栏是应用骨架的一部分，滚动条属于纯噪音 —— 整栏不画条，滚轮/触控板照常滚；
+   会话列表自己的那条改成「悬停才出现」，常态完全透明，只在真的要翻列表时淡入。 */
+@media (min-width: 1024px) {
+  #leftSidebar { scrollbar-width: none; }
+  #leftSidebar::-webkit-scrollbar { width: 0; height: 0; }
+}
+#leftSidebar .conv-list { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+#leftSidebar .conv-list::-webkit-scrollbar { width: 5px; }
+#leftSidebar .conv-list::-webkit-scrollbar-track { background: transparent; }
+#leftSidebar .conv-list::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
+#leftSidebar .conv-list:hover { scrollbar-color: rgba(127, 127, 127, .32) transparent; }
+#leftSidebar .conv-list:hover::-webkit-scrollbar-thumb { background: rgba(127, 127, 127, .32); }

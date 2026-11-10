@@ -44,9 +44,19 @@
 		// 时间线 / 角色卡的工具。用户口径：子 agent 最小权限、仅本对话、由主 agent 创建、任务完成即回收。
 		// 不含任何编排工具 → 天然防递归（深度上限仍在，作为第二道闸）。
 		const SUB_TOOLS = ["load_skill"]
+		// 2026-11-09：**角色 agent 档**。群聊里被请上台的角色要能"自己去看"（读文件、看画布、
+		// 私下给某人递话），否则它只能凭上下文编。只给只读 + 画布 + 耳语，不给写文件/删改/编排
+		// （防它改用户数据、也防多智能体递归）。
+		const CHAR_TOOLS = [
+			"load_skill",
+			"read_file", "search_file", "list_files", "list_source", "read_source", "search_source",
+			"local_list_dir", "local_read_file",
+			"stage_list", "stage_view", "stage_call",
+			"whisper", "send_image",
+		]
 		let _profile = opts.profile
 		if (!_profile) { try { _profile = localStorage.getItem("cfw_agent_tools_v1") || "core" } catch (e) { _profile = "core" } }
-		const _allowed = _profile === "full" ? null : (_profile === "sub" ? SUB_TOOLS : CORE_TOOLS)
+		const _allowed = _profile === "full" ? null : (_profile === "sub" ? SUB_TOOLS : (_profile === "char" ? CHAR_TOOLS : CORE_TOOLS))
 		const _realDefine = registry.define.bind(registry)
 		// 2026-10-08 多智能体编排的"分层开关"：
 		//   ① 多智能体模式（侧栏按钮）关着 → 只有单 agent，不注册任何编排工具；
@@ -208,21 +218,54 @@
 			},
 		})
 
+		// 2026-11-09：群聊私有耳语。让「每个角色知道的不一样」成为可能。
+		define({
+			name: "whisper",
+			destructive: false,
+			description:
+				"群聊里的私有耳语：只让**某一个角色**知道某件事，其他角色、其他 agent 都看不到。\n" +
+				"用来制造信息差 —— 某人知道自家西墙塌了而别人不知道、某个角色收到密令而别人不知道。\n" +
+				"这样各角色后来的发言才会基于不同信息，而不是同一份日志换人设。\n" +
+				"什么时候用：多智能体推演里给某一方发私有情报；群里只想让某一个人知道的事。",
+			parameters: {
+				type: "object",
+				properties: {
+					to: { type: "string", description: "角色名（已保存的角色卡）" },
+					text: { type: "string", description: "只给它看的内容" },
+				},
+				required: ["to", "text"],
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const app = global.__app
+				if (!app || typeof app.whisperTo !== "function") return { ok: false, error: "私有通道未接线（app.js 未提供 whisperTo）" }
+				try { return app.whisperTo(args || {}) } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
+			},
+		});
+
 		// 2026-10-08 编排工具②「私开小会」：多位角色并行独立作答，结论回主 agent、不进时间线。
 		// 参与者用**本人档案 + 自己的独立上下文**（见 app.js runPeerMeeting / selectSpeakerView）。
 		define({
 			name: "convene_meeting",
 			destructive: true, // 每位参与者都是一次真实计费调用 → 走权限卡（成本闸门）
 			description:
-				"私下开一个小会：就某个议题征询若干角色（或指定视角）的意见，各自独立作答；结果只回给你，不进聊天时间线。" +
-				"适合：需要多方视角的复杂问题（方案评审、工程规划、剧情走向），或某个角色擅长的话题 —— 先私下问清，再决定要不要请它上台。",
+				"把若干角色**作为彼此独立的 agent** 叫到一起：每人一张自己的角色卡、各自独立的知识库，" +
+				"并行各调用一次模型，就议题各自给出结论/决策；结果回给你（不进聊天时间线）。\n" +
+				"默认 context=isolated：每位参与者**只看得到你写的议题/简报 + 自己的角色卡 + 自己知识库命中的段落**，" +
+				"看不到聊天记录、也看不到别人说了什么（第二轮才互评）。把议题写全：共用规则、局面、可选项。\n" +
+				"context=chat 才会把群聊历史（按本人视角投影）喂进去 —— 那是接着群聊说话，不是开会。\n" +
+				"**这是「让角色自己拿主意」的唯一正确通道。** 不要在一个上下文里替多个角色分别思考，" +
+				"那不是多智能体，是一个模型分饰多角（自导自演），角色卡等于白建。\n" +
+				"过程可见：右栏「多智能体讨论区」逐条显示每位 agent 的发言（stage_list 里能看到它；" +
+				"用 stage_open 打开 /tools/council/ 即可，讨论进行中会实时推进去）。",
 			parameters: {
 				type: "object",
 				properties: {
 					topic: { type: "string", description: "议题 / 要问的问题（写清背景与期望产出）" },
 					participants: { type: "array", items: { type: "string" }, description: "参与者名字（已保存的角色卡名）。省略 = 场景成员；一个角色都没有时退回通用视角" },
 					agenda: { type: "array", items: { type: "object", properties: { who: { type: "string", description: "参与者名字（可省，按顺序对应）" }, aspect: { type: "string", description: "该参与者负责的方面，如 架构 / 成本 / 风险" } }, required: ["aspect"] }, description: "可选：多方多主题 —— 给每位参与者指定负责的方面" },
-					rounds: { type: "number", description: "1（默认，各答各的）或 2（第二轮能看到彼此答案、互相补充或反驳）" },
+					rounds: { type: "number", description: "1（默认，各答各的、彼此不可见）或 2（第二轮能看到彼此答案、互相补充或反驳）" },
+					context: { type: "string", enum: ["isolated", "chat"], description: "默认 isolated：只喂议题+本人角色卡+本人知识库（真独立）。chat：投影群聊历史（接着聊天，不是开会）" },
 				},
 				required: ["topic"],
 			},
@@ -248,6 +291,7 @@
 				properties: {
 					name: { type: "string", description: "角色名（已保存的角色卡）" },
 					brief: { type: "string", description: "可选：给它的简短交代（当前讨论到哪、希望它回答什么；不写则按它自己的上下文接话）" },
+					loop: { type: "boolean", description: "可选：true=让这个角色以 agent 形态上台（能自己调工具查证，最多 3 轮）；false=单次调用。不传则跟随「Agent 模式」开关" },
 				},
 				required: ["name"],
 			},

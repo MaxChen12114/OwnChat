@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>沙盘</title>
+<!-- 主题引导：与主站/各工作页同一套键（cfw_theme_v1 + my-theme），必须在样式表之前。
+     2026-11-09：沙盘原来是写死的深色（--bg:#0e0e11 + 画布 #0b0f14），切到 glass/candle
+     或日间模式时地图外面那圈永远是黑的。现在吃 /shared/theme.css 的令牌。 -->
+<script>
+(function(){try{
+  var q=new URLSearchParams(location.search);
+  var t=q.get("theme")||localStorage.getItem("cfw_theme_v1")||"minimal";
+  if(t&&t!=="minimal")document.documentElement.setAttribute("data-theme",t);
+  var s=q.get("scheme")||localStorage.getItem("my-theme");
+  if(s==="light"||s==="dark")document.documentElement.setAttribute("data-scheme",s);
+}catch(e){}})();
+</script>
+<link rel="stylesheet" href="/shared/theme.css">
+<style>
+  /* 沙盘 · 内容区（iframe 内）。颜色令牌全部来自 /shared/theme.css，跟随主站三族主题。 */
+  :root{
+    /* theme.css 没有的、沙盘专用的几个别名 */
+    --dim:var(--muted);
+    --accent:var(--ac);
+    --accent-soft:var(--ac-soft);
+  }
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+    font:12px/1.5 system-ui,"Microsoft YaHei",sans-serif;}
+  #cv{display:block;width:100%;height:100%;cursor:grab;touch-action:none;}
+  #cv.drag{cursor:grabbing;}
+
+  /* 顶部条：与右栏面板条同高的细条，不用浮动卡片 */
+  #panel{
+    position:absolute;top:0;left:0;right:0;z-index:10;
+    display:flex;align-items:center;gap:6px;
+    height:38px;padding:0 8px;box-sizing:border-box;
+    background:var(--panel);
+    border-bottom:1px solid var(--border);
+    backdrop-filter:blur(10px);
+    user-select:none;
+  }
+  #panel .seg{display:flex;gap:2px;padding:2px;border-radius:8px;background:var(--ac-soft);flex:none;}
+  #panel button{
+    border:1px solid transparent;background:transparent;color:var(--muted);
+    border-radius:6px;padding:4px 9px;font:inherit;font-size:11.5px;
+    cursor:pointer;white-space:nowrap;transition:background .15s,color .15s;
+  }
+  #panel button:hover{background:var(--ac-soft);color:var(--text);}
+  #panel button.on{background:var(--ac-soft);color:var(--text);border-color:var(--border);}
+  #panel .sep{width:1px;height:16px;background:var(--border);margin:0 2px;flex:none;}
+  #info{margin-left:auto;color:var(--dim);font-size:10.5px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;text-align:right;}
+
+  /* 底部提示：渐隐一行，不抢视觉 */
+  /* 2026-11-09：agent 可注入的两块壳 —— 侧栏（回合日志/HUD）与图例。壳负责排版，agent 只给内容。 */
+  #side.collapsed{width:44px;}
+  #side.collapsed .side-bd{display:none;}
+  #side.collapsed .side-hd{writing-mode:vertical-rl;padding:10px 0;height:100%;box-sizing:border-box;text-align:center;}
+  #side.collapsed .side-tg{display:none;}
+  #side .side-hd{cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;}
+  #side .side-tg{opacity:.5;font-size:12px;}
+  #side{position:absolute;top:38px;right:0;bottom:0;width:210px;z-index:9;display:none;
+    overflow:auto;background:color-mix(in srgb,var(--panel) 92%,transparent);
+    border-left:1px solid var(--border);backdrop-filter:blur(8px);font-size:11.5px;}
+  #side .side-hd{padding:7px 10px;font-weight:600;color:var(--text);border-bottom:1px solid var(--border);
+    position:sticky;top:0;background:var(--panel);}
+  #side .side-bd{padding:8px 10px;color:var(--muted);line-height:1.7;}
+  #side .side-bd b{color:var(--text);}
+  #legend{position:absolute;left:10px;bottom:30px;z-index:9;display:none;gap:10px;flex-wrap:wrap;
+    padding:5px 9px;border-radius:8px;background:color-mix(in srgb,var(--panel) 88%,transparent);
+    border:1px solid var(--border);font-size:11px;color:var(--muted);}
+  #legend .lg{display:inline-flex;align-items:center;gap:5px;}
+  #legend .lg i{width:9px;height:9px;border-radius:2px;display:inline-block;}
+  #hint{position:absolute;left:0;right:0;bottom:0;z-index:10;
+    padding:6px 10px 7px;color:var(--dim);font-size:10.5px;
+    background:linear-gradient(to top,var(--bg),transparent);
+    pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="panel">
+  <div class="seg" role="group" aria-label="显示层">
+    <button id="bA" class="on" title="像素野外（dual-grid 自动拼贴）">像素</button>
+    <button id="bB" title="等距城市（线网 + 楼群）">等距</button>
+  </div>
+  <span class="sep"></span>
+  <button id="bRegen" title="换一个种子重新生成世界">换世界</button>
+  <button id="bRun" class="on" title="agent 跑图开关">跑图</button>
+  <span id="info"></span>
+</div>
+<div id="hint">拖拽平移 · 滚轮缩放 · 点地图给最近的小人派活</div>
+<script>
+(() => {
+'use strict';
+/* ============ 常量与确定性随机（模拟层禁 Math.random） ============ */
+let W = 96, H = 64;                    // 逻辑格网（可被 loadScenario 改写）
+const TS = 16;                           // tile 像素尺寸
+const TW = 32, TH = 16;                  // 等距菱形尺寸（皮肤B）
+const T = { WATER:0, SAND:1, GRASS:2, FOREST:3, MOUNTAIN:4 };
+let seed = 20261109;
+/* 2026-11-09：URL 参数 —— 世界必须可复现、可分享、可存档。
+   之前种子只能靠「换世界」抽（regen 里 Math.random），生成出什么就是什么，
+   既没法回放也没法把同一个世界发给别人。带 ?seed= 就固定了。 */
+const _Q = new URLSearchParams(location.search);
+if (_Q.has('seed')) { const _s = parseInt(_Q.get('seed'), 10); if (Number.isFinite(_s)) seed = _s | 0; }
+
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0;
+  let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t;
+  return ((t^t>>>14)>>>0)/4294967296; }; }
+let rng = mulberry32(seed);
+function hash2(x,y,s){ let h=(s|0)^Math.imul(x|0,374761393)^Math.imul(y|0,668265263);
+  h=Math.imul(h^(h>>>13),1274126177); h^=h>>>16; return (h>>>0)/4294967296; }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function vnoise(x,y,s){ const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;
+  const u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf);
+  return lerp(lerp(hash2(xi,yi,s),hash2(xi+1,yi,s),u),
+              lerp(hash2(xi,yi+1,s),hash2(xi+1,yi+1,s),u), v); }
+function fbm(x,y,s,o){ let a=.5,f=1,sum=0,n=0;
+  for(let i=0;i<o;i++){ sum+=a*vnoise(x*f,y*f,s+i*101); n+=a; a*=.5; f*=2; } return sum/n; }
+
+/* ============ 世界生成：布尔/枚举地形图（agent 输出这种，引擎负责渲染） ============ */
+let terr, elev, zone, bh, centerX, centerY;
+function genWorld(){
+  rng = mulberry32(seed);
+  terr = new Uint8Array(W*H); elev = new Float32Array(W*H);
+  zone = new Uint8Array(W*H); bh = new Float32Array(W*H);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const i=y*W+x;
+    const nx=x/W-.5, ny=y/H-.5;
+    const edge = 1 - Math.min(1, Math.hypot(nx*2.1, ny*2.1));
+    const e = fbm(x*.055, y*.055, seed, 4)*.75 + fbm(x*.13, y*.13, seed+77, 3)*.25;
+    elev[i] = e*.9 + edge*.42 - .16;
+  }
+  // 第二轮分类
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const i=y*W+x, e2=elev[i];
+    const mo = fbm(x*.07+31, y*.07+17, seed+333, 3);
+    terr[i] = e2<.32 ? T.WATER
+            : e2>.70 ? T.MOUNTAIN
+            : (mo>.60 ? T.FOREST : T.GRASS);
+  }
+  // 外海洪泛：只认与边界连通的水，内陆湖不生成沙滩
+  const ocean=new Uint8Array(W*H), stack=[];
+  for(let x=0;x<W;x++){
+    if(terr[x]===T.WATER && !ocean[x]){ ocean[x]=1; stack.push(x); }
+    const b=(H-1)*W+x;
+    if(terr[b]===T.WATER && !ocean[b]){ ocean[b]=1; stack.push(b); }
+  }
+  for(let y=0;y<H;y++){
+    const l=y*W, r3=y*W+W-1;
+    if(terr[l]===T.WATER && !ocean[l]){ ocean[l]=1; stack.push(l); }
+    if(terr[r3]===T.WATER && !ocean[r3]){ ocean[r3]=1; stack.push(r3); }
+  }
+  while(stack.length){
+    const i=stack.pop(), x=i%W, y=(i/W)|0;
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nx2=x+dx, ny2=y+dy;
+      if(nx2<0||ny2<0||nx2>=W||ny2>=H) continue;
+      const ni=ny2*W+nx2;
+      if(terr[ni]===T.WATER && !ocean[ni]){ ocean[ni]=1; stack.push(ni); }
+    }
+  }
+  const nearOcean = (x,y,r) => {
+    for(let dy=-r;dy<=r;dy++) for(let dx=-r;dx<=r;dx++){
+      const nx2=x+dx, ny2=y+dy;
+      if(nx2<0||ny2<0||nx2>=W||ny2>=H) return true;
+      if(ocean[ny2*W+nx2]) return true;
+    }
+    return false;
+  };
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const i=y*W+x;
+    if(terr[i]!==T.GRASS && terr[i]!==T.FOREST) continue;
+    if(elev[i]<.41 && nearOcean(x,y,2)) terr[i]=T.SAND;
+  }
+  // 陆地重心（皮肤B 的城市中心）
+  let sx=0, sy=0, n=0;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const i=y*W+x;
+    if(terr[i]!==T.WATER && terr[i]!==T.MOUNTAIN){ sx+=x; sy+=y; n++; }
+  }
+  centerX = sx/n; centerY = sy/n;
+  const maxd = Math.hypot(Math.max(centerX,W-centerX), Math.max(centerY,H-centerY));
+  // 分区与楼高（仅皮肤B 用）
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const i=y*W+x, t=terr[i];
+    if(t===T.WATER){ zone[i]=0; bh[i]=0; continue; }
+    const d = Math.hypot(x-centerX, y-centerY)/maxd;
+    const acc = 1-d;
+    const r1 = hash2(x,y,seed+900), r2 = hash2(x,y,seed+901);
+    const hjit = .55 + r2*.75; // 高度抖动，避免整齐墙
+    if(acc>.62 && t!==T.FOREST && t!==T.MOUNTAIN){ zone[i]=2; bh[i]= t===T.SAND||r2<.10 ? 0 : (3.5+acc*8+r2*4)*hjit; } // COM 核心（10% 广场留空）
+    else if(acc>.30 && t!==T.FOREST && t!==T.MOUNTAIN){ zone[i]=1; bh[i]= t===T.SAND?0 : (1.8+acc*3.5+r1*2)*hjit; } // RES
+    else if(t===T.FOREST){ zone[i]=4; bh[i]=0; }                                                            // PARK
+    else if(t===T.MOUNTAIN){ zone[i]=5; bh[i]=0; }                                                          // 山地不入城
+    else if(r1>.72 && acc>.18){ zone[i]=3; bh[i]=1+r2*1.6; }                                                // IND
+    else { zone[i]=6; bh[i]= r2>.85 ? 1+r1*1.6 : 0; }                                                       // 乡村散屋
+  }
+}
+
+/* ============ 皮肤A：dual-grid 自动贴图（TileMapDual 机制，程序化图集） ============ */
+let atlas;
+function buildAtlas(){
+  const c=document.createElement('canvas'); c.width=TS*16; c.height=TS;
+  const g=c.getContext('2d');
+  const LAND='#4d8a3f', WATER='#2c6d9e';
+  const corners=[[0,0],[TS,0],[0,TS],[TS,TS]]; // TL TR BL BR（对应 bit 1 2 4 8）
+  for(let s=0;s<16;s++){
+    const w=[s&1, s&2, s&4, s&8].map(v=>!!v);
+    const nW=w.filter(Boolean).length;
+    const ox=s*TS;
+    g.save(); g.translate(ox,0);
+    if(nW===4){ g.fillStyle=WATER; g.fillRect(0,0,TS,TS); }
+    else{
+      g.fillStyle=LAND; g.fillRect(0,0,TS,TS);
+      // 陆地噪点（确定性）
+      g.fillStyle='rgba(30,70,25,.35)';
+      for(let k=0;k<6;k++){
+        const px=hash2(s,k,seed+5)*TS, py=hash2(s,k,seed+6)*TS;
+        g.fillRect(px|0, py|0, 1.5, 1.5);
+      }
+      if(nW>0){
+        g.fillStyle=WATER;
+        for(let ci=0;ci<4;ci++){
+          if(!w[ci]) continue;
+          const [px,py]=corners[ci];
+          const m1=[px + (px===0? TS/2 : -TS/2), py];       // 水平边中点
+          const m2=[px, py + (py===0? TS/2 : -TS/2)];       // 垂直边中点
+          g.beginPath();
+          g.moveTo(m1[0],m1[1]);
+          g.quadraticCurveTo(px,py,m2[0],m2[1]);
+          g.lineTo(px,py); g.closePath(); g.fill();
+        }
+        // 水面波纹（全水 tile 画两短横线）
+        if(nW===4){
+          g.strokeStyle='rgba(150,200,235,.55)'; g.lineWidth=1;
+          for(const [wy2,wx0,wx1] of [[4,3,9],[11,6,13]]){
+            g.beginPath();
+            g.moveTo(wx0 + hash2(s,wy2,seed+7)*2, wy2 + (hash2(s,wy2,seed+8)-.5)*2);
+            g.lineTo(wx1 + hash2(s,wy2,seed+9)*2, wy2 + (hash2(s,wy2,seed+10)-.5)*2);
+            g.stroke();
+          }
+        }
+      }
+    }
+    g.restore();
+  }
+  return c;
+}
+const isW = (x,y) => (x<0||y<0||x>=W||y>=H) ? true : terr[y*W+x]===T.WATER;
+
+/* 2026-11-09：拆成「地形层 + 要素层」两张画布。
+   理由：dual-grid 的改动传播只影响 4 个显示格，但要素层（山体三角/树冠）会压到邻居，
+   而 SAND 是半透明填充（叠两次会变色）—— 混在一张画布上就没法安全地局部重绘。
+   拆开之后 editCell() 才能只重画该重画的那一小块。 */
+let mapA;      // 地形层：dual-grid 自动贴图
+let mapAFx;    // 要素层：沙滩/林/山/草
+function _newA(){ const c=document.createElement('canvas'); c.width=(W+2)*TS; c.height=(H+2)*TS; return c; }
+// 显示格 (dx,dy) 的 4 角掩码：TL=1 TR=2 BL=4 BR=8（越界按水算）
+const tileS = (dx,dy) => (isW(dx-1,dy-1)?1:0)|(isW(dx,dy-1)?2:0)|(isW(dx-1,dy)?4:0)|(isW(dx,dy)?8:0);
+function _drawTile(g,dx,dy){
+  g.drawImage(atlas, tileS(dx,dy)*TS,0,TS,TS, dx*TS-TS/2, dy*TS-TS/2, TS, TS);
+}
+function buildTerrainA(){
+  mapA = _newA();
+  const g=mapA.getContext('2d');
+  g.setTransform(1,0,0,1,TS,TS);
+  g.imageSmoothingEnabled=false;
+  for(let dy=-1;dy<=H;dy++) for(let dx=-1;dx<=W;dx++) _drawTile(g,dx,dy);
+}
+// 逻辑角 (x,y) 只影响 4 个显示格：(x,y)(x+1,y)(x,y+1)(x+1,y+1) —— 这是 dual-grid 的传播范围
+function redrawTilesAround(x,y){
+  const g=mapA.getContext('2d');
+  g.setTransform(1,0,0,1,TS,TS);
+  g.imageSmoothingEnabled=false;
+  for(let dy=y;dy<=y+1;dy++) for(let dx=x;dx<=x+1;dx++){
+    g.clearRect(dx*TS-TS/2, dy*TS-TS/2, TS, TS);
+    _drawTile(g,dx,dy);
+  }
+}
+function _drawFx(g,x,y){
+  const i=y*W+x, t=terr[i];
+  const cx=(x+.5)*TS, cy=(y+.5)*TS;
+  const r1=hash2(x,y,seed+41), r2=hash2(x,y,seed+42);
+  if(t===T.SAND){
+    g.fillStyle='rgba(216,196,132,.5)';
+    g.beginPath();
+    if(g.roundRect) g.roundRect(cx-TS*.48, cy-TS*.48, TS*.96, TS*.96, 5);
+    else g.arc(cx,cy,TS*.48,0,7);
+    g.fill();
+  }else if(t===T.FOREST){
+    const k=1+(r1>.5?1:0);
+    for(let j=0;j<k;j++){
+      const ox=(hash2(x,j,seed+43)-.5)*TS*.7, oy=(hash2(x,j,seed+44)-.5)*TS*.5;
+      g.fillStyle='#5a3d22'; g.fillRect(cx+ox-1, cy+oy, 2, 3);
+      g.fillStyle= j%2? '#2e6b2a':'#357d2f';
+      g.beginPath(); g.arc(cx+ox, cy+oy-2, 3.2, 0, 7); g.fill();
+    }
+  }else if(t===T.MOUNTAIN){
+    const hi=elev[i]>.78;
+    g.fillStyle= hi? '#8d939b':'#767c84';
+    g.beginPath();
+    g.moveTo(cx, cy-TS*.85); g.lineTo(cx-TS*.55, cy+TS*.42); g.lineTo(cx+TS*.55, cy+TS*.42);
+    g.closePath(); g.fill();
+    if(hi){ g.fillStyle='#e8ecef';
+      g.beginPath(); g.moveTo(cx, cy-TS*.85); g.lineTo(cx-TS*.2, cy-TS*.28); g.lineTo(cx+TS*.2, cy-TS*.28);
+      g.closePath(); g.fill(); }
+  }else if(t===T.GRASS && r1>.86){
+    g.fillStyle='#3f7d33';
+    g.beginPath(); g.arc(cx+(r2-.5)*8, cy+(r1-.5)*8, 1.6, 0, 7); g.fill();
+  }
+}
+function buildFxA(){
+  mapAFx = _newA();
+  const g=mapAFx.getContext('2d');
+  g.setTransform(1,0,0,1,TS,TS);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++) _drawFx(g,x,y);
+}
+// 要素层按 3×3 重绘：山体三角从 cy-TS*.85 画到 cy+TS*.42，纵向越界会压到上下邻格
+function redrawFxAround(x,y){
+  const g=mapAFx.getContext('2d');
+  g.setTransform(1,0,0,1,TS,TS);
+  const x0=Math.max(0,x-1), x1=Math.min(W-1,x+1), y0=Math.max(0,y-1), y1=Math.min(H-1,y+1);
+  g.clearRect(x0*TS, y0*TS, (x1-x0+1)*TS, (y1-y0+1)*TS);
+  for(let yy=y0;yy<=y1;yy++) for(let xx=x0;xx<=x1;xx++) _drawFx(g,xx,yy);
+}
+function buildMapA(){ buildTerrainA(); buildFxA(); }
+
+/* ============ 势力范围层（2026-11-09 加） ============
+   之前沙盘只有「每个 agent 一个色点」，没有「地块归谁」：terr[] 只有 5 种地形，
+   没有任何归属字段，所以地图上永远不会出现色块。
+   现在加第三层（只在像素皮肤下生效）：owners[i] = 派系序号，-1 = 无主。
+   这是通用的渲染入口 —— 谁的地盘、怎么算出来的，全在外面决定（规则不在模型/不在渲染层）。 */
+let owners = new Int8Array(W*H).fill(-1);
+let mapAOwn = null;
+/* 势力专用配色：不要用 AG_COL（那是小人圆点的颜色，前四位红/橙/黄/绿，
+   铺在草地上彼此分不开）。这里挑的是互为补色、且与草绿/海蓝都拉得开的六色。 */
+const OWN_COL = ['#e2574c','#4f9fe2','#c94fd2','#f0c419','#26b58a','#8a7cf0'];
+const _rgba = (hex,a) => {
+  const h=String(hex||'#888').replace('#','');
+  const full = h.length===3 ? h.split('').map(c=>c+c).join('') : h;
+  const n=parseInt(full,16)||0;
+  return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')';
+}
+const ownOf = (x,y) => (x<0||y<0||x>=W||y>=H) ? -1 : owners[y*W+x];
+// 2026-11-09：水域与山地**不可被占领**。之前 setOwners/applyDiff 不拦，于是色块会漂到海上
+// （实测四角据点各带了几格海面）。这是沙盘该管的地形合法性，不该让调用方自己去查。
+const _claimable = (x,y) => (x<0||y<0||x>=W||y>=H) ? false : (terr[y*W+x] !== T.WATER && terr[y*W+x] !== T.MOUNTAIN);
+function _drawOwn(g,x,y){
+  const f=owners[y*W+x];
+  if(f<0) return;
+  const col=OWN_COL[f%OWN_COL.length];
+  const px=x*TS, py=y*TS;
+  g.fillStyle=_rgba(col,.42);
+  g.fillRect(px, py, TS, TS);
+  // 边界用 1px 内缩的实心条，**画在自己格内**。
+  // 之前用 lineWidth=2 的 stroke（以格线居中）会溢出 1px 到邻格：局部重绘时那一像素
+  // 被清掉却没有任何在重绘集合里的格子负责补回来 → 接缝残影（对账脚本抓到 16×2 像素差）。
+  // 内缩之后所有绘制严格不出格，清区可以按格严格对齐，局部 ≡ 全量可证。
+  g.fillStyle=_rgba(col,.95);
+  if(ownOf(x,y-1)!==f) g.fillRect(px, py, TS, 1);
+  if(ownOf(x,y+1)!==f) g.fillRect(px, py+TS-1, TS, 1);
+  if(ownOf(x-1,y)!==f) g.fillRect(px, py, 1, TS);
+  if(ownOf(x+1,y)!==f) g.fillRect(px+TS-1, py, 1, TS);
+}
+function buildOwnA(){
+  mapAOwn = _newA();
+  const g=mapAOwn.getContext('2d');
+  g.setTransform(1,0,0,1,TS,TS);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++) _drawOwn(g,x,y);
+}
+// 边界画在格内，所以 3×3 就够：改一格只影响自己 + 四邻的边（四邻 = 3×3 去四角）。
+function redrawOwnAround(x,y){ redrawOwnRect(x-1, y-1, x+1, y+1); }
+
+/* ============ 资源层（2026-11-09 加） ============
+   红警式平面图需要「矿点 / 补给」这类会变化的地块，terr 只有 5 种地形、语义不同，不能混。
+   所以再开一层：resType[i] = 0 无 / 1..N 资源种类，resAmt[i] = 数量。
+   跟势力层一样，谁在哪儿放了什么、放多少，全由外部决定，这里只负责画。 */
+const RES_COL = ['#f0c419','#4fd1e0','#ff8a3d','#c94fd2','#7fd14f'];
+let resType = new Int8Array(W*H);
+let resAmt = new Uint16Array(W*H);
+let mapARes = null;
+function _drawRes(g,x,y){
+  const i=y*W+x, t=resType[i];
+  if(!t) return;
+  const col=RES_COL[(t-1)%RES_COL.length];
+  const px=x*TS, py=y*TS;
+  const amt=resAmt[i];
+  g.fillStyle=_rgba(col,.16);
+  g.fillRect(px,py,TS,TS);
+  // 中心一点：数量越少越淡（0 也画，表示"已知矿点已采空"）
+  const a=amt<=0 ? .22 : Math.min(1, .45 + Math.min(amt,200)/200*.55);
+  g.fillStyle=_rgba(col,a);
+  g.beginPath(); g.arc(px+TS/2, py+TS/2, 3, 0, 7); g.fill();
+}
+function buildResA(){
+  mapARes = _newA();
+  const g=mapARes.getContext('2d');
+  g.setTransform(1,0,0,1,TS,TS);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++) _drawRes(g,x,y);
+}
+function redrawResRect(x0,y0,x1,y1){
+  if(!mapARes) return;
+  x0=Math.max(0,x0|0); y0=Math.max(0,y0|0); x1=Math.min(W-1,x1|0); y1=Math.min(H-1,y1|0);
+  if(x1<x0||y1<y0) return;
+  const g=mapARes.getContext('2d');
+  g.setTransform(1,0,0,1,TS,TS);
+  g.clearRect(x0*TS, y0*TS, (x1-x0+1)*TS, (y1-y0+1)*TS);
+  for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++) _drawRes(g,x,y);
+}
+function resSummary(){
+  const c={}; let n=0;
+  for(let i=0;i<resType.length;i++){ const t=resType[i]; if(!t) continue; n++; c[t]=(c[t]||0)+resAmt[i]; }
+  return { cells:n, totals:c };
+}
+/* list = [{x,y,t,a}]；t=0 表示清掉该格。整层覆盖语义（先清空）。 */
+function setResources(list){
+  if(!Array.isArray(list)) return { ok:false, error:'setResources 需要 [{x,y,t,a}]' };
+  resType.fill(0); resAmt.fill(0);
+  let n=0;
+  for(const it of list){
+    const x=(Array.isArray(it)?it[0]:it&&it.x)|0, y=(Array.isArray(it)?it[1]:it&&it.y)|0;
+    const t=((Array.isArray(it)?it[2]:it&&it.t)|0), a=((Array.isArray(it)?it[3]:it&&it.a)|0);
+    if(x<0||y<0||x>=W||y>=H) continue;
+    if(!t) continue;
+    resType[y*W+x]=t; resAmt[y*W+x]=Math.max(0,Math.min(65535,a||1)); n++;
+  }
+  buildResA(); postState();
+  return { ok:true, placed:n, resources: resSummary() };
+}
+function resAt(x,y){ const i=(y|0)*W+(x|0); return { t: resType[i]||0, a: resAmt[i]||0 }; }
+
+/* ============ 差分推送（2026-11-09 加） ============
+   回合推进每 tick 只动几十格，不该整层重建。一次调用改一批，按包围盒重绘。
+   owners: [[x,y,f],...]（f=-1 清空）  resources: [[x,y,t,a],...]（t=0 清空） */
+function applyDiff(diff){
+  diff = diff || {};
+  // stage_call 的 args 是单个值，调用方很容易写成 [{owners,resources}]（多包一层数组）。
+  // 这里收掉这一层：长度 1 且元素是对象就直接拆开。
+  if(Array.isArray(diff) && diff.length === 1 && diff[0] && typeof diff[0]==='object') diff = diff[0];
+  let ob=null, rb=null, no=0, nr=0;
+  if(Array.isArray(diff.owners)){
+    for(const it of diff.owners){
+      const x=(Array.isArray(it)?it[0]:it.x)|0, y=(Array.isArray(it)?it[1]:it.y)|0;
+      const f=(Array.isArray(it)?it[2]:it.f);
+      if(x<0||y<0||x>=W||y>=H) continue;
+      if(f!=null&&f>=0&&!_claimable(x,y)) continue;   // 水面/山地不给占
+      owners[y*W+x] = (f==null||f<0) ? -1 : (f|0);
+      ob = ob ? [Math.min(ob[0],x),Math.min(ob[1],y),Math.max(ob[2],x),Math.max(ob[3],y)] : [x,y,x,y];
+      no++;
+    }
+  }
+  if(Array.isArray(diff.resources)){
+    for(const it of diff.resources){
+      const x=(Array.isArray(it)?it[0]:it.x)|0, y=(Array.isArray(it)?it[1]:it.y)|0;
+      const t=((Array.isArray(it)?it[2]:it.t)|0), a=((Array.isArray(it)?it[3]:it.a)|0);
+      if(x<0||y<0||x>=W||y>=H) continue;
+      resType[y*W+x]= t>0 ? t : 0;
+      resAmt[y*W+x] = t>0 ? Math.max(0,Math.min(65535,a||1)) : 0;
+      rb = rb ? [Math.min(rb[0],x),Math.min(rb[1],y),Math.max(rb[2],x),Math.max(rb[3],y)] : [x,y,x,y];
+      nr++;
+    }
+  }
+  if(ob) redrawOwnRect(ob[0]-1, ob[1]-1, ob[2]+1, ob[3]+1);
+  if(rb) redrawResRect(rb[0], rb[1], rb[2], rb[3]);
+  if(no||nr) postState();
+  return { ok:true, applied:{ owners:no, resources:nr }, owned: ownSummary() };
+}
+function ownSummary(){
+  const c={};
+  for(let i=0;i<owners.length;i++){ const f=owners[i]; if(f>=0) c[f]=(c[f]||0)+1; }
+  return c;
+}
+/* list 可以是 [{x,y,f}]（逐格声明）或长度 W*H 的扁平数组（派系序号 / null）。
+   逐格声明会先清空 —— 因为它的语义是「这就是全部地盘」，不是增量。 */
+function setOwners(list){
+  if(Array.isArray(list) && list.length && (typeof list[0]==='object')){
+    owners.fill(-1);
+    for(const it of list){
+      // 两种自然写法都收：[x,y,f] 与 {x,y,f}。
+      // 走 stage_call 时 agent 基本都写前者；只认后者会静默退化成「全部落到 (0,0)」。
+      const x=(Array.isArray(it)?it[0]:it.x)|0, y=(Array.isArray(it)?it[1]:it.y)|0;
+      const f=(Array.isArray(it)?it[2]:it.f);
+      if(x>=0&&y>=0&&x<W&&y<H&&f!=null&&f>=0&&f<127&&_claimable(x,y)) owners[y*W+x]=f|0;
+    }
+  } else if(list && typeof list.length==='number' && list.length===W*H){
+    for(let i=0;i<W*H;i++){ const v=list[i]; owners[i]=(v==null||v<0)?-1:(v|0); }
+  } else {
+    return { ok:false, error:'setOwners 需要 [{x,y,f}] / [[x,y,f]] 或长度 '+W*H+' 的扁平数组' };
+  }
+  buildOwnA(); postState();
+  return { ok:true, owned: ownSummary() };
+}
+function clearOwners(){ owners.fill(-1); buildOwnA(); postState(); return { ok:true, owned:{} }; }
+/* 矩形重绘：差分推送一次可能改几十格，逐格 3×3 会互相覆盖成 O(n) 次清屏，按包围盒重绘更省 */
+function redrawOwnRect(x0,y0,x1,y1){
+  if(!mapAOwn) return;
+  x0=Math.max(0,x0|0); y0=Math.max(0,y0|0); x1=Math.min(W-1,x1|0); y1=Math.min(H-1,y1|0);
+  if(x1<x0||y1<y0) return;
+  const g=mapAOwn.getContext('2d');
+  g.setTransform(1,0,0,1,TS,TS);
+  g.clearRect(x0*TS, y0*TS, (x1-x0+1)*TS, (y1-y0+1)*TS);
+  for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++) _drawOwn(g,x,y);
+}
+/* 单格改归属 —— 回合制推演每轮只会动几块地，不该整层重建。
+   f 传 null 或负数 = 变成无主。 */
+function setOwner(x,y,f){
+  x|=0; y|=0;
+  if(x<0||y<0||x>=W||y>=H) return false;
+  const v=(f==null||f<0)?-1:(f|0);
+  if(v>=0 && !_claimable(x,y)) return false;   // 水面/山地不给占
+  if(owners[y*W+x]===v) return true;
+  owners[y*W+x]=v;
+  redrawOwnAround(x,y);
+  postState();
+  return true;
+}
+
+/* ============ 皮肤B：等距城市（地铁款形式：菱形地块 + 等距楼 + B样条线网） ============ */
+function shade(hex, f){ // f>0 提亮, f<0 压暗
+  const n=parseInt(hex.slice(1),16);
+  const r=(n>>16)&255, gg=(n>>8)&255, b=n&255;
+  const cl=v=>Math.max(0,Math.min(255, v|0));
+  return `rgb(${cl(r+(f>0?(255-r)*f:r*f))},${cl(gg+(f>0?(255-gg)*f:gg*f))},${cl(b+(f>0?(255-b)*f:b*f))})`;
+}
+const OX = ()=> H*TW/2+60, OY = ()=> 150;
+const iso = (x,y)=>[OX()+(x-y)*TW/2, OY()+(x+y)*TH/2];
+const ZCOL = { 0:'#27516e', 1:'#c0b090', 2:'#8f9db0', 3:'#9c8a68', 4:'#5f9448', 5:'#6e7a68', 6:'#87a05e' };
+const ZNAME = { 0:'水域', 1:'住宅', 2:'商业', 3:'工业', 4:'公园', 5:'山地', 6:'乡村' };
+const BCOL = { 1:'#c28b5c', 2:'#7f93a8', 3:'#8b8578' };
+
+let mapBG, mapBB, mapBO, mapBw, mapBh; // 地面+线网 / 建筑 / 示意ghost 三层
+function buildMapB(){
+  mapBw=(W+H)*TW/2+120; mapBh=(W+H)*TH/2+320;
+  mapBG=document.createElement('canvas'); mapBG.width=mapBw; mapBG.height=mapBh;
+  mapBB=document.createElement('canvas'); mapBB.width=mapBw; mapBB.height=mapBh;
+  mapBO=document.createElement('canvas'); mapBO.width=mapBw; mapBO.height=mapBh;
+  const g=mapBG.getContext('2d');
+  g.imageSmoothingEnabled=true;
+  // 地面菱形（按 s=x+y 顺序）
+  for(let s=0;s<=W+H-2;s++) for(let x=Math.max(0,s-H+1);x<=Math.min(W-1,s);x++){
+    const y=s-x, i=y*W+x, z=zone[i], t=terr[i];
+    const [px,py]=iso(x,y);
+    let col=ZCOL[z];
+    if(t===T.SAND && z!==0) col='#d4c493';
+    g.fillStyle=col;
+    diamond(g,px,py,TW,TH); g.fill();
+    // 城市街道：主次干道网格
+    if(z>=1&&z<=3 && bh[i]>0 && (x%4===0||y%4===0)){
+      g.strokeStyle='rgba(50,55,60,.30)'; g.lineWidth=1;
+      diamond(g,px,py,TW,TH); g.stroke();
+    }
+    // 水面微波
+    if(z===0 && hash2(x,y,seed+61)>.82){
+      g.strokeStyle='rgba(140,190,225,.35)'; g.lineWidth=1;
+      g.beginPath(); g.moveTo(px-TW*.28,py); g.lineTo(px-TW*.08,py); g.stroke();
+    }
+  }
+  // 建筑（独立层：楼画在 mapBB，列车/线网被楼自然遮挡）
+  const gb=mapBB.getContext('2d'); gb.imageSmoothingEnabled=true;
+  for(let s=0;s<=W+H-2;s++) for(let x=Math.max(0,s-H+1);x<=Math.min(W-1,s);x++){
+    const y=s-x, i=y*W+x;
+    const hpx=bh[i]*7;
+    if(hpx<=0) continue;
+    const [px,py]=iso(x,y);
+    const z=zone[i], base=BCOL[z]||'#a09a8c';
+    // 左面
+    gb.fillStyle=shade(base,-.35);
+    gb.beginPath();
+    gb.moveTo(px-TW/2,py); gb.lineTo(px,py+TH/2); gb.lineTo(px,py+TH/2-hpx); gb.lineTo(px-TW/2,py-hpx);
+    gb.closePath(); gb.fill();
+    // 右面
+    gb.fillStyle=shade(base,-.12);
+    gb.beginPath();
+    gb.moveTo(px+TW/2,py); gb.lineTo(px,py+TH/2); gb.lineTo(px,py+TH/2-hpx); gb.lineTo(px+TW/2,py-hpx);
+    gb.closePath(); gb.fill();
+    // 顶
+    gb.fillStyle=shade(base,.22);
+    gb.beginPath();
+    gb.moveTo(px,py-hpx-TH/2); gb.lineTo(px-TW/2,py-hpx); gb.lineTo(px,py-hpx+TH/2); gb.lineTo(px+TW/2,py-hpx);
+    gb.closePath(); gb.fill();
+    // 地标楼顶灯
+    if(z===2 && hpx>110 && hash2(x,y,seed+71)>.5){
+      gb.fillStyle='#ffd76e'; gb.fillRect(px-1.5, py-hpx-TH/2-5, 3, 5);
+    }
+  }
+  // 地铁线网（贴地画在建筑层之下；另存一层半透明 ghost 盖在楼上保可读）
+  const go=mapBO.getContext('2d'); go.imageSmoothingEnabled=true;
+  metroLines.forEach(L=>{
+    for(const [cc,alpha] of [[g,1],[go,.42]]){
+      cc.lineWidth=5; cc.strokeStyle=`rgba(255,255,255,${(.45*alpha).toFixed(3)})`;
+      strokePath(cc,L.pts); cc.lineWidth=2.6; cc.strokeStyle=L.color; strokePath(cc,L.pts);
+      cc.save(); cc.globalAlpha=alpha;
+      L.stations.forEach(([sx,sy])=>{
+        const [px,py]=iso(sx+.5,sy+.5);
+        cc.beginPath(); cc.arc(px,py,4.2,0,7);
+        cc.fillStyle='#f4f7fa'; cc.fill();
+        cc.lineWidth=1.8; cc.strokeStyle=L.color; cc.stroke();
+      });
+      cc.restore();
+    }
+  });
+}
+function diamond(g,px,py,tw,th){
+  g.beginPath();
+  g.moveTo(px,py-th/2); g.lineTo(px+tw/2,py); g.lineTo(px,py+th/2); g.lineTo(px-tw/2,py);
+  g.closePath();
+}
+function strokePath(g,pts){
+  g.beginPath(); g.moveTo(pts[0][0],pts[0][1]);
+  for(let k=1;k<pts.length;k++) g.lineTo(pts[k][0],pts[k][1]);
+  g.stroke();
+}
+
+/* ============ 地铁线网：站点选取 + Catmull-Rom 闭环采样 ============ */
+let metroLines=[];
+function buildMetro(){
+  metroLines=[];
+  const colors=['#e2574c','#3fa66f'];
+  for(let li=0; li<2; li++){
+    const stations=[]; let tries=0;
+    while(stations.length<7 && tries<900){
+      tries++;
+      const x=(rng()*W)|0, y=(rng()*H)|0, i=y*W+x;
+      if(zone[i]===0||zone[i]===5) continue;
+      if(!stations.every(([sx,sy])=>Math.hypot(sx-x,sy-y)>=9)) continue;
+      stations.push([x,y]);
+    }
+    if(stations.length<4) continue;
+    // 闭环控制点（首尾相接）
+    const ctrl=stations.map(([x,y])=>iso(x+.5,y+.5));
+    const pts=[];
+    const n=ctrl.length;
+    for(let a=0;a<n;a++){
+      const p0=ctrl[(a-1+n)%n], p1=ctrl[a], p2=ctrl[(a+1)%n], p3=ctrl[(a+2)%n];
+      for(let t=0;t<1;t+=1/22){
+        const t2=t*t, t3=t2*t;
+        pts.push([
+          .5*((2*p1[0])+(-p0[0]+p2[0])*t+(2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2+(-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3),
+          .5*((2*p1[1])+(-p0[1]+p2[1])*t+(2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2+(-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3)
+        ]);
+      }
+    }
+    pts.push(pts[0].slice());
+    // 累计长度表
+    const cum=[0];
+    for(let k=1;k<pts.length;k++) cum.push(cum[k-1]+Math.hypot(pts[k][0]-pts[k-1][0], pts[k][1]-pts[k-1][1]));
+    metroLines.push({ stations, pts, cum, total:cum[cum.length-1], color:colors[li], trains:[] });
+    for(let tr=0;tr<3;tr++) metroLines[metroLines.length-1].trains.push({ t: tr/3 });
+  }
+}
+function pointAt(L, dist){
+  const pts=L.pts, cum=L.cum;
+  let lo=0, hi=cum.length-1;
+  while(lo<hi){ const mid=(lo+hi)>>1; if(cum[mid]<dist) lo=mid+1; else hi=mid; }
+  const k=Math.max(1,lo);
+  const f=(dist-cum[k-1])/Math.max(1e-6, cum[k]-cum[k-1]);
+  return [lerp(pts[k-1][0],pts[k][0],f), lerp(pts[k-1][1],pts[k][1],f)];
+}
+
+/* ============ Agent：A* 跑图（4邻域，路径画虚线） ============ */
+const AG_N=10;
+const AG_COL=['#e2574c','#e2a14c','#d9c94c','#7fc74f','#4fc7a8','#4f9fe2','#7f6fe2','#c94fd2','#e24f7f','#c8c8c8'];
+let agents=[];
+const walkable = i => { const t=terr[i]; return t!==T.WATER && t!==T.MOUNTAIN; };
+function randLandCell(cx,cy,rad){
+  for(let k=0;k<80;k++){
+    const x=(cx+(rng()*2-1)*rad)|0, y=(cy+(rng()*2-1)*rad)|0;
+    if(x<0||y<0||x>=W||y>=H) continue;
+    if(walkable(y*W+x)) return [x,y];
+  }
+  return null;
+}
+function astar(sx,sy,tx,ty){
+  if(sx===tx&&sy===ty) return [[tx,ty]];
+  const N=W*H, gsc=new Float32Array(N), par=new Int32Array(N),
+        stamp=new Int32Array(N), fs=new Float32Array(N);
+  let gen=0; const open=[];
+  const push=(i,f)=>{ open.push([f,i]); let c=open.length-1;
+    while(c>0){ const p=(c-1)>>1; if(open[p][0]<=open[c][0]) break;
+      [open[p],open[c]]=[open[c],open[p]]; c=p; } };
+  const pop=()=>{ const top=open[0], last=open.pop();
+    if(open.length){ open[0]=last; let c=0;
+      for(;;){ let l=c*2+1,r=l+1,m=c;
+        if(l<open.length&&open[l][0]<open[m][0])m=l;
+        if(r<open.length&&open[r][0]<open[m][0])m=r;
+        if(m===c)break; [open[m],open[c]]=[open[c],open[m]]; c=m; } }
+    return top; };
+  const sI=sy*W+sx, tI=ty*W+tx;
+  gen++; gsc[sI]=0; par[sI]=-1; stamp[sI]=gen; fs[sI]=0;
+  push(sI,0);
+  const DX=[1,-1,0,0], DY=[0,0,1,-1];
+  let ex=0;
+  while(open.length && ex++<6000){
+    const [f,cur]=pop();
+    if(cur===tI){
+      const path=[]; let p=cur;
+      while(p!==-1){ path.push([ (p%W)+.5, ((p/W)|0)+.5 ]); p=par[p]; }
+      path.reverse(); return path;
+    }
+    if(f>fs[cur]+.001) continue;
+    const cx=cur%W, cy=(cur/W)|0;
+    for(let d=0;d<4;d++){
+      const nx2=cx+DX[d], ny2=cy+DY[d];
+      if(nx2<0||ny2<0||nx2>=W||ny2>=H) continue;
+      const ni=ny2*W+nx2;
+      if(!walkable(ni)) continue;
+      const ng=gsc[cur]+1;
+      if(stamp[ni]!==gen || ng<gsc[ni]){
+        stamp[ni]=gen; gsc[ni]=ng; par[ni]=cur;
+        fs[ni]=ng+Math.abs(nx2-tx)+Math.abs(ny2-ty);
+        push(ni,fs[ni]);
+      }
+    }
+  }
+  return null;
+}
+function spawnAgents(){
+  agents=[];
+  let home=[centerX,centerY];
+  for(let a=0;a<AG_N;a++){
+    const c=randLandCell(home[0],home[1],26);
+    const p=c||[centerX,centerY];
+    agents.push({ x:p[0]+.5, y:p[1]+.5, path:null, idx:0, wait:rng()*1.5,
+      speed:2.4+rng()*1.2, col:AG_COL[a%AG_COL.length] });
+  }
+}
+function newTarget(ag){
+  const c=randLandCell(ag.x|0, ag.y|0, 22);
+  if(!c) { ag.wait=1; return; }
+  const path=astar(ag.x|0, ag.y|0, c[0], c[1]);
+  if(path && path.length>1){ ag.path=path; ag.idx=1; } else ag.wait=.6+rng();
+}
+function updateAgents(dt){
+  for(const ag of agents){
+    if(ag.wait>0){ ag.wait-=dt; if(ag.wait<=0) newTarget(ag); continue; }
+    if(!ag.path) { newTarget(ag); continue; }
+    const [tx2,ty2]=ag.path[ag.idx];
+    const dx=tx2-ag.x, dy=ty2-ag.y, dl=Math.hypot(dx,dy);
+    const step=ag.speed*dt;
+    if(dl<=step){ ag.x=tx2; ag.y=ty2; ag.idx++;
+      if(ag.idx>=ag.path.length){ ag.path=null; ag.wait=.4+rng()*1.6; } }
+    else { ag.x+=dx/dl*step; ag.y+=dy/dl*step; }
+  }
+}
+
+/* ============ 相机与主循环 ============ */
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+let dpr=1, vw=0, vh=0;
+/* 2026-11-09：画布底色原来写死 #0b0f14 —— 地图两侧/上下的留白永远黑的，不跟主题。
+   现在从 --bg 取（theme.css 的三族主题各自定义），主题变了就重取一次。 */
+let _bgColor='#0b0f14';
+function _refreshTheme(){
+  try{
+    const v=(getComputedStyle(document.documentElement).getPropertyValue('--bg')||'').trim();
+    if(v) _bgColor=v;
+  }catch(e){}
+}
+function _applyThemeFromStorage(){
+  try{
+    const t=localStorage.getItem('cfw_theme_v1')||'minimal';
+    if(t&&t!=='minimal') document.documentElement.setAttribute('data-theme',t);
+    else document.documentElement.removeAttribute('data-theme');
+    const s=localStorage.getItem('my-theme');
+    if(s==='light'||s==='dark') document.documentElement.setAttribute('data-scheme',s);
+    else document.documentElement.removeAttribute('data-scheme');
+  }catch(e){}
+  _refreshTheme();
+}
+_refreshTheme();
+try{ new MutationObserver(_refreshTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme','data-scheme']}); }catch(e){}
+// 主站里切主题 → 同源 iframe 收到 storage 事件（storage 不会在改动的那个文档里触发，正好）
+try{ window.addEventListener('storage',function(e){ if(e.key==='cfw_theme_v1'||e.key==='my-theme') _applyThemeFromStorage(); }); }catch(e){}
+let skin=(_Q.get('skin')==='B')?'B':'A', agentsOn=_Q.get('run')!=='0';
+const cam={x:0,y:0,z:1};
+let sideW=0;   // 侧栏宽度（0 = 没开）；resize/fit 都要让出这一块
+let _pinnedCam=null;   // 调用方用 focus() 指定过镜头 → fit() 不许覆盖它
+function resize(){
+  dpr=window.devicePixelRatio||1;
+  // 2026-11-09：侧栏打开时让出宽度 —— 否则 #side 会盖在棋盘上（实测挡住右半张图）。
+  vw=Math.max(120, window.innerWidth - sideW); vh=window.innerHeight;
+  cv.width=vw*dpr; cv.height=vh*dpr;
+  cv.style.width=vw+'px'; cv.style.height=vh+'px';
+}
+window.addEventListener('resize', ()=>{ resize(); });
+function fit(){
+  // 2026-11-09：调用方用 focus() 定过镜头时，fit() 不再重算 —— 否则开/关侧栏会把镜头弹回全图。
+  if(_pinnedCam){ cam.x=_pinnedCam.x; cam.y=_pinnedCam.y; cam.z=_pinnedCam.z; return; }
+  let bw,bh2;
+  if(skin==='A'){ bw=(W+2)*TS; bh2=(H+2)*TS; }
+  else{ bw=mapBw; bh2=mapBh; }
+  cam.z=Math.min(vw/bw, vh/bh2)*.92;
+  cam.x=bw/2; cam.y=bh2/2;
+  if(skin==='A'){ cam.x-=TS; cam.y-=TS; }
+}
+function rebuild(newSeed){
+  _pinnedCam = null;
+  if (typeof newSeed === 'number' && Number.isFinite(newSeed)) seed = newSeed | 0;
+  genWorld();
+  atlas=buildAtlas();
+  buildMapA();
+  owners.fill(-1);      // 新世界 = 没人占地
+  buildOwnA();
+  resType.fill(0); resAmt.fill(0);   // 也没有矿点
+  buildResA();
+  buildMetro();
+  buildMapB();
+  spawnAgents();
+  fit();
+  document.getElementById('info').textContent =
+    `种子 ${seed} · 格网 ${W}×${H} · ${skin==='A'?'dual-grid 16 图程序化图集':'等距投影 + B样条线网 ×'+metroLines.length} · 分区: ${Object.values(ZNAME).join('/')}`;
+}
+function setSkin(s){
+  skin=s;
+  document.getElementById('bA').classList.toggle('on', s==='A');
+  document.getElementById('bB').classList.toggle('on', s==='B');
+  fit();
+  updateInfo();
+  postState();
+}
+function updateInfo(){
+  document.getElementById('info').textContent =
+    `种子 ${seed} · 格网 ${W}×${H} · ${skin==='A'?'dual-grid 16 图程序化图集':'等距投影 + B样条线网 ×'+metroLines.length} · ${agentsOn?'agent 跑图中':'跑图已暂停'}`;
+}
+/* ── 操作（页内按钮与宿主命令共用同一组函数） ── */
+function regen(){ seed=(Math.random()*1e9)|0; rebuild(); postState(); }
+function toggleRun(force){
+  agentsOn = (typeof force === 'boolean') ? force : !agentsOn;
+  var b=document.getElementById('bRun');
+  if (b){ b.classList.toggle('on',agentsOn); b.title='agent 跑图：'+(agentsOn?'开':'关'); }
+  updateInfo();
+  postState();
+}
+function postState(){
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ __panel:1, type:'state', data:{ skin:skin, running:agentsOn, seed:String(seed) } }, '*');
+    }
+  } catch (e) {}
+}
+/* ── 2026-11-09：改一个逻辑格的地表 ──
+   dual-grid 的改动传播只该影响 4 个显示格，这是 TileMapDual 那套的核心性质，
+   也是这段代码最容易写错的地方，所以留成可外部调用的入口。
+   之前沙盘只有"看一眼"和"点地图派活"，没有任何改地表的能力。 */
+function editCell(x,y,t){
+  if(!Number.isFinite(x)||!Number.isFinite(y)) return false;
+  x|=0; y|=0;
+  if(x<0||y<0||x>=W||y>=H) return false;
+  t = (t===T.WATER||t===T.SAND||t===T.GRASS||t===T.FOREST||t===T.MOUNTAIN) ? t : T.GRASS;
+  const i=y*W+x;
+  if(terr[i]===t) return true;
+  terr[i]=t;
+  if(skin==='A'){ redrawTilesAround(x,y); redrawFxAround(x,y); }
+  else buildMapB();
+  postState();
+  return true;
+}
+
+/* ── 2026-11-09：对外钩子 ──
+   原来一切封在 IIFE 里：页面能被看、不能被验。同种子是否同世界、改一格是否只影响
+   4 个显示格，这些都没法从外面问。 */
+/* ============ 局面注入（2026-11-09 加） ============
+   为什么要有边界：**地图不是 agent 画的**。
+   像玩游戏一样 —— 地形由种子生成，玩家/agent 只在既定的世界上行动。
+   所以这里只接收「局面」：种子（换一张图）、谁占哪、矿在哪、侧栏写什么、图例。
+   之前一版让 agent 传 grid 逐行写地形，那是把 agent 当关卡设计师，错了。 */
+function loadScenario(s){
+  s = s || {};
+  // ① 地图：只认种子。传了 seed 就按它生成（同种子同世界），不传就沿用当前这张。
+  _pinnedCam = null;
+  if (s.seed != null && Number.isFinite(s.seed | 0)) {
+    seed = s.seed | 0;
+    genWorld();                       // 地形完全由 seed 决定，agent 碰不到
+    atlas = buildAtlas();
+    buildMapA();
+  }
+  // ② 局面：领地 / 矿点（这些才是 agent 该定的）
+  owners = new Int8Array(W*H).fill(-1);
+  resType = new Int8Array(W*H); resAmt = new Uint16Array(W*H);
+  if (Array.isArray(s.owners)) {
+    for (const it of s.owners) {
+      const x = (Array.isArray(it) ? it[0] : it.x) | 0, y = (Array.isArray(it) ? it[1] : it.y) | 0;
+      const f = (Array.isArray(it) ? it[2] : it.f);
+      if (x >= 0 && y >= 0 && x < W && y < H && f != null && f >= 0 && _claimable(x, y)) owners[y*W+x] = f|0;
+    }
+  }
+  if (Array.isArray(s.resources)) {
+    for (const it of s.resources) {
+      const x = (Array.isArray(it) ? it[0] : it.x) | 0, y = (Array.isArray(it) ? it[1] : it.y) | 0;
+      const t = ((Array.isArray(it) ? it[2] : it.t) | 0), a = ((Array.isArray(it) ? it[3] : it.a) | 0);
+      if (x >= 0 && y >= 0 && x < W && y < H && t > 0) { resType[y*W+x] = t; resAmt[y*W+x] = Math.max(0, a || 1); }
+    }
+  }
+  buildOwnA(); buildResA(); fit();
+
+  // ③ 壳上的内容位：标题 / 侧栏（回合日志、HUD）/ 图例
+  if (s.title) setTitle(s.title);
+  if (s.panel !== undefined) setPanel(s.panel);
+  if (s.legend !== undefined) setLegend(s.legend);
+  postState();
+  return { ok: true, seed: seed, W: W, H: H, owned: ownSummary() };
+}
+
+/* 侧栏：给 agent 一个"说人话"的位置（回合日志 / HUD / 决策列表）。
+   壳负责排版，agent 只给 HTML 片段 —— 它不需要碰整个页面。 */
+function setPanel(p){
+  p = p || {};
+  let el = document.getElementById('side');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'side';
+    document.body.appendChild(el);
+  }
+  if (p.html == null || String(p.html) === '') { el.style.display = 'none'; el.innerHTML = ''; sideW = 0; resize(); fit(); return { ok: true, hidden: true }; }
+  el.style.display = 'block';
+  el.innerHTML = '<div class="side-hd">' + String(p.title || '局面') + '<span class="side-tg">‹</span></div>' +
+                 '<div class="side-bd">' + String(p.html) + '</div>';
+  // 2026-11-09：**默认折叠**。侧栏一开就吃掉 210px，面板本身才 522px，地图会被压到看不清
+  // （实测 96×64 缩到 240px 宽，格子只剩 2.5px）。折叠后画布全宽，点标题条再展开。
+  const wantOpen = (p.open === true);
+  el.classList.toggle('collapsed', !wantOpen);
+  const hd = el.querySelector('.side-hd');
+  if (hd) hd.onclick = function () { el.classList.toggle('collapsed'); sideW = el.classList.contains('collapsed') ? 0 : (el.offsetWidth || 210); resize(); fit(); };
+  sideW = el.classList.contains('collapsed') ? 0 : (el.offsetWidth || 210);
+  resize(); fit();
+  return { ok: true, chars: String(p.html).length, open: !el.classList.contains('collapsed') };
+}
+
+/* 图例：颜色 → 名字。势力/资源都用得上。 */
+function setLegend(items){
+  let el = document.getElementById('legend');
+  if (!el) { el = document.createElement('div'); el.id = 'legend'; document.body.appendChild(el); }
+  if (!Array.isArray(items) || !items.length) { el.style.display = 'none'; el.innerHTML = ''; return { ok: true, hidden: true }; }
+  el.style.display = 'flex';
+  el.innerHTML = items.map(function (it) {
+    const c = String((it && it.color) || '#888');
+    return '<span class="lg"><i style="background:' + c.replace(/"/g, '') + '"></i>' + String((it && it.label) || '') + '</span>';
+  }).join('');
+  return { ok: true, n: items.length };
+}
+
+function setTitle(t){
+  const el = document.getElementById('info');
+  if (el) el.textContent = String(t || '');
+  return { ok: true };
+}
+
+window.__sandbox = {
+  get seed(){ return seed; },
+  get skin(){ return skin; },
+  get running(){ return agentsOn; },
+  state(){ return { seed, skin, running: agentsOn, W, H, agents: agents.length, metroLines: metroLines.length,
+    theme: document.documentElement.getAttribute('data-theme') || 'minimal',
+    scheme: document.documentElement.getAttribute('data-scheme') || '',
+    bg: _bgColor, owned: ownSummary(), resources: resSummary() }; },
+  // 势力范围：{x,y,f}[] 或长度 W*H 的扁平数组；返回各派系占地格数
+  setOwners, clearOwners, ownAt(x,y){ return ownOf(x|0,y|0); },
+  setOwner, rebuildOwn(){ buildOwnA(); }, ownersDataURL(){ return mapAOwn ? mapAOwn.toDataURL() : ''; },
+  factionColors: OWN_COL,
+  // 资源层：{x,y,t,a}[]，t=0 清空；每种资源的合计在 state().resources.totals
+  setResources, resAt, resourceColors: RES_COL,
+  // 差分推送：一次改一批（{owners:[[x,y,f]], resources:[[x,y,t,a]]}），按包围盒重绘
+  applyDiff,
+  setSeed(s){ rebuild(s); updateInfo(); postState(); return seed; },
+  regen, setSkin, toggleRun, editCell,
+  // 整层重绘（不重新生成世界）—— 用来对账 editCell 的局部重绘是否与全量重绘一致
+  rebuildLayers(){ if(skin==='A') buildMapA(); else buildMapB(); },
+  terrAt(x,y){ return terr[y*W+x]; },
+  // 纯地形图层（无 agent、无相机）—— 确定性比对就比这一张
+  terrainDataURL(){ return mapA.toDataURL(); },
+  // 逻辑角 (x,y) 影响的 4 个显示格掩码，给改动传播测试用
+  tilesAround(x,y){ return [[x,y],[x+1,y],[x,y+1],[x+1,y+1]].map(function(p){ return tileS(p[0],p[1]); }); },
+};
+
+/* ── 2026-11-09：给宿主/agent 的调用表（stage_call 的落点） ──
+   宿主只按名字调，不 eval 任何字符串；能做什么由这张表决定。
+   入参是**位置参数**：stage_call({fn:'setOwner', args:[48,10,1]}) → setOwner(48,10,1)。
+   单参数函数传一个数组时要再包一层：args:[[[x,y,f],[x,y,f],…]] 交给 setOwners。 */
+window.__stage = {
+  state: function(){ return window.__sandbox.state(); },
+  setOwners: function(list){ return setOwners(list); },
+  clearOwners: function(){ return clearOwners(); },
+  setOwner: function(x, y, f){
+    if (Array.isArray(x) && y === undefined) return setOwner(x[0], x[1], x[2]);
+    return setOwner(x, y, f);
+  },
+  applyDiff: function(diff){ return applyDiff(diff); },
+  setResources: function(list){ return setResources(list); },
+  resAt: function(x, y){
+    if (Array.isArray(x) && y === undefined) return resAt(x[0], x[1]);
+    return resAt(x, y);
+  },
+  editCell: function(x, y, t){
+    if (Array.isArray(x) && y === undefined) return editCell(x[0], x[1], x[2]);
+    return editCell(x, y, t);
+  },
+  setSeed: function(s){ return window.__sandbox.setSeed(s); },
+  setSkin: function(s){ setSkin(s === 'B' ? 'B' : 'A'); return { ok:true, skin:skin }; },
+  toggleRun: function(on){ toggleRun(typeof on === 'boolean' ? on : undefined); return { ok:true, running:agentsOn }; },
+  terrainDataURL: function(){ return window.__sandbox.terrainDataURL(); },
+  // 场景注入：棋盘 + 侧栏 + 图例 + 标题（壳固定，内容可注入）
+  loadScenario: function (s) { return loadScenario(s); },
+  setPanel: function (p) { return setPanel(p); },
+  setLegend: function (items) { return setLegend(items); },
+  setTitle: function (t) { return setTitle(t); },
+  // 2026-11-09：镜头聚焦。整图 96×64 时，一小块战况看着只有几个像素 —— 让调用方能把镜头推近。
+  // { x, y, z }：x/y 是逻辑格坐标，z 是缩放倍数（相对 fit 的结果）。
+  focus: function (c) {
+    c = c || {};
+    if (typeof c.x === 'number' && typeof c.y === 'number') { cam.x = c.x * TS; cam.y = c.y * TS; }
+    if (typeof c.z === 'number' && c.z > 0) cam.z = c.z;
+    else cam.z = Math.min(vw / (24 * TS), vh / (18 * TS));   // 默认框住约 24×18 格
+    _pinnedCam = { x: cam.x, y: cam.y, z: cam.z };
+    return { ok: true, cam: { x: cam.x / TS, y: cam.y / TS, z: cam.z } };
+  },
+  // 导出世界给外部规则引擎用（resolve.mjs 之类）：地形是外部算法的前提，
+  // 没有它就分不清水/山，会把地面造到海里去。6144 个数字约 15KB，走 stage_call 会超返回值上限，
+  // 所以由页面自己写盘（local_exec /fs/write），别让它穿过模型上下文。
+  worldGrid: function(){
+    return { W:W, H:H, seed:seed, terr:Array.from(terr), elev:Array.from(elev, function(v){ return Math.round(v*1000)/1000; }) };
+  },
+};
+
+document.getElementById('bA').onclick=()=>setSkin('A');
+document.getElementById('bB').onclick=()=>setSkin('B');
+document.getElementById('bRegen').onclick=()=>regen();
+document.getElementById('bRun').onclick=()=>toggleRun();
+
+/* ── 宿主模式：被右栏画布嵌入时，工具条由宿主提供，页内那条隐藏 ── */
+// 本页自带 call 协议实现，所以告诉 panel-frame 的注入器不要重复注册（否则一次调用回两次）。
+window.__stageCall = 1;
+window.addEventListener('message', function(e){
+  var d = e.data;
+  if (!d || d.__panel !== 1) return;
+  if (d.type === 'ready' || d.type === 'host-ready') {
+    var p = document.getElementById('panel');
+    if (p) p.style.display = 'none';
+    postState();
+    return;
+  }
+  if (d.type === 'command') {
+    var n = d.data && d.data.name;
+    var v = d.data && d.data.value;
+    if (n === 'skin') setSkin(v === 'B' ? 'B' : 'A');
+    else if (n === 'regen') regen();
+    else if (n === 'run') toggleRun(typeof v === 'boolean' ? v : undefined);
+    else if (n === 'theme') _applyThemeFromStorage();
+    postState();
+    return;
+  }
+  // 2026-11-09：stage_call 落点。按名字调用 window.__stage，结果原路回给宿主。
+  if (d.type === 'call') {
+    var cid = d.data && d.data.id;
+    var fname = d.data && d.data.fn;
+    var fn = window.__stage && window.__stage[fname];
+    var reply = function(ok, val){
+      try {
+        window.parent.postMessage({ __panel:1, type:'call-result', data:{
+          id: cid, ok: ok,
+          result: ok ? val : undefined,
+          error: ok ? undefined : String((val && val.message) || val)
+        } }, '*');
+      } catch (e) {}
+    };
+    if (typeof fn !== 'function') {
+      reply(false, '这个页面没有注册函数「' + fname + '」。可用：' + (Object.keys(window.__stage || {}).join(' / ') || '（无）'));
+      return;
+    }
+    try {
+      // args 是**参数列表**，按位置展开（fn(...args)）—— 与工具调用的通行约定一致。
+      // 之前按「单个值」传，调用方自然会多包一层数组，setOwners 于是把 [[x,y,f],…]
+      // 当成「一个格子」去读 .x，全部静默落到 (0,0)。展开之后没有这个歧义。
+      var av = d.data.args;
+      var alist = (av === undefined || av === null) ? [] : (Array.isArray(av) ? av : [av]);
+      var out = fn.apply(null, alist);
+      if (out && typeof out.then === 'function') out.then(function(x){ reply(true, x); }, function(e){ reply(false, e); });
+      else reply(true, out);
+    } catch (e) { reply(false, e); }
+  }
+});
+if (window.parent && window.parent !== window) {
+  try { window.parent.postMessage({ __panel:1, type:'ready', data:{ title:'沙盘' } }, '*'); } catch (e) {}
+}
+
+/* 指针交互 */
+let drag=null;
+cv.addEventListener('pointerdown',e=>{
+  drag={px:e.clientX,py:e.clientY,moved:false};
+  cv.classList.add('drag'); cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  const dx=e.clientX-drag.px, dy=e.clientY-drag.py;
+  if(Math.hypot(dx,dy)>3) drag.moved=true;
+  cam.x-=dx/cam.z; cam.y-=dy/cam.z;
+  drag.px=e.clientX; drag.py=e.clientY;
+});
+cv.addEventListener('pointerup',e=>{
+  cv.classList.remove('drag');
+  if(drag && !drag.moved) onMapClick(e.clientX, e.clientY);
+  drag=null;
+});
+cv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const rect=cv.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  const wx=(mx-vw/2)/cam.z+cam.x, wy=(my-vh/2)/cam.z+cam.y;
+  cam.z=Math.max(.3,Math.min(4, cam.z*Math.exp(-e.deltaY*.0011)));
+  cam.x=wx-(mx-vw/2)/cam.z; cam.y=wy-(my-vh/2)/cam.z;
+},{passive:false});
+function onMapClick(sx,sy){
+  const wx=(sx-vw/2)/cam.z+cam.x, wy=(sy-vh/2)/cam.z+cam.y;
+  let cx,cy;
+  if(skin==='A'){ cx=wx/TS; cy=wy/TS; }
+  else{
+    const a=(wx-OX())/(TW/2), b=(wy-OY())/(TH/2);
+    cx=(a+b)/2; cy=(b-a)/2;
+  }
+  const gx=Math.floor(cx), gy=Math.floor(cy);
+  if(gx<0||gy<0||gx>=W||gy>=H||!walkable(gy*W+gx)) return;
+  // 派给最近的 agent
+  let best=null,bd=1e9;
+  for(const ag of agents){
+    const d=Math.hypot(ag.x-gx,ag.y-gy);
+    if(d<bd){bd=d;best=ag;}
+  }
+  if(!best) return;
+  const path=astar(best.x|0,best.y|0,gx,gy);
+  if(path&&path.length>1){ best.path=path; best.idx=1; best.wait=0; }
+}
+
+/* 渲染 */
+let lastT=0;
+function frame(ts){
+  const dt=Math.min(.05,(ts-lastT)/1000||0); lastT=ts;
+  if(agentsOn) updateAgents(dt);
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.fillStyle=_bgColor; ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.setTransform(dpr*cam.z,0,0,dpr*cam.z, dpr*(vw/2-cam.x*cam.z), dpr*(vh/2-cam.y*cam.z));
+  if(skin==='A'){
+    ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(mapA,-TS,-TS);
+    if(mapAOwn) ctx.drawImage(mapAOwn,-TS,-TS);   // 势力色块压在要素之下，树/山仍看得见
+    if(mapARes) ctx.drawImage(mapARes,-TS,-TS);   // 资源点在势力色之上
+    ctx.drawImage(mapAFx,-TS,-TS);
+    drawAgentsA();
+  }else{
+    ctx.imageSmoothingEnabled=true;
+    ctx.drawImage(mapBG,0,0);
+    drawTrains(dt);
+    ctx.drawImage(mapBB,0,0);
+    ctx.drawImage(mapBO,0,0);
+    drawAgentsB();
+  }
+  requestAnimationFrame(frame);
+}
+function drawAgentsA(){
+  for(const ag of agents){
+    // 剩余路径虚线
+    if(ag.path && agentsOn){
+      ctx.strokeStyle='rgba(255,255,255,.30)'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+      ctx.beginPath(); ctx.moveTo(ag.x*TS,ag.y*TS);
+      for(let k=ag.idx;k<ag.path.length;k++) ctx.lineTo(ag.path[k][0]*TS,ag.path[k][1]*TS);
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.beginPath(); ctx.arc(ag.x*TS,ag.y*TS,4.2,0,7);
+    ctx.fillStyle=ag.col; ctx.fill();
+    ctx.lineWidth=1.2; ctx.strokeStyle='rgba(10,14,18,.9)'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(ag.x*TS,ag.y*TS-1.4,1.3,0,7);
+    ctx.fillStyle='rgba(255,255,255,.85)'; ctx.fill();
+  }
+}
+function drawTrains(dt){
+  const sp=26;
+  for(const L of metroLines){
+    for(const tr of L.trains){
+      tr.t=(tr.t+dt*sp/L.total)%1;
+      const [px,py]=pointAt(L,tr.t*L.total);
+      ctx.beginPath(); ctx.arc(px,py,3.4,0,7);
+      ctx.fillStyle=L.color; ctx.fill();
+      ctx.lineWidth=1.4; ctx.strokeStyle='#f4f7fa'; ctx.stroke();
+    }
+  }
+}
+function drawAgentsB(){
+  for(const ag of agents){
+    const [px,py]=iso(ag.x-.5,ag.y-.5);
+    ctx.beginPath(); ctx.ellipse(px,py+1,4.5,2.2,0,0,7);
+    ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(px,py-3,3.4,0,7);
+    ctx.fillStyle=ag.col; ctx.fill();
+    ctx.lineWidth=1; ctx.strokeStyle='rgba(20,24,28,.9)'; ctx.stroke();
+  }
+}
+
+/* 启动 */
+resize();
+rebuild();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

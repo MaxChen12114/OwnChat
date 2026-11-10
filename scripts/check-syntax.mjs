@@ -82,7 +82,10 @@ function checkHtml(rel, src) {
 }
 
 try {
-  const files = walk(path.join(ROOT, "src")).concat(walk(path.join(ROOT, "public")), walk(path.join(ROOT, "scripts")));
+  const files = walk(path.join(ROOT, "src")).concat(walk(path.join(ROOT, "public")), walk(path.join(ROOT, "scripts")))
+    // 2026-11-09：public/models/ 是第三方 vendored 资产（transformers.min.js 是 ESM 包），
+    // 不该按"我们自己的脚本"来检查；它也不进仓库（.gitignore）。
+    .filter((f) => !f.includes(path.join("public", "models") + path.sep));
   for (const abs of files) {
     const rel = path.relative(ROOT, abs).replace(/\\/g, "/");
     const ext = path.extname(abs).toLowerCase();
