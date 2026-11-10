@@ -920,6 +920,20 @@ html[data-theme="glass"] .mobile-tab-btn.active {
  background: rgba(63,111,143,.16);
  box-shadow: inset 0 0 0 1px rgba(63,111,143,.4), 0 0 16px rgba(63,111,143,.18);
 }
+/* 2026-11-10（所有者：手机端 Agent 活动页没有内部滚动，消息一多挤爆）：面板本身定高、
+   内部 flex 列，时间线在 .ac-timeline 里自己滚 —— 头部/状态条固定，不被消息顶出屏幕。 */
+#mobileTabPanel-agent.active {
+ display: flex;
+ flex-direction: column;
+ height: min(62vh, 560px);
+ max-height: none;
+ min-height: 0;
+ overflow: hidden;
+}
+#mobileTabPanel-agent > div { flex: 1 1 auto; min-height: 0; }
+#mobileTabPanel-agent #__agentPeers { flex: 0 0 auto; min-height: 0; }
+#mobileTabPanel-agent .agent-console { flex: 1 1 auto; min-height: 0; }
+
 html[data-theme="glass"] .mobile-tab-panel.active {
  background: rgba(255,255,255,.97);
  color: #6a7280;

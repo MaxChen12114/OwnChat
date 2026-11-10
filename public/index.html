@@ -1293,7 +1293,7 @@
   </button>
 </nav>
 <div class="mobile-tab-panel" id="mobileTabPanel-status" data-tab="status">状态 · 加载中…</div>
-<div class="mobile-tab-panel" id="mobileTabPanel-agent" data-tab="agent" style="top:var(--topbar-h,60px);padding:0;overflow:hidden;background:var(--bg,#15161a);">
+<div class="mobile-tab-panel" id="mobileTabPanel-agent" data-tab="agent" style="top:var(--topbar-h,60px);padding:10px 12px;overflow:hidden;background:var(--bg,#15161a);">
   <div id="__mobileAgentPlaceholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;color:var(--muted,#888);font-size:13px;line-height:1.6;text-align:center;padding:0 24px;">
     <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.4"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M9 11V7a3 3 0 0 1 6 0v4"/><circle cx="12" cy="16" r="1.2"/></svg>
     <span style="opacity:.55">点左侧「Agent 模式」开启<br>或在左侧栏点「Agent 模式」按钮</span>
@@ -1584,7 +1584,7 @@
 <script src="/js/text/data/char-memory.js?v=3"></script>
 <!-- 角色记忆内核：Hindsight 的抽取 prompt + 条目结构 + RRF 融合（英文原文，不翻译）。存储走 IndexedDB，不需要任何服务。 -->
 <script src="/shared/memory-core.js?v=12"></script>
-<script src="/js/text/engine/app.js?v=21"></script>
+<script src="/js/text/engine/app.js?v=23"></script>
   <script src="/js/text/ui/settings.js?v=7"></script>
 <!-- 网页内核(魂)· 工具调用内核 SDK。agent-kernel.js 用 ESM export,必须 type="module"(classic <script> 读到 export 会抛 SyntaxError → window.AgentKernel 不挂载);它底部仍会挂 globalThis.AgentKernel 供非模块代码取用。tools.js 是 IIFE,挂 window.OwnChatTools,仅在 buildRegistry() 运行时才取 AgentKernel,故 classic 加载、顺序无碍。app.js 的 agent 模式分支在「发送」时按需调用 window.AgentKernel.runAgentLoop + window.OwnChatTools.buildRegistry({onImage})。须在 app.js 之后。 -->
 <script type="module" src="/shared/agent-kernel.js"></script>
@@ -1671,7 +1671,7 @@
 <script src="/shared/job-tools.js?v=4"></script>
 <script src="/shared/council-tools.js?v=2"></script>
 <script src="/shared/local-exec-tools.js?v=2"></script>
-<script src="/shared/pc-tools.js?v=4"></script>
+<script src="/shared/pc-tools.js?v=5"></script>
 <script src="/shared/pc-settings-card.js?v=4"></script>
 <script src="/shared/topbar-cost.js?v=3"></script>
 <!-- 4.9 删除 4.6 折叠 IIFE:原本手机默认 .fishbowl-side-panel.collapsed 只显 header 一条,与 4.8 鱼缸 tab toggle 冲突,导致打开关闭都会有「留一条 header」挡住思考按钮。改为完全靠 4.8 body.fishbowl-shown 切换整个面板 display,不留任何残影。.collapsed CSS 规则保留为 dead code(无 JS 加 class 不生效)。 -->
@@ -1887,11 +1887,13 @@
       // ── 移动端：挂入底部 Agent 面板 ──
       if (!mobileAgentPanel) return;
       // 2026-11-08: 平级名单容器与桌面对齐 —— 多智能体开着时 multi-agent.js 会按 id 填充
+      // 2026-11-10 修：createConsoleIn 会清空容器（innerHTML=''），peers 必须建在它之后，
+      // 否则手机上永远的名单被清掉、一条都显示不出来。
+      createConsoleIn(mobileAgentPanel, '__agentConsole');
       var peers = document.createElement('div');
       peers.id = '__agentPeers';
       peers.style.cssText = 'flex:none;';
-      mobileAgentPanel.appendChild(peers);
-      createConsoleIn(mobileAgentPanel, '__agentConsole');
+      mobileAgentPanel.insertBefore(peers, mobileAgentPanel.firstChild);
       // 手机端开启 Agent 只挂载控制台，不自动激活全屏 Agent 面板；
       // 避免点左侧「Agent 模式」后直接弹出面板挡住聊天。用户需要查看时再点底部 Agent tab。
       if (!suppressTabActivation && mobileAgentTabEl) {

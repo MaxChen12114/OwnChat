@@ -202,6 +202,21 @@
   // 2026-09-14 UI第二轮:最近一次完成请求的真实 usage 快照(供右栏/手机「状态」面板读取,见 __app.getLastRequestStats)
   let lastReqStats = null;
   let isSending = false;
+  // 2026-11-10: agent 运行中的「插话」通道（对齐 ZCode 工作中发消息）——
+  // 非 null = 当前有 agent 轮次在跑；push 一条 {role:"user"} 内核会在下一轮请求前 append 进 messages。
+  let _agentSteerQueue = null;
+  const _steerMsgs = new WeakSet(); // 标记已由插话路径入过 session，写回时跳过，避免重复
+  // 2026-11-10: pc_shot 截图进模型上下文 —— 视觉模型在下一轮请求前以 user 图文消息注入。
+  let _agentImageQueue = null;
+  function pcVisionOn(modelId) {
+    try {
+      const v = localStorage.getItem("cfw_pc_vision_v1");
+      if (v === "1") return true;
+      if (v === "0") return false;
+    } catch (e) {}
+    const m = String(modelId || "").toLowerCase();
+    return /(deepseek-flash|deepseek-v4|vision|glm-4v|gpt-4o|gemini|claude|qwen[\w.-]*vl)/.test(m);
+  }
   // 4.64 多开会话:把"上一槽 key"提到 IIFE 作用域,供 switchConversation 与 character:changed 处理器共享,避免切会话后下次切角色把当前会话误存到旧槽
   // 4.80 fix: 运行期内存槏缓存,与「本地存储」开关完全无关——即便未勾选本地存储,
   // 切角色卡 / 切多开会话时也不再清空对话,只有刷新页面才会真正丢失(那才是本地存储该管的事)。
@@ -525,6 +540,14 @@
     try { if (window.__agentConsole && window.__agentConsole.cancelPending) window.__agentConsole.cancelPending("已中断"); } catch (e) {}
     abortCurrent();
     window.__resetSending();
+  };
+
+  // 2026-11-10: pc_shot 把截图交给模型（仅视觉模型；内核 beforeStep 在下一轮请求前注入）。
+  window.__agentPushImage = function (dataUrl, meta) {
+    if (!_agentImageQueue || !dataUrl) return false;
+    if (_agentImageQueue.length >= 8) _agentImageQueue.shift(); // 同轮最多带 8 张，防上下文爆
+    _agentImageQueue.push({ dataUrl: String(dataUrl), meta: meta || {} });
+    return true;
   };
 
   const LS_MODEL      = "cfw_model";
@@ -1499,7 +1522,9 @@
       if (m.role === "tool") { if (!drop) out.push({ role: "tool", tool_call_id: m.tool_call_id, content: typeof m.content === "string" ? m.content : String(m.content == null ? "" : JSON.stringify(m.content)) }); return; }
       const hasTC = m.role === "assistant" && Array.isArray(m.tool_calls) && m.tool_calls.length;
       if (hasTC && drop) return;
-      const o = { role: m.role, content: typeof m.content === "string" ? m.content : "" };
+      // 2026-11-10: 数组 content（图文混合，Vision）必须原样保留 —— 旧版一律压成 ""，
+      // 导致 expandAttachmentMessages 刚注入的图片被这一步静默丢掉。
+      const o = { role: m.role, content: typeof m.content === "string" ? m.content : (Array.isArray(m.content) ? m.content : "") };
       if (hasTC) {
         o.content = ""; // §G-2
         o.tool_calls = m.tool_calls;
@@ -2662,7 +2687,13 @@
     if (!text && !allowEmpty && !attCount()) return null;
 
     isSending = true;
-    sendBtn.disabled = true;
+    // 2026-11-10: agent 运行中不禁用发送键 —— 允许「插话」注入当前轮（见 steerAgent）。
+    sendBtn.disabled = false;
+    sendBtn.title = "Agent 运行中：发送消息可插话纠正（不打断上下文）";
+    _agentSteerQueue = [];
+    // 运行中提示可以插话（ZCode 同款心智）；结束/异常时还原
+    const _prevPlaceholder = inputEl.placeholder;
+    try { inputEl.placeholder = "Agent 运行中：可插话纠正；输入「停」可中止"; } catch (e) {}
 
     const myGen = ++sendGen;
     const controller = new AbortController();
@@ -2702,9 +2733,15 @@
     const snapshotMode  = currentMode;
     const customProviderSnapshot = (window.__byoProvider && window.__byoProvider.get && window.__byoProvider.get()) || undefined;
     const snapshotModel = customProviderSnapshot ? customProviderSnapshot.model : modelSel.value;
+    // 2026-11-10: 视觉模型才把 pc_shot 的截图注入上下文（文本模型塞图会被上游 400）
+    try { window.__agentVisionOn = pcVisionOn(snapshotModel); } catch (e) { window.__agentVisionOn = false; }
     if (!ensureUsableModelBeforeSend(snapshotMode, snapshotModel, customProviderSnapshot)) {
       isSending = false;
       sendBtn.disabled = false;
+      sendBtn.title = "发送";
+      _agentSteerQueue = null;
+      _agentImageQueue = null;
+      try { inputEl.placeholder = _prevPlaceholder; } catch (e) {}
       currentController = null;
       return null;
     }
@@ -3261,6 +3298,7 @@
           // 末条是内核自造的「最终答复」assistant —— 正文会用清洗后的版本单独入 session,避免重复
           if (_newMsgs.length && _newMsgs[_newMsgs.length - 1].role === "assistant") _newMsgs.pop();
           _newMsgs.forEach((m) => {
+            if (_steerMsgs.has(m)) return; // 插话已在发送时入过 session，别重复
             if (m.role === "tool") {
               const t = { role: "tool", tool_call_id: m.tool_call_id, content: m.content };
               if (m._tool) t._tool = m._tool;
@@ -3306,6 +3344,26 @@
         context: { characterCard, callModel, onEvent: _onEvent, ensurePermission: _ensurePermission, depth: 0 },
         onEvent: _onEvent,
         ensurePermission: _ensurePermission,
+        // 2026-11-10: 用户「插话」在每次模型请求前注入（对齐 ZCode 的工作中发消息）。
+        // 放在 beforeStep 而不是 abort 重开：上下文不重置，模型把插话当成新的用户指令。
+        beforeStep: [function _drainSteerAndShots() {
+          const out = [];
+          // 截图先注入：模型下一轮先看到画面，再读到用户插话
+          if (_agentImageQueue && _agentImageQueue.length) {
+            for (const im of _agentImageQueue.splice(0)) {
+              const meta = im.meta || {};
+              out.push({
+                role: "user",
+                content: [
+                  { type: "text", text: "[pc_shot] 远程电脑截图" + (meta.w ? " " + meta.w + "x" + meta.h : "") + "。画面仅供判断；要点击请用 pc_ui 的控件坐标或 pc_click_control。" },
+                  { type: "image_url", image_url: { url: im.dataUrl } },
+                ],
+              });
+            }
+          }
+          if (_agentSteerQueue && _agentSteerQueue.length) out.push(..._agentSteerQueue.splice(0));
+          return out.length ? { append: out } : undefined;
+        }],
         signal: controller.signal,
       });
       finalText = (result && result.finalText) || "";
@@ -3369,6 +3427,11 @@
       if (myGen === sendGen) {
         isSending = false;
         sendBtn.disabled = false;
+        sendBtn.title = "发送";
+        _agentSteerQueue = null;
+        _agentImageQueue = null;
+        try { window.__agentVisionOn = false; } catch (e) {}
+        try { inputEl.placeholder = _prevPlaceholder; } catch (e) {}
         if (currentController === controller) currentController = null;
       }
       setStreamingUI(aiRow.rowEl, false);
@@ -4698,8 +4761,41 @@
   // send():从输入框取消息的入口(绑定 Send 按钮 / Enter 键)
   // 4.53 真实节奏:pacing 开启走 queueSend 攒消息防抖;关闭走 sendImmediate 即时发送(旧行为)
   function send() {
+    // 2026-11-10: agent 轮次进行中 —— 输入的文本作为「插话」注入当前轮，不新起一条消息。
+    if (isSending) {
+      if (_agentSteerQueue) return steerAgent();
+      return null;
+    }
     if (pacingEnabled()) return queueSend();
     return sendImmediate();
+  }
+
+  // 2026-11-10: 把用户插话注入正在跑的 agent 轮次（对齐 ZCode「工作中发消息」）。
+  // 不 abort 上下文：内核 next-round 的 beforeStep 钩子把它 append 进 messages，模型当作新的用户指令处理。
+  // 同时解掉挂着的放行卡 —— 否则循环卡在等待放行里，插话永远读不到。
+  function steerAgent() {
+    const text = inputEl.value.trim();
+    if (!text || !_agentSteerQueue) return null;
+    const row = makeRow("user");
+    row.bubble.textContent = text;
+    applyUserFold(row.bubble);
+    session.push(scopeTag({ role: "user", content: text }));
+    try { row.rowEl.dataset.sidx = String(session.length - 1); } catch (_sx) {}
+    persistSessionIfEnabled();
+    inputEl.value = "";
+    inputEl.style.height = "auto";
+    updateSpacer();
+    scrollToBottom();
+    // 明确的停手指令：直接停（消息留在会话里），不再等下一轮模型判断
+    if (/^(停|停止|停下来|停手|别动|别点了|别再点|stop\b|halt\b)/i.test(text)) {
+      try { if (window.__stopCurrent) window.__stopCurrent(); } catch (e) {}
+      return null;
+    }
+    const m = { role: "user", content: text };
+    _steerMsgs.add(m);            // 已入 session，写回时跳过
+    _agentSteerQueue.push(m);     // 内核下一轮请求前 append 进 messages
+    try { if (window.__agentConsole && window.__agentConsole.cancelPending) window.__agentConsole.cancelPending("用户插话"); } catch (e) {}
+    return null;
   }
 
   // 4.43 多人编排群聊:解析 @召唤 → 被点名者依次回 → 触发自发接力;否则当前角色回 → 触发自发接力。
@@ -4740,7 +4836,15 @@
     scrollToBottom();
   }
 
-  sendBtn.addEventListener("click", send);
+  // 2026-11-10: agent 运行中点发送键 = 有字插话 / 没字停止（对齐 ZCode 的「工作中可插话」）。
+  sendBtn.addEventListener("click", () => {
+    if (isSending && _agentSteerQueue) {
+      if (inputEl.value.trim()) return steerAgent();
+      try { if (window.__stopCurrent) window.__stopCurrent(); } catch (e) {}
+      return;
+    }
+    send();
+  });
 
   // 刷新/关页时若有流式进行中，把已收到的部分当作一条完整的 assistant 回复兑现到 session 并持久化
   // 避免“用户消息已保存但 AI 回复丢失”的悬空状态

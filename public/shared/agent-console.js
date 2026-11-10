@@ -404,6 +404,7 @@ function injectStylesOnce() {
 .ac-stop:hover{background:rgba(255,107,107,.15);border-color:#ff6b6b}
 .ac-stop:disabled{opacity:.4;cursor:default}
 .ac-timeline{display:flex;flex-direction:column;gap:5px;flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.ac-timeline > *{flex:0 0 auto}/* 2026-11-10: 时间线定高后子项默认会被 flex-shrink 压扁（步骤卡片 40px→3px，只剩 round 行）；禁止收缩，改成时间线内部滚动 */
 .ac-round{font-size:11px;opacity:.45;text-align:center;letter-spacing:.04em;margin:2px 0}
 .ac-step{border:1px solid rgba(127,127,127,.20);border-radius:9px;overflow:hidden}
 .ac-step__head{display:flex;align-items:center;gap:8px;padding:7px 10px}
