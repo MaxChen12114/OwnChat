@@ -347,7 +347,7 @@ html[data-theme="candle"] .row.moderator .bubble {
  letter-spacing: .4px;
  text-transform: uppercase;
  padding: 4px 6px 6px;
- border-bottom: 1px dashed #1f1f1f;
+ /* 2026-11-10（所有者：左栏分隔线太 AI，删掉）：虚线边框全部移除，靠留白分组 */
  margin-bottom: 6px;
 }
 /* 2026-11-10: 左栏标题标记（Mobius 环 SVG）—— 只保留图形，不再有文字。
@@ -419,6 +419,12 @@ html:not([data-theme]):not([data-scheme="dark"]) .sidebar-title {
  text-transform: uppercase;
  padding: 8px 6px 4px;
 }
+/* 2026-11-10（所有者：左栏分隔线太 AI，删了也行）：左栏里的 1px 分隔线整组隐藏，
+   分组改由留白承担 —— 窄脊里那几条 23px 的短线尤其像随手画的虚线。 */
+#leftSidebar .sidebar-divider,
+html.left-collapsed #leftSidebar .sb-group > .sidebar-divider { display: none !important; }
+#leftSidebar .sb-group + .sb-group { margin-top: 6px; }
+
 .sidebar-divider {
  height: 1px;
  background: #1f1f1f;
@@ -587,7 +593,7 @@ html[data-theme="glass"] .right-sidebar {
  box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 8px 30px rgba(40,80,110,.06);
 }
 html[data-theme="glass"] .sidebar-header,
-html[data-theme="glass"] .sidebar-section-title { color: #64748b; border-bottom-color: rgba(255,255,255,.5); }
+html[data-theme="glass"] .sidebar-section-title { color: #64748b; }
 html[data-theme="glass"] .sidebar-divider { background: rgba(255,255,255,.42); }
 html[data-theme="glass"] .sidebar-slot-placeholder,
 html[data-theme="glass"] #fishbowlSlot:empty::before { color: #94a3b8; }
@@ -602,7 +608,7 @@ html[data-theme="candle"] .right-sidebar {
  -webkit-backdrop-filter: blur(10px);
 }
 html[data-theme="candle"] .sidebar-header,
-html[data-theme="candle"] .sidebar-section-title { color: #a89a8a; border-bottom-color: rgba(217,168,104,.18); }
+html[data-theme="candle"] .sidebar-section-title { color: #a89a8a; }
 html[data-theme="candle"] .sidebar-divider { background: rgba(217,168,104,.15); }
 html[data-theme="candle"] .sidebar-slot-placeholder,
 html[data-theme="candle"] #fishbowlSlot:empty::before { color: #8a606a; }
@@ -1687,7 +1693,7 @@ html:not([data-theme]):not([data-scheme="dark"]) .msg-action-btn:hover { backgro
 html:not([data-theme]):not([data-scheme="dark"]) .left-sidebar,
 html:not([data-theme]):not([data-scheme="dark"]) .right-sidebar { background:#fbfbfa; border-color:#ececea; }
 html:not([data-theme]):not([data-scheme="dark"]) .sidebar-header,
-html:not([data-theme]):not([data-scheme="dark"]) .sidebar-section-title { color:#787774; border-bottom-color:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-section-title { color:#787774; }
 html:not([data-theme]):not([data-scheme="dark"]) .sidebar-divider { background:#ececea; }
 html:not([data-theme]):not([data-scheme="dark"]) .sidebar-slot-placeholder,
 html:not([data-theme]):not([data-scheme="dark"]) #fishbowlSlot:empty::before { color:#9b9a97; }

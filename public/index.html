@@ -1530,7 +1530,7 @@
 <!-- 脚本加载顺序:鉴权 → 同步 → 基础模块 → app.js 主应用 → 面板 UI 模块 → 交互增强 -->
 <!-- auth.js 必须最早加载:它拦截全局 fetch,给 /sync 和 /api/* 自动注入 Authorization header -->
 <script src="/shared/escape.js"></script>
-<script src="/js/text/core/auth.js?v=2"></script>
+<script src="/js/text/core/auth.js?v=4"></script>
 <!-- 4.17: dev.js 必须在 auth.js 后、其他模块前。它 monkey-patch fetch 抓 /api/chat payload,需要包裹 auth.js 的 Authorization 注入 -->
 <script src="/js/text/core/dev.js"></script>
 
@@ -1577,7 +1577,7 @@
 <!-- 角色记忆内核：Hindsight 的抽取 prompt + 条目结构 + RRF 融合（英文原文，不翻译）。存储走 IndexedDB，不需要任何服务。 -->
 <script src="/shared/memory-core.js?v=12"></script>
 <script src="/js/text/engine/app.js?v=20"></script>
-  <script src="/js/text/ui/settings.js?v=5"></script>
+  <script src="/js/text/ui/settings.js?v=7"></script>
 <!-- 网页内核(魂)· 工具调用内核 SDK。agent-kernel.js 用 ESM export,必须 type="module"(classic <script> 读到 export 会抛 SyntaxError → window.AgentKernel 不挂载);它底部仍会挂 globalThis.AgentKernel 供非模块代码取用。tools.js 是 IIFE,挂 window.OwnChatTools,仅在 buildRegistry() 运行时才取 AgentKernel,故 classic 加载、顺序无碍。app.js 的 agent 模式分支在「发送」时按需调用 window.AgentKernel.runAgentLoop + window.OwnChatTools.buildRegistry({onImage})。须在 app.js 之后。 -->
 <script type="module" src="/shared/agent-kernel.js"></script>
 <script src="/shared/tools.js?v=2"></script>

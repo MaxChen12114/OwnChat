@@ -29,7 +29,10 @@
   var V = 1;
   var LS = "cfw_panel_state_v1";
   var LS_CUR = "cfw_panel_current_v1";
-  var W_MIN = 240, W_MAX = 640, W_DEF = 460;
+  // 2026-11-10（所有者：展开的演示台拉不到中间）：上限 640 太窄 —— 1440 宽下中线需要
+  // 约 720，旧值把拖拽卡在离中线一截。放宽到 1200，实际仍受 grid 的 calc 约束
+  // （中间列保底 460px），所以不会把聊天区挤没。
+  var W_MIN = 240, W_MAX = 1200, W_DEF = 460;
   var DESKTOP_MIN = 1024;
 
   // 独立窗口：同一个 index.html 带 ?panel=1 打开，接管成全屏覆盖层，不跑常规控制器

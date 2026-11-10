@@ -361,11 +361,11 @@
   }
   function mountAuthCard() {
     var slot = document.getElementById('setAccountSlot');
-    if (!slot || document.getElementById('chatProtectToggle')) return;
+    if (!slot || document.getElementById('authCard')) return;
     var card = document.createElement('div');
     card.className = 'card';
-    card.setAttribute('data-dev-only', '');
-    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>密码保护（Auth）</h4><p><b>云同步</b>永远需要密码（用 Cloudflare Secret <code>CHAT_PASSWORD</code> 鉴权）。<b>接口鉴权</b>：已登录时，聊天请求会自动带上访问码。关掉下面的开关后，本站按访客处理：需要使用你自己的模型渠道和 Key。</p><div class="rowline"><div class="toggle"><input type="checkbox" id="chatProtectToggle"><label for="chatProtectToggle">发送访问码</label></div><div class="btns"><button class="smallbtn danger" id="authLogoutBtn" title="清除本地保存的密码 token">退出登录</button></div></div><div id="authStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div>`;
+    card.id = 'authCard';
+    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>访问码（Auth）</h4><p><b>云同步</b>需要访问码（Cloudflare Secret <code>CHAT_PASSWORD</code>）。登录后，聊天请求会自动带上访问码；退出登录后按访客处理：需要使用你自己的模型渠道和 Key。</p><div class="rowline"><div class="btns"><button class="smallbtn" id="authLoginBtn" type="button">输入访问码</button><button class="smallbtn danger" id="authLogoutBtn" title="清除本地保存的访问码">退出登录</button></div></div><div id="authStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div>`;
     slot.appendChild(card);
   }
   function mountSyncCard() {
@@ -1115,10 +1115,10 @@
     const syncImportBtn     = document.getElementById('syncImportBtn');
     const syncImportFile    = document.getElementById('syncImportFile');
     const syncStatusEl      = document.getElementById('syncStatus');
-    const chatProtectToggle = document.getElementById('chatProtectToggle');
+    const authLoginBtn      = document.getElementById('authLoginBtn');
     const authLogoutBtn     = document.getElementById('authLogoutBtn');
     const authStatusEl      = document.getElementById('authStatus');
-    if (!syncEnableToggle || !chatProtectToggle) return;
+    if (!syncEnableToggle) return;
 
     function fmtTime(ms) {
       if (!ms) return '—';
@@ -1127,10 +1127,9 @@
     function refreshAuthUI() {
       if (!window.__auth) return;
       const hasToken = !!window.__auth.getToken();
-      chatProtectToggle.checked = window.__auth.chatProtectOn();
       if (authStatusEl) authStatusEl.textContent = hasToken
-        ? '已登录（密码 token 保存在本地）'
-        : '未登录（启用聊天保护或云同步时会弹密码框）';
+        ? '已登录（访问码已保存在本机）'
+        : '访客模式（需要自己的模型渠道和 Key）';
       if (authLogoutBtn) authLogoutBtn.disabled = !hasToken;
     }
     function refreshSyncUI() {
@@ -1264,30 +1263,29 @@
       syncImportFile.value = '';
     });
 
-    chatProtectToggle.addEventListener('change', async () => {
+    if (authLoginBtn) authLoginBtn.addEventListener('click', async () => {
       if (!window.__auth) return;
-      if (chatProtectToggle.checked) {
-        if (!window.__auth.getToken()) {
-          try {
-            const pw = await window.__auth.promptForPassword({
-              title: '启用聊天密码保护',
-              hint: '输入 Cloudflare Secret <code>CHAT_PASSWORD</code> 的值。',
-            });
-            window.__auth.setToken(pw);
-          } catch { chatProtectToggle.checked = false; return; }
-        }
-        window.__auth.setChatProtect(true);
-      } else {
-        window.__auth.setChatProtect(false);
-      }
-      refreshAuthUI();
+      try {
+        const pw = await window.__auth.promptForPassword({
+          title: '输入访问码',
+          hint: '输入访问码（与 Cloudflare Secret CHAT_PASSWORD 相同）。',
+        });
+        if (!pw) return;
+        window.__auth.setToken(pw);
+        try {
+          
+          
+          
+          localStorage.setItem('cfw_auth_token_v1', pw);
+        } catch (e) {}
+        location.reload();
+      } catch (e) {}
     });
 
     if (authLogoutBtn) authLogoutBtn.addEventListener('click', async () => {
       if (!window.__auth) return;
-      if (!(await uiConfirm('退出登录会清除本地访问码、退出私密模式，并关闭云同步。确认？', { title: '退出登录', okText: '退出', danger: true }))) return;
+      if (!(await uiConfirm('退出登录会清除本地访问码，并关闭云同步。确认？', { title: '退出登录', okText: '退出', danger: true }))) return;
       window.__auth.clearToken();
-      window.__auth.setChatProtect(false);
       if (window.__sync) window.__sync.setSyncEnabled(false);
       try {
         

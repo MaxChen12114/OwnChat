@@ -2,11 +2,10 @@
 // 鉴权中间层：
 // 1. 拦截全局 fetch，给 /sync 和 /api/* 自动注入 Authorization: Bearer <token> header
 // 2. 提供 promptForPassword() 弹框 UI（设置面板调用）
-// 3. 提供 setToken / getToken / clearToken / chatProtect 开关 API
+// 3. 提供 setToken / getToken / clearToken API
 // 最早加载：index.html 中第一个 script
 (() => {
   const TOKEN_KEY = "cfw_auth_token_v1";
-  const CHAT_PROTECT_KEY = "cfw_chat_protect_v1"; // 聊天密码保护开关（1=开）
 
   function getToken() { return localStorage.getItem(TOKEN_KEY) || ""; }
   function setToken(t) {
@@ -15,11 +14,7 @@
   }
   function clearToken() { localStorage.removeItem(TOKEN_KEY); }
 
-  // 2026-11-10: 默认开（"0" 才关）。关掉 = 模拟访客：/api/* 不带访问码，交给 Worker 的 CHAT_MODE 判定。
-  function chatProtectOn() { return localStorage.getItem(CHAT_PROTECT_KEY) !== "0"; }
-  function setChatProtect(on) { localStorage.setItem(CHAT_PROTECT_KEY, on ? "1" : "0"); }
-
-  // ─── 全局 fetch 拦截：/sync 永远带；chatProtect 开启时 /api/* 也带 ───
+  // ─── 全局 fetch 拦截：已保存访问码时 /sync 与 /api/* 都带（访客=没有 token） ───
   const realFetch = window.fetch.bind(window);
   window.fetch = function (input, init) {
     init = init || {};
@@ -29,7 +24,7 @@
 
     const needsAuth =
       url.startsWith("/sync") ||
-      (chatProtectOn() && url.startsWith("/api/"));
+      url.startsWith("/api/");
 
     if (needsAuth) {
       const token = getToken();
@@ -92,7 +87,5 @@
     setToken,
     clearToken,
     promptForPassword,
-    chatProtectOn,
-    setChatProtect,
   };
 })();

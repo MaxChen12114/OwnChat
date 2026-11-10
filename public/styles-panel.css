@@ -537,6 +537,10 @@ html.left-collapsed #leftSidebar .sb-group.sb-folded > *:not(.sb-group-head) {
   display: flex !important;
   flex-direction: column;
 }
+/* 2026-11-10（所有者：左栏分隔线太 AI）：上面那条把分组子项强制成 flex，分隔线（1px 金线）
+   在窄脊里被当成一条短线画出来，像随手画的虚线。这里在本文件内、同特异性、源序在后压掉它。 */
+html.left-collapsed #leftSidebar .sb-group > .sidebar-divider,
+html.left-collapsed #leftSidebar .sb-group.sb-folded > .sidebar-divider { display: none !important; }
 html.left-collapsed #leftSidebar .sb-group > *:not(.sb-group-head) { align-items: center; }
 /* 会话行藏掉，但 .conv-list 容器要留着 —— 「新建会话」的 + 号就住在它里面。
    容器自己带 max-height + overflow，只剩一个孩子时会把 + 号裁掉，这里一并放开。 */
