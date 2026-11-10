@@ -40,6 +40,24 @@
 #feedbackConfirmCard button:hover{background:var(--btn-bg-hover,#4a4a4a);}
 #feedbackConfirmCard .fb-c-ok.danger{border-color:rgba(232,96,125,.45);background:rgba(232,96,125,.14);color:#e8607d;}
 #feedbackConfirmCard .fb-c-ok.danger:hover{background:rgba(232,96,125,.24);border-color:rgba(232,96,125,.6);}
+/* ── 2026-11-10 统一弹窗（ZCode 风）：图标标题 + 正文 + 输入 + 右对齐按钮 ── */
+#feedbackConfirmCard .fb-c-head{display:flex;align-items:flex-start;gap:10px;margin:0 0 6px;}
+#feedbackConfirmCard .fb-c-ico{flex:none;width:28px;height:28px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:rgba(127,127,127,.14);color:var(--accent,#7b82e8);}
+#feedbackConfirmCard .fb-c-ico svg{width:16px;height:16px;display:block;}
+#feedbackConfirmCard .fb-c-ico.danger{background:rgba(232,96,125,.14);color:var(--danger,#e8607d);}
+#feedbackConfirmCard .fb-c-title{margin:3px 0 0;font-size:15px;line-height:1.3;}
+#feedbackConfirmCard .fb-c-input{width:100%;box-sizing:border-box;margin:10px 0 0;padding:9px 11px;border-radius:10px;border:1px solid var(--border,rgba(127,127,127,.35));background:var(--input-bg,rgba(127,127,127,.10));color:inherit;font:inherit;font-size:13px;outline:none;resize:vertical;min-height:38px;}
+#feedbackConfirmCard .fb-c-input:focus{border-color:var(--accent,#7b82e8);box-shadow:0 0 0 3px var(--accent-soft,rgba(127,127,127,.18));}
+#feedbackConfirmCard .fb-c-err{font-size:12px;color:var(--danger,#e8607d);min-height:16px;margin:6px 0 0;}
+#feedbackConfirmCard button.fb-c-ok{background:var(--accent,#4a9eff);color:#fff;border-color:transparent;}
+#feedbackConfirmCard button.fb-c-ok:hover{filter:brightness(1.06);}
+#feedbackConfirmCard button.fb-c-ok:disabled{opacity:.55;cursor:default;filter:none;}
+#feedbackConfirmCard button.fb-c-cancel{background:transparent;}
+#feedbackConfirmCard button.fb-c-cancel:hover{background:rgba(127,127,127,.14);}
+html[data-theme="glass"] #feedbackConfirmMask{background:rgba(24,48,70,.26);-webkit-backdrop-filter:blur(10px) saturate(130%);backdrop-filter:blur(10px) saturate(130%);}
+html[data-theme="glass"] #feedbackConfirmCard{background:rgba(255,255,255,.88);border-color:rgba(255,255,255,.78);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);box-shadow:0 30px 80px rgba(30,60,90,.26),inset 0 1px 0 rgba(255,255,255,.85);}
+html[data-theme="glass"] #feedbackConfirmCard .fb-c-msg{color:#4a5a68;}
+html[data-theme="glass"] #feedbackConfirmCard button.fb-c-cancel{background:rgba(15,30,60,.06);border-color:rgba(15,30,60,.14);}
 @keyframes fbFadeIn{from{opacity:0}to{opacity:1}}
 @keyframes fbPopIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){.fb-toast,#feedbackConfirmMask,#feedbackConfirmCard{transition:none;animation:none;}}
@@ -102,7 +120,10 @@
     }
   }
 
-  function confirm(opts){
+  // ── 2026-11-10 统一对话框：confirm / alert / prompt / dialog ─────────────
+  // 设计：图标标题 + 正文 + 可选输入 + 右对齐按钮；全部走主题令牌（暗/亮/玻璃/烛光）。
+  // onOk(value) 可返回 Promise：true 关闭；字符串 = 显示为该行错误并保持打开；false 保持打开。
+  function dialog(opts){
     return new Promise((resolve) => {
       try {
         const o = (typeof opts === "string") ? { message: opts } : (opts || {});
@@ -116,13 +137,38 @@
         const card = document.createElement("div");
         card.id = "feedbackConfirmCard";
 
+        const head = document.createElement("div");
+        head.className = "fb-c-head";
+        const ico = document.createElement("span");
+        ico.className = "fb-c-ico" + (o.danger ? " danger" : "");
+        ico.innerHTML = (o.icon || (o.danger ? ICONS.warn : ICONS.info));
         const title = document.createElement("h4");
         title.className = "fb-c-title";
         title.textContent = o.title || "确认";
+        head.appendChild(ico);
+        head.appendChild(title);
 
         const msgEl = document.createElement("p");
         msgEl.className = "fb-c-msg";
         msgEl.textContent = o.message == null ? "" : String(o.message);
+
+        card.appendChild(head);
+        card.appendChild(msgEl);
+
+        let inputEl = null;
+        if (o.input) {
+          const cfg = (typeof o.input === "string") ? { type: o.input } : o.input;
+          inputEl = document.createElement(cfg.multiline ? "textarea" : "input");
+          if (!cfg.multiline) inputEl.type = cfg.type || "text";
+          inputEl.className = "fb-c-input";
+          if (cfg.placeholder) inputEl.placeholder = cfg.placeholder;
+          if (cfg.value != null) inputEl.value = String(cfg.value);
+          if (cfg.maxLength) inputEl.maxLength = cfg.maxLength;
+          card.appendChild(inputEl);
+        }
+        const errEl = document.createElement("div");
+        errEl.className = "fb-c-err";
+        card.appendChild(errEl);
 
         const btns = document.createElement("div");
         btns.className = "fb-c-btns";
@@ -134,36 +180,76 @@
         ok.type = "button";
         ok.className = "fb-c-ok" + (o.danger ? " danger" : "");
         ok.textContent = o.okText || "确定";
+        if (o.cancelText === null) cancel.style.display = "none";
         btns.appendChild(cancel);
         btns.appendChild(ok);
-
-        card.appendChild(title);
-        card.appendChild(msgEl);
         card.appendChild(btns);
+
         mask.appendChild(card);
         document.body.appendChild(mask);
 
-        let done = false;
+        let done = false, busy = false;
         const finish = (val) => {
           if (done) return;
           done = true;
           mask.remove();
           resolve(val);
         };
-        mask.addEventListener("click", (e) => { if (e.target === mask) finish(false); });
-        cancel.addEventListener("click", () => finish(false));
-        ok.addEventListener("click", () => finish(true));
-        // Esc 只绑在 mask 上(初始焦点在按钮内,事件会冒泡到 mask),不污染全局快捷键
+        const currentValue = () => (inputEl ? inputEl.value : undefined);
+        async function submit(){
+          if (busy) return;
+          const v = currentValue();
+          if (typeof o.onOk === "function") {
+            busy = true; ok.disabled = true; errEl.textContent = "";
+            try {
+              const r = await o.onOk(v);
+              busy = false; ok.disabled = false;
+              if (r === false) return;
+              if (typeof r === "string") { errEl.textContent = r; return; }
+              finish(inputEl ? v : true);
+            } catch (e) {
+              busy = false; ok.disabled = false;
+              errEl.textContent = (e && e.message) || String(e);
+            }
+            return;
+          }
+          finish(inputEl ? v : true);
+        }
+        mask.addEventListener("click", (e) => { if (e.target === mask) finish(null); });
+        cancel.addEventListener("click", () => finish(null));
+        ok.addEventListener("click", submit);
         mask.addEventListener("keydown", (e) => {
-          if (e.key === "Escape") { e.stopPropagation(); finish(false); }
+          if (e.key === "Escape") { e.stopPropagation(); finish(null); }
+          else if (e.key === "Enter" && inputEl && inputEl.tagName !== "TEXTAREA") { e.preventDefault(); submit(); }
         });
-        (o.danger ? cancel : ok).focus();
+        setTimeout(() => { if (inputEl) inputEl.focus(); else (o.danger ? cancel : ok).focus(); }, 30);
       } catch (e) {
-        console.warn("[feedback] confirm failed, falling back to window.confirm:", e);
-        resolve(window.confirm((opts && opts.message) || ""));
+        console.warn("[feedback] dialog failed:", e);
+        if (opts && opts.input) {
+          const v = window.prompt((opts && opts.message) || "", "");
+          resolve(v == null ? null : v);
+        } else {
+          resolve(window.confirm((opts && opts.message) || "") ? true : null);
+        }
       }
     });
   }
 
-  window.__feedback = { toast, confirm };
+  function confirm(opts){
+    const o = (typeof opts === "string") ? { message: opts } : (opts || {});
+    return dialog(o).then((v) => v === true);
+  }
+  function alert(opts){
+    const o = (typeof opts === "string") ? { message: opts } : (opts || {});
+    o.okText = o.okText || "知道了";
+    o.cancelText = null;
+    return dialog(o).then(() => undefined);
+  }
+  function prompt(opts){
+    const o = (typeof opts === "string") ? { message: opts } : (opts || {});
+    if (!o.input) o.input = { type: "text" };
+    return dialog(o);
+  }
+
+  window.__feedback = { toast, dialog, confirm, alert, prompt };
 })();

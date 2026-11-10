@@ -186,7 +186,13 @@ function syncChatMode(mode) {
   }
 }
 
-function handleFbModeChip(next) {
+// 2026-11-10: 统一主题输入的轻壳（feedback.prompt）；未加载时回退原生
+function uiPrompt(message, opts) {
+  try { if (window.__feedback && window.__feedback.prompt) return window.__feedback.prompt(Object.assign({ message: message }, opts || {})); } catch (e) {}
+  var v = window.prompt(message, (opts && opts.input && opts.input.value) || "");
+  return Promise.resolve(v);
+}
+async function handleFbModeChip(next) {
   const fb = getFishbowl();
   if (!fb) { alert("鱼缸引擎未加载(fishbowl-engine.js)"); return; }
   const cur = fb.getMode();
@@ -196,7 +202,7 @@ function handleFbModeChip(next) {
   if (st.state === "ended" && fb.resetEnded) fb.resetEnded();
   fb.setMode(next);
   if (next === "discuss") {
-    const topic = prompt("请输入议题(必填):", fb.getTopic() || "");
+    const topic = await uiPrompt("请输入议题（必填）", { title: "讨论议题", okText: "开始讨论", input: { value: fb.getTopic() || "", placeholder: "例如：今晚谁洗碗" } });
     if (!topic || !topic.trim()) { fb.setMode(cur); renderAll(); return; }
     fb.setTopic(topic.trim());
   }
@@ -206,7 +212,7 @@ function handleFbModeChip(next) {
       fb.start();
     } else {
       const curRounds = fb.getMaxRounds();
-      const ans = prompt("最大轮数(1-1000，默认 8。实质取消限制，仅防意外离开爆资金；随时点 ⏹ 手动终止):", String(curRounds));
+      const ans = await uiPrompt("最大轮数（1-1000，默认 8。仅防意外离开爆资金；随时可手动终止）", { title: "接龙轮数", okText: "开始", input: { value: String(curRounds), type: "number" } });
       // 4.35 修复:点「取消」(prompt 返回 null) 时不应自动开跑——回退到原模式并 return,
       // 只有点「确定」才 setMaxRounds + start。修复"接龙不管确定还是取消都会开始"。
       if (ans === null) { fb.setMode(cur); renderAll(); return; }
@@ -218,7 +224,7 @@ function handleFbModeChip(next) {
   renderAll();
 }
 
-function handleFbCmd(cmd) {
+async function handleFbCmd(cmd) {
   const fb = getFishbowl();
   if (!fb) return;
   if (cmd === "start") fb.start();
@@ -226,7 +232,7 @@ function handleFbCmd(cmd) {
   else if (cmd === "resume") fb.resume();
   else if (cmd === "stop") fb.stop();
   else if (cmd === "topic") {
-    const t = prompt("新议题:", fb.getTopic() || "");
+    const t = await uiPrompt("新议题", { title: "改议题", okText: "保存", input: { value: fb.getTopic() || "" } });
     if (t && t.trim()) fb.setTopic(t.trim());
   } else if (cmd === "restart") {
     if (fb.resetEnded) fb.resetEnded();

@@ -46,73 +46,43 @@
   // ─── 密码弹窗【注入验证用】───
   // 调用时：__auth.promptForPassword({ title?, hint? }) → Promise<password>
   // 验证逻辑：拿输入的密码去请 GET /sync，401 = 错；200/500 = 对（500 是 KV 未绑定但密码已过）
+  // 2026-11-10: 改用 feedback.js 的统一主题弹窗。旧版是写死深色的自绘卡片
+  // (#1f2128 底 / #4a9eff 蓝钮)，在亮色、玻璃、烛光主题下完全不搭，且没有主题描边。
+  // 校验仍走 onOk 异步验证：401 = 密码错（弹窗内显示错误并保持打开），200/500 = 通过。
   function promptForPassword(opts) {
     opts = opts || {};
-    return new Promise((resolve, reject) => {
-      const mask = document.createElement("div");
-      mask.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);";
-      const box = document.createElement("div");
-      box.style.cssText = "background:#1f2128;color:#eee;padding:24px;border-radius:12px;max-width:90vw;width:380px;box-shadow:0 12px 48px rgba(0,0,0,.5);font-family:inherit;";
-      box.innerHTML = `
-        <h3 style="margin:0 0 8px;font-size:16px;">${opts.title || "\ud83d\udd12 \u8f93\u5165\u5bc6\u7801"}</h3>
-        <div style="font-size:12px;color:#999;margin-bottom:16px;line-height:1.5;">${opts.hint || "\u8bf7\u8f93\u5165\u4e0e Cloudflare Secret <code>CHAT_PASSWORD</code> \u4e00\u81f4\u7684\u5bc6\u7801"}</div>
-        <input type="password" id="__authPwInput" placeholder="\u5bc6\u7801" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid #444;background:#15171c;color:#eee;font-size:14px;margin-bottom:8px;">
-        <div id="__authPwErr" style="font-size:12px;color:#e57373;margin-bottom:12px;min-height:16px;"></div>
-        <div style="display:flex;justify-content:flex-end;gap:8px;">
-          <button id="__authPwCancel" style="padding:8px 16px;border:none;border-radius:6px;background:#3a3d45;color:#eee;cursor:pointer;">\u53d6\u6d88</button>
-          <button id="__authPwOk" style="padding:8px 16px;border:none;border-radius:6px;background:#4a9eff;color:#fff;cursor:pointer;">${opts.confirmText || "\u786e\u8ba4"}</button>
-        </div>
-      `;
-      mask.appendChild(box);
-      document.body.appendChild(mask);
-      const input = box.querySelector("#__authPwInput");
-      const err = box.querySelector("#__authPwErr");
-      const ok = box.querySelector("#__authPwOk");
-      const cancel = box.querySelector("#__authPwCancel");
-      setTimeout(() => input.focus(), 50);
-
-      let validating = false;
-      async function close(result, error) {
-        try { document.body.removeChild(mask); } catch {}
-        if (error) reject(error); else resolve(result);
-      }
-      async function confirm() {
-        if (validating) return;
-        const v = input.value;
-        if (!v) { err.textContent = "\u8bf7\u8f93\u5165\u5bc6\u7801"; return; }
-        validating = true;
-        err.textContent = "\u6b63\u5728\u9a8c\u8bc1\u2026";
-        ok.disabled = true;
+    var plainHint = String(opts.hint || "请输入与 Cloudflare Secret CHAT_PASSWORD 一致的密码").replace(/<[^>]+>/g, "");
+    var fb = window.__feedback;
+    if (!fb || !fb.dialog) {
+      return new Promise(function (resolve, reject) {
+        var v = window.prompt(plainHint, "");
+        if (v == null) reject(new Error("用户取消")); else resolve(v);
+      });
+    }
+    return fb.dialog({
+      title: opts.title || "输入密码",
+      message: plainHint,
+      icon: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>',
+      input: { type: "password", placeholder: "密码" },
+      okText: opts.confirmText || "确认",
+      cancelText: "取消",
+      onOk: async function (v) {
+        if (!v) return "请输入密码";
         try {
           // 临时不走拦截器【避免拿旧 token】，手工带 header
-          const r = await realFetch("/sync", { headers: { "Authorization": "Bearer " + v } });
-          if (r.status === 401) {
-            err.textContent = "\u5bc6\u7801\u9519\u8bef";
-            validating = false; ok.disabled = false;
-            return;
-          }
+          var r = await realFetch("/sync", { headers: { "Authorization": "Bearer " + v } });
+          if (r.status === 401) return "密码错误";
           // 2026-11-08 修(审查 P1): 只有 200 / 500(KV 未绑定) 算校验通过 —— 旧版把 404/429/502
           // 等一切非 401 都当"密码正确"落 token,服务端故障期间错误密码也能进
-          if (r.ok || r.status === 500) {
-            close(v);
-          } else {
-            err.textContent = "\u7f51\u7edc\u5f02\u5e38 (HTTP " + r.status + ")\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5";
-            validating = false; ok.disabled = false;
-          }
+          if (r.ok || r.status === 500) return true;
+          return "网络异常 (HTTP " + r.status + ")，请稍后重试";
         } catch (e) {
-          err.textContent = "\u7f51\u7edc\u9519\u8bef: " + e.message;
-          validating = false; ok.disabled = false;
+          return "网络错误: " + e.message;
         }
       }
-      ok.addEventListener("click", confirm);
-      cancel.addEventListener("click", () => close(null, new Error("\u7528\u6237\u53d6\u6d88")));
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") { e.preventDefault(); confirm(); }
-        else if (e.key === "Escape") close(null, new Error("\u7528\u6237\u53d6\u6d88"));
-      });
-      mask.addEventListener("click", (e) => {
-        if (e.target === mask) close(null, new Error("\u7528\u6237\u53d6\u6d88"));
-      });
+    }).then(function (v) {
+      if (v == null) throw new Error("用户取消");
+      return v;
     });
   }
 

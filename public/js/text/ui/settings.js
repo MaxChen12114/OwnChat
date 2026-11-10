@@ -17,6 +17,15 @@
 // 路径: public/js/text/ui/settings.js
 // 版本: 4.70 — 全部 emoji 清除，h4 改 SVG 图标
 (() => {
+  // 2026-11-10: 统一主题弹窗（feedback.js 的 ZCode 风对话框）。未加载时回退原生，保证功能不丢。
+  function uiAlert(msg, opts) {
+    try { if (window.__feedback && window.__feedback.alert) return window.__feedback.alert(Object.assign({ message: String(msg) }, opts || {})); } catch (e) {}
+    return Promise.resolve(window.alert(String(msg)));
+  }
+  function uiConfirm(msg, opts) {
+    try { if (window.__feedback && window.__feedback.confirm) return window.__feedback.confirm(Object.assign({ message: String(msg) }, opts || {})); } catch (e) {}
+    return Promise.resolve(window.confirm(String(msg)));
+  }
   // ─── 0. BYO 自定义模型配置（批 E1b：薄壳转发 window.__providers，形状不变）───
   // 真正的注册表在 /shared/providers.js（window.__providers）：预设渠道 + 自定义渠道 + 每模型开关。
   // 这里只保留老契约 get()（app.js / 适配器读取形状照旧）；providers.js 缺席时退回 v2 直读兜底（旧缓存页）。
@@ -364,7 +373,7 @@
     if (!slot || document.getElementById('syncEnableToggle')) return;
     var card = document.createElement('div');
     card.className = 'card';
-    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 18.5a4.5 4.5 0 0 1-.7-8.95A5.5 5.5 0 0 1 17 9.1 3.7 3.7 0 0 1 16.8 18.5z"/></svg>云同步（Cloud Sync）</h4><p>把数据同步到 Cloudflare KV,换浏览器换设备都能看到:角色卡 / 指令模块 / 亲密度 / 费用日志,以及<b>对话历史（需勾选下方「同步聊天历史」)</b>。本地改动延迟 30 秒自动推送(为省 KV 配额;桌面端关窗与回到前台会立刻补推/补拉)。<b>不同步:</b>密码 token / 同步状态本身。</p><div class="rowline"><div class="toggle"><input type="checkbox" id="syncEnableToggle"><label for="syncEnableToggle">启用云同步</label></div><div class="toggle" style="margin-top:6px;"><input type="checkbox" id="syncIncludeChatToggle"><label for="syncIncludeChatToggle">同步聊天历史（跨设备共享对话）</label></div><div class="btns"><button class="smallbtn" id="syncNowBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v3.5h-3.5"/></svg>立即同步</button><button class="smallbtn" id="syncExportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导出备份</button><button class="smallbtn" id="syncImportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导入备份</button><input type="file" id="syncImportFile" accept=".json" style="display:none"><button class="smallbtn danger" id="syncWipeBtn" title="删除云端 KV 上的全部数据(角色卡/指令模块/费用/对话的云端副本)。本地数据保留;同步仍开启时下次本地改动会重新上传,想让云端保持空请清空后关闭云同步。"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5h15"/><path d="M9 6.5V5.2A1.7 1.7 0 0 1 10.7 3.5h2.6A1.7 1.7 0 0 1 15 5.2V6.5"/><path d="M6.8 6.5l.7 12.2a1.8 1.8 0 0 0 1.8 1.7h5.4a1.8 1.8 0 0 0 1.8-1.7l.7-12.2"/></svg>清空云端</button></div></div><div id="syncStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div><div id="syncQuotaWarn" style="font-size:11px;color:#f80;margin-top:4px;display:none;"></div><details id="cloudExcludeSection" style="margin-top:10px;"><summary style="cursor:pointer;font-size:12px;color:var(--muted);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 16.5a4.2 4.2 0 0 1-.6-8.35A5.2 5.2 0 0 1 16.5 8"/><path d="M14.5 14l5 5M19.5 14l-5 5"/></svg>按角色/会话 只清云端（保留本地）</summary><div style="font-size:11px;color:var(--muted);margin:6px 0;line-height:1.5;">只把选中项从云端 KV 抹掉,本地保留且本设备不再上传(tombstone)。<b>会话</b>仅在开了「同步聊天历史」时云端才有副本。<b>跨设备注意:</b>排除清单仅本设备生效,其他仍持有该数据且未排除的设备改动后可能把它推回。</div><div id="cloudExcludeList" style="display:flex;flex-direction:column;gap:6px;"></div></details>`;
+    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 18.5a4.5 4.5 0 0 1-.7-8.95A5.5 5.5 0 0 1 17 9.1 3.7 3.7 0 0 1 16.8 18.5z"/></svg>云同步（Cloud Sync）</h4><p>把数据同步到 Cloudflare KV,换浏览器换设备都能看到:角色卡 / 指令模块 / 亲密度 / 费用日志,以及<b>对话历史（需勾选下方「同步聊天历史」)</b>。本地改动延迟 30 秒自动推送(为省 KV 配额;桌面端关窗与回到前台会立刻补推/补拉)。<b>「立即上传」只推本机改动；「从云端拉取」才拉其他设备的改动</b>；启动/回前台/每 5 分钟也会自动拉。<b>不同步:</b>密码 token / 同步状态本身。</p><div class="rowline"><div class="toggle"><input type="checkbox" id="syncEnableToggle"><label for="syncEnableToggle">启用云同步</label></div><div class="toggle" style="margin-top:6px;"><input type="checkbox" id="syncIncludeChatToggle"><label for="syncIncludeChatToggle">同步聊天历史（跨设备共享对话）</label></div><div class="btns"><button class="smallbtn" id="syncNowBtn" title="只把本机改动上传到云端；拉取请点右边「从云端拉取」"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v3.5h-3.5"/></svg>立即上传</button><button class="smallbtn" id="syncPullBtn" title="从云端拉取其他设备的改动（启动/回前台也会自动拉）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>从云端拉取</button><button class="smallbtn" id="syncExportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导出备份</button><button class="smallbtn" id="syncImportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导入备份</button><input type="file" id="syncImportFile" accept=".json" style="display:none"><button class="smallbtn danger" id="syncWipeBtn" title="删除云端 KV 上的全部数据(角色卡/指令模块/费用/对话的云端副本)。本地数据保留;同步仍开启时下次本地改动会重新上传,想让云端保持空请清空后关闭云同步。"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5h15"/><path d="M9 6.5V5.2A1.7 1.7 0 0 1 10.7 3.5h2.6A1.7 1.7 0 0 1 15 5.2V6.5"/><path d="M6.8 6.5l.7 12.2a1.8 1.8 0 0 0 1.8 1.7h5.4a1.8 1.8 0 0 0 1.8-1.7l.7-12.2"/></svg>清空云端</button></div></div><div id="syncStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div><div id="syncQuotaWarn" style="font-size:11px;color:#f80;margin-top:4px;display:none;"></div><details id="cloudExcludeSection" style="margin-top:10px;"><summary style="cursor:pointer;font-size:12px;color:var(--muted);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 16.5a4.2 4.2 0 0 1-.6-8.35A5.2 5.2 0 0 1 16.5 8"/><path d="M14.5 14l5 5M19.5 14l-5 5"/></svg>按角色/会话 只清云端（保留本地）</summary><div style="font-size:11px;color:var(--muted);margin:6px 0;line-height:1.5;">只把选中项从云端 KV 抹掉,本地保留且本设备不再上传(tombstone)。<b>会话</b>仅在开了「同步聊天历史」时云端才有副本。<b>跨设备注意:</b>排除清单仅本设备生效,其他仍持有该数据且未排除的设备改动后可能把它推回。</div><div id="cloudExcludeList" style="display:flex;flex-direction:column;gap:6px;"></div></details>`;
     slot.appendChild(card);
   }
   // ─── M1: 本地对话记忆卡(#historyKeep / #promptKeep / #clearHistory) ───
@@ -1019,10 +1028,10 @@
     if (!wb) return;
     wb.addEventListener('click', async () => {
       const sync = window.__sync;
-      if (!sync || typeof sync.wipeCloud !== 'function') { alert('云同步模块未就绪'); return; }
+      if (!sync || typeof sync.wipeCloud !== 'function') { await uiAlert('云同步模块未就绪'); return; }
       const st = (sync.getStatus && sync.getStatus()) || {};
-      if (!st.enabled || !st.hasToken) { alert('请先启用云同步(需密码)再清空云端'); return; }
-      if (!confirm('确定清空云端的全部数据吗?\n\n删除：角色卡/指令模块/亲密度/费用/对话历史的【云端副本】\n保留：本设备本地数据全部不动\n注意：同步仍开启时,下次本地改动会把本地重新上传。想让云端保持空,请清空后关闭云同步。')) return;
+      if (!st.enabled || !st.hasToken) { await uiAlert('请先启用云同步(需密码)再清空云端'); return; }
+      if (!(await uiConfirm('确定清空云端的全部数据吗?\n\n删除：角色卡/指令模块/亲密度/费用/对话历史的【云端副本】\n保留：本设备本地数据全部不动\n注意：同步仍开启时,下次本地改动会把本地重新上传。想让云端保持空,请清空后关闭云同步。', { title: '清空云端', okText: '清空云端', danger: true }))) return;
       const old = wb.textContent; wb.disabled = true; wb.textContent = '清空中…';
       try {
         await sync.wipeCloud();
@@ -1032,7 +1041,7 @@
         setTimeout(() => { wb.textContent = old; wb.disabled = false; }, 2000);
       } catch (e) {
         wb.textContent = old; wb.disabled = false;
-        alert('清空云端失败:' + (e && e.message || e));
+        await uiAlert('清空云端失败:' + (e && e.message || e));
       }
     });
   }
@@ -1078,18 +1087,18 @@
     listEl.addEventListener('click', async e => {
       const b = e.target.closest('button[data-act]'); if (!b) return;
       const sync = window.__sync;
-      if (!sync || !sync.wipeCloudEntity) { alert('云同步模块未就绪'); return; }
+      if (!sync || !sync.wipeCloudEntity) { await uiAlert('云同步模块未就绪'); return; }
       const st = (sync.getStatus && sync.getStatus()) || {};
-      if (!st.enabled || !st.hasToken) { alert('请先启用云同步(需密码)'); return; }
+      if (!st.enabled || !st.hasToken) { await uiAlert('请先启用云同步(需密码)'); return; }
       const act = b.getAttribute('data-act'), kind = b.getAttribute('data-kind'), id = b.getAttribute('data-id');
       const old = b.textContent; b.disabled = true; b.textContent = '处理中…';
       try {
         if (act === 'wipe') {
-          if (!confirm('确定只把这一' + (kind === 'session' ? '个会话' : '个角色') + '从云端清除吗?\n本地保留,且本设备不再上传它。')) { b.disabled = false; b.textContent = old; return; }
+          if (!(await uiConfirm('确定只把这一' + (kind === 'session' ? '个会话' : '个角色') + '从云端清除吗?\n本地保留,且本设备不再上传它。', { title: '只清云端', okText: '清除', danger: true }))) { b.disabled = false; b.textContent = old; return; }
           await sync.wipeCloudEntity(kind, id);
         } else { await sync.restoreCloudEntity(kind, id); }
         render();
-      } catch(err) { b.disabled = false; b.textContent = old; alert('操作失败:' + (err && err.message || err)); }
+      } catch(err) { b.disabled = false; b.textContent = old; await uiAlert('操作失败:' + (err && err.message || err)); }
     });
     const sb  = document.getElementById('settingsBtn');
     if (sb)  sb.addEventListener('click', () => setTimeout(render, 50));
@@ -1101,6 +1110,7 @@
   function setupSyncAuthUI() {
     const syncEnableToggle  = document.getElementById('syncEnableToggle');
     const syncNowBtn        = document.getElementById('syncNowBtn');
+    const syncPullBtn       = document.getElementById('syncPullBtn');
     const syncExportBtn     = document.getElementById('syncExportBtn');
     const syncImportBtn     = document.getElementById('syncImportBtn');
     const syncImportFile    = document.getElementById('syncImportFile');
@@ -1174,12 +1184,12 @@
     syncNowBtn.addEventListener('click', async () => {
       // 4.75 立即同步反馈修复:原版点了无任何按钮级反馈(只往 #syncStatus 写一行小字),看着像"没反应"。
       // 现加:未登录直接提示 + 按钮态 同步中…/✓ 已同步/同步失败,与"清空云端"按钮一致。
-      if (!window.__sync) { alert('云同步模块未就绪'); return; }
+      if (!window.__sync) { await uiAlert('云同步模块未就绪'); return; }
       var st = (window.__sync.getStatus && window.__sync.getStatus()) || {};
-      if (!st.hasToken) { alert('请先在上方打开「启用云同步」并输入密码,再点立即同步'); return; }
+      if (!st.hasToken) { await uiAlert('请先在上方打开「启用云同步」并输入密码,再点立即同步'); return; }
       var _old = syncNowBtn.innerHTML;
       syncNowBtn.disabled = true;
-      syncNowBtn.textContent = '同步中…';
+      syncNowBtn.textContent = '上传中…';
       try {
         await window.__sync.pushNow();
         // 4.78: 立即同步同时补推独立通道(pushNow 只推 main blob;聊天走 /sync/chat、角色卡走 /sync/chars,否则手动点立即同步不会立刻推这两类,得等各自 30s 自动推)
@@ -1188,39 +1198,69 @@
         // 2026-10-07: 如实回报 —— 对话通道没开/没推成时必须说清楚,不再一律"✓ 已同步"(那条假成功让"什么都没同步"看起来像成功了)
         const _when = new Date().toLocaleString('zh-CN', { hour12: false });
         if (_chat && _chat.skipped === 'chat-off') {
-          syncNowBtn.textContent = '✓ 已同步(不含对话)';
+          syncNowBtn.textContent = '✓ 已上传(不含对话)';
           if (syncStatusEl) syncStatusEl.textContent = '对话历史未同步:勾选上方「同步聊天历史」后,对话才会跨设备共享，' + _when;
         } else if (_chat && _chat.skipped === 'sync-off') {
-          syncNowBtn.textContent = '✓ 已同步(不含对话)';
+          syncNowBtn.textContent = '✓ 已上传(不含对话)';
           if (syncStatusEl) syncStatusEl.textContent = '未启用云同步/缺密码:对话未同步，' + _when;
         } else if (_chat && _chat.error) {
           syncNowBtn.textContent = '部分失败';
           if (syncStatusEl) syncStatusEl.textContent = '其余数据已同步,对话同步失败:' + _chat.error + '，' + _when;
         } else {
-          syncNowBtn.textContent = '✓ 已同步';
-          if (syncStatusEl) syncStatusEl.textContent = '同步完成(含对话 ' + ((_chat && _chat.slots) || 0) + ' 条会话)，' + _when;
+          syncNowBtn.textContent = '✓ 已上传';
+          if (syncStatusEl) syncStatusEl.textContent = '上传完成(含对话 ' + ((_chat && _chat.slots) || 0) + ' 条会话)，' + _when;
         }
       } catch (e) {
-        syncNowBtn.textContent = '同步失败';
-        alert('同步失败: ' + (e && e.message || e));
+        syncNowBtn.textContent = '上传失败';
+        await uiAlert('上传失败: ' + (e && e.message || e));
       } finally {
         setTimeout(function () { syncNowBtn.innerHTML = _old; syncNowBtn.disabled = false; }, 1800);
       }
     });
+    if (syncPullBtn) syncPullBtn.addEventListener('click', async () => {
+      if (!window.__sync) { await uiAlert('云同步模块未就绪'); return; }
+      var st = (window.__sync.getStatus && window.__sync.getStatus()) || {};
+      if (!st.hasToken) { await uiAlert('请先在上方打开「启用云同步」并输入密码,再点从云端拉取'); return; }
+      var _old = syncPullBtn.innerHTML;
+      syncPullBtn.disabled = true;
+      syncPullBtn.textContent = '拉取中…';
+      try {
+        // 主数据：pullOnStartup 在云端更新时会恢复并 reload（预期行为）
+        await window.__sync.pullOnStartup();
+        var c = window.__sync.pullChatNow ? await window.__sync.pullChatNow() : null;
+        if (window.__sync.pullCharsOnStartup) await window.__sync.pullCharsOnStartup();
+        var _when = new Date().toLocaleString('zh-CN', { hour12: false });
+        if (c && c.skipped === 'chat-off') {
+          syncPullBtn.textContent = '✓ 已拉取(不含对话)';
+          if (syncStatusEl) syncStatusEl.textContent = '对话历史未拉取:勾选上方「同步聊天历史」后才会拉，' + _when;
+        } else if (c && c.error) {
+          syncPullBtn.textContent = '部分失败';
+          if (syncStatusEl) syncStatusEl.textContent = '主数据/角色卡拉取完成,对话拉取失败:' + c.error + '，' + _when;
+        } else {
+          syncPullBtn.textContent = '✓ 已拉取';
+          if (syncStatusEl) syncStatusEl.textContent = '拉取完成(有云端更新时会提示刷新)，' + _when;
+        }
+      } catch (e) {
+        syncPullBtn.textContent = '拉取失败';
+        await uiAlert('拉取失败: ' + (e && e.message || e));
+      } finally {
+        setTimeout(function () { syncPullBtn.innerHTML = _old; syncPullBtn.disabled = false; }, 1800);
+      }
+    });
     if (syncExportBtn) syncExportBtn.addEventListener('click', async () => {
       if (!window.__sync) return;
-      try { await window.__sync.exportJSON(); } catch (e) { alert('导出失败: ' + e.message); }
+      try { await window.__sync.exportJSON(); } catch (e) { await uiAlert('导出失败: ' + e.message); }
     });
     if (syncImportBtn) syncImportBtn.addEventListener('click', () => { syncImportFile && syncImportFile.click(); });
     if (syncImportFile) syncImportFile.addEventListener('change', async e => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
-      if (!confirm('导入将覆盖本地所有数据（角色卡 / 历史 / 指令模块 / 费用日志）。确认？')) { syncImportFile.value = ''; return; }
+      if (!(await uiConfirm('导入将覆盖本地所有数据（角色卡 / 历史 / 指令模块 / 费用日志）。确认？', { title: '导入备份', okText: '覆盖导入', danger: true }))) { syncImportFile.value = ''; return; }
       try {
         await window.__sync.importJSON(file);
-        alert('导入成功，即将刷新页面…');
+        await uiAlert('导入成功，即将刷新页面…', { okText: '好' });
         setTimeout(() => location.reload(), 400);
-      } catch (err) { alert('导入失败: ' + err.message); }
+      } catch (err) { await uiAlert('导入失败: ' + err.message); }
       syncImportFile.value = '';
     });
 
@@ -1243,9 +1283,9 @@
       refreshAuthUI();
     });
 
-    if (authLogoutBtn) authLogoutBtn.addEventListener('click', () => {
+    if (authLogoutBtn) authLogoutBtn.addEventListener('click', async () => {
       if (!window.__auth) return;
-      if (!confirm('退出登录会清除本地保存的密码 token，并关闭云同步和聊天保护。确认？')) return;
+      if (!(await uiConfirm('退出登录会清除本地保存的密码 token，并关闭云同步和聊天保护。确认？', { title: '退出登录', okText: '退出', danger: true }))) return;
       window.__auth.clearToken();
       window.__auth.setChatProtect(false);
       if (window.__sync) window.__sync.setSyncEnabled(false);
@@ -1419,7 +1459,7 @@
     function refreshWho(){var who=document.getElementById('imgPortraitWho'),c=activeCard();if(who)who.innerHTML=c?'当前角色：<b>'+esc(((c.icon?c.icon+' ':'')+(c.name||'(未命名)')))+'</b>':'<span style="color:#e5484d;">未选择角色卡 — 先去左侧「角色卡」选一个</span>';try{if(window.__chatImage&&window.__chatImage.getBaseImage&&c){Promise.resolve(window.__chatImage.getBaseImage({characterId:c.id||'default'})).then(function(b){if(b&&preview&&!preview.querySelector('[data-gen]'))preview.innerHTML='<div style="text-align:center;"><img src="'+b+'" style="max-width:140px;border-radius:8px;display:block;"><div style="font-size:11px;opacity:.6;margin-top:4px;">当前基准图</div></div>';}).catch(function(){});}}catch(e){}}
     if(genBtn)genBtn.addEventListener('click',async function(){genBtn.disabled=true;setMsg('生成中…（约 10-30 秒）');try{var r=await pt.generateForActive();if(preview)preview.innerHTML='<div style="text-align:center;"><img data-gen="1" src="'+r.url+'" style="max-width:160px;border-radius:8px;display:block;"><div style="font-size:11px;opacity:.6;margin-top:4px;">新立绘：'+(r.name||'')+'</div></div>';if(setBtn)setBtn.disabled=false;setMsg('生成完成，点「设为基准图」锁定。');}catch(e){setMsg('错误：'+((e&&e.message)||e));}genBtn.disabled=false;});
     if(setBtn)setBtn.addEventListener('click',async function(){setBtn.disabled=true;setMsg('保存基准图中…');try{await pt.setAsBase();setMsg('已设为当前角色的发图基准图。');}catch(e){setMsg('错误：'+((e&&e.message)||e));setBtn.disabled=false;}});
-    if(delBtn)delBtn.addEventListener('click',async function(){if(!(window.__chatImage&&window.__chatImage.clearBaseImage)){setMsg('发图模块未就绪');return;}if(!confirm('清除当前角色的发图基准图？'))return;var c=activeCard();delBtn.disabled=true;setMsg('清除中…');try{await window.__chatImage.clearBaseImage({characterId:(c&&c.id)||'default'});if(preview)preview.innerHTML='';if(setBtn)setBtn.disabled=true;setMsg('已清除。');}catch(e){setMsg('错误：'+((e&&e.message)||e));}delBtn.disabled=false;});
+    if(delBtn)delBtn.addEventListener('click',async function(){if(!(window.__chatImage&&window.__chatImage.clearBaseImage)){setMsg('发图模块未就绪');return;}if(!(await uiConfirm('清除当前角色的发图基准图？', { title: '清除基准图', okText: '清除', danger: true })))return;var c=activeCard();delBtn.disabled=true;setMsg('清除中…');try{await window.__chatImage.clearBaseImage({characterId:(c&&c.id)||'default'});if(preview)preview.innerHTML='';if(setBtn)setBtn.disabled=true;setMsg('已清除。');}catch(e){setMsg('错误：'+((e&&e.message)||e));}delBtn.disabled=false;});
     refreshWho(); window.addEventListener('character:changed',refreshWho);
   }
 
@@ -1448,7 +1488,7 @@
     var stat=document.getElementById('imgAlbumStat');
     function refresh(){album.list().then(function(a){if(stat)stat.textContent='已收藏 '+a.length+' 张';});}
     var ob=document.getElementById('imgAlbumOpen'); if(ob)ob.addEventListener('click',function(){album.open();});
-    var cb=document.getElementById('imgAlbumClear'); if(cb)cb.addEventListener('click',function(){if(confirm('清空本地画廊？'))album.clear();});
+    var cb=document.getElementById('imgAlbumClear'); if(cb)cb.addEventListener('click',async function(){ if(await uiConfirm('清空本地画廊？', { title:'清空画廊', okText:'清空', danger:true })) album.clear(); });
     window.addEventListener('imagealbum:changed',refresh); refresh();
   }
 

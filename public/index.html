@@ -1556,8 +1556,8 @@
 <script src="/js/text/data/char-memory.js?v=3"></script>
 <!-- 角色记忆内核：Hindsight 的抽取 prompt + 条目结构 + RRF 融合（英文原文，不翻译）。存储走 IndexedDB，不需要任何服务。 -->
 <script src="/shared/memory-core.js?v=12"></script>
-<script src="/js/text/engine/app.js?v=16"></script>
-  <script src="/js/text/ui/settings.js"></script>
+<script src="/js/text/engine/app.js?v=18"></script>
+  <script src="/js/text/ui/settings.js?v=2"></script>
 <!-- 网页内核(魂)· 工具调用内核 SDK。agent-kernel.js 用 ESM export,必须 type="module"(classic <script> 读到 export 会抛 SyntaxError → window.AgentKernel 不挂载);它底部仍会挂 globalThis.AgentKernel 供非模块代码取用。tools.js 是 IIFE,挂 window.OwnChatTools,仅在 buildRegistry() 运行时才取 AgentKernel,故 classic 加载、顺序无碍。app.js 的 agent 模式分支在「发送」时按需调用 window.AgentKernel.runAgentLoop + window.OwnChatTools.buildRegistry({onImage})。须在 app.js 之后。 -->
 <script type="module" src="/shared/agent-kernel.js"></script>
 <script src="/shared/tools.js?v=2"></script>
@@ -1643,6 +1643,8 @@
 <script src="/shared/job-tools.js?v=4"></script>
 <script src="/shared/council-tools.js?v=2"></script>
 <script src="/shared/local-exec-tools.js?v=2"></script>
+<script src="/shared/pc-tools.js?v=3"></script>
+<script src="/shared/pc-settings-card.js?v=4"></script>
 <script src="/shared/topbar-cost.js?v=3"></script>
 <!-- 4.9 删除 4.6 折叠 IIFE:原本手机默认 .fishbowl-side-panel.collapsed 只显 header 一条,与 4.8 鱼缸 tab toggle 冲突,导致打开关闭都会有「留一条 header」挡住思考按钮。改为完全靠 4.8 body.fishbowl-shown 切换整个面板 display,不留任何残影。.collapsed CSS 规则保留为 dead code(无 JS 加 class 不生效)。 -->
 <!-- 2026-09-12 手机端思考强度归一化:从按钮状态/本地配置提取 low|medium|high,写入 data-mobile-effort。未知则移除,只显示图标。 -->

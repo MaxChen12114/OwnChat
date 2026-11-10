@@ -203,7 +203,7 @@ async function mine(b){
   g.querySelectorAll("[data-u]").forEach(el=>el.addEventListener("click",(ev)=>{if(ev.target.closest("[data-e]")||ev.target.closest("[data-d]")||ev.target.closest("[data-s]"))return;setActive(el.dataset.u);setTimeout(render,30);}));
   g.querySelectorAll("[data-s]").forEach(x=>x.addEventListener("click",(ev)=>{ev.stopPropagation();if(!M)return;const id=x.dataset.s;if(sids.has(id))M.removeFromScene(id);else M.addToScene(id);setTimeout(render,30);}));
   g.querySelectorAll("[data-e]").forEach(x=>x.addEventListener("click",async(ev)=>{ev.stopPropagation();const ar=await all();const c=ar.find(y=>y.id===x.dataset.e);if(c){tab="new";render();editor(P.querySelector("[data-body]"),c);}}));
-  g.querySelectorAll("[data-d]").forEach(x=>x.addEventListener("click",async(ev)=>{ev.stopPropagation();if(!confirm("删除这张角色卡？(将清除其好感度记录；绑定的设定集条目会转为全局保留)"))return;await del(x.dataset.d);try{if(window.__sync&&window.__sync.tombChar)window.__sync.tombChar(x.dataset.d);}catch(e){}await cascadeCleanupCard(x.dataset.d);if((localStorage.getItem(LSA)||"")===x.dataset.d)setActive("");setTimeout(render,30);}));
+  g.querySelectorAll("[data-d]").forEach(x=>x.addEventListener("click",async(ev)=>{ev.stopPropagation();if(!(await ((window.__feedback&&window.__feedback.confirm)?window.__feedback.confirm({title:"删除角色卡",message:"删除这张角色卡？(将清除其好感度记录；绑定的设定集条目会转为全局保留)",okText:"删除",danger:true}):Promise.resolve(confirm("删除这张角色卡？(将清除其好感度记录；绑定的设定集条目会转为全局保留)")))))return;await del(x.dataset.d);try{if(window.__sync&&window.__sync.tombChar)window.__sync.tombChar(x.dataset.d);}catch(e){}await cascadeCleanupCard(x.dataset.d);if((localStorage.getItem(LSA)||"")===x.dataset.d)setActive("");setTimeout(render,30);}));
 }
 
 

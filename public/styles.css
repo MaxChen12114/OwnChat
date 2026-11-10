@@ -546,6 +546,23 @@ html:not([data-theme]) button#sendBtn:disabled { background: #333 !important; }
   padding: 16px;
 }
 
+/* 2026-11-10: 玻璃主题下的磨砂质感 —— 面板与卡片都加 backdrop blur + 内高光，
+   不只是提高不透明度（单纯调 alpha 在渐变背景上仍像色块）。 */
+html[data-theme="glass"] #settings {
+  background: rgba(255,255,255,.82);
+  border-color: rgba(255,255,255,.85);
+  -webkit-backdrop-filter: blur(28px) saturate(185%);
+  backdrop-filter: blur(28px) saturate(185%);
+  box-shadow: 0 30px 80px rgba(30,60,90,.22), inset 0 1px 0 rgba(255,255,255,.9);
+}
+html[data-theme="glass"] .card {
+  background: rgba(255,255,255,.66);
+  border-color: rgba(255,255,255,.72);
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
+  backdrop-filter: blur(18px) saturate(165%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.75);
+}
+
 #settings {
   width: min(760px, 92vw);
   border: 1px solid var(--border, #2c2f36); /* E3: 面板=surface-2 层 */
@@ -563,8 +580,8 @@ html:not([data-theme]) button#sendBtn:disabled { background: #333 !important; }
   gap: 4px;
   margin-bottom: 10px;
 }
-#settingsHeader h3 { margin: 0; font-size: 15px; font-weight: 600; color: #eaeaea; letter-spacing: .3px; }
-#settingsHeader .hint { font-size: 11.5px; color: #8a8a8a; }
+#settingsHeader h3 { margin: 0; font-size: 15px; font-weight: 600; color: inherit; letter-spacing: .3px; }
+#settingsHeader .hint { font-size: 11.5px; color: var(--muted, #8a8a8a); }
 
 .card {
   border: 1px solid var(--border-soft, #222429); /* E3: 卡片=surface-3 层, 描边用弱档 */
@@ -1116,18 +1133,20 @@ button#sendBtn, .chip-btn, .smallbtn, .char-input, .char-textarea,
    背景：雾白底 + 四色晕渲（晴空蓝/竹叶绿/原木暖/青瓦青）
    强调色：蓝染青（取代原紫色，素雅去俗套） */
 html[data-theme="glass"] {
-  --ag-surface: rgba(255,255,255,.46); --ag-hover: rgba(255,255,255,.55); --ag-border: rgba(15,30,60,.14); /* 4.83 */
-  --surface-2: rgba(255, 255, 255, .55); /* E3: 面板 */
-  --surface-3: rgba(248, 250, 253, .80); /* E3: 卡片(与原 glass .card 同值,收编为 token) */
+  /* 2026-11-10（所有者反馈「透明度太透、没有磨砂质感」）：面板/卡片整体加厚一档 ——
+     旧值在渐变底上几乎能透出文字，卡片看起来像半透明色块而不是磨砂玻璃。 */
+  --ag-surface: rgba(255,255,255,.64); --ag-hover: rgba(255,255,255,.72); --ag-border: rgba(15,30,60,.14); /* 4.83 */
+  --surface-2: rgba(255, 255, 255, .74); /* E3: 面板 */
+  --surface-3: rgba(250, 252, 255, .90); /* E3: 卡片(与原 glass .card 同值,收编为 token) */
   --border-soft: rgba(15, 30, 60, .06);
   --focus-ring: rgba(63, 111, 143, .55);
   --accent: #3f6f8f; --accent-2: #345d7c; --accent-soft: rgba(63, 111, 143, .12); --accent-border: rgba(63, 111, 143, .42);
   --bg: #f4f7f6;
-  --border: rgba(255, 255, 255, .65);
-  --muted: #6b7b84;
-  --bubble-ai: rgba(255, 255, 255, .86);
+  --border: rgba(255, 255, 255, .78);
+  --muted: #5f707a;
+  --bubble-ai: rgba(255, 255, 255, .93);
   --bubble-user: #3f6f8f;
-  --input-bg: rgba(255, 255, 255, .86);
+  --input-bg: rgba(255, 255, 255, .94);
   --input-border: rgba(255, 255, 255, .70);
   --btn-bg: linear-gradient(135deg, #3a6485, #4a7f9f);
   --btn-bg-hover: linear-gradient(135deg, #315570, #3f6f8f);
@@ -1277,8 +1296,12 @@ html[data-theme="glass"] .char-current-name { color: #1a1f2e; }
 html[data-theme="glass"] #settingsHeader .hint,
 html[data-theme="glass"] .char-section-title { color: #6a7280; }
 html[data-theme="glass"] .card {
-  background: rgba(248, 250, 253, .8);
-  border: 1px solid rgba(15, 30, 60, .06);
+  /* 2026-11-10: 磨砂卡片 —— 旧版 .8 半透明在渐变底上像色块；加 blur + 内高光才是玻璃质感 */
+  background: rgba(255, 255, 255, .70);
+  border: 1px solid rgba(255, 255, 255, .72);
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
+  backdrop-filter: blur(18px) saturate(165%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.75);
 }
 html[data-theme="glass"] .card h4 { color: #1a1f2e; }
 html[data-theme="glass"] .card p { color: #6a7280; }

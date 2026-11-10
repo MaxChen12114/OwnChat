@@ -266,7 +266,7 @@
       renderList(); renderDetail();
     });
 
-    detailEl.addEventListener('click', function (e) {
+    detailEl.addEventListener('click', async function (e) {
       var b = e.target.closest && e.target.closest('[data-act]');
       if (!b) return;
       var act = b.getAttribute('data-act');
@@ -275,7 +275,10 @@
       if (act === 'test') return testChannel(readForm(selId));
       if (act === 'delete') {
         var ch = C.get(selId); if (!ch || isGitee(ch)) return;
-        if (!confirm('删除渠道「' + (ch.name || selId) + '」？Key 一并删除。')) return;
+        const okDel = (window.__feedback && window.__feedback.confirm)
+          ? await window.__feedback.confirm({ title: '删除渠道', message: '删除渠道「' + (ch.name || selId) + '」？Key 一并删除。', okText: '删除', danger: true })
+          : confirm('删除渠道「' + (ch.name || selId) + '」？Key 一并删除。');
+        if (!okDel) return;
         var wasActive = C.activeId() === ch.id;
         if (!C.remove(ch.id)) return setStatus('至少保留一个渠道', 'err');
         selId = C.activeId() || (C.list()[0] && C.list()[0].id) || '';

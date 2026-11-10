@@ -32,17 +32,27 @@
       // 用户看不清芯片边界,点击自然经常点空/点偏(看起来像“点不了”)。
       // 改为:不透明纯色背板(借用全站已有的 --bubble-ai 实色面板变量,菜单/弹层同款)+ 实色描边 + 阴影 + 更高 z-index,
       // 与主题变量的缺省值脱钩也能保证可读可点。
-      "#" + BAR_ID + "{position:relative;z-index:30;display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;margin:0 0 8px;border-radius:12px;background:var(--bubble-ai,#1c1c22);border:1px solid var(--border,rgba(127,127,127,.35));box-shadow:0 4px 16px rgba(0,0,0,.22);max-height:38vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;animation:ocFade .18s ease;pointer-events:auto;}",
+// 2026-11-10（所有者要求：AI 选项弹窗跟随主题、借鉴 ZCode）：
+      // 旧版是 wrap 芯片 + 半透明底(--bubble-ai) —— 烛光/玻璃主题下底几乎透明，文字与消息叠在一起。
+      // 改为选项面板：实色 surface 背板 + 标题行 + 带序号的整行选项 + 底部动作条（ZCode 的选项列表形态）。
+      "#" + BAR_ID + "{position:relative;z-index:30;flex:0 0 100%;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;padding:10px 10px 8px;margin:0 0 8px;border-radius:14px;background:var(--surface-2,#1c1c22);border:1px solid var(--border,rgba(127,127,127,.35));box-shadow:0 10px 30px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.04);max-height:38vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;animation:ocFade .18s ease;pointer-events:auto;}",
       "@keyframes ocFade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}",
-      "#" + BAR_ID + " .oc-hint{flex:0 0 100%;font-size:11px;opacity:.6;margin-bottom:2px;}",
-      ".oc-chip{position:relative;z-index:1;font-size:13px;line-height:1.35;padding:7px 12px;border-radius:14px;cursor:pointer;border:1.5px solid var(--accent,#7b82e8);background:rgba(127,127,127,.16);color:inherit;transition:background .15s,border-color .15s,transform .1s;text-align:left;max-width:100%;white-space:normal;word-break:break-word;overflow-wrap:anywhere;pointer-events:auto;}",
-      ".oc-chip:hover{background:rgba(127,127,127,.28);}",
-      ".oc-chip:active{transform:scale(.97);}",
-      ".oc-chip.oc-meta{border-style:dashed;border-width:1.5px;border-color:var(--border,rgba(127,127,127,.55));background:rgba(127,127,127,.08);opacity:1;}",
-      ".oc-chip.oc-meta:hover{background:rgba(127,127,127,.22);}",
-      // 2026-09-14:芯片图标改为线性 SVG(替代 emoji,见默认 metaActions 处注释)
+      "#" + BAR_ID + " .oc-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 2px 4px;}",
+      "#" + BAR_ID + " .oc-title{font-size:11.5px;font-weight:650;letter-spacing:.04em;color:var(--muted,#9a9a9a);}",
+      "#" + BAR_ID + " .oc-hint{font-size:11px;opacity:.55;}",
+      ".oc-chip{display:flex;align-items:center;gap:9px;width:100%;box-sizing:border-box;font-size:13px;line-height:1.4;padding:9px 10px;border-radius:10px;cursor:pointer;border:1px solid var(--border-soft,rgba(127,127,127,.3));background:rgba(127,127,127,.08);color:inherit;transition:background .15s,border-color .15s;text-align:left;white-space:normal;word-break:break-word;overflow-wrap:anywhere;pointer-events:auto;}",
+      ".oc-chip:hover{background:rgba(127,127,127,.18);border-color:var(--accent,#7b82e8);}",
+      ".oc-chip:active{transform:scale(.995);}",
+      ".oc-idx{flex:none;width:18px;height:18px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:650;background:var(--accent-soft,rgba(127,127,127,.16));color:var(--accent,#7b82e8);}",
+      "#" + BAR_ID + " .oc-foot{display:flex;flex-wrap:wrap;gap:4px;padding-top:5px;margin-top:2px;border-top:1px solid var(--border-soft,rgba(127,127,127,.18));}",
+      ".oc-chip.oc-meta{display:inline-flex;width:auto;gap:6px;padding:6px 10px;border-style:solid;border-color:transparent;background:transparent;font-size:12px;color:var(--muted,#9a9a9a);}",
+      ".oc-chip.oc-meta:hover{background:rgba(127,127,127,.14);border-color:transparent;color:inherit;}",
       ".oc-chip .oc-ico{display:inline-flex;vertical-align:-2px;margin-right:6px;}",
-      ".oc-chip .oc-ico svg{width:13px;height:13px;display:block;}"
+      ".oc-chip .oc-ico svg{width:13px;height:13px;display:block;}",
+      "html[data-theme=\"glass\"] #" + BAR_ID + "{background:rgba(255,255,255,.90);border-color:rgba(255,255,255,.8);-webkit-backdrop-filter:blur(20px) saturate(170%);backdrop-filter:blur(20px) saturate(170%);box-shadow:0 14px 40px rgba(30,60,90,.18),inset 0 1px 0 rgba(255,255,255,.9);}",
+      "html[data-theme=\"glass\"] .oc-chip{background:rgba(15,30,60,.05);border-color:rgba(15,30,60,.10);}",
+      "html[data-theme=\"glass\"] .oc-chip:hover{background:rgba(63,111,143,.10);border-color:var(--accent,#3f6f8f);}",
+      "html[data-theme=\"glass\"] #" + BAR_ID + " .oc-title{color:#5a6b78;}"
     ].join("");
     document.head.appendChild(s);
   }
@@ -128,10 +138,17 @@
     var bar = document.createElement("div");
     bar.id = BAR_ID;
 
-    var hint = document.createElement("div");
+    var head = document.createElement("div");
+    head.className = "oc-head";
+    var title = document.createElement("span");
+    title.className = "oc-title";
+    title.textContent = norm.length ? "AI 提供选项" : "继续";
+    var hint = document.createElement("span");
     hint.className = "oc-hint";
-    hint.textContent = norm.length ? "选一个走向 · 或继续打字" : "继续 · 或自己打字";
-    bar.appendChild(hint);
+    hint.textContent = norm.length ? "点一条直接发送 · 或继续打字" : "或自己打字";
+    head.appendChild(title);
+    head.appendChild(hint);
+    bar.appendChild(head);
 
     function pick(value, isMeta) {
       try { if (typeof opts.onPick === "function" && opts.onPick(value, isMeta) === false) { clearChoices(); return; } } catch (e) {}
@@ -140,11 +157,15 @@
       clearChoices();
     }
 
-    norm.forEach(function (o) {
+    norm.forEach(function (o, i) {
       var b = document.createElement("button");
       b.type = "button";
       b.className = "oc-chip";
-      b.textContent = o.label;
+      var idx = document.createElement("span");
+      idx.className = "oc-idx";
+      idx.textContent = String(i + 1);
+      b.appendChild(idx);
+      b.appendChild(document.createTextNode(o.label));
       b.addEventListener("click", function () { pick(o.value, false); });
       bar.appendChild(b);
     });
@@ -162,6 +183,8 @@
         { label: "换个走向", value: "换一个走向，给我新的发展", icon: META_ICONS.__another__ },
         { label: "自己写", value: "__compose__", icon: META_ICONS.__compose__ }
       ];
+      var foot = document.createElement("div");
+      foot.className = "oc-foot";
       metas.forEach(function (mAct) {
         var b = document.createElement("button");
         b.type = "button";
@@ -184,8 +207,9 @@
           }
           pick(mAct.value, true);
         });
-        bar.appendChild(b);
+        foot.appendChild(b);
       });
+      bar.appendChild(foot);
     }
 
     // 挂在输入框上方(host 首子节点, 与 scene-strip 同款)

@@ -1446,6 +1446,7 @@
     const out = [];
     for (const m of msgs || []) {
       if (!m || !m.role) continue;
+      if (m._uiOnly) continue;
       // ① 场景键过滤。兼容老数据：旧版群聊统一写 "group"，新键是 "group:<convId>"，
       //    老消息在新键下一律放行（否则升级后历史看起来像被清空）。新写入的一律带会话号。
       if (m.sc && m.sc !== scope && !(scope.indexOf("group:") === 0 && m.sc === "group")) continue;
@@ -1469,6 +1470,7 @@
     const out = [];
     (msgs || []).forEach((m) => {
       if (!m || !m.role) return;
+      if (m._uiOnly) return;
       if (m.role === "tool") { if (!drop) out.push({ role: "tool", tool_call_id: m.tool_call_id, content: typeof m.content === "string" ? m.content : String(m.content == null ? "" : JSON.stringify(m.content)) }); return; }
       const hasTC = m.role === "assistant" && Array.isArray(m.tool_calls) && m.tool_calls.length;
       if (hasTC && drop) return;
@@ -1518,6 +1520,31 @@
       }
     } catch (_) {}
   }
+
+  // remote-desk：把 PC 截图作为 UI-only 图片消息落进当前会话（不进模型请求）
+  // 图片 Blob 由 __attach.putBlob 存 IndexedDB（cfw_chat_images），消息里只留 {id,name,w,h}。
+  window.__pcAppendImage = function (meta) {
+    try {
+      if (!meta || !meta.id) return false;
+      var msg = { role: "assistant", content: "", _uiOnly: true, images: [{ id: String(meta.id), name: String(meta.name || "PC 截图"), w: meta.w || 0, h: meta.h || 0, source: "pc" }] };
+      try {
+        var _card = (window.__character && window.__character.getActiveCard) ? window.__character.getActiveCard() : null;
+        if (_card && _card.id) { msg.speakerId = _card.id; msg.speakerName = _card.name; msg.speakerIcon = _card.icon || "🙂"; }
+      } catch (_c) {}
+      session.push(scopeTag(msg));
+      persistSessionIfEnabled();
+      var r = makeRow("assistant");
+      r.bubble.style.display = "none";
+      if (r.stats) r.stats.textContent = "";
+      renderAttachmentsInto(r.bubble, { images: msg.images });
+      if (msg.speakerName && window.__character && window.__character.decorateAiRow) {
+        try { window.__character.decorateAiRow(r.rowEl, { id: msg.speakerId || "", name: msg.speakerName, icon: msg.speakerIcon || "🙂" }); } catch (_) {}
+      }
+      try { r.rowEl.dataset.sidx = String(session.length - 1); } catch (e) {}
+      if (isNearBottom()) scrollToBottom();
+      return true;
+    } catch (e) { try { window.__pcAppendImageError = String((e && e.stack) || e); console.warn("[pc-image] append failed:", e); } catch (_) {} return false; }
+  };
 
   // 2026-09-14:长用户消息折叠 —— 粘贴长文时把气泡收起来(底部渐隐 + 展开箭头),避免刷屏。
   // 只影响展示:内容完整保留在 session(重试/重新发送都读 session,不读气泡文字),折叠不会丢东西。
@@ -2063,6 +2090,9 @@
         // 这里是从存储重建 session 的唯一入口,漏一个字段就等于刷新后标注全丢。
         if (m._meta && typeof m._meta === "object") e._meta = m._meta;
       }
+      // remote-desk: UI-only 图片消息（PC 截图）随 session 还原
+      if (Array.isArray(m.images) && m.images.length) e.images = m.images;
+      if (m._uiOnly) e._uiOnly = true;
       // 2026-09-14: user 消息的附件元数据随 session 一起还原(文件 chip + 图片卡片),
       // 图片 Blob 本体在 IndexedDB(见 ui/attachments.js),此处只留 {id,name,w,h}
       if (_role === "user") {
@@ -2135,7 +2165,7 @@
         r = makeRow("user");
       } else {
         r = makeRow("assistant");
-        _flushTurnsInto(r.rowEl);
+        if (!m._uiOnly) _flushTurnsInto(r.rowEl);
       }
       // 2026-10-08: 行上记真实 session 下标 —— Agent 工具轮不建行（折进"紧随其后的最终回答"），
       // 所以 DOM 行号 ≠ session 下标。重试/删除按这个下标算，否则会错位截断、留下悬空
@@ -2145,8 +2175,9 @@
       // Bug3 fix: agent 回复用 innerHTML 渲染 Markdown(还原时 textContent 会把 <table class="md-table"> 显示为文本)
       if (m.role === "assistant") { r.bubble.innerHTML = renderMarkdownSafe(_visText); } else { r.bubble.textContent = _visText; }
       // 2026-09-14: 还原附件(chip 立即渲染;图片卡片从 IndexedDB 取 Blob 异步补上)
-      if (m.role === "user" && ((m.files && m.files.length) || (m.images && m.images.length))) {
+      if ((m.role === "user" || m.role === "assistant") && ((m.files && m.files.length) || (m.images && m.images.length))) {
         renderAttachmentsInto(r.bubble, { files: m.files, images: m.images });
+        if (m.role === "assistant" && !String(m.content || "").trim()) r.bubble.style.display = "none";
       }
       if (m.role === "user") applyUserFold(r.bubble); // 长消息折叠(与有没有附件无关)
       // 4.83: 重建历史行的上下文统计 —— 旧版恢复时一律清空,刷新/切会话后「上下文统计」全部消失。
@@ -2163,6 +2194,7 @@
       } else {
         r.stats.textContent = "";
       }
+      if (m._uiOnly) r.stats.textContent = "";
       if (m.reasoning_content && r.reasoning) {
         r.reasoning.querySelector(".reasoning-text").textContent = m.reasoning_content;
         applyThinkDisplay(r.reasoning); // 4.70 还原历史也按「思考过程显示」设置

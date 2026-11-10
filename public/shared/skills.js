@@ -224,7 +224,7 @@
     const listEl = card.querySelector("#skillList");
     if (listEl) {
       listEl.addEventListener("change", function (e) { const t = e.target.closest('input[data-act="toggle"]'); if (!t) return; setEnabled(t.getAttribute("data-id"), t.checked); });
-      listEl.addEventListener("click", function (e) { const b = e.target.closest('button[data-act="del"]'); if (!b) return; if (!confirm("删除这条技能？")) return; remove(b.getAttribute("data-id")); renderList(); });
+      listEl.addEventListener("click", async function (e) { const b = e.target.closest('button[data-act="del"]'); if (!b) return; const ok = (window.__feedback && window.__feedback.confirm) ? await window.__feedback.confirm({ title: "删除技能", message: "删除这条技能？", okText: "删除", danger: true }) : confirm("删除这条技能？"); if (!ok) return; remove(b.getAttribute("data-id")); renderList(); });
     }
 
     const pasteBtn = card.querySelector("#skillPasteBtn"), pasteText = card.querySelector("#skillPasteText");

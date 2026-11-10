@@ -185,6 +185,14 @@
     // 通用按钮
     "确定": "OK",
     "取消": "Cancel",
+    // 2026-11-10: 统一主题弹窗 / AI 选项面板新增文案
+    "知道了": "Got it",
+    "AI 提供选项": "AI suggestions",
+    "点一条直接发送 · 或继续打字": "Tap one to send · or keep typing",
+    "或自己打字": "or type your own",
+    "只清云端": "Clear cloud only",
+    "覆盖导入": "Overwrite import",
+    "退出": "Sign out",
     "确认": "Confirm",
     "删除": "Delete",
     "删除会话": "Delete chat",
