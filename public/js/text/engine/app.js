@@ -1943,13 +1943,20 @@
   }
   // 把工作模式编译成内核要的 ensurePermission(name, args) => Promise<boolean>
   function makeAgentPermission(mode, askBase) {
+    let pcApproved = false; // 2026-11-10: 远程电脑工具一轮只问一次 —— 点一下问一次没法用
     return async function (name, args) {
       if (mode === "full") return true;   // 完全访问
       if (mode === "plan") return false;  // 计划模式:只读调查,一律不放行写操作
       const isFile = AGENT_FILE_TOOLS.indexOf(String(name)) >= 0;
       if (mode === "auto" && isFile) return true;
+      const isPc = String(name || "").indexOf("pc_") === 0;
+      if (isPc && pcApproved) return true;
       if (typeof askBase === "function") {
-        try { return await askBase(name, args); } catch (e) { return false; }
+        try {
+          const ok = await askBase(name, args);
+          if (ok && isPc) pcApproved = true;
+          return ok;
+        } catch (e) { return false; }
       }
       return false; // 没有可用的询问 UI 时保守拒绝(有副作用的操作不静默放行)
     };

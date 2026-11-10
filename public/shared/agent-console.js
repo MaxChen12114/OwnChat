@@ -289,6 +289,21 @@ export function mountAgentConsole(container, opts = {}) {
 		}
 	}
 
+	// 2026-11-10: 权限卡只进右栏「活动」/手机底部 Agent 面板。手机端 Agent 模式默认不激活面板，
+	// 用户只看到聊天一直转圈，以为 agent "有眼没手"。有待放行请求时把面板顶上来。
+	function surfacePending() {
+		try {
+			const isMobile = window.matchMedia && window.matchMedia('(max-width: 1023px)').matches;
+			if (isMobile) {
+				const tab = document.getElementById('mobileAgentTab');
+				if (tab && !tab.disabled && !tab.classList.contains('active')) tab.click();
+			} else {
+				const rsTab = document.querySelector('#rightSidebar .rs-tab[data-rs-tab="fishbowl"]');
+				if (rsTab && !rsTab.classList.contains('active')) rsTab.click();
+			}
+		} catch (e) {}
+	}
+
 	// 修复：kernel 以 (name, args) 两个位置参数调用；兼容旧的 ({name,args}) 单对象签名
 	async function ensurePermission(a, b) {
 		let name, args
@@ -350,6 +365,9 @@ export function mountAgentConsole(container, opts = {}) {
 		yes.onclick = () => done(true)
 		no.onclick = () => done(false)
 		if (rec) rec.done = done // 供 cancelPending 解卡（文案走 noteText）
+		// 把面板顶到用户眼前，再滚到这张卡（面板刚展开时布局还没稳，延一帧再滚）
+		surfacePending()
+		setTimeout(() => { try { card.scrollIntoView({ block: "nearest" }) } catch (e) {} }, 150)
 	}
 
 	function clear() {

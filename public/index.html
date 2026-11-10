@@ -440,6 +440,14 @@
       -webkit-backdrop-filter: blur(12px) saturate(130%) !important;
       backdrop-filter: blur(12px) saturate(130%) !important;
     }
+    /* 2026-11-10（所有者：手机端左栏毛玻璃没有磨砂）：抽屉是整块覆盖在聊天上的面板，
+       低特效档把它的 backdrop-filter 关了，只剩一块半透明白板、消息文字直接透出来。
+       玻璃主题下给抽屉和遮罩恢复一档轻模糊（只在打开时显示，14px 成本可控）。 */
+    html[data-theme="glass"].android-app:not(.fx-rich) .left-sidebar,
+    html[data-theme="glass"].android-app:not(.fx-rich) .sidebar-backdrop {
+      -webkit-backdrop-filter: blur(14px) saturate(140%) !important;
+      backdrop-filter: blur(14px) saturate(140%) !important;
+    }
     html.android-app:not(.fx-rich) #candleFxMist,
     html.android-app:not(.fx-rich) #candleFxVignette { display: none !important; }
     html.android-app:not(.fx-rich) body {
@@ -1576,7 +1584,7 @@
 <script src="/js/text/data/char-memory.js?v=3"></script>
 <!-- 角色记忆内核：Hindsight 的抽取 prompt + 条目结构 + RRF 融合（英文原文，不翻译）。存储走 IndexedDB，不需要任何服务。 -->
 <script src="/shared/memory-core.js?v=12"></script>
-<script src="/js/text/engine/app.js?v=20"></script>
+<script src="/js/text/engine/app.js?v=21"></script>
   <script src="/js/text/ui/settings.js?v=7"></script>
 <!-- 网页内核(魂)· 工具调用内核 SDK。agent-kernel.js 用 ESM export,必须 type="module"(classic <script> 读到 export 会抛 SyntaxError → window.AgentKernel 不挂载);它底部仍会挂 globalThis.AgentKernel 供非模块代码取用。tools.js 是 IIFE,挂 window.OwnChatTools,仅在 buildRegistry() 运行时才取 AgentKernel,故 classic 加载、顺序无碍。app.js 的 agent 模式分支在「发送」时按需调用 window.AgentKernel.runAgentLoop + window.OwnChatTools.buildRegistry({onImage})。须在 app.js 之后。 -->
 <script type="module" src="/shared/agent-kernel.js"></script>
@@ -1601,7 +1609,7 @@
 <!-- 2026-06-18 环境感知 / 自检:self_diagnostics(环境快照 + 加载完整性 + 联网逐环节自检,联网委托 AgentReach.diagnose)。须在 agent-reach.js 之后,只读探测 -->
 <script src="/shared/env-context.js"></script>
 <!-- 4.69 Agent 控制台渲染器:渲染 runAgentLoop 事件流 → 右栏 Agent tab;提供 mountAgentConsole(container,{autoApprove}) → {onEvent,ensurePermission,clear,root} -->
-<script type="module" src="/shared/agent-console.js"></script>
+<script type="module" src="/shared/agent-console.js?v=2"></script>
 <!-- 2026-06-24 Skill 系统(window.__skills)·全局能力层(归 /shared/):纯 Markdown SKILL.md 加载器。
      2026-10-06: 改成三级渐进披露 —— 只有「名称 + 描述」目录挂进 agent 模式的系统提示(app.js 的 agent 装配点),
      正文由 load_skill 工具按需取;普通对话不再注入技能正文。管理面 = 设置·技能分类(#setSkillSlot)。 -->
