@@ -350,6 +350,44 @@ html[data-theme="candle"] .row.moderator .bubble {
  border-bottom: 1px dashed #1f1f1f;
  margin-bottom: 6px;
 }
+/* 2026-11-10: 左栏标题标记（Mobius 环 SVG）—— 只保留图形，不再有文字。
+   2026-11-10 二次（所有者「不显眼、没边框」）：改成带描边的图标块（36×36，圆角 10），
+   图标走主题 accent 色，描边 accent-border —— 在标题行里像个 logo 徽章，不再是一枚灰线。 */
+.sidebar-title {
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ width: 30px;
+ height: 30px;
+ flex: none;
+ border-radius: 9px;
+ border: 1px solid var(--accent-border, rgba(127,127,127,.35));
+ background: var(--accent-soft, rgba(127,127,127,.08));
+ color: var(--accent, #cfcfcf);
+ line-height: 1;
+ transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+.sidebar-title:hover {
+ border-color: var(--accent, rgba(127,127,127,.6));
+ background: var(--accent-soft, rgba(127,127,127,.14));
+}
+.sidebar-title svg { display: block; }
+html[data-theme="candle"] .sidebar-title {
+ border-color: rgba(217,168,104,.45);
+ background: rgba(217,168,104,.10);
+ color: #d9a868;
+}
+html[data-theme="glass"] .sidebar-title {
+ border-color: rgba(63,111,143,.34);
+ background: rgba(63,111,143,.09);
+ color: #3f6f8f;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-title {
+ border-color: rgba(55,53,47,.26);
+ background: rgba(55,53,47,.05);
+ color: #37352f;
+}
+
 .sidebar-close {
  width: 28px !important;
  height: 28px !important;

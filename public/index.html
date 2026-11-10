@@ -14,6 +14,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="OwnChat" />
+  <meta name="robots" content="noindex,nofollow" />
   <meta name="description" content="OwnChat —— 数据与密钥都留在你自己手里的 AI 创作平台：角色扮演、长文写作、代码协作、图像与语音，部署到你自己的 Cloudflare Workers。" />
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
@@ -892,7 +893,12 @@
   <!-- DOM 只一份,桌面常驻可见 / 手机 transform translateX(-102%) 隐藏,body.drawer-open 时滑出 -->
   <aside class="left-sidebar" id="leftSidebar" aria-label="侧边面板">
     <div class="sidebar-header">
-      <span class="sidebar-title">面板</span>
+      <!-- 2026-11-10（所有者）：左栏标题改用 Möbius 环标记（∞ 形态），不再显示「面板/PANEL」两字。
+           图标：Phosphor Icons「infinity」bold，MIT 许可，https://phosphoricons.com
+           颜色走 currentColor，四主题自动跟随；折叠侧栏时按既有规则随 .sidebar-title 一起隐藏。 -->
+      <span class="sidebar-title" role="img" aria-label="面板" title="面板">
+        <svg viewBox="0 0 256 256" width="18" height="18" fill="currentColor" stroke="currentColor" stroke-width="14" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M252 128a60 60 0 0 1-102.43 42.43l-.49-.53l-59.86-67.59a36 36 0 1 0 0 51.38l3.08-3.48a12 12 0 1 1 18 15.91l-3.35 3.78l-.49.53a60 60 0 1 1 0-84.86l.49.53l59.86 67.59a36 36 0 1 0 0-51.38l-3.08 3.48a12 12 0 1 1-18-15.91l3.35-3.78l.49-.53A60 60 0 0 1 252 128"/></svg>
+      </span>
       <!-- 2026-11-10（所有者）：左栏可向左折成一条窄脊，与右栏固定态对称，像翻书；状态记 cfw_left_collapsed_v1 -->
       <button class="iconbtn sidebar-close sidebar-collapse" id="sidebarCollapseBtn" aria-label="折叠侧栏" aria-expanded="true" title="折叠侧栏（收起成一条）">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 7.5L10 12l4.5 4.5"/><path d="M18.5 7.5L14 12l4.5 4.5"/></svg>
@@ -1518,9 +1524,10 @@
 <!-- 脚本加载顺序:鉴权 → 同步 → 基础模块 → app.js 主应用 → 面板 UI 模块 → 交互增强 -->
 <!-- auth.js 必须最早加载:它拦截全局 fetch,给 /sync 和 /api/* 自动注入 Authorization header -->
 <script src="/shared/escape.js"></script>
-<script src="/js/text/core/auth.js"></script>
+<script src="/js/text/core/auth.js?v=2"></script>
 <!-- 4.17: dev.js 必须在 auth.js 后、其他模块前。它 monkey-patch fetch 抓 /api/chat payload,需要包裹 auth.js 的 Authorization 注入 -->
 <script src="/js/text/core/dev.js"></script>
+
 <!-- 2026-09-14 UI第一轮:统一反馈组件(toast/confirm,自注入样式,零依赖)。运行时才被调用,位置宽松;各模块旧 toast 缺失它时自动回退原实现 -->
 <script src="/shared/feedback.js"></script>
 <!-- 2026-10-07 双语插件：引擎按需加载字典（未启用英文时零开销；设置→外观可切换） -->
@@ -1563,8 +1570,8 @@
 <script src="/js/text/data/char-memory.js?v=3"></script>
 <!-- 角色记忆内核：Hindsight 的抽取 prompt + 条目结构 + RRF 融合（英文原文，不翻译）。存储走 IndexedDB，不需要任何服务。 -->
 <script src="/shared/memory-core.js?v=12"></script>
-<script src="/js/text/engine/app.js?v=18"></script>
-  <script src="/js/text/ui/settings.js?v=3"></script>
+<script src="/js/text/engine/app.js?v=19"></script>
+  <script src="/js/text/ui/settings.js?v=4"></script>
 <!-- 网页内核(魂)· 工具调用内核 SDK。agent-kernel.js 用 ESM export,必须 type="module"(classic <script> 读到 export 会抛 SyntaxError → window.AgentKernel 不挂载);它底部仍会挂 globalThis.AgentKernel 供非模块代码取用。tools.js 是 IIFE,挂 window.OwnChatTools,仅在 buildRegistry() 运行时才取 AgentKernel,故 classic 加载、顺序无碍。app.js 的 agent 模式分支在「发送」时按需调用 window.AgentKernel.runAgentLoop + window.OwnChatTools.buildRegistry({onImage})。须在 app.js 之后。 -->
 <script type="module" src="/shared/agent-kernel.js"></script>
 <script src="/shared/tools.js?v=2"></script>

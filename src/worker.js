@@ -41,7 +41,10 @@ import { handleImageRequest } from "./image-routes.js";
 //   返回 null  = 没带 header（"软"模式：调用方决定是否放行）
 //   返回 false = 带了 header 但密码不对（一律 401）
 //   返回 true  = 校验通过
-// /api/chat 和 /api/summarize：null/true 放行，false → 401（聊天密码可选）
+// /api/chat 和 /api/summarize：带 header 必须对；没带时由 CHAT_MODE 决定放行/拒绝
+//   CHAT_MODE=open    → 旧行为（没带放行；不推荐公网部署）
+//   CHAT_MODE=byo     → 没带访问码必须自带 payload.customProvider，否则 403
+//   CHAT_MODE=private → 没带访问码一律 401
 // /sync GET/PUT：必须 true，其余一律 401（同步强制密码保护）
 function checkAuth(request, env) {
   const auth = request.headers.get("Authorization") || "";
@@ -51,6 +54,22 @@ function checkAuth(request, env) {
   const expected = (env.CHAT_PASSWORD || "").trim(); // 2026-06-04: 两边都 trim,避免 secret 末尾换行/空格导致永远不匹配
   if (!expected) return false;
   return provided === expected;
+}
+
+// 2026-11-10: CHAT_MODE 三态（用 wrangler secret put CHAT_MODE 切换；未设=open 兼容旧部署）
+function chatMode(env) {
+  const m = String((env && env.CHAT_MODE) || "open").trim().toLowerCase();
+  return (m === "private" || m === "byo") ? m : "open";
+}
+function hasCustomProvider(payload) {
+  const cp = payload && payload.customProvider;
+  return !!(cp && typeof cp === "object" && String(cp.endpoint || "").trim() && String(cp.apiKey || "").trim());
+}
+function privateOnlyResp() {
+  return resp(JSON.stringify({ error: "本站只允许持有访问码的用户使用。", code: "private_mode" }), "application/json; charset=utf-8", 401);
+}
+function byoRequiredResp() {
+  return resp(JSON.stringify({ error: "访客模式：请先在 设置 → 模型 API 新增自己的渠道并填写 API Key。", code: "byo_required" }), "application/json; charset=utf-8", 403);
 }
 
 // 未设 CHAT_PASSWORD 时一律视为锁定(安全默认,避免裸站泄露)。
@@ -652,8 +671,9 @@ function streamWithHeartbeat(upstreamBody, prefixChunk) {
 }
 
 async function handleChat(request, env) {
-  // 软鉴权：带 header 必须对，没带就放行（聊天密码可选）
-  if (!requireAuth(request, env)) {
+  // 2026-11-10: 带 header 必须对；没带时按 CHAT_MODE 决定（open/byo/private）
+  const _auth = checkAuth(request, env);
+  if (_auth === false) {
     return resp("Unauthorized", "text/plain; charset=utf-8", 401);
   }
   let payload;
@@ -661,6 +681,11 @@ async function handleChat(request, env) {
     payload = await request.json();
   } catch {
     return resp("Bad JSON", "text/plain; charset=utf-8", 400);
+  }
+  if (_auth !== true) {
+    const _mode = chatMode(env);
+    if (_mode === "private") return privateOnlyResp();
+    if (_mode === "byo" && !hasCustomProvider(payload)) return byoRequiredResp();
   }
 
   // mode: "free"=免费档 | "fast"=快速档（渠道经 provider 注册表解析；预设默认 NVIDIA 免费档 / DeepSeek 官方，可在「设置→模型 API」改）
@@ -1162,13 +1187,20 @@ async function handleChat(request, env) {
 
 // 阶段 4-③：上下文摘要 — 调 DeepSeek V4-Flash（最便宜）把早期对话压成一段剧情摘要
 async function handleSummarize(request, env) {
-  if (!requireAuth(request, env)) {
+  // 2026-11-10: 与 handleChat 同一套 CHAT_MODE 闸门
+  const _auth = checkAuth(request, env);
+  if (_auth === false) {
     return resp("Unauthorized", "text/plain; charset=utf-8", 401);
   }
   // 2026-11-08 修(审查 P1): 删除前置硬门 —— E1 渠道路由后 key 检查在 resolveProvider
   // 之后按渠道做(下方 summarizeKey),只配 NIM/自定义渠道的用户不再被 DEEPSEEK_API_KEY 一刀切 500。
   let payload;
   try { payload = await request.json(); } catch { return resp("Bad JSON", "text/plain; charset=utf-8", 400); }
+  if (_auth !== true) {
+    const _mode = chatMode(env);
+    if (_mode === "private") return privateOnlyResp();
+    if (_mode === "byo" && !hasCustomProvider(payload)) return byoRequiredResp();
+  }
   const messages = Array.isArray(payload?.messages) ? payload.messages : [];
   if (!messages.length) return resp(JSON.stringify({ summary: "" }), "application/json; charset=utf-8");
   const priorSum = typeof payload?.priorSummary === "string" ? payload.priorSummary.trim() : "";

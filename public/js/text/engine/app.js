@@ -3434,10 +3434,16 @@
         const toSum = session.slice(0, cutoff);
         const chEarly = window.__character || null;
         const cardEarly = chEarly && chEarly.getActiveCard ? chEarly.getActiveCard() : null;
+        const _byoSummary = (window.__byoProvider && window.__byoProvider.get && window.__byoProvider.get()) || undefined;
         const r = await fetch("/api/summarize", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: toSum, priorSummary, characterName: cardEarly ? cardEarly.name : "" }),
+          body: JSON.stringify({
+            messages: toSum, priorSummary,
+            characterName: cardEarly ? cardEarly.name : "",
+            customProvider: _byoSummary,
+            model: _byoSummary ? _byoSummary.model : undefined,
+          }),
         });
         if (r.ok) {
           const j = await r.json().catch(() => null);

@@ -15,7 +15,8 @@
   }
   function clearToken() { localStorage.removeItem(TOKEN_KEY); }
 
-  function chatProtectOn() { return localStorage.getItem(CHAT_PROTECT_KEY) === "1"; }
+  // 2026-11-10: 默认开（"0" 才关）。关掉 = 模拟访客：/api/* 不带访问码，交给 Worker 的 CHAT_MODE 判定。
+  function chatProtectOn() { return localStorage.getItem(CHAT_PROTECT_KEY) !== "0"; }
   function setChatProtect(on) { localStorage.setItem(CHAT_PROTECT_KEY, on ? "1" : "0"); }
 
   // ─── 全局 fetch 拦截：/sync 永远带；chatProtect 开启时 /api/* 也带 ───
