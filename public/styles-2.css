@@ -509,9 +509,14 @@ body.drawer-open .sidebar-backdrop {
 @media (max-width: 1023px) {
  #topbar { transition: transform .25s ease; will-change: transform; }
  #mobileBottomTabs { transition: transform .25s ease; will-change: transform; }
- /* 4.78: 用户要求顶栏常驻不折叠(手机滚动时不再上滑隐藏,从根上消除收起后残留的空白占位条);底栏仍随滚动隐藏 */
+ /* 4.78: 用户要求顶栏常驻不折叠(手机滚动时不再上滑隐藏,从根上消除收起后残留的空白占位条) */
  body.nav-hidden #topbar { transform: none; }
- body.nav-hidden #mobileBottomTabs { transform: translateY(110%); }
+ /* 2026-11-10(所有者要求): 底栏不再随滚动收起 —— 直接固定常驻。
+    旧版 body.nav-hidden 时 translateY(110%) 把底栏滑出视口,滚动中要切 tab 得先往回滑。 */
+ body.nav-hidden #mobileBottomTabs { transform: none; }
+ /* 2026-11-10(所有者要求): 手机端顶栏不显示「内容面板/演示台」入口 —— 窄屏没有可用画布位置,
+    留着只占顶栏宽度。桌面端不受影响。 */
+ #topbar #panelToggle { display: none !important; }
  /* 手机端顶栏不显示 inline 费用(太挤;费用看设置/费用日志) */
  #topbar #costDisplay { display: none !important; }
 }
@@ -1853,3 +1858,13 @@ html[data-theme="glass"] .msg-action-btn.icon-only:hover { background: rgba(127,
 .uc-wrap:not(.folded) ~ .uc-toggle svg { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) { .uc-toggle svg { transition: none; } }
 /* ══════════ 2026-09-14 消息操作条 完 ══════════ */
+
+/* ── 2026-11-10（所有者报告：消息区底部出现横向滚动条）──
+   根因不是某个元素特别宽，是规范行为：#history 设了 overflow-y:auto，
+   按 CSS Overflow 规范「一个轴非 visible，另一轴的 visible 计算为 auto」，
+   于是它同时成了横向滚动容器 —— 内容只要宽出 1px 就冒出底部横条，
+   还会把气泡左侧裁掉（表现为"两条"缺了"两"）。
+   聊天列本来就不该横向滚：代码块/表格各自带 overflow-x:auto，不需要外层再滚一次。 */
+#history { overflow-x: hidden; }
+/* 兜底：flex 子项默认 min-width:auto，长内容会把行撑宽；允许它们收缩 */
+#history .row > * { min-width: 0; }

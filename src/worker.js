@@ -23,6 +23,7 @@ import { buildCharacterBasePrompt, buildLayer2, isValidCard } from "./prompts/la
 import { buildLorebookInstruction, buildReplyStyleInstruction, buildSummarizeSysPrompt, buildTurnNudge } from "./prompts/layers/chat.js";
 import { handleImageRequest } from "./image-routes.js";
 
+
 // 渠道注册表 / 统一解析(resolveProvider) / 模型 id 网关 已搬到 src/model/providers.js
 // 2026-10-13 (批 E1):请求按 payload.providerId(预设) / payload.customProvider(BYO) 路由;
 // mode(fast/free) 保留为预设指针的兼容别名 —— 旧客户端不改也能跑。

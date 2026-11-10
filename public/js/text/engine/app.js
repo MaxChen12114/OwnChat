@@ -2690,8 +2690,7 @@
     let _agentPreamble = "";
     try {
       // 工具注册表:发图回调把生成的图片渲染成图片气泡(插在本条 AI 之后)
-      const registry = window.OwnChatTools.buildRegistry({
-        onImage: (url, meta) => {
+      const _pcOnImage = (url, meta) => {
           // send_image 工具已通过 __chatImage.sendPhoto 生成图片并拿到 URL，直接渲染气泡，不重复生成
           // Bug fix 2026-06-18: 旧版把 url 字符串当对象取 .scene_prompt → scene="" → handleSignal 拿空 scene 无渲染
           // 且 handleSignal 会触发二次出图而非展示已有 URL；现改为直接插 <img> 气泡。
@@ -2730,8 +2729,9 @@
               }
             }
           } catch (_) {}
-        },
-      });
+      };
+      window.__agentImageBubble = _pcOnImage;
+      const registry = window.OwnChatTools.buildRegistry({ onImage: _pcOnImage });
       // 2026-09-14 文件工作区:list_files / read_file / write_file(真写工作区) / edit_file / delete_file / export_file
       // (旧 write_file 只是弹下载,文件不落地也读不回来;文件类工具的定义与存储都在 data/agent-workspace.js)
       if (window.__agentWorkspace && typeof window.__agentWorkspace.defineTools === "function") {
