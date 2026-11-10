@@ -1234,7 +1234,7 @@ html[data-theme="glass"] .meta,
 html[data-theme="glass"] .stats { color: #64748b; }
 
 html[data-theme="glass"] .input-inner {
-  background: rgba(255, 255, 255, .82);
+  background: rgba(255, 255, 255, .90);
   border: 1px solid rgba(255, 255, 255, .68);
   box-shadow:
     0 16px 48px rgba(60, 95, 120, .15),
@@ -1614,8 +1614,8 @@ html[data-theme="candle"] {
   --muted: #8a7a6a;
   --bubble-ai: rgba(40, 28, 18, .55);
   --bubble-user: #d9a868;
-  --input-bg: rgba(40, 28, 18, .42);
-  --input-border: rgba(217, 168, 104, .28);
+  --input-bg: rgba(40, 28, 18, .74);
+  --input-border: rgba(217, 168, 104, .34);
   --btn-bg: #d9a868;
   --btn-bg-hover: #e8bd7c;
 }
@@ -1693,6 +1693,15 @@ html[data-theme="candle"] .input-inner {
   box-shadow: 0 10px calc(28px + var(--pulse) * 24px)
               rgba(217, 168, 104, calc(.18 + var(--pulse) * 0.32));
   backdrop-filter: blur(14px);
+}
+/* 2026-11-10（所有者反馈「输入框太透」）：烛光主题输入框原本只有 42% 不透明度且无模糊，
+   消息文字会直接透进输入区。加厚 + 磨砂 + 内高光，与卡片/侧栏同一质感。 */
+html[data-theme="candle"] .input-inner {
+  background: rgba(40, 28, 18, .74);
+  border: 1px solid rgba(217, 168, 104, .34);
+  -webkit-backdrop-filter: blur(22px) saturate(135%);
+  backdrop-filter: blur(22px) saturate(135%);
+  box-shadow: 0 16px 44px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,235,200,.06);
 }
 html[data-theme="candle"] textarea#msg { color: #f2e7d6; }
 html[data-theme="candle"] textarea#msg::placeholder { color: #8a606a; }
