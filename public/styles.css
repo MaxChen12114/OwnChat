@@ -334,6 +334,10 @@ select option { background: #0f0f0f; color: #fff; }
 #topbar .pill { height: 34px; border-radius: 9px; padding: 0 12px; }
 #topbar #personaToggle,
 #topbar #modeToggle { height: 34px; border-radius: 9px; width: auto; min-width: 0; padding: 0 11px; flex: 0 0 auto; white-space: nowrap; }
+/* 2026-11-11: 顶栏胶囊的文字宽度预算 —— 自定义渠道名再长也不许撑开顶栏。
+   JS 侧已截到 4 个字（超了 3 字 + 省略号），这里再兜一层：万一有别的路径塞了长名，
+   也只会就地省略号，不会把整排按钮挤歪。 */
+#topbar #modeToggle .btn-text { display: inline-block; max-width: 4.6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
 #topbar #syncStatusIndicator { height: 34px; border-radius: 9px; }
 /* 批 F：演示台开态视觉（原按钮无任何开态反馈）——用主题化中性 token，四主题自动随行 */
 #topbar #stageToggle[aria-pressed="true"] { background: var(--accent-soft, rgba(127,127,127,.14)); border-color: var(--accent-border, rgba(127,127,127,.4)); color: var(--accent-2, #fff); }

@@ -1100,7 +1100,11 @@
         setIcon(modeToggle, isFastCh ? "modeFast" : "modeFree", word);
         modeToggle.title = "当前：" + (isFastCh ? "快速档" : "免费档") + "（渠道 " + ch.name + "）；点击切换免费/快速 · 渠道详情见 设置→模型 API";
       } else {
-        const label = String(ch.name).slice(0, 14);
+        // 2026-11-11: 自定义渠道名原来截 14 字 —— 一长就把顶栏挤歪。
+        // 胶囊的"字位"预算：最多 4 个字（超了显示 3 字 + 省略号）。用 Array.from 按码点切，
+        // 免得 emoji/生僻字被截成半个代理对。完整名字始终在 title 里。
+        const chars = Array.from(String(ch.name || "").trim());
+        const label = chars.length > 4 ? chars.slice(0, 3).join("") + "…" : chars.join("");
         setIcon(modeToggle, "modeFast", label);
         modeToggle.title = "当前渠道：" + ch.name + "；点击切换免费/快速预设（渠道详情见 设置→模型 API）";
       }
