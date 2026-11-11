@@ -205,7 +205,6 @@
     "语音 · TTS": "Voice · TTS",
     "记录 · 高级": "Logs · Advanced",
     "费用与记录": "Costs & logs",
-    "数据默认存在浏览器；开启云同步后上传到你的 Cloudflare KV。": "Data lives in this browser by default; enabling cloud sync uploads it to your Cloudflare KV.",
     "API Key 只存本机，不同步。": "API keys stay on this device and are never synced.",
     "自定义直连 · API Key 只存本机": "Custom direct · API key stays on this device",
     "发送时附带本机历史消息；不进云同步。": "Sends local message history with each request; not synced.",
