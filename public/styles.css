@@ -567,6 +567,9 @@ button#sendBtn svg { width: 18px; height: 18px; transform: translateX(-1px); }
 button#sendBtn:hover { background: var(--btn-bg-hover); transform: translateY(-1px); }
 button#sendBtn:active { transform: scale(.93); }
 button#sendBtn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+/* 2026-11-11: Agent 运行中、输入框为空 → 发送键只把图标换成线性方块「停止」；
+   底色/描边/阴影继续跟当前主题的发送键走，不另起颜色。 */
+button#sendBtn.is-stop svg { width: 18px; height: 18px; transform: none; }
 
 /* 4.59 极简送信按钮:统一中性灰圆钮(去掉非极简残留的彩色/光晕),与线性图标语言一致。
    仅极简(无 data-theme)生效;glass/candle 各自的彩色 sendBtn 不受影响。!important 兜底盖过明暗 scheme 层。 */

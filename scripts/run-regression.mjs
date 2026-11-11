@@ -10,6 +10,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const RUNS = [
   ["S11 记忆隔离", "test-memory-core.mjs"],
   ["S12 重试策略", "test-retry-policy.mjs"],
+  // 2026-11-11: 免费档模型口径改动（全厂商放行 / 非对话黑名单 / 推荐标记 / 清单保质期）纳入回归
+  ["渠道路由矩阵", "../test/provider-routing.mjs"],
+  ["模型注册表契约", "../test/provider-models.mjs"],
   ["令牌体检", "check-tokens.mjs"],
   ["语法全检", "check-syntax.mjs"],
 ];

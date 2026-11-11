@@ -176,14 +176,7 @@ function endReasonLabel(r) {
 function syncChatMode(mode) {
   const isRoast = (mode === "relay" || mode === "discuss");
   document.body.setAttribute("data-chat-mode", isRoast ? "roast" : "group");
-  const inputEl = document.getElementById("msg");
-  if (inputEl) {
-    // 4.82: roast 模式的插话输入实际走普通发送路径（fishbowl 插话队列已于 2026-11-08 摘除,从未接线）——
-    // placeholder 如实描述,不承诺「主持人介入」
-    inputEl.placeholder = isRoast
-      ? "Message...(发言由群聊控制台指定)"
-      : "Message...";
-  }
+  // 2026-11-11: 输入框不写任何文字说明（所有者要求）—— 这里不再改 placeholder。
 }
 
 // 2026-11-10: 统一主题输入的轻壳（feedback.prompt）；未加载时回退原生
@@ -258,8 +251,6 @@ function renderFishbowlSidePanel() {
   if (!showPanel) {
     if (panel) panel.style.display = "none";
     document.body.removeAttribute("data-chat-mode");
-    const inputEl = document.getElementById("msg");
-    if (inputEl) inputEl.placeholder = "Message...";
     if (window.__app && window.__app.updateSpacer) window.__app.updateSpacer();
     return;
   }

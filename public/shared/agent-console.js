@@ -380,7 +380,17 @@ export function mountAgentConsole(container, opts = {}) {
 		setStatus("idle", "待命")
 	}
 
-	return { onEvent, ensurePermission, cancelPending, clear, root }
+	// 2026-11-11: 时间线备注（用户插话/停手等非内核事件的可视标记）
+	function note(text) {
+		try {
+			const card = el("div", "ac-note")
+			card.textContent = String(text || "")
+			timeline.append(card)
+			scrollIntoView()
+		} catch (e) {}
+	}
+
+	return { onEvent, ensurePermission, cancelPending, clear, root, note }
 }
 
 let _styled = false
@@ -433,6 +443,7 @@ function injectStylesOnce() {
 .ac-perm__yes{background:#ffd43b;color:#1a1d23}
 .ac-perm__no{background:rgba(127,127,127,.22);color:inherit}
 .ac-perm__note{margin-top:7px;font-size:11.5px;opacity:.65}
+.ac-note{font-size:11.5px;opacity:.6;border-left:2px solid var(--border,rgba(127,127,127,.35));padding:2px 8px;margin:0 0 0 4px;white-space:pre-wrap;word-break:break-word;}
 .ac-perm.is-resolved{opacity:.7}
 .ac-final{border-top:1px solid rgba(127,127,127,.20);padding:9px 4px 2px}
 .ac-final__label{font-size:11px;opacity:.5;letter-spacing:.04em;margin-bottom:4px}

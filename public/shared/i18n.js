@@ -17,7 +17,7 @@
   "use strict";
 
   var LS_LANG = "cfw_ui_lang_v1";
-  var DICT_SRC = "/shared/i18n-dict.js?v=2"; // 2026-10-13 (E1c 缓存键规范化): 字典内容改动时 bump
+  var DICT_SRC = "/shared/i18n-dict.js?v=9"; // 2026-10-13 (E1c 缓存键规范化): 字典内容改动时 bump
   var ATTRS = ["title", "placeholder", "aria-label"];
   // 跳过清单分两档（2026-10-08 修）：
   //   · 文本档：只跳真正的内容区。**不能**跳 select —— <option> 的文本是 UI 标签（截图实测：
@@ -185,9 +185,12 @@
   // 启用英文时注入一份覆盖样式，译名直接取字典。以后新增同类伪元素，在下面补一行选择器即可。
   function injectPseudoOverrides() {
     var rules = [
+      ['#composer #thinkToggle.active[data-mobile-effort="minimal"] .think-label::after', "极低"],
       ['#composer #thinkToggle.active[data-mobile-effort="low"] .think-label::after', "低"],
       ['#composer #thinkToggle.active[data-mobile-effort="medium"] .think-label::after', "中"],
       ['#composer #thinkToggle.active[data-mobile-effort="high"] .think-label::after', "高"],
+      ['#composer #thinkToggle.active[data-mobile-effort="xhigh"] .think-label::after', "更高"],
+      ['#composer #thinkToggle.active[data-mobile-effort="max"] .think-label::after', "最高"],
     ];
     var css = "";
     for (var i = 0; i < rules.length; i++) {

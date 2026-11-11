@@ -532,10 +532,18 @@ async function handleModelsList(request, env) {
   if (!res.ok) return fail(`Upstream ${res.error}`);
   const seen = new Set();
   const models = res.models
-    .map((m) => String(m.id || "").trim())
-    .filter((id) => id && !seen.has(id) && seen.add(id))
-    .sort()
-    .map((id) => ({ id, label: id.includes("/") ? id.split("/").pop() : id }));
+    .filter((m) => {
+      const id = String((m && m.id) || "").trim();
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    })
+    .sort((a, b) => (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0))
+    // recommended 透传给前端:首次拉取时只有这些默认勾上(data.js 的 NIM_RECOMMEND_PATTERNS)
+    .map((m) => {
+      const id = String(m.id).trim();
+      return { id, label: id.includes("/") ? id.split("/").pop() : id, recommended: !!m.recommended };
+    });
   if (!models.length) return fail("Upstream returned no usable model");
   return resp(
     JSON.stringify({ ok: true, mode, provider: provider.id || provider.label, source: provider.label, sourceTitle: provider.title || provider.label, count: models.length, models, builtin }),
@@ -557,6 +565,7 @@ function handleProvidersList(request, env) {
     keyEnv: p.keyEnv,
     configured: !!(env && env[p.keyEnv]),
     supportsThinking: !!p.supportsThinking,
+    thinkingStyle: p.thinkingStyle === "vllm" ? "vllm" : "deepseek",
     defaultModel: p.defaultModel || "",
   }));
   return resp(
@@ -973,6 +982,8 @@ async function handleChat(request, env) {
     if (provider.thinkingStyle === "vllm") {
       // 免费档只在「开启思考」时附加该参数 —— 关闭态保持与旧版一字不差的请求体,
       // 否则不认 chat_template_kwargs 的上游会给每次普通对话都多来一轮 400 降级重试。
+      // 2026-11-11: 前端按模型档位表决定是否带 reasoning_effort —— 只有真有档位的模型才带，
+      // 开/关型模型保持纯布尔，避免不认档位的模板 400。
       return enabled ? { chat_template_kwargs: { thinking: true, ...effort } } : {};
     }
     return { thinking: { type: thinking }, ...effort }; // DeepSeek 官方:关闭态也要显式下发 disabled

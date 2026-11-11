@@ -70,17 +70,49 @@ export const CTX_HINTS = [
 // worker 侧不用「精确白名单」拦截(模型迭代太快),改为「厂商前缀 + 格式」校验,
 // 新版本号无需改代码即可用,同时挡住乱填的野端点。
 
-// 免费源(NVIDIA NIM)允许的厂商前缀。NIM 上百来个模型,只放行真会用的这几家,
-// 免得候选池抽屉糊一屏用不上的。要加新厂商就往这里补一行。
-export const NIM_VENDOR_PREFIXES = [
-  "deepseek-ai/",
-  "z-ai/",
-  "openai/",
-  "moonshotai/",
-  "nvidia/",
-  "minimaxai/",
-  "qwen/",
+// 免费源(NVIDIA NIM)的模型口径 —— 2026-11-11 重构(用户拍板)
+// ──────────────────────────────────────────────────────────────────────
+// 旧口径:厂商**前缀白名单**只放行 7 家。问题在两个方向同时爆:
+//   ① 上游一上"没预见过"的厂商(gemma-4 / mistral-large-4 / step-5 / laguna / muse-glimmer …)
+//      整家被挡,目录里明明有、下拉里永远没有 —— 而白名单里 `qwen/` 早已是 0 个模型的死条目。
+//   ② 上游目录是**公开的**(`/v1/models` 不带 key 也回 200),清单本来就混着向量/审核/解析模型。
+// 新口径:全厂商放行 + **非对话能力黑名单**。挡的是"不能聊天"的能力,不是"没见过的厂商"。
+// 这样上游上新厂商/新版本一律自动出现,而 embed/guard/parse 这类永远不进下拉。
+//
+// 维护纪律:只往下面加"能力证据"(名字里带 embed/rerank/guard… 这类词),
+// 不要加"我不喜欢这家"的偏好 —— 偏好交给默认勾选(NIM_RECOMMEND_PATTERNS)。
+export const NIM_NON_CHAT_PATTERNS = [
+  /embed/i,               // embed-qa / nv-embedqa / nemoretriever / *-embed-*
+  /rerank/i,
+  /reward/i,              // nemotron-4-340b-reward
+  /guard/i,               // llama-guard / nemoguard / safety-guard
+  /safety/i,              // *-content-safety
+  /topic-control/i,
+  /nemoretriever/i,
+  /nvclip/i,              // 视觉编码器
+  /neva-/i,               // 视觉编码器
+  /\/vila$/i,             // 视觉语言模型(不做纯文本对话)
+  /kosmos|fuyu|deplot/i,  // 多模态理解/图表解析
+  /video-detector/i,
+  /ising-calibration/i,
+  /nemotron-parse/i,      // 版面解析
+  /riva-translate/i,      // 语音栈的翻译专用模型
+  /starcoder/i,           // 代码续写基座(非 instruct):对话格式不保证,不进候选池避免误导
+  /^meta\/llama2-70b$/i,  // 基座(无 -chat/-instruct 后缀),同上
+  /^meta\/codellama-70b$/i,
 ];
+
+// 默认勾选的"稳"家族 —— 用户 2026-11-11 定:只留 DeepSeek 与 Nemotron。
+// 判据是"不会像 qwen 那样整家消失":这两家的 id 已经长期稳定,拿它们当开箱默认,
+// 下拉短而准;想要 GLM / Kimi / Gemma 的,自己勾一次即可,后续刷新不会把你的勾选取消。
+export const NIM_RECOMMEND_PATTERNS = [
+  /^deepseek-ai\//i,
+  /nemotron/i,
+];
+
+// 兼容旧引用:白名单已退役,但公开版/旧分支可能还 import 这个名字。
+// 保留为空数组而不是直接删 —— 空数组 = 不限制厂商,行为与新口径一致。
+export const NIM_VENDOR_PREFIXES = [];
 
 // 2026-10-05: persona 机制退役。原先它按模型 id 前缀决定「不选底座时用哪一套」(glm → 2 等),
 // 现在底座选择只有一条规则:payload.baseId(白名单) > 默认档(排序第一份)。详见 AGENTS.md。

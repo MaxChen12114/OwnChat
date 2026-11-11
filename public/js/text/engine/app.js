@@ -12,6 +12,9 @@
   const sendBtn = document.getElementById("sendBtn");
   // 2026-06-08 修复:发送键本是 index.html 的小飞机 SVG,但下方 __resetSending 旧代码用 textContent="Send" 复位会把 SVG 抹成英文字。启动时捕获原始图标 HTML,复位时还原 SVG。
   const SEND_BTN_ICON_HTML = sendBtn ? sendBtn.innerHTML : "";
+  // 2026-11-11: Agent 运行中、输入框为空时，发送键的图标换成「停止」（线性方块），
+  // 底色/描边沿用当前主题的发送键，不另起一套颜色。
+  const STOP_BTN_ICON_HTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>';
   const settingsMask = document.getElementById("settingsMask");
   const customPromptEl = document.getElementById("customPrompt");
   const savePromptBtn = document.getElementById("savePrompt");
@@ -519,11 +522,40 @@
       persistSessionIfEnabled();
     }
   };
+  // 2026-11-11: Agent 运行态下输入键的形态：
+  //   运行中 + 空输入 = 停止键（点击=中断本轮）
+  //   运行中 + 有字   = 发送键（点击=插话，不打断上下文）
+  //   非运行          = 普通发送键
+  // 标题只保留最朴素的「停止 / 发送」，不写状态解释。
+  function updateSendBtnState() {
+    if (!sendBtn) return;
+    const running = !!(isSending && _agentSteerQueue);
+    const hasText = !!(inputEl.value || "").trim();
+    const stopMode = running && !hasText;
+    if (stopMode) {
+      if (!sendBtn.classList.contains("is-stop")) {
+        sendBtn.classList.add("is-stop");
+        sendBtn.innerHTML = STOP_BTN_ICON_HTML;
+      }
+      sendBtn.title = "停止";
+      sendBtn.setAttribute("aria-label", "停止");
+    } else {
+      if (sendBtn.classList.contains("is-stop")) {
+        sendBtn.classList.remove("is-stop");
+        if (SEND_BTN_ICON_HTML) sendBtn.innerHTML = SEND_BTN_ICON_HTML; else sendBtn.textContent = "发送";
+      }
+      sendBtn.title = "发送";
+      sendBtn.setAttribute("aria-label", "发送");
+    }
+  }
+  window.__updateSendBtnState = updateSendBtnState; // 调试/桩测入口
   window.__resetSending = function () {
     isSending = false;
     sendBtn.disabled = false;
     // 还原小飞机图标(原 textContent="Send" 会把 SVG 抹成英文字"Send")
-    if (SEND_BTN_ICON_HTML) sendBtn.innerHTML = SEND_BTN_ICON_HTML; else sendBtn.textContent = "Send";
+    sendBtn.classList.remove("is-stop");
+    if (SEND_BTN_ICON_HTML) sendBtn.innerHTML = SEND_BTN_ICON_HTML; else sendBtn.textContent = "发送";
+    updateSendBtnState();
   };
   window.__sessionDeleteAt = function (start, count) {
     if (start >= 0 && start < session.length) {
@@ -545,7 +577,7 @@
   // 2026-11-10: pc_shot 把截图交给模型（仅视觉模型；内核 beforeStep 在下一轮请求前注入）。
   window.__agentPushImage = function (dataUrl, meta) {
     if (!_agentImageQueue || !dataUrl) return false;
-    if (_agentImageQueue.length >= 8) _agentImageQueue.shift(); // 同轮最多带 8 张，防上下文爆
+    if (_agentImageQueue.length >= 6) _agentImageQueue.shift(); // 同轮最多带 6 张，超出丢最旧（视觉上下文护栏）
     _agentImageQueue.push({ dataUrl: String(dataUrl), meta: meta || {} });
     return true;
   };
@@ -837,38 +869,112 @@
     return out.join("\n\n──────\n\n");
   }
   const thinkToggle = document.getElementById("thinkToggle");
-  // 2026-09-12: 思考按钮改临时下拉式——可选「关闭」或「开启 + 强度(低/中/高)」，强度即 reasoning_effort。
+  // 2026-09-12: 思考按钮改临时下拉式——可选「关闭」或「开启 + 强度」，强度即 reasoning_effort。
+  // 2026-11-11: 档位表独立在 /shared/model-think.js —— 模型能力会常更新，改表不动 UI。
   const LS_THINK_LEVEL = "cfw_think_level_v1";
-  const THINK_LEVELS = [
+  const _MT = (typeof window !== "undefined" && window.__modelThink) || null;
+  const THINK_LEVELS = (_MT && Array.isArray(_MT.levels)) ? _MT.levels : [
+    { v: "minimal", label: "极低" },
     { v: "low", label: "低" },
     { v: "medium", label: "中" },
     { v: "high", label: "高" },
+    { v: "xhigh", label: "更高" },
+    { v: "max", label: "最高" },
   ];
+  const THINK_LEVEL_VALUES = (_MT && Array.isArray(_MT.values)) ? _MT.values : THINK_LEVELS.map((l) => l.v);
   function getThinkLevel() {
     const v = localStorage.getItem(LS_THINK_LEVEL);
-    return THINK_LEVELS.some((l) => l.v === v) ? v : "medium";
+    return THINK_LEVEL_VALUES.includes(v) ? v : "medium";
   }
   function thinkLevelLabel(v) {
+    if (_MT && typeof _MT.label === "function") return _MT.label(v);
     const l = THINK_LEVELS.find((x) => x.v === v);
     return l ? l.label : "中";
   }
+  // 模型 → 支持档位（表在 /shared/model-think.js）。文件没加载时保守回退。
+  function thinkLevelsFor(model, style) {
+    if (_MT && typeof _MT.levelsFor === "function") return _MT.levelsFor(model, style);
+    return style === "vllm" ? ["disabled", "enabled"] : ["disabled", "low", "medium", "high", "max"];
+  }
+  // 把「模型档位表」编译成 UI 能力：offAllowed=能不能关；mustOn=模型不支持关闭。
+  function buildThinkCap(supports, style, model) {
+    if (!supports || style === "none") return { available: false, style: "none", levels: [], offAllowed: false, mustOn: false, model: model || "" };
+    const values = thinkLevelsFor(model, style);
+    const offAllowed = values.includes("disabled") || values.includes("none");
+    const ons = values.filter((v) => v !== "disabled" && v !== "none");
+    if (!ons.length) return { available: false, style: "none", levels: [], offAllowed: false, mustOn: false, model: model || "" };
+    if (ons.length === 1 && ons[0] === "enabled") {
+      return { available: true, style: style, levels: [], offAllowed: offAllowed, mustOn: !offAllowed, model: model || "" };
+    }
+    return {
+      available: true, style: style,
+      levels: ons.map((v) => ({ v: v, label: thinkLevelLabel(v) })),
+      offAllowed: offAllowed, mustOn: !offAllowed, model: model || "",
+    };
+  }
+  function resolveThinkLevel(cap) {
+    if (!cap || !cap.levels || !cap.levels.length) return "";
+    const stored = getThinkLevel();
+    if (cap.levels.some((l) => l.v === stored)) return stored;
+    // 对齐 ZCode：当前档位不被该模型支持时，取它支持的最高档（values.at(-1)）。
+    return cap.levels[cap.levels.length - 1].v;
+  }
+  // 2026-11-11: 思考能力跟随「当前活跃渠道 + 模型」——
+  //   none     不支持思考（按钮禁用，请求强制 disabled）
+  //   vllm     NVIDIA NIM / 自定义 vLLM 方言（开/关；有档位的模型仍可带 reasoning_effort）
+  //   deepseek DeepSeek 官方 / 自定义 DeepSeek 方言
+  function getActiveThinkCaps() {
+    try {
+      const byo = window.__byoProvider && window.__byoProvider.get && window.__byoProvider.get();
+      if (byo) return buildThinkCap(byo.supportsThinking, byo.thinkingStyle === "vllm" ? "vllm" : "deepseek", byo.model);
+      const P = window.__providers;
+      if (P && P.read) {
+        const key = P.effectiveKey ? P.effectiveKey(currentMode) : null;
+        const k = key && P.parseKey ? P.parseKey(key) : null;
+        if (k && k.kind === "preset") {
+          const m = P.presetMeta ? (P.presetMeta(k.id) || {}) : {};
+          const style = (m.thinkingStyle === "vllm" || k.id === "nvidia") ? "vllm" : "deepseek";
+          return buildThinkCap(m.supportsThinking !== false, style, modelSel && modelSel.value);
+        }
+      }
+    } catch (e) {}
+    return buildThinkCap(true, "deepseek", modelSel && modelSel.value);
+  }
+  // 请求体里的思考参数：模型不支持时强制关；有档位才带 reasoning_effort。
+  function thinkRequestPayload() {
+    const cap = getActiveThinkCaps();
+    const on = cap.available && (cap.mustOn || thinkingOn);
+    if (!on) return { thinking: "disabled" };
+    const out = { thinking: "enabled" };
+    if (cap.levels.length) out.reasoning_effort = resolveThinkLevel(cap);
+    return out;
+  }
   function updateThinkToggleUI() {
     if (!thinkToggle) return;
-    const _txt = thinkingOn ? "思考:" + thinkLevelLabel(getThinkLevel()) : "思考关";
+    const cap = getActiveThinkCaps();
+    const on = !!(cap.available && (cap.mustOn || thinkingOn));
+    const level = resolveThinkLevel(cap);
+    const _txt = !cap.available
+      ? "思考不可用"
+      : (on ? (cap.levels.length ? "思考:" + thinkLevelLabel(level) : "思考开") : "思考关");
     const _lbl = thinkToggle.querySelector(".think-label");
     if (_lbl) _lbl.textContent = _txt;
     else thinkToggle.textContent = _txt;
-    thinkToggle.setAttribute("aria-pressed", thinkingOn ? "true" : "false");
-    thinkToggle.classList.toggle("active", thinkingOn);
+    thinkToggle.setAttribute("aria-pressed", on ? "true" : "false");
+    thinkToggle.classList.toggle("active", on);
+    // 2026-11-11: 模型不支持思考时按钮直接禁用（不再给一堆无效档位）。
     // 4.82: 免费档也可开启思考 —— 参数由 worker 按 provider 方言下发
     // (DeepSeek 官方 thinking:{type};NVIDIA NIM/vLLM 走 chat_template_kwargs)。
-    // 免费档选到原生推理模型时模型本就输出推理内容,该开关此时决定是否显式请求思考/思考强度。
-    const isFast = currentMode === "fast";
-    thinkToggle.disabled = false;
-    thinkToggle.style.opacity = "1";
-    thinkToggle.title = thinkingOn
-      ? "思考模式：开启（强度：" + thinkLevelLabel(getThinkLevel()) + "）。更准，但更慢、费用较高、输出含思考过程；点击可改开关/强度"
-      : ("思考模式：关闭（快、便宜）。点击选择开关与强度" + (isFast ? "" : "。免费档是否生效取决于所选模型是否支持推理"));
+    thinkToggle.disabled = !cap.available;
+    thinkToggle.style.opacity = cap.available ? "1" : ".45";
+    const _tail = cap.mustOn
+      ? (cap.levels.length ? "；该模型固定开启思考，点击可改强度" : "；该模型固定开启思考")
+      : ("；点击可改开关" + (cap.levels.length ? "/强度" : ""));
+    thinkToggle.title = !cap.available
+      ? "所选模型不支持思考（可在 设置 → 模型 API 的渠道里改「思考形态」）"
+      : (on
+        ? "思考模式：开启" + (cap.levels.length ? "（强度：" + thinkLevelLabel(level) + "）" : "") + "。更准，但更慢、费用较高、输出含思考过程" + _tail
+        : "思考模式：关闭（快、便宜）。点击选择开关" + (cap.levels.length ? "与强度" : ""));
   }
   let _thinkMenu = null;
   function closeThinkMenu() {
@@ -884,6 +990,8 @@
   function openThinkMenu() {
     closeThinkMenu();
     if (!thinkToggle) return;
+    const cap = getActiveThinkCaps();
+    if (!cap.available) return; // 模型不支持思考：按钮已禁用，不再弹无效档位
     const menu = document.createElement("div");
     menu.id = "thinkLevelMenu";
     menu.style.cssText = "position:fixed;z-index:9999;min-width:140px;border-radius:10px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,.35);";
@@ -891,17 +999,28 @@
     menu.style.background = isLight ? "#ffffff" : "#1c1c22";
     menu.style.border = "1px solid " + (isLight ? "#ddd" : "#3a3a44");
     menu.style.color = isLight ? "#222" : "#eee";
-    const opts = [{ v: "__off__", label: "关闭" }].concat(THINK_LEVELS.map((l) => ({ v: l.v, label: "开启（" + l.label + "）" })));
+    const opts = [];
+    if (cap.offAllowed) opts.push({ v: "__off__", label: "关闭" });
+    if (cap.levels.length) opts.push(...cap.levels.map((l) => ({ v: l.v, label: "开启（" + l.label + "）" })));
+    else opts.push({ v: "__on__", label: "开启" });
+    const curLevel = resolveThinkLevel(cap);
     opts.forEach((o) => {
       const it = document.createElement("div");
-      const active = (o.v === "__off__" && !thinkingOn) || (o.v !== "__off__" && thinkingOn && getThinkLevel() === o.v);
+      const onNow = !!(thinkingOn || cap.mustOn);
+      const active = (o.v === "__off__" && !onNow)
+        || (o.v === "__on__" && onNow && !cap.levels.length)
+        || (o.v !== "__off__" && o.v !== "__on__" && onNow && curLevel === o.v);
       it.style.cssText = "padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;white-space:nowrap;" + (active ? ("background:" + (isLight ? "#eaeaea" : "#33333d") + ";font-weight:600;") : "");
       it.textContent = o.label;
       it.addEventListener("mouseenter", () => { it.style.background = isLight ? "#f0f0f0" : "#2a2a32"; });
       it.addEventListener("mouseleave", () => { it.style.background = active ? (isLight ? "#eaeaea" : "#33333d") : "transparent"; });
       it.addEventListener("click", (e) => {
         e.stopPropagation();
-        if (o.v === "__off__") { thinkingOn = false; localStorage.setItem(LS_THINKING, "0"); }
+        if (o.v === "__off__") {
+          if (!cap.offAllowed) return;
+          thinkingOn = false; localStorage.setItem(LS_THINKING, "0");
+        }
+        else if (o.v === "__on__") { thinkingOn = true; localStorage.setItem(LS_THINKING, "1"); }
         else { thinkingOn = true; localStorage.setItem(LS_THINKING, "1"); localStorage.setItem(LS_THINK_LEVEL, o.v); }
         updateThinkToggleUI();
         closeThinkMenu();
@@ -1976,6 +2095,10 @@
       if (mode === "auto" && isFile) return true;
       const isPc = String(name || "").indexOf("pc_") === 0;
       if (isPc && pcApproved) return true;
+      // 2026-11-11: 免确认开关（设置 → 远程电脑）。plan 模式除外——计划模式本意就是只读。
+      if (isPc && mode !== "plan") {
+        try { if (localStorage.getItem("cfw_pc_skip_confirm_v1") === "1") return true; } catch (e) {}
+      }
       if (typeof askBase === "function") {
         try {
           const ok = await askBase(name, args);
@@ -2423,11 +2546,31 @@
       setTimeout(function () { autoFetchModelsForMode(currentMode); }, 0);
       return;
     }
-    for (const m of MODELS) {
+    // 2026-11-11(C): 免费档放宽到 50 个模型后，平铺的下拉没法看 —— 按厂商分组(<optgroup>)。
+    // 没有厂商前缀的（DeepSeek 官方的 deepseek-flash 之类）不套组，直接平铺，保持原样。
+    const mkOpt = (m) => {
       const opt = document.createElement("option");
       opt.value = m.id;
       opt.textContent = m.label || m.id;
-      modelSel.appendChild(opt);
+      return opt;
+    };
+    const vendorOf = (id) => (String(id).indexOf("/") >= 0 ? String(id).split("/")[0] : "");
+    const groups = new Map();
+    for (const m of MODELS) {
+      const v = vendorOf(m.id);
+      if (!groups.has(v)) groups.set(v, []);
+      groups.get(v).push(m);
+    }
+    if (groups.size <= 1) {
+      for (const m of MODELS) modelSel.appendChild(mkOpt(m));
+    } else {
+      for (const [v, list] of groups) {
+        if (!v) { for (const m of list) modelSel.appendChild(mkOpt(m)); continue; }
+        const og = document.createElement("optgroup");
+        og.label = v;
+        for (const m of list) og.appendChild(mkOpt(m));
+        modelSel.appendChild(og);
+      }
     }
     const saved = localStorage.getItem(LS_MODEL);
     // 只在当前模式模型列表中才恢复已保存的值；占位符永不恢复
@@ -2449,6 +2592,8 @@
         }
       }
     } catch (e) {}
+    // 2026-11-11: 换模型可能换掉思考能力（不支持 / 只有开 / 只有三档）。
+    updateThinkToggleUI();
   });
 
   // 2026-10-13 (E1c): 渠道切换 / 每模型开关变化（设置卡或其它标签页）→ 顶栏模式与模型下拉跟随。
@@ -2460,6 +2605,7 @@
         if (want && want !== currentMode) { applyMode(want); return; }
         paintModeToggle();
         initModels();
+        updateThinkToggleUI();
       } catch (e) {}
     });
   } catch (e) {}
@@ -2571,6 +2717,7 @@
       _inputRaf = 0;
       inputEl.style.height = "auto";
       inputEl.style.height = inputEl.scrollHeight + "px";
+      updateSendBtnState(); // 运行中：有字→发送键（插话），没字→停止键
       const stick = isNearBottom();
       updateSpacer();
       if (stick) scrollToBottom();
@@ -2688,12 +2835,10 @@
 
     isSending = true;
     // 2026-11-10: agent 运行中不禁用发送键 —— 允许「插话」注入当前轮（见 steerAgent）。
+    // 2026-11-11: 空输入时这个键整体变成停止键（方形图标 + 危险色）。
     sendBtn.disabled = false;
-    sendBtn.title = "Agent 运行中：发送消息可插话纠正（不打断上下文）";
     _agentSteerQueue = [];
-    // 运行中提示可以插话（ZCode 同款心智）；结束/异常时还原
-    const _prevPlaceholder = inputEl.placeholder;
-    try { inputEl.placeholder = "Agent 运行中：可插话纠正；输入「停」可中止"; } catch (e) {}
+    updateSendBtnState();
 
     const myGen = ++sendGen;
     const controller = new AbortController();
@@ -2716,6 +2861,7 @@
     if (!isAuto) {
       inputEl.value = "";
       inputEl.style.height = "auto";
+      updateSendBtnState();
     }
     updateSpacer();
     scrollToBottom();
@@ -2730,6 +2876,9 @@
     const affection = ch && ch.getActiveAffection ? ch.getActiveAffection() : null;
     let customPrompt = "";
     if (!useBuiltin && promptEnabled) customPrompt = localStorage.getItem(LS_CUSTOM_PROMPT) || "";
+    // 2026-11-11: Agent 个性化（设置 → 个性化）。只作用于 Agent 路径，不受内置/自定义与角色卡影响。
+    let agentPersonalize = "";
+    try { agentPersonalize = (localStorage.getItem("cfw_agent_personalize_v1") || "").trim(); } catch (e) {}
     const snapshotMode  = currentMode;
     const customProviderSnapshot = (window.__byoProvider && window.__byoProvider.get && window.__byoProvider.get()) || undefined;
     const snapshotModel = customProviderSnapshot ? customProviderSnapshot.model : modelSel.value;
@@ -2738,10 +2887,9 @@
     if (!ensureUsableModelBeforeSend(snapshotMode, snapshotModel, customProviderSnapshot)) {
       isSending = false;
       sendBtn.disabled = false;
-      sendBtn.title = "发送";
       _agentSteerQueue = null;
       _agentImageQueue = null;
-      try { inputEl.placeholder = _prevPlaceholder; } catch (e) {}
+      updateSendBtnState();
       currentController = null;
       return null;
     }
@@ -2853,6 +3001,7 @@
       // 接上等于给 agent 任意文件读取。
       if (window.AgentLocalTools && typeof window.AgentLocalTools.defineTools === "function") {
         try { window.AgentLocalTools.defineTools(registry); } catch (e) { console.warn('[AgentLocalTools] defineTools 失败:', e); }
+      }
       // 2026-11-06: 源码/产物检索（可选开发工具；未启用时 defineTools 直接返回，零占用）
       if (window.__sourceTools && typeof window.__sourceTools.defineTools === "function") {
         try { window.__sourceTools.defineTools(registry); } catch (e) { console.warn('[SourceTools] defineTools 失败:', e); }
@@ -2860,7 +3009,6 @@
       // 2026-11-08: I/O 落盘读回（dev.js §落盘；开发者模式未开时 defineTools 直接返回）
       if (window.__ioTools && typeof window.__ioTools.defineTools === "function") {
         try { window.__ioTools.defineTools(registry); } catch (e) { console.warn('[IoTools] defineTools 失败:', e); }
-      }
       }
       // 2026-11-09 内容画布（面板 T3）：stage_open / stage_close / stage_view。
       // 画布未起（手机端 / panel-host 未加载）时 defineTools 直接返回，零占用。
@@ -3015,7 +3163,16 @@
                 window.__feedback.toast("上游" + _why + "，正在重试 " + (attempt + 1) + "/" + AGENT_RETRY_MAX + "…", 2600);
               }
             } catch (_nt) {}
-            await new Promise(function (r) { setTimeout(r, _delay); });
+            // 2026-11-11: 退避等待也响应停止键（旧版最长 10 秒内点停止无反应）。
+            await new Promise(function (r) {
+              var t = setTimeout(done, _delay);
+              function done() {
+                try { clearTimeout(t); } catch (_e) {}
+                try { controller.signal.removeEventListener("abort", done); } catch (_e) {}
+                r();
+              }
+              try { controller.signal.addEventListener("abort", done, { once: true }); } catch (_e) {}
+            });
             if (controller.signal.aborted) throw e;
           } finally {
             _disarmIdle();
@@ -3048,10 +3205,10 @@
             emotion: "neutral",
             affection: null,
             priorSummary: "",
-            extraSystemPrompts: getExtraSystemPrompts(snapshotMode, characterCard) + (_kbInj ? "\n\n" + _kbInj : "") + (_envSnap ? "\n\n" + _envSnap : "") + AGENT_TOOL_USE_DIRECTIVE + (getAgentWorkMode() === "plan" ? AGENT_PLAN_DIRECTIVE : "") + (window.__skills && window.__skills.buildCatalogPrompt ? window.__skills.buildCatalogPrompt((charCap(characterCard) || {}).skillNames) : "") + ambientDirectorPrompt(),
+            extraSystemPrompts: getExtraSystemPrompts(snapshotMode, characterCard) + (_kbInj ? "\n\n" + _kbInj : "") + (_envSnap ? "\n\n" + _envSnap : "") + AGENT_TOOL_USE_DIRECTIVE + (getAgentWorkMode() === "plan" ? AGENT_PLAN_DIRECTIVE : "") + (window.__skills && window.__skills.buildCatalogPrompt ? window.__skills.buildCatalogPrompt((charCap(characterCard) || {}).skillNames) : "") + ambientDirectorPrompt() + (agentPersonalize ? "\n\n【用户个性化指令】\n" + agentPersonalize : ""),
             // 4.82: 思考不再绑定快速档 —— 免费档也下发(worker 按 provider 方言装配参数)
-            thinking: thinkingOn ? "enabled" : "disabled",
-            reasoning_effort: thinkingOn ? getThinkLevel() : undefined,
+            // 2026-11-11: 能力跟随当前渠道/模型 —— 不支持时强制 disabled，vllm 形态不带 reasoning_effort。
+            ...thinkRequestPayload(),
             ...genParamPayload(), // 4.83: 用户在设置里填了 temperature/max_tokens 才带上(留空=不干预)
             replyStyle: localStorage.getItem("cfw_reply_style_v1") || "default",
             customProvider: customProviderSnapshot, // 4.69 BYO 自定义 API 直传
@@ -3427,11 +3584,10 @@
       if (myGen === sendGen) {
         isSending = false;
         sendBtn.disabled = false;
-        sendBtn.title = "发送";
         _agentSteerQueue = null;
         _agentImageQueue = null;
         try { window.__agentVisionOn = false; } catch (e) {}
-        try { inputEl.placeholder = _prevPlaceholder; } catch (e) {}
+        updateSendBtnState();
         if (currentController === controller) currentController = null;
       }
       setStreamingUI(aiRow.rowEl, false);
@@ -3704,8 +3860,8 @@
           priorSummary: historyEnabled ? priorSummary : "",
           extraSystemPrompts: getExtraSystemPrompts(snapshotMode, characterCard) + (_kbInj ? "\n\n" + _kbInj : "") + ((window.__chatImageText && window.__chatImageText.getInjection) ? window.__chatImageText.getInjection() : "") + groupChatInjection(characterCard) + ambientDirectorPrompt(), // 2026-10-06: 技能不再走这里——只有 agent 模式挂「技能目录」，正文由 load_skill 按需取;
           // 4.82: 思考不再绑定快速档 —— 免费档也下发(worker 按 provider 方言装配参数)
-          thinking: thinkingOn ? "enabled" : "disabled",
-            reasoning_effort: thinkingOn ? getThinkLevel() : undefined,
+          // 2026-11-11: 能力跟随当前渠道/模型 —— 不支持时强制 disabled，vllm 形态不带 reasoning_effort。
+          ...thinkRequestPayload(),
           ...genParamPayload(), // 4.83: 用户在设置里填了 temperature/max_tokens 才带上(留空=不干预)
           fishbowlMode: opts0.fishbowlMode || null,
           topic: opts0.topic || "",
@@ -4782,10 +4938,12 @@
     applyUserFold(row.bubble);
     inputEl.value = "";
     inputEl.style.height = "auto";
+    updateSendBtnState();
     updateSpacer();
     scrollToBottom();
 
     if (isStop) {
+      try { if (window.__agentConsole && window.__agentConsole.note) window.__agentConsole.note("用户要求停止：" + text); } catch (e) {}
       const gen = sendGen;
       try { if (window.__stopCurrent) window.__stopCurrent(); } catch (e) {}
       const pushStop = () => {
@@ -4817,6 +4975,7 @@
     const m = { role: "user", content: text };
     _steerMsgs.add(m);            // 已入 session，写回时跳过
     _agentSteerQueue.push(m);     // 内核下一轮请求前 append 进 messages
+    try { if (window.__agentConsole && window.__agentConsole.note) window.__agentConsole.note("用户插话：" + text); } catch (e) {}
     try { if (window.__agentConsole && window.__agentConsole.cancelPending) window.__agentConsole.cancelPending("用户插话"); } catch (e) {}
     return null;
   }

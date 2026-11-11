@@ -10,7 +10,7 @@
 //   · 请求经 resolveProvider() 统一解析: BYO 自带 > payload.providerId 预设 > mode 别名(向后兼容)
 //   · 空选/占位符 → 渠道 defaultModel 兜底(新行为;旧版直接报"还没选模型",新装可开箱即用)
 //   · mode 字段保留为"预设指针的兼容别名"——旧客户端/历史本地存储无需改动
-import { NIM_VENDOR_PREFIXES, isPlaceholderModelId } from "./data.js";
+import { NIM_NON_CHAT_PATTERNS, NIM_RECOMMEND_PATTERNS, isPlaceholderModelId } from "./data.js";
 
 // ────────────────────────────
 // 端点常量 + 预设渠道注册表（数据形态）
@@ -51,7 +51,13 @@ export const PRESET_PROVIDERS = {
     thinkingStyle: "vllm",
     needsReasoningHistory: false,
     retryOnBusy: false,
-    modelPrefixes: NIM_VENDOR_PREFIXES, // 厂商前缀白名单(NIM 上百模型,过宽=候选池糊屏)
+    // 2026-11-11 口径重构:不再按厂商前缀白名单放行(那会把上游新厂商整家挡在门外,
+    // 也漏不掉目录里混着的向量/审核模型)。改为「全厂商放行 + 非对话能力黑名单」——
+    // 黑名单表在 ./data.js 的 NIM_NON_CHAT_PATTERNS,按模型名里的能力词判定。
+    allowAnyModel: true,
+    modelDeny: NIM_NON_CHAT_PATTERNS,
+    // 默认勾选家族(下表) —— 前端首次拉取时只勾这些,其余留着手动勾
+    recommendedPatterns: NIM_RECOMMEND_PATTERNS,
     defaultModel: "deepseek-ai/deepseek-v4.1-flash", // 本账户 2026-10-13 实测稳定可用
     // 2026-10-13 (E1d 实测钉死): NIM 免费档冷启动首字节可达 38s(直连实测),流式路径的
     // 20s 默认预算会把自己掐成 502 "Upstream error 504"。免费档给 90s 首字节预算
@@ -93,15 +99,20 @@ export function resolveProvider(payload) {
 // 模型 id 网关（按渠道判定）
 // ────────────────────────────
 // 不用精确白名单 —— 模型迭代太快,写死列表等于每次出新版都要改代码重部署。
+// 2026-11-11: 增加 modelDeny(能力黑名单) 与 allowAnyModel(全放行) 两种口径,
+// 供免费档把"厂商白名单"换成"非对话能力黑名单"——新厂商自动进,向量/审核模型照样挡。
 export function isAllowedModelIdFor(provider, isCustom, id) {
   const s = String(id || "").trim();
   if (!s || s.length > 120 || /[\s"'`<>]/.test(s)) return false;
   if (isPlaceholderModelId(s)) return false; // 占位符永远不是合法模型
   if (isCustom) return true; // 自定义端点:格式合法即放行(端点在用户手里)
+  // 能力黑名单优先于一切放行规则(命中的是 embed/guard/parse 这类不能聊天的模型)
+  if (provider && Array.isArray(provider.modelDeny) && provider.modelDeny.some((re) => re.test(s))) return false;
   if (provider && provider.modelRegex) return provider.modelRegex.test(s);
-  if (provider && Array.isArray(provider.modelPrefixes)) {
+  if (provider && Array.isArray(provider.modelPrefixes) && provider.modelPrefixes.length) {
     return provider.modelPrefixes.some((p) => s.toLowerCase().startsWith(p));
   }
+  if (provider && provider.allowAnyModel) return true;
   return false;
 }
 
@@ -160,14 +171,18 @@ export function normalizeByoProvider(payload) {
   const ep = typeof c.endpoint === "string" ? c.endpoint.trim() : "";
   const mdl = typeof c.model === "string" ? c.model.trim() : "";
   if (!ep || !mdl) return null; // endpoint + model 必填,缺一则回落内置 provider
+  // 2026-11-11: 思考形态跟自定义渠道一起下发 —— none / vllm（只有开/关）/ deepseek（低中高三档）。
+  const _thinkStyle = c.supportsThinking === true
+    ? (c.thinkingStyle === "vllm" ? "vllm" : "deepseek")
+    : "none";
   return {
     label: "byo-custom",
     endpoint: ep,
     model: mdl,
     apiKey: typeof c.apiKey === "string" ? c.apiKey.trim() : "", // 本地 vLLM/ollama 可留空
     keyEnv: null,
-    supportsThinking: c.supportsThinking === true,
-    thinkingStyle: "deepseek", // 4.82: BYO 保持 DeepSeek 形态(原行为不变);接本地 vLLM 若需 chat_template_kwargs 再扩展
+    supportsThinking: _thinkStyle !== "none",
+    thinkingStyle: _thinkStyle,
     needsReasoningHistory: c.needsReasoningHistory === true,
     retryOnBusy: false,
   };
@@ -181,6 +196,7 @@ export function normalizeByoProvider(payload) {
 export async function fetchUpstreamModels(provider, apiKey, { timeoutMs = 20000, filter } = {}) {
   if (!apiKey) return { ok: false, error: "缺少 API Key" };
   const url = modelsEndpointFor(provider);
+  const recs = (provider && Array.isArray(provider.recommendedPatterns)) ? provider.recommendedPatterns : null;
   try {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), timeoutMs);
@@ -190,7 +206,13 @@ export async function fetchUpstreamModels(provider, apiKey, { timeoutMs = 20000,
     const j = await r.json().catch(() => null);
     const arr = (j && Array.isArray(j.data)) ? j.data : [];
     const models = arr
-      .map((m) => ({ id: m && m.id, label: (m && m.id) || "" }))
+      .map((m) => {
+        const id = m && m.id;
+        // recommended: 该渠道的"默认勾选家族"(免费档 = DeepSeek/Nemotron)。
+        // 规则留在服务端单点定义(data.js),前端只认这个布尔 —— 免得两边各抄一份漂移。
+        const recommended = !!(id && recs && recs.some((re) => re.test(String(id))));
+        return { id, label: (m && m.id) || "", recommended };
+      })
       .filter((m) => m.id && (typeof filter === "function" ? filter(m.id) : true));
     return { ok: true, models };
   } catch (e) {

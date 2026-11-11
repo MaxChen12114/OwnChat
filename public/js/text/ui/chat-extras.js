@@ -7,6 +7,13 @@
 
   function $(id) { return document.getElementById(id); }
   var esc = window.__ownEscape.esc;
+  // 2026-11-11 修复：aee803f（escape.js 收口）误删了下面两处定义，导致 handleFiles 里
+  // TEXT_EXT / maxChars 全部 ReferenceError —— 任何文本/代码附件都传不上去。原样恢复。
+  var TEXT_EXT = /\.(txt|text|md|markdown|mdx|rst|json|jsonc|json5|csv|tsv|log|ya?ml|toml|ini|conf|env|xml|html?|css|scss|less|js|mjs|cjs|jsx|ts|tsx|vue|svelte|py|rb|go|rs|java|kt|c|h|cpp|hpp|cc|cs|php|sh|bash|zsh|sql|graphql|gql|lua|dart|swift|r|pl)$/i;
+  // 4.83: 阈值唯一真源在 attachments.js(__attach.ATT_MAX_CHARS),运行时读取防两处漂移
+  function maxChars() {
+    try { return (window.__attach && window.__attach.ATT_MAX_CHARS) || 20000; } catch (e) { return 20000; }
+  }
   // 4.83: 截断可见反馈 —— 旧版只写 chip 的 title 悬浮提示,手机端无 hover 完全看不到
   function toast(msg) {
     try { if (window.__feedback && window.__feedback.toast) return window.__feedback.toast(msg, { ms: 4200 }); } catch (e) {}
@@ -215,38 +222,16 @@
   }
   function openConflictPanel() { ensureConflictModal(); cfMask.style.display = "flex"; renderConflicts(); }
   function closeConflictModal() { if (cfMask) cfMask.style.display = "none"; }
-  // 4.77: 其他设备的新对话/更新已合并进本地(无冲突) → 底部提示并提供「刷新查看」,
-  // 解决「手机端新建对话同步过来后桌面端不显示、没提示也没弹窗」。
-  var mergedToast = null;
-  function showMergedToast() {
-    if (mergedToast) return; // 已有提示则不重复弹
-    ensureStyles();
-    mergedToast = document.createElement("div");
-    mergedToast.id = "ceMergedToast";
-    mergedToast.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:10002;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:var(--bg,#14141c);color:inherit;border:1px solid var(--border,rgba(154,163,255,.45));box-shadow:0 10px 30px rgba(0,0,0,.4);font-size:13px;max-width:92vw;";
-    var txt = document.createElement("span");
-    txt.textContent = "已从其他设备同步到对话更新";
-    var refresh = document.createElement("button");
-    refresh.className = "ce-btn ce-btn-primary";
-    refresh.textContent = "刷新查看";
-    refresh.addEventListener("click", function () { location.reload(); });
-    var dismiss = document.createElement("button");
-    dismiss.className = "ce-btn";
-    dismiss.textContent = "稍后";
-    dismiss.addEventListener("click", function () { if (mergedToast && mergedToast.parentNode) mergedToast.parentNode.removeChild(mergedToast); mergedToast = null; });
-    mergedToast.appendChild(txt);
-    mergedToast.appendChild(refresh);
-    mergedToast.appendChild(dismiss);
-    document.body.appendChild(mergedToast);
-  }
+  // 2026-11-11 所有者要求：会话改为「只在手动点云端拉取时同步」，合并后不再自动弹
+  // 「已从其他设备同步到对话更新 / 刷新查看」提示条（原 4.77 的 showMergedToast 已移除）。
   function wireSyncConflicts() {
     var sync = window.__sync;
     if (!sync || sync.__ceConflictWired) return;
     if (sync.onStatus) {
       sync.__ceConflictWired = true;
       sync.onStatus(function (status) {
+        // 2026-11-11: chat-merged 不再弹提示条（会话改为手动拉取）。冲突仍需要用户裁决，保留面板。
         if (status === "chat-conflict") openConflictPanel();
-        else if (status === "chat-merged") showMergedToast();
       });
     }
     try { if (sync.getChatConflicts && sync.getChatConflicts().length) openConflictPanel(); } catch (e) {}

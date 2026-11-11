@@ -175,4 +175,53 @@ const NV = 'https://integrate.api.nvidia.com/v1/chat/completions'
   pass('上游 500 → 仍只回状态码（不回显原文）')
 }
 
+// ===== 10. 免费档模型口径（2026-11-11：全厂商放行 + 非对话黑名单 + 推荐标记）=====
+// 用一份"混着新厂商/向量/审核模型"的 NIM 目录，验证三件事都成立：
+//   ① 以前被厂商白名单挡住的 google/gemma-4-31b-it 现在能进清单；
+//   ② embed/guard/parse 这类不能聊天的仍然被挡；
+//   ③ recommended 标记透传（前端靠它决定默认勾选，只认这一份规则）。
+{
+  const orig = globalThis.fetch
+  globalThis.fetch = async (url, opts = {}) => {
+    const u = String(url)
+    if (u.endsWith('/models')) {
+      return new Response(JSON.stringify({ data: [
+        { id: 'deepseek-ai/deepseek-v4.1-flash' },
+        { id: 'nvidia/nemotron-3-super-120b-a12b' },
+        { id: 'google/gemma-4-31b-it' },            // 新厂商：旧白名单会整家挡掉
+        { id: 'stepfun-ai/step-5-preview' },        // 同上
+        { id: 'nvidia/nemotron-3-embed-1b' },       // 向量模型：必须挡
+        { id: 'meta/llama-guard-4-12b' },           // 审核模型：必须挡
+        { id: 'nvidia/nemotron-parse' },            // 版面解析：必须挡
+      ] }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    return new Response(JSON.stringify({
+      id: 'x', object: 'chat.completion',
+      choices: [{ index: 0, message: { role: 'assistant', content: 'ok' } }],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    }), { status: 200, headers: { 'content-type': 'application/json' } })
+  }
+  const r = await get('/api/models?provider=nvidia')
+  const d = JSON.parse(r.body)
+  globalThis.fetch = orig
+  const ids = d.models.map((m) => m.id)
+  assert.ok(ids.includes('google/gemma-4-31b-it'), '新厂商应放行: ' + ids.join(','))
+  assert.ok(ids.includes('stepfun-ai/step-5-preview'), '新厂商应放行: ' + ids.join(','))
+  assert.ok(!ids.includes('nvidia/nemotron-3-embed-1b'), '向量模型不该进清单')
+  assert.ok(!ids.includes('meta/llama-guard-4-12b'), '审核模型不该进清单')
+  assert.ok(!ids.includes('nvidia/nemotron-parse'), '解析模型不该进清单')
+  const by = Object.fromEntries(d.models.map((m) => [m.id, m.recommended]))
+  assert.equal(by['deepseek-ai/deepseek-v4.1-flash'], true, 'DeepSeek 应标推荐')
+  assert.equal(by['nvidia/nemotron-3-super-120b-a12b'], true, 'Nemotron 应标推荐')
+  assert.equal(by['google/gemma-4-31b-it'], false, 'Gemma 不默认勾选')
+  pass('/api/models?provider=nvidia → 全厂商放行 / 非对话仍挡 / recommended 透传')
+}
+{
+  // 新放行的模型必须能真正走到网关（旧版会被"不属于当前渠道"拦成 400）
+  const r = await chat({ mode: 'free', model: 'nvidia/nemotron-3-super-120b-a12b' })
+  assert.equal(r.status, 200, r.body.slice(0, 200))
+  assert.equal(r.last.url, NV); assert.equal(r.last.body.model, 'nvidia/nemotron-3-super-120b-a12b')
+  pass('放行后的新模型能过网关照常发往 NIM')
+}
+
 console.log(`\n路由矩阵全部通过：${passed} 组断言`)

@@ -280,14 +280,22 @@ export async function runAgentLoop(opts) {
 
 			const _t0 = Date.now()
 			try {
+				// 2026-11-11: 停止键必须能掀掉「正在执行且可能永不返回」的工具（pc_* 的
+				// fetch、本地命令、生图轮询……）。旧版 `await tool.run` 不可中断 —— 用户点了停止，
+				// 循环仍挂在这个 Promise 上，isRunning() 永远为真，表现就是「Agent 卡住」。
+				// 与取消信号竞速：用户中断时立刻抛 AbortError（工具本体若已无法取消，其副作用
+				// 交给它自己收敛，但本次回合绝不继续）。
+				if (isAborted()) throw abortNow("between_tools", i)
 				onEvent({ type: "tool_run", name, args })
-				const result = await tool.run(args, context)
+				const result = await raceWithAbort(Promise.resolve().then(() => tool.run(args, context)), () => abortNow("tool", i))
 				const _ms = Date.now() - _t0
 				pushToolResult(messages, call, result, { name, args, ok: true, ms: _ms })
 				// 2026-09-14:tool_done 补上结果摘要与耗时 —— 原来只有 name,
 				// 导致聊天与右栏都无法展示「工具返回了什么」(只剩一个 ✓)。
 				onEvent({ type: "tool_done", name, args, ok: true, ms: _ms, summary: summarizeToolResult(result) })
 			} catch (e) {
+				// 用户中断：上面 abortNow 已配平悬空 tool_calls，原样抛给宿主兜底。
+				if (isAborted() || (e && e.name === "AbortError")) throw e
 				// 报错也回灌，让模型下一轮自己读错误再改（这正是 loop 的魔法）
 				const _err = String(e && e.message ? e.message : e)
 				const _ms = Date.now() - _t0

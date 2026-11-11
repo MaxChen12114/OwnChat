@@ -247,6 +247,16 @@
   }
   function ueDownloadJson(filename, json, copiedMsg, silent){
     var msg = copiedMsg || 'JSON 已导出';
+    // 2026-11-11: Tauri 壳走原生写盘（Android WebView 不认 <a download>，旧版点了没反应）。
+    // 走 save-file.js 统一出口；结果仍用可复制兜底框展示（写盘路径/取消原因看得见）。
+    if (window.__saveFile && window.__saveFile.isTauri()) {
+      window.__saveFile.saveTextFile(json, filename).then(function (r) {
+        if (silent) return;
+        if (r.ok) ueShowExportBox(filename, json, msg + '；已写盘 ' + (r.path || ''));
+        else ueShowExportBox(filename, json, msg + '；' + (r.error || '未写盘'));
+      });
+      return;
+    }
     var ok = false;
     try {
       var file = new Blob([json], { type: 'application/json;charset=utf-8' });

@@ -179,7 +179,16 @@
 .att-card.att-missing{display:flex;align-items:center;justify-content:center;width:120px;cursor:default;color:var(--muted,#9a9a9a);font-size:10.5px;text-align:center;padding:0 8px;line-height:1.4;}
 .att-card .att-x{position:absolute;right:4px;top:4px;background:rgba(20,20,20,.72);color:#fff;}
 #attLightbox{position:fixed;inset:0;background:rgba(0,0,0,.86);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:9990;padding:24px;box-sizing:border-box;animation:attFade .16s ease;}
-#attLightbox img{max-width:92vw;max-height:86vh;object-fit:contain;border-radius:10px;box-shadow:0 30px 80px rgba(0,0,0,.6);}
+#attLightbox img{max-width:92vw;max-height:86vh;object-fit:contain;border-radius:10px;box-shadow:0 30px 80px rgba(0,0,0,.6);touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;will-change:transform;}
+#attLightbox img.zoom-anim{transition:transform .18s ease;}
+#attLightbox .att-lb-hint{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.6);font-size:11px;letter-spacing:.02em;pointer-events:none;white-space:nowrap;text-shadow:0 1px 4px rgba(0,0,0,.6);}
+#attLightbox .att-lb-nav{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.22);background:rgba(30,30,30,.7);color:#fff;font-size:18px;line-height:1;cursor:pointer;display:none;align-items:center;justify-content:center;font-family:inherit;}
+#attLightbox .att-lb-nav.show{display:flex;}
+#attLightbox .att-lb-nav:hover{background:rgba(60,60,60,.85);}
+#attLightbox .att-lb-nav.prev{left:12px;}
+#attLightbox .att-lb-nav.next{right:12px;}
+#attLightbox .att-lb-count{position:absolute;bottom:17px;left:16px;color:rgba(255,255,255,.7);font-size:12px;font-variant-numeric:tabular-nums;}
+@media (max-width:640px){#attLightbox .att-lb-nav{top:auto;bottom:40px;transform:none;}}
 .att-lb-bar{position:absolute;top:14px;right:16px;display:flex;gap:8px;}
 .att-lb-bar a,.att-lb-bar button{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:9px;border:1px solid rgba(255,255,255,.22);background:rgba(30,30,30,.7);color:#fff;font-size:12px;text-decoration:none;cursor:pointer;font-family:inherit;}
 .att-lb-bar a:hover,.att-lb-bar button:hover{background:rgba(60,60,60,.85);}
@@ -195,7 +204,7 @@
     (document.head || document.documentElement).appendChild(s);
   }
 
-  // ───────── 灯箱 ─────────
+  // ───────── 灯箱（2026-11-11: 支持双击缩放 / 双指捏合 / 放大后拖动 / 滚轮缩放）─────────
   var lbEl = null;
   function closeLightbox() {
     if (!lbEl) return;
@@ -203,29 +212,195 @@
     lbEl = null;
     document.removeEventListener("keydown", lbKey, true);
   }
-  function lbKey(e) { if (e.key === "Escape") { e.stopPropagation(); closeLightbox(); } }
-  function openLightbox(src, name) {
+  function lbKey(e) {
+    if (e.key === "Escape") { e.stopPropagation(); closeLightbox(); return; }
+    // 2026-11-11: 多图左右切换（桌面键盘）
+    if (lbEl && typeof lbEl.__nav === "function") {
+      if (e.key === "ArrowRight") { e.stopPropagation(); lbEl.__nav(1); }
+      else if (e.key === "ArrowLeft") { e.stopPropagation(); lbEl.__nav(-1); }
+    }
+  }
+  function openLightbox(src, name, list, index) {
     ensureCss();
     closeLightbox();
     lbEl = document.createElement("div");
     lbEl.id = "attLightbox";
+    var items = (Array.isArray(list) && list.length) ? list : [{ src: src, name: name }];
+    var cur = Math.max(0, Math.min(items.length - 1, index || 0));
     var img = document.createElement("img");
     img.src = src;
     img.alt = name || "附件图片";
+    img.draggable = false;
+    var hint = document.createElement("div");
+    hint.className = "att-lb-hint";
+    hint.textContent = "双击放大 · 捏合缩放 · 放大后可拖动";
+    var count = document.createElement("div");
+    count.className = "att-lb-count";
     var bar = document.createElement("div");
     bar.className = "att-lb-bar";
     var dl = document.createElement("a");
     dl.href = src; dl.download = name || "image"; dl.textContent = "下载";
     var op = document.createElement("button");
     op.type = "button"; op.textContent = "新标签打开";
-    op.addEventListener("click", function (e) { e.stopPropagation(); try { window.open(src, "_blank"); } catch (e2) {} });
+    op.addEventListener("click", function (e) { e.stopPropagation(); try { window.open(img.src, "_blank"); } catch (e2) {} });
     var cl = document.createElement("button");
     cl.type = "button"; cl.textContent = "关闭";
     bar.appendChild(dl); bar.appendChild(op); bar.appendChild(cl);
-    lbEl.appendChild(img); lbEl.appendChild(bar);
+    var prev = document.createElement("button");
+    prev.type = "button"; prev.className = "att-lb-nav prev"; prev.textContent = "‹"; prev.setAttribute("aria-label", "上一张");
+    var next = document.createElement("button");
+    next.type = "button"; next.className = "att-lb-nav next"; next.textContent = "›"; next.setAttribute("aria-label", "下一张");
+    lbEl.appendChild(img); lbEl.appendChild(bar); lbEl.appendChild(hint); lbEl.appendChild(count); lbEl.appendChild(prev); lbEl.appendChild(next);
     lbEl.addEventListener("click", function (e) { if (e.target === lbEl || e.target === cl) closeLightbox(); });
     document.body.appendChild(lbEl);
     document.addEventListener("keydown", lbKey, true);
+
+    function show(i) {
+      cur = Math.max(0, Math.min(items.length - 1, i));
+      var it = items[cur];
+      reset();
+      img.src = it.src;
+      img.alt = it.name || "附件图片";
+      dl.href = it.src; dl.download = it.name || "image";
+      var many = items.length > 1;
+      prev.classList.toggle("show", many);
+      next.classList.toggle("show", many);
+      count.textContent = many ? ((cur + 1) + "/" + items.length) : "";
+    }
+    function nav(delta) { if (items.length > 1) show(cur + delta); }
+    lbEl.__nav = nav;
+    prev.addEventListener("click", function (e) { e.stopPropagation(); nav(-1); });
+    next.addEventListener("click", function (e) { e.stopPropagation(); nav(1); });
+
+    // ── 缩放/拖动手势（Pointer Events：触屏与鼠标同路）──
+    var scale = 1, tx = 0, ty = 0;
+    var pointers = new Map();
+    var pinchBase = null;      // { dist, midX, midY, scale0, tx0, ty0 }
+    var panBase = null;        // { x, y, tx0, ty0 }
+    var lastTap = { t: 0, x: 0, y: 0 };
+    var swipeStart = null; // 1x 时的水平滑动切图
+    var MAX_SCALE = 8, MIN_SCALE = 1;
+    show(cur);
+
+    function apply(anim) {
+      if (anim) img.classList.add("zoom-anim"); else img.classList.remove("zoom-anim");
+      img.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + scale + ")";
+    }
+    function clampPan() {
+      var maxX = Math.max(0, (img.clientWidth * scale - lbEl.clientWidth) / 2 + 24);
+      var maxY = Math.max(0, (img.clientHeight * scale - lbEl.clientHeight) / 2 + 24);
+      tx = Math.max(-maxX, Math.min(maxX, tx));
+      ty = Math.max(-maxY, Math.min(maxY, ty));
+      if (scale <= MIN_SCALE + 0.001) { tx = 0; ty = 0; }
+    }
+    function zoomAt(factor, cx, cy) { // cx/cy = client 坐标焦点；绕焦点缩放（translate 外层、scale 内层）
+      var s0 = scale;
+      var s1 = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * factor));
+      if (s1 === s0) return;
+      var rect = img.getBoundingClientRect();
+      var cx0 = rect.left + rect.width / 2, cy0 = rect.top + rect.height / 2;
+      scale = s1;
+      tx = tx + (cx - cx0) * (1 - scale / s0);
+      ty = ty + (cy - cy0) * (1 - scale / s0);
+      clampPan();
+      apply(false);
+    }
+    function reset() { scale = 1; tx = 0; ty = 0; apply(true); }
+
+    img.addEventListener("pointerdown", function (e) {
+      e.preventDefault(); // 拦掉合成 click，避免捏合/拖动时误触背景关闭
+      try { img.setPointerCapture(e.pointerId); } catch (e2) {}
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 2) {
+        var pts = [];
+        pointers.forEach(function (p) { pts.push(p); });
+        var dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+        pinchBase = {
+          dist: dist,
+          midX: (pts[0].x + pts[1].x) / 2, midY: (pts[0].y + pts[1].y) / 2,
+          scale0: scale, tx0: tx, ty0: ty
+        };
+        panBase = null;
+      } else if (pointers.size === 1 && scale > MIN_SCALE + 0.001) {
+        panBase = { x: e.clientX, y: e.clientY, tx0: tx, ty0: ty };
+        swipeStart = null;
+      } else if (pointers.size === 1) {
+        swipeStart = { x: e.clientX, y: e.clientY };
+      }
+    });
+    img.addEventListener("pointermove", function (e) {
+      if (!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size >= 2 && pinchBase) {
+        var pts = [];
+        pointers.forEach(function (p) { pts.push(p); });
+        var dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+        var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+        var s0 = pinchBase.scale0;
+        var s1 = Math.max(MIN_SCALE, Math.min(MAX_SCALE, s0 * (dist / pinchBase.dist)));
+        // 基线几何：以捏合起点为准，缩放并保持两指中点不动
+        var rect = img.getBoundingClientRect();
+        var cx0 = rect.left + rect.width / 2 - tx, cy0 = rect.top + rect.height / 2 - ty; // 未变换时的中心
+        var baseMidDX = pinchBase.midX - (cx0 + pinchBase.tx0);
+        var baseMidDY = pinchBase.midY - (cy0 + pinchBase.ty0);
+        scale = s1;
+        tx = midX - cx0 - baseMidDX * (scale / s0);
+        ty = midY - cy0 - baseMidDY * (scale / s0);
+        clampPan();
+        apply(false);
+      } else if (pointers.size === 1 && panBase) {
+        tx = panBase.tx0 + (e.clientX - panBase.x);
+        ty = panBase.ty0 + (e.clientY - panBase.y);
+        clampPan();
+        apply(false);
+      }
+    });
+    function onUp(e) {
+      if (!pointers.has(e.pointerId)) return;
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinchBase = null;
+      if (pointers.size === 1) {
+        var rest = null;
+        pointers.forEach(function (p) { rest = p; });
+        panBase = (scale > MIN_SCALE + 0.001) ? { x: rest.x, y: rest.y, tx0: tx, ty0: ty } : null;
+      } else {
+        panBase = null;
+        if (scale <= MIN_SCALE + 0.001) reset();
+      }
+      // 2026-11-11: 1x 水平滑动切上一张/下一张（多图时）
+      if (swipeStart && scale <= MIN_SCALE + 0.001) {
+        var sdx = e.clientX - swipeStart.x, sdy = e.clientY - swipeStart.y;
+        if (Math.abs(sdx) > 60 && Math.abs(sdx) > 2 * Math.abs(sdy)) {
+          swipeStart = null;
+          nav(sdx < 0 ? 1 : -1);
+          return;
+        }
+      }
+      swipeStart = null;
+      // 双击检测（快速两次落点接近的 pointerup）
+      var now = Date.now();
+      if (now - lastTap.t < 300 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 28) {
+        lastTap = { t: 0, x: 0, y: 0 };
+        if (scale > MIN_SCALE + 0.05) reset();
+        else zoomAt(2.5, e.clientX, e.clientY);
+        return;
+      }
+      lastTap = { t: now, x: e.clientX, y: e.clientY };
+    }
+    img.addEventListener("pointerup", onUp);
+    img.addEventListener("pointercancel", function (e) {
+      pointers.delete(e.pointerId);
+      pinchBase = null; panBase = null;
+      if (scale <= MIN_SCALE + 0.001) reset();
+    });
+    img.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY);
+    }, { passive: false });
+    // 调试口（不暴露内部对象，只给快照）
+    window.__lbDebug = function () {
+      return { scale: scale, tx: tx, ty: ty, panBase: !!panBase, pinchBase: !!pinchBase, pointers: pointers.size };
+    };
   }
 
   // ───────── 待发状态 ─────────
@@ -361,7 +536,18 @@
     // 2026-10-08 内存:历史还原时整条会话的附件图都会被解码 —— 屏外的先不加载/不解码
     try { img.loading = "lazy"; img.decoding = "async"; } catch (e) {}
     card.appendChild(img);
-    card.addEventListener("click", function () { openLightbox(src, (meta && meta.name) || ""); });
+    card.addEventListener("click", function () {
+      // 2026-11-11: 收集同组已加载的图传给灯箱 → 多图可左右切换（占位卡无 img 自动跳过）
+      var group = [], idx = 0;
+      try {
+        var imgs = card.parentNode ? card.parentNode.querySelectorAll(".att-card img") : [];
+        for (var i = 0; i < imgs.length; i++) {
+          if (imgs[i].src) group.push({ src: imgs[i].src, name: imgs[i].alt || "" });
+          if (imgs[i] === img) idx = group.length - 1;
+        }
+      } catch (e) {}
+      openLightbox(src, (meta && meta.name) || "", group.length > 1 ? group : null, idx);
+    });
     if (onRemove) {
       var x = document.createElement("button");
       x.type = "button"; x.className = "att-x"; x.textContent = "×"; x.title = "移除";

@@ -373,7 +373,7 @@
     if (!slot || document.getElementById('syncEnableToggle')) return;
     var card = document.createElement('div');
     card.className = 'card';
-    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 18.5a4.5 4.5 0 0 1-.7-8.95A5.5 5.5 0 0 1 17 9.1 3.7 3.7 0 0 1 16.8 18.5z"/></svg>云同步</h4><p>同步到 Cloudflare KV，换浏览器或设备都能看到角色卡、指令模块、亲密度与费用日志。对话历史需勾选「同步聊天历史」；改动 30 秒内自动上传。<b>不同步：</b>访问码与同步状态。</p><div class="rowline"><div class="toggle"><input type="checkbox" id="syncEnableToggle"><label for="syncEnableToggle">启用云同步</label></div><div class="toggle" style="margin-top:6px;"><input type="checkbox" id="syncIncludeChatToggle"><label for="syncIncludeChatToggle">同步聊天历史（跨设备共享对话）</label></div><div class="btns"><button class="smallbtn" id="syncNowBtn" title="只推本机改动；拉取其他设备请用「云端拉取」"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v3.5h-3.5"/></svg>立即上传</button><button class="smallbtn" id="syncPullBtn" title="拉取其他设备的改动；启动与回前台会自动拉取">云端拉取</button><button class="smallbtn" id="syncExportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导出备份</button><button class="smallbtn" id="syncImportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导入备份</button><input type="file" id="syncImportFile" accept=".json" style="display:none"><button class="smallbtn danger" id="syncWipeBtn" title="删除云端 KV 上的全部数据(角色卡/指令模块/费用/对话的云端副本)。本地数据保留;同步仍开启时下次本地改动会重新上传,想让云端保持空请清空后关闭云同步。"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5h15"/><path d="M9 6.5V5.2A1.7 1.7 0 0 1 10.7 3.5h2.6A1.7 1.7 0 0 1 15 5.2V6.5"/><path d="M6.8 6.5l.7 12.2a1.8 1.8 0 0 0 1.8 1.7h5.4a1.8 1.8 0 0 0 1.8-1.7l.7-12.2"/></svg>清空云端</button></div></div><div id="syncStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div><div id="syncQuotaWarn" style="font-size:11px;color:#f80;margin-top:4px;display:none;"></div><details id="cloudExcludeSection" style="margin-top:10px;"><summary style="cursor:pointer;font-size:12px;color:var(--muted);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 16.5a4.2 4.2 0 0 1-.6-8.35A5.2 5.2 0 0 1 16.5 8"/><path d="M14.5 14l5 5M19.5 14l-5 5"/></svg>按角色/会话 只清云端（保留本地）</summary><div style="font-size:11px;color:var(--muted);margin:6px 0;line-height:1.5;">只把选中项从云端 KV 抹掉,本地保留且本设备不再上传(tombstone)。<b>会话</b>仅在开了「同步聊天历史」时云端才有副本。<b>跨设备注意:</b>排除清单仅本设备生效,其他仍持有该数据且未排除的设备改动后可能把它推回。</div><div id="cloudExcludeList" style="display:flex;flex-direction:column;gap:6px;"></div></details>`;
+    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 18.5a4.5 4.5 0 0 1-.7-8.95A5.5 5.5 0 0 1 17 9.1 3.7 3.7 0 0 1 16.8 18.5z"/></svg>云同步</h4><p>同步到 Cloudflare KV，换浏览器或设备都能看到角色卡、指令模块、亲密度与费用日志。对话历史需勾选「同步聊天历史」；改动 30 秒内自动上传。<b>不同步：</b>访问码与同步状态。</p><div class="rowline"><div class="toggle"><input type="checkbox" id="syncEnableToggle"><label for="syncEnableToggle">启用云同步</label></div><div class="toggle" style="margin-top:6px;"><input type="checkbox" id="syncIncludeChatToggle"><label for="syncIncludeChatToggle">同步聊天历史（跨设备共享对话）</label></div><div class="btns"><button class="smallbtn" id="syncNowBtn" title="只推本机改动；拉取其他设备请用「云端拉取」"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v3.5h-3.5"/></svg>立即上传</button><button class="smallbtn" id="syncPullBtn" title="拉取其他设备的改动（只在点这里时拉取，不会自动拉取）">云端拉取</button><button class="smallbtn" id="syncExportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导出备份</button><button class="smallbtn" id="syncImportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导入备份</button><input type="file" id="syncImportFile" accept=".json" style="display:none"><button class="smallbtn danger" id="syncWipeBtn" title="删除云端 KV 上的全部数据(角色卡/指令模块/费用/对话的云端副本)。本地数据保留;同步仍开启时下次本地改动会重新上传,想让云端保持空请清空后关闭云同步。"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5h15"/><path d="M9 6.5V5.2A1.7 1.7 0 0 1 10.7 3.5h2.6A1.7 1.7 0 0 1 15 5.2V6.5"/><path d="M6.8 6.5l.7 12.2a1.8 1.8 0 0 0 1.8 1.7h5.4a1.8 1.8 0 0 0 1.8-1.7l.7-12.2"/></svg>清空云端</button></div></div><div id="syncStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div><div id="syncQuotaWarn" style="font-size:11px;color:#f80;margin-top:4px;display:none;"></div><details id="cloudExcludeSection" style="margin-top:10px;"><summary style="cursor:pointer;font-size:12px;color:var(--muted);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 16.5a4.2 4.2 0 0 1-.6-8.35A5.2 5.2 0 0 1 16.5 8"/><path d="M14.5 14l5 5M19.5 14l-5 5"/></svg>按角色/会话 只清云端（保留本地）</summary><div style="font-size:11px;color:var(--muted);margin:6px 0;line-height:1.5;">只把选中项从云端 KV 抹掉,本地保留且本设备不再上传(tombstone)。<b>会话</b>仅在开了「同步聊天历史」时云端才有副本。<b>跨设备注意:</b>排除清单仅本设备生效,其他仍持有该数据且未排除的设备改动后可能把它推回。</div><div id="cloudExcludeList" style="display:flex;flex-direction:column;gap:6px;"></div></details>`;
     slot.appendChild(card);
   }
   // ─── M1: 本地对话记忆卡(#historyKeep / #promptKeep / #clearHistory) ───
@@ -397,10 +397,68 @@
     if (!slot || document.getElementById('customPrompt')) return;
     var card = document.createElement('div'); card.className = 'card'; card.id = 'personaTemplateCard';
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>网页自定义人物模板</h4>'
-      + '<p>这段文字会追加到每条对话的 system prompt 末尾（优先级低于角色卡）。适合补充你对 AI 行为的统一要求。<b>仅本设备</b>。</p>'
+      + '<p>仅在顶栏切到「自定义」且当前无角色卡时生效（有卡时角色卡优先，本段不会发送）。适合补充你对 AI 行为的统一要求。仅本设备。</p>'
       + '<textarea id="customPrompt" rows="5" placeholder="输入自定义人物设定或全局指令…" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;resize:vertical;"></textarea>'
       + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>上方「追加自定义提示词」开关控制本内容是否实际发送。留空 = 不追加任何内容。</span></div>';
     slot.appendChild(card);
+  }
+
+  // ─── 2026-11-11: Agent 个性化（对齐 ZCode 设置 → 个性化）───
+  // 独立于「网页自定义人物模板」：只作用于 Agent 模式的后续会话，不受顶栏「内置/自定义」和角色卡影响。
+  // 写入 cfw_agent_personalize_v1；Agent 请求装配时作为 extraSystemPrompts 追加。
+  var LS_AGENT_PERSONALIZE = 'cfw_agent_personalize_v1';
+  var AGENT_PERSONALIZE_MAX_BYTES = 100 * 1024;
+  function mountPersonalizeCard() {
+    var slot = document.getElementById('setPersonalizeSlot') || document.getElementById('setAgentSlot');
+    if (!slot || document.getElementById('agentPersonalize')) return;
+    var card = document.createElement('div'); card.className = 'card'; card.id = 'agentPersonalizeCard';
+    card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 19a6.5 6.5 0 0 1 13 0"/><path d="M18.6 5.1l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"/></svg>个性化</h4>'
+      + '<p>添加自定义指令来个性化 Agent 的回复，指令会应用到你本机 Agent 的后续会话；远程设备需单独配置。仅本设备。</p>'
+      + '<textarea id="agentPersonalize" rows="10" spellcheck="false" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font:inherit;font-size:13px;line-height:1.65;resize:vertical;min-height:220px;"></textarea>'
+      + '<div class="rowline" style="justify-content:space-between;align-items:center;margin-top:6px;gap:12px;"><span id="agentPersonalizeCount" style="font-size:11px;color:var(--muted);white-space:nowrap;">0 B / 100 KB</span><div class="btns"><button class="smallbtn" id="agentPersonalizeSave" type="button">保存</button><button class="smallbtn" id="agentPersonalizeCancel" type="button">取消</button></div></div>'
+      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>保存后从下一条消息开始生效；清空并保存 = 关闭。指令只存本机，不上云。</span></div>';
+    slot.appendChild(card);
+    var ta = card.querySelector('#agentPersonalize');
+    var countEl = card.querySelector('#agentPersonalizeCount');
+    var saveBtn = card.querySelector('#agentPersonalizeSave');
+    var cancelBtn = card.querySelector('#agentPersonalizeCancel');
+    var saved = "";
+    function bytes(s) {
+      try { return new TextEncoder().encode(s).length; } catch (e) { return String(s || '').length; }
+    }
+    function fmtBytes(n) {
+      return n < 1024 ? (n + ' B') : ((n / 1024).toFixed(1) + ' KB');
+    }
+    function renderCount() {
+      var n = bytes(ta.value);
+      var over = n > AGENT_PERSONALIZE_MAX_BYTES;
+      if (countEl) {
+        countEl.textContent = fmtBytes(n) + ' / 100 KB';
+        countEl.style.color = over ? 'var(--danger, #e8607d)' : 'var(--muted)';
+      }
+      if (saveBtn) saveBtn.disabled = over;
+    }
+    // 每次打开设置都回读已保存值，同时把「取消」的基准线同步成 LS —— 否则上次的未保存文本会被当成基准。
+    function resetFromLS() {
+      saved = localStorage.getItem(LS_AGENT_PERSONALIZE) || '';
+      ta.value = saved;
+      renderCount();
+    }
+    card.__agentPersonalizeReset = resetFromLS;
+    ta.addEventListener('input', renderCount);
+    if (saveBtn) saveBtn.addEventListener('click', function () {
+      var v = ta.value;
+      if (bytes(v) > AGENT_PERSONALIZE_MAX_BYTES) return;
+      if (v.trim()) localStorage.setItem(LS_AGENT_PERSONALIZE, v);
+      else localStorage.removeItem(LS_AGENT_PERSONALIZE);
+      saved = v;
+      try { if (window.__feedback && window.__feedback.toast) window.__feedback.toast(v.trim() ? '个性化指令已保存' : '个性化指令已清空', 1800); } catch (e) {}
+    });
+    if (cancelBtn) cancelBtn.addEventListener('click', function () {
+      ta.value = saved;
+      renderCount();
+    });
+    resetFromLS();
   }
 
   // ─── 自驱叙事控制卡(autopilot.js 的入口 UI · 决策 O 默认半自动) ───
@@ -838,6 +896,7 @@
     mountMultiAgentCard();   // 2026-10-08 独立成卡（编排玩法与工作能力分开）
     mountDevToolsCard();     // 2026-11-06 开发工具（源码/产物检索，本地服务）
     mountPersonaCard();      // M1
+    mountPersonalizeCard();  // 2026-11-11: Agent 个性化（独立分类，作用于 Agent 后续会话）
     // 2026-10-13 (批 E1b): 旧「模型候选池」卡已并入下面 mountByoCard() 的渠道管理卡 ——
     // 每模型勾选从「按 free/fast 源」改为「按渠道」,存量选择由 providers.js 首拉时自动迁移。
     mountByoCard(); // 2026-06-24: 聊天模型自定义直连归「模型 API」分类(原在「对话」)
@@ -888,6 +947,7 @@
     const historyKeepEl  = document.getElementById('historyKeep');
     const promptKeepEl   = document.getElementById('promptKeep');
     const customPromptEl = document.getElementById('customPrompt');
+    const agentPersonalizeEl = document.getElementById('agentPersonalize');
     const LS_HISTORY     = 'cfw_history_enabled';
     const LS_PROMPT      = 'cfw_prompt_enabled';
     const LS_CUSTOM      = 'cfw_custom_prompt_v1';
@@ -903,6 +963,15 @@
       if (historyKeepEl)  historyKeepEl.checked  = localStorage.getItem(LS_HISTORY) === '1';
       if (promptKeepEl)   promptKeepEl.checked   = (localStorage.getItem(LS_PROMPT) ?? '1') === '1';
       if (customPromptEl) customPromptEl.value   = localStorage.getItem(LS_CUSTOM) || '';
+      // 2026-11-11: 关闭设置时的未保存编辑不保留 —— 每次打开都回读已保存的 Agent 个性化指令。
+      if (agentPersonalizeEl) {
+        var apCard = document.getElementById('agentPersonalizeCard');
+        if (apCard && typeof apCard.__agentPersonalizeReset === 'function') apCard.__agentPersonalizeReset();
+        else {
+          agentPersonalizeEl.value = localStorage.getItem('cfw_agent_personalize_v1') || '';
+          try { agentPersonalizeEl.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+        }
+      }
       try { if (window.__settingsRefreshAuth) window.__settingsRefreshAuth(); } catch(e) {}
       try { if (window.__settingsRefreshSync) window.__settingsRefreshSync(); } catch(e) {}
     }
@@ -1723,17 +1792,41 @@
 
     function modelsBlock(key) {
       var all = P.modelsAll(key);
+      // 2026-11-11(C): 免费档放宽到 50 个模型后，平铺一列没法用 ——
+      // 按厂商(id 里 "/" 前面那段)分组渲染，并给三个批量按钮。
+      var groups = [], gi = {};
+      all.forEach(function (m) {
+        var v = String(m.id).indexOf('/') >= 0 ? String(m.id).split('/')[0] : '其他';
+        if (!gi[v]) { gi[v] = { vendor: v, rows: [] }; groups.push(gi[v]); }
+        gi[v].rows.push(m);
+      });
       var rows = all.length
-        ? all.map(function (m) {
-            return '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0;cursor:pointer;word-break:break-all;">'
-              + '<input type="checkbox" data-mid="' + esc(m.id) + '"' + (m.enabled ? ' checked' : '') + '>'
-              + '<span>' + esc(m.id) + '</span></label>';
+        ? groups.map(function (g) {
+            // 厂商分组小标题（不吸顶：吸顶要有一个跟卡片底色完全一致的背景色，
+            // 四套主题下容易滚出一条色带，收益不值这个风险）
+            var head = '<div style="font-size:11px;color:var(--muted);margin:8px 0 2px;">'
+              + esc(g.vendor) + ' · ' + g.rows.length + '</div>';
+            return head + g.rows.map(function (m) {
+              return '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0;cursor:pointer;word-break:break-all;">'
+                + '<input type="checkbox" data-mid="' + esc(m.id) + '"' + (m.enabled ? ' checked' : '') + '>'
+                + '<span>' + esc(m.id) + '</span></label>';
+            }).join('');
           }).join('')
         : '<div style="font-size:12px;color:var(--muted);padding:4px 0;">还没拉取过模型列表 · 点上面「拉取模型列表」（拉不到可手填）</div>';
+      var onCount = all.filter(function (m) { return m.enabled; }).length;
+      var bulk = all.length
+        ? '<div class="btns" style="margin-top:6px;gap:6px;">'
+          + '<button class="smallbtn" type="button" id="provSelAll">全选</button>'
+          + '<button class="smallbtn" type="button" id="provSelRec">恢复推荐</button>'
+          + '<button class="smallbtn" type="button" id="provSelNone">清空</button>'
+          + '<span style="font-size:11px;color:var(--muted);align-self:center;">已勾 ' + onCount + ' / 共 ' + all.length + '</span>'
+          + '</div>'
+        : '';
       return '<div style="margin-top:12px;">'
         + '<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;color:var(--muted);flex:1;">模型列表（勾选 = 出现在顶栏下拉）</span>'
         + '<button class="smallbtn" type="button" id="provFetch">拉取模型列表</button></div>'
-        + '<div style="max-height:190px;overflow:auto;margin-top:6px;">' + rows + '</div>'
+        + bulk
+        + '<div style="max-height:240px;overflow:auto;margin-top:6px;">' + rows + '</div>'
         + '<div id="provFetchMsg" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>'
         + '</div>';
     }
@@ -1770,7 +1863,11 @@
           + '<div class="rowline" style="margin-top:8px;align-items:center;gap:8px;"><label style="' + LBL + 'margin:0;min-width:34px;">模型</label><select id="provModelSel" style="' + INP + 'flex:1;min-width:0;">'
           + (selOpts || '<option value="">— 启用模型为空 —</option>') + '</select></div>'
           + '<div style="margin-top:6px;"><input id="provModelText" value="' + esc(p.model || '') + '" placeholder="手填 fallback：gpt-4o / glm-4-plus / qwen-max ..." style="' + INP + '"></div>'
-          + '<div class="rowline" style="margin-top:8px;"><label class="toggle" style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" id="provThinking"' + (p.supportsThinking ? ' checked' : '') + '><span>该渠道模型支持思考（会补 reasoning 历史）</span></label></div>'
+          + '<div class="rowline" style="margin-top:8px;align-items:center;gap:8px;"><label style="' + LBL + 'margin:0;min-width:64px;">思考支持</label><select id="provThinkingStyle" style="' + INP + 'flex:1;min-width:0;">'
+          + '<option value="none"' + (!p.supportsThinking ? ' selected' : '') + '>不支持思考</option>'
+          + '<option value="onoff"' + (p.supportsThinking && p.thinkingStyle === 'vllm' ? ' selected' : '') + '>支持 · vLLM / NIM 接口</option>'
+          + '<option value="levels"' + (p.supportsThinking && p.thinkingStyle !== 'vllm' ? ' selected' : '') + '>支持 · DeepSeek 接口</option>'
+          + '</select></div>'
           + modelsBlock(selKey)
           + '<div class="btns" style="margin-top:12px;">' + useBtn(selKey, !!(p.endpoint && p.model), '先保存端点与模型，再启用') + '<button class="smallbtn" type="button" id="provSave">保存此渠道</button><button class="smallbtn danger" type="button" id="provDelete">删除</button></div>';
       }
@@ -1782,28 +1879,29 @@
       if (!detailEl) return null;
       var k = parseKey(selKey); if (!k || k.kind !== 'custom') return null;
       var g = function (id) { var el = detailEl.querySelector('#' + id); return el ? el.value : undefined; };
-      var tkEl = detailEl.querySelector('#provThinking');
       if (g('provName') === undefined && g('provEndpoint') === undefined) return null;
-      return { key: selKey, name: g('provName'), endpoint: g('provEndpoint'), apiKey: g('provKey'), model: g('provModelText'), sel: g('provModelSel'), thinking: tkEl ? tkEl.checked : undefined };
+      return { key: selKey, name: g('provName'), endpoint: g('provEndpoint'), apiKey: g('provKey'), model: g('provModelText'), sel: g('provModelSel'), thinkingStyle: g('provThinkingStyle') };
     }
     function restoreDraft(d) {
       if (!d || d.key !== selKey) return;
       var s = function (id, v) { var el = detailEl.querySelector('#' + id); if (el && v != null) el.value = v; };
       s('provName', d.name); s('provEndpoint', d.endpoint); s('provKey', d.apiKey); s('provModelText', d.model);
       if (d.sel != null) { var selEl = detailEl.querySelector('#provModelSel'); if (selEl) { try { selEl.value = d.sel; } catch (e) {} } }
-      var tkEl = detailEl.querySelector('#provThinking'); if (tkEl && d.thinking != null) tkEl.checked = d.thinking;
+      s('provThinkingStyle', d.thinkingStyle);
     }
     // 需要数据动作（拉取/启用）前，把当前渠道正在填的草稿落盘 —— 用户不用先记着点保存
     function commitDraftIfCurrent() {
       var d = captureDraft(); if (!d || d.key !== selKey) return;
       var k = parseKey(selKey); if (!k || k.kind !== 'custom') return;
+      var _ts = d.thinkingStyle || 'levels';
       P.saveCustom(k.id, {
         name: (d.name || '').trim() || '未命名服务商',
         endpoint: (d.endpoint || '').trim(),
         apiKey: (d.apiKey || '').trim(),
         model: ((d.model || '') || (d.sel || '')).trim(),
-        supportsThinking: !!d.thinking,
-        needsReasoningHistory: !!d.thinking,
+        supportsThinking: _ts !== 'none',
+        thinkingStyle: _ts === 'onoff' ? 'vllm' : (_ts === 'none' ? 'none' : 'deepseek'),
+        needsReasoningHistory: _ts !== 'none',
       });
     }
     function renderAll() { var d = captureDraft(); renderList(); renderDetail(); restoreDraft(d); }
@@ -1836,6 +1934,16 @@
     // —— 右栏：拉取 / 勾选 / 保存 / 删除 / 启用 ——
     detailEl.addEventListener('click', async function (e) {
       var t = e.target;
+      // 2026-11-11(C): 批量勾选。走 setAllModels 一次写盘，不逐条 toggle（否则重渲染 N 次）
+      if (t.id === 'provSelAll' || t.id === 'provSelNone' || t.id === 'provSelRec') {
+        var pickRec = t.id === 'provSelRec';
+        var n = P.setAllModels(selKey, t.id !== 'provSelNone', { onlyRecommended: pickRec });
+        toastFn(t.id === 'provSelNone' ? '已全部取消勾选（下拉只剩渠道默认模型）'
+          : (pickRec ? '已恢复推荐：勾上 ' + n + ' 个（DeepSeek / Nemotron）'
+                     : '已全选 ' + n + ' 个模型'), 2200);
+        renderAll();
+        return;
+      }
       if (t.id === 'provFetch') {
         t.disabled = true;
         var msgEl = detailEl.querySelector('#provFetchMsg');
@@ -1856,15 +1964,17 @@
       if (t.id === 'provSave') {
         var pid = (parseKey(selKey) || {}).id;
         var nameEl = detailEl.querySelector('#provName'), epEl = detailEl.querySelector('#provEndpoint'), kyEl = detailEl.querySelector('#provKey');
-        var selEl = detailEl.querySelector('#provModelSel'), mdEl = detailEl.querySelector('#provModelText'), tkEl = detailEl.querySelector('#provThinking');
+        var selEl = detailEl.querySelector('#provModelSel'), mdEl = detailEl.querySelector('#provModelText'), styleEl = detailEl.querySelector('#provThinkingStyle');
         var model = ((mdEl && mdEl.value) || (selEl && selEl.value) || '').trim();
+        var thinkStyle = (styleEl && styleEl.value) || 'deepseek';
         P.saveCustom(pid, {
           name: (nameEl.value || '').trim() || '未命名服务商',
           endpoint: (epEl.value || '').trim(),
           apiKey: (kyEl.value || '').trim(),
           model: model,
-          supportsThinking: !!(tkEl && tkEl.checked),
-          needsReasoningHistory: !!(tkEl && tkEl.checked),
+          supportsThinking: thinkStyle !== 'none',
+          thinkingStyle: thinkStyle === 'onoff' ? 'vllm' : (thinkStyle === 'none' ? 'none' : 'deepseek'),
+          needsReasoningHistory: thinkStyle !== 'none',
         });
         toastFn('已保存此渠道', 1800);
         renderAll();
@@ -1905,11 +2015,11 @@
 
     P.on(function () { try { renderAll(); } catch (e) {} });
     renderAll();
-    // 首屏数据：刷新预设元数据；当前选中的预设渠道还没模型缓存时静默拉一次
+    // 首屏数据：刷新预设元数据；当前选中的预设渠道「没清单 / 清单过期」时静默拉一次
     P.refreshPresets().then(function () {
       renderAll();
       var k = parseKey(selKey);
-      if (k && k.kind === 'preset' && !P.modelsAll(selKey).length) {
+      if (k && k.kind === 'preset' && (!P.modelsAll(selKey).length || P.modelsStale(selKey))) {
         P.fetchModels(selKey).then(function () { renderAll(); });
       }
     });

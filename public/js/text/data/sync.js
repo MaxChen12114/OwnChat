@@ -915,8 +915,9 @@
           }
         }
       } catch (_) {}
-      if (res && res.merged && !diverged) { applyMergedChatToLocal(mergeChatSessions(res.merged)); }
-      else if (res && res.merged && diverged) {
+      // 2026-11-11 所有者要求：会话不从云端自动拉取 —— push 响应里的 merged 不再落地，
+      // 只在“飞行期本地没变”时更新 synced 基线；其他设备的内容等用户手动「云端拉取」再合并。
+      if (res && res.merged && diverged) {
         // 分叉时不落地、不动 synced 基线 —— 本地更新,下一轮 debounce push 会带最新快照并收敛
       }
       else {
@@ -1314,13 +1315,25 @@
   async function exportJSON() {
     const blob = await dumpAll({ includeChars: true }); // 4.78: 本地备份含角色卡
     const text = JSON.stringify(blob, null, 2);
+    const name = "tavern-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    // 2026-11-11: Tauri 壳（手机/桌面）走原生写盘 —— Android WebView 不认 <a download>，
+    // 旧版在手机壳点「导出备份」毫无反应。统一出口见 shared/save-file.js。
+    const sf = (typeof window !== "undefined") ? window.__saveFile : null;
+    if (sf) {
+      const r = await sf.saveTextFile(text, name);
+      if (!r.ok) {
+        try { if (window.__feedback && window.__feedback.toast) window.__feedback.toast(r.error || "未写盘", 2600); } catch (e) {}
+      }
+      return r;
+    }
     const file = new Blob([text], { type: "application/json" });
     const url = URL.createObjectURL(file);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "tavern-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    a.download = name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return { ok: true, mode: "browser", filename: name };
   }
   function importJSON(file) {
     return new Promise((res, rej) => {
@@ -1377,27 +1390,17 @@
       if (syncEnabled()) {
         await pullExcludeOnStartup(); // 4.21-F: 先合并跨设备排除登记,确保 main pull/push 正确过滤与保护
         pullOnStartup();
-        pullChatOnStartup(); // 4.76: 聊天会话独立通道 slot 级合并(仅 includeChat 开时)
+        // 2026-11-11 所有者要求：会话（聊天历史）不再随启动/回前台/定时自动拉取，
+        // 只在用户手动点「云端拉取」或刚打开「同步聊天历史」时拉。pullChatOnStartup() 已停用。
         pullCharsOnStartup(); // 4.78: 角色卡独立通道 按卡 id LWW 合并
       }
       pullCostOnStartup().then(() => { try { pushCostNow(); } catch (e) {} }); // 4.52: 拉取合并后再把本机费用桶推上云,让其他设备下次能拉到本机费用(修"费用只显示在本机")
     })();
   }
 
-  // 2026-10-07: 一直开着的窗口也要能收到别的设备的改动 —— 回前台/窗口聚焦时拉一轮（距上次 >60s 才拉，
-  // 免得来回切窗口打爆 KV 配额），另加 5 分钟兜底定时。三项（总开关/密码/对话同步）任一没开就静默跳过。
-  // 拉到新内容时 applyMergedChatToLocal 会自己 emit 'chat-merged'，由 chat-extras 的提示条告知用户。
-  let _lastAutoPullAt = 0;
-  function autoPullChat() {
-    if (!syncEnabled() || !token() || !includeChat()) return;
-    const now = Date.now();
-    if (now - _lastAutoPullAt < 60000) return;
-    _lastAutoPullAt = now;
-    pullChatNow().catch(() => {});
-  }
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) autoPullChat(); });
-  window.addEventListener("focus", autoPullChat);
-  setInterval(() => { if (document.visibilityState === "visible") autoPullChat(); }, 300000);
+  // 2026-11-11 所有者要求：会话不从云端自动拉取。
+  // 原「回前台/聚焦/5 分钟定时自动拉」已整体停用 —— 拉取入口只剩设置里的「云端拉取」
+  // 与刚打开「同步聊天历史」那一次。因此这里不再注册任何监听器或定时器。
 
   // 桌面壳退出前冲刷：lib.rs 在托盘「退出 OwnChat」与「关窗收托盘」时 emit app-flush-now，
   // 这里立刻把最后的改动推上去（Rust 侧留 ~1.2s 再真正退出/隐藏）。网页端该事件永不触发，挂着无害。

@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
   <title>OwnChat</title>
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/styles.css?v=4" />
   <link rel="stylesheet" href="/styles-2.css" />
   <link rel="stylesheet" href="/styles-panel.css?v=28" />
   <!-- PWA: 可安装应用外壳(manifest + 各平台 meta);图标依赖 /assets/icon-192.png 与 icon-512.png -->
@@ -121,12 +121,20 @@
       #composer #thinkToggle.active .think-label { width: 0; overflow: hidden; }
       #composer #thinkToggle.active .think-label::after { font-size: 12px; line-height: 1; }
       /* 用 JS 写入 data-mobile-effort,避免 title/aria 里同时含“高中低”导致 CSS 全部命中、最后总显示“高”。 */
+      #composer #thinkToggle.active[data-mobile-effort="minimal"] .think-label,
       #composer #thinkToggle.active[data-mobile-effort="low"] .think-label,
       #composer #thinkToggle.active[data-mobile-effort="medium"] .think-label,
-      #composer #thinkToggle.active[data-mobile-effort="high"] .think-label { width: auto; overflow: visible; }
+      #composer #thinkToggle.active[data-mobile-effort="high"] .think-label,
+      #composer #thinkToggle.active[data-mobile-effort="xhigh"] .think-label,
+      #composer #thinkToggle.active[data-mobile-effort="max"] .think-label { width: auto; overflow: visible; }
+      #composer #thinkToggle.active[data-mobile-effort="minimal"] .think-label::after { content: "极低"; }
       #composer #thinkToggle.active[data-mobile-effort="low"] .think-label::after { content: "低"; }
       #composer #thinkToggle.active[data-mobile-effort="medium"] .think-label::after { content: "中"; }
       #composer #thinkToggle.active[data-mobile-effort="high"] .think-label::after { content: "高"; }
+      #composer #thinkToggle.active[data-mobile-effort="xhigh"] .think-label::after { content: "更高"; }
+      #composer #thinkToggle.active[data-mobile-effort="max"] .think-label::after { content: "最高"; }
+      /* 模型不支持思考：手机端也露出「思考不可用」，否则只剩一个灰图标看不出原因 */
+      #composer #thinkToggle:disabled .think-label { font-size: 11px; width: auto; overflow: visible; }
     }
     /* 4.39-ui: 左侧栏 + 移动 tab 图标统一为线性 SVG;用 currentColor 继承各主题文字色,无需维护多套图标 */
     .sidebar-btn-icon, .mobile-tab-icon { display: inline-flex; align-items: center; justify-content: center; }
@@ -1118,7 +1126,7 @@
           <svg class="think-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.4 5.1 5.1 1.4-5.1 1.4L12 16l-1.4-5.1L5.5 9.5l5.1-1.4z"/><path d="M19 14.5l.6 2 2 .6-2 .6-.6 2-.6-2-2-.6 2-.6z"/></svg>
           <span class="think-label">思考</span>
         </button>
-        <textarea id="msg" rows="1" placeholder="Message..."></textarea>
+        <textarea id="msg" rows="1"></textarea>
         <button id="sendBtn" title="发送" aria-label="发送">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M3 11.5L21 3l-8.5 18-2.5-7.5L3 11.5z"></path>
@@ -1142,6 +1150,7 @@
           <button type="button" class="scn-item" data-cat="appearance" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg>外观</button>
           <button type="button" class="scn-item" data-cat="chat" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.3a7.7 7.7 0 0 1-11 6.96L4 19.5l1.26-5.34A7.7 7.7 0 1 1 20.5 11.3z"/></svg>对话</button>
           <button type="button" class="scn-item" data-cat="agent" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="6.5" width="14" height="11" rx="2.4"/><path d="M9.5 10.5v2.5M14.5 10.5v2.5"/><path d="M12 3.5v3M8 21h8"/></svg>Agent</button>
+          <button type="button" class="scn-item" data-cat="personalize" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 19a6.5 6.5 0 0 1 13 0"/><path d="M18.6 5.1l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"/></svg>个性化</button>
           <button type="button" class="scn-item" data-cat="skill" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L4.5 13.5H11l-1 8.5 8.5-11.5H12z"/></svg>技能</button>
           <button type="button" class="scn-item" data-cat="image" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M4 17.5l5-5 3.2 3.2 3.2-3.8 4.1 5"/></svg>发图</button>
           <button type="button" class="scn-item" data-cat="modelapi" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2v6M15 2v6"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v5"/></svg>模型 API</button>
@@ -1186,6 +1195,12 @@
              + mountMultiAgentCard()（编排玩法，2026-10-08 按用户口径拆出独立成卡） -->
         <div id="setAgentSlot"></div>
         </div><!-- /set-cat agent -->
+
+        <!-- 2026-11-11: Agent 个性化（对齐 ZCode 设置 → 个性化）。保存的是追加到 Agent 后续会话的指令。 -->
+        <div class="set-cat" data-cat="personalize">
+        <div class="settings-group-title">Agent · 个性化</div>
+        <div id="setPersonalizeSlot"></div>
+        </div><!-- /set-cat personalize -->
 
         <div class="set-cat" data-cat="skill">
         <div class="settings-group-title">技能 · Agent</div>
@@ -1578,21 +1593,21 @@
 <!-- 2026-09-14 UI第一轮:统一反馈组件(toast/confirm,自注入样式,零依赖)。运行时才被调用,位置宽松;各模块旧 toast 缺失它时自动回退原实现 -->
 <script src="/shared/feedback.js"></script>
 <!-- 2026-10-07 双语插件：引擎按需加载字典（未启用英文时零开销；设置→外观可切换） -->
-<script src="/shared/i18n.js"></script>
+<script src="/shared/i18n.js?v=9"></script>
 <!-- 2026-10-13 批 E1b：前端渠道注册表（window.__providers）——预设渠道 + 自定义渠道 + 每模型开关，
      数据存 cfw_providers_v3（公开副本 cfw_providers_public_v3 进云同步）。app.js/settings.js 都读它，
      须在 app.js 之前加载。 -->
-<script src="/shared/providers.js?v=2"></script>
+<script src="/shared/providers.js?v=4"></script>
 <!-- 4.37: 改回加载 Worker 动态下发的 /config.js。clientConfigJs() 生成纯 window.APP_* 赋值(无 export),且 worker 路由早于静态资源命中,以 src/config.js 为唯一模型源。
        重组目录时误把带 ESM export 的服务端 config 放到了 /js/text/core/config.js,classic <script> 读到 export 即抛 SyntaxError 中断 → window.APP_MODELS_FREE 未赋值 → 模型下拉空。 -->
 <script src="/config.js"></script>
 <script src="/js/text/data/character.js"></script>
 <!-- 4.49 P2 世界书数据层:LS tavern_lorebook_v1,随 sync.js 自动上云;须在 app.js 前加载供发送时筛条目 -->
 <script src="/js/text/data/lorebook.js"></script>
-<script src="/js/text/engine/multi-agent.js"></script>
+<script src="/js/text/engine/multi-agent.js?v=2"></script>
 <script src="/js/text/ui/theme.js"></script>
 <!-- sync.js 在 app.js 之前:启动时如已启用云同步会先 pull,避免 app.js init 读到老数据 -->
-<script src="/js/text/data/sync.js"></script>
+<script src="/js/text/data/sync.js?v=2"></script>
 <!-- 2026-09-14 UI第一轮:富文本渲染库(marked 解析 + marked-highlight 解析期代码高亮 + highlight.js 常用语言包 + DOMPurify 消毒),供 app.js renderMarkdownSafe 富路径使用。
      全部带 SRI 完整性校验,任一加载失败/缺失时 app.js 自动回退原手写渲染器,功能零损失。
      注意:marked/marked-highlight 故意用官方未压缩文件 —— jsDelivr 动态压缩产物随其 Terser 版本变化,配 SRI 会随机失效(官方文件字节恒定,配 SRI 安全)。 -->
@@ -1604,7 +1619,9 @@
      被 chat-extras.js 写入、被 app.js 与 chat-ux.js 读取。零依赖自注入 CSS。
      必须排在 app.js 之前:app.js 的 init() 是同步执行(文件末尾),会立刻还原历史会话并渲染附件,
      晚于它加载则 __attach 尚不存在,刷新后附件 chip 就渲染不出来。 -->
-<script src="/js/text/ui/attachments.js"></script>
+<!-- 2026-11-11 统一「保存文件到磁盘」出口:Tauri 壳走原生 export_text_file(修手机壳导出无响应),网页端 <a download> -->
+<script src="/shared/save-file.js?v=1"></script>
+<script src="/js/text/ui/attachments.js?v=3"></script>
 <!-- 2026-09-14 Agent 轮次步骤卡片(仅 Agent 模式生效):把工具调用渲染成可折叠卡片(名称/参数/状态/耗时/结果),
      摆在气泡上方;实时与历史还原共用同一套 DOM。零依赖自注入 CSS,须在 app.js 之前(还原历史时会用到) -->
 <script src="/js/text/ui/agent-steps.js"></script>
@@ -1617,10 +1634,12 @@
 <script src="/js/text/data/char-memory.js?v=3"></script>
 <!-- 角色记忆内核：Hindsight 的抽取 prompt + 条目结构 + RRF 融合（英文原文，不翻译）。存储走 IndexedDB，不需要任何服务。 -->
 <script src="/shared/memory-core.js?v=12"></script>
-<script src="/js/text/engine/app.js?v=25"></script>
-  <script src="/js/text/ui/settings.js?v=7"></script>
+<!-- 模型思考档位表（模型能力会常更新，单独维护；app.js 只消费 __modelThink） -->
+<script src="/shared/model-think.js?v=1"></script>
+<script src="/js/text/engine/app.js?v=36"></script>
+  <script src="/js/text/ui/settings.js?v=15"></script>
 <!-- 网页内核(魂)· 工具调用内核 SDK。agent-kernel.js 用 ESM export,必须 type="module"(classic <script> 读到 export 会抛 SyntaxError → window.AgentKernel 不挂载);它底部仍会挂 globalThis.AgentKernel 供非模块代码取用。tools.js 是 IIFE,挂 window.OwnChatTools,仅在 buildRegistry() 运行时才取 AgentKernel,故 classic 加载、顺序无碍。app.js 的 agent 模式分支在「发送」时按需调用 window.AgentKernel.runAgentLoop + window.OwnChatTools.buildRegistry({onImage})。须在 app.js 之后。 -->
-<script type="module" src="/shared/agent-kernel.js"></script>
+<script type="module" src="/shared/agent-kernel.js?v=2"></script>
 <script src="/shared/tools.js?v=2"></script>
 <!-- 2026-11-06: 源码/产物检索工具组（可选开发工具，后端=scripts/dev/source-server.mjs） -->
 <script src="/shared/source-tools.js?v=2"></script>
@@ -1642,7 +1661,7 @@
 <!-- 2026-06-18 环境感知 / 自检:self_diagnostics(环境快照 + 加载完整性 + 联网逐环节自检,联网委托 AgentReach.diagnose)。须在 agent-reach.js 之后,只读探测 -->
 <script src="/shared/env-context.js"></script>
 <!-- 4.69 Agent 控制台渲染器:渲染 runAgentLoop 事件流 → 右栏 Agent tab;提供 mountAgentConsole(container,{autoApprove}) → {onEvent,ensurePermission,clear,root} -->
-<script type="module" src="/shared/agent-console.js?v=2"></script>
+<script type="module" src="/shared/agent-console.js?v=3"></script>
 <!-- 2026-06-24 Skill 系统(window.__skills)·全局能力层(归 /shared/):纯 Markdown SKILL.md 加载器。
      2026-10-06: 改成三级渐进披露 —— 只有「名称 + 描述」目录挂进 agent 模式的系统提示(app.js 的 agent 装配点),
      正文由 load_skill 工具按需取;普通对话不再注入技能正文。管理面 = 设置·技能分类(#setSkillSlot)。 -->
@@ -1674,13 +1693,13 @@
 <!-- 自驱引擎(window.__autopilot):单角色叙事自驱循环,与鱼缸同辈。运行时依赖 app.js sendOne/abortCurrent + __fishbowl(互斥) + choices.js(暂停出口) + tts.js whenIdle(读完再续),均已先加载 -->
 <script src="/js/text/engine/autopilot.js"></script>
 <!-- 4.64 对话工具(保留输入框回形针 + 聊天同步冲突面板;左栏文件上传/多开聊天按钮已移除)。依赖 window.__app 会话 hooks,须在 app.js 之后 -->
-<script src="/js/text/ui/chat-extras.js"></script>
+<script src="/js/text/ui/chat-extras.js?v=2"></script>
 <!-- 2026-09-14 左栏常驻会话列表:参与角色头像 + 会话名 + 最后消息预览 + 相对时间,点击切换、⋯ 重命名/删除。依赖 __app 会话 CRUD -->
 <script src="/js/text/ui/conv-list.js"></script>
 <!-- 2026-09-14 左栏分组折叠:运行时把 .sidebar-section-title 及其后按钮包成可折叠分组(不改 HTML 模板)。须在 conv-list.js 之后,才能把「对话」分组一并纳入 -->
 <script src="/js/text/ui/sidebar-groups.js"></script>
 <!-- 4.7 提示词编辑器（Prompt Editor）：3-tab Modal · LS+IDB 混合存储 -->
-<script src="/js/text/ui/prompt-editor.js"></script>
+<script src="/js/text/ui/prompt-editor.js?v=1"></script>
 
 <script src="/js/image/gen/image-embed.js"></script>
 <script src="/js/image/gen/image-quickgen.js"></script>
@@ -1704,17 +1723,20 @@
 <script src="/shared/job-tools.js?v=4"></script>
 <script src="/shared/council-tools.js?v=2"></script>
 <script src="/shared/local-exec-tools.js?v=2"></script>
-<script src="/shared/pc-tools.js?v=5"></script>
-<script src="/shared/pc-settings-card.js?v=4"></script>
+<script src="/shared/pc-tools.js?v=11"></script>
+<script src="/shared/pc-settings-card.js?v=6"></script>
 <script src="/shared/topbar-cost.js?v=3"></script>
 <!-- 4.9 删除 4.6 折叠 IIFE:原本手机默认 .fishbowl-side-panel.collapsed 只显 header 一条,与 4.8 鱼缸 tab toggle 冲突,导致打开关闭都会有「留一条 header」挡住思考按钮。改为完全靠 4.8 body.fishbowl-shown 切换整个面板 display,不留任何残影。.collapsed CSS 规则保留为 dead code(无 JS 加 class 不生效)。 -->
 <!-- 2026-09-12 手机端思考强度归一化:从按钮状态/本地配置提取 low|medium|high,写入 data-mobile-effort。未知则移除,只显示图标。 -->
 <script>
 (function(){
   var MAP = {
+    minimal: "minimal", "极低": "minimal",
     low: "low", weak: "low", "低": "low", "弱": "low",
     medium: "medium", mid: "medium", auto: "medium", normal: "medium", "中": "medium", "默认": "medium",
-    high: "high", strong: "high", "高": "high", "强": "high"
+    high: "high", strong: "high", "高": "high", "强": "high",
+    xhigh: "xhigh", "更高": "xhigh",
+    max: "max", "最高": "max"
   };
   function pick(v){
     v = String(v || "").trim();
@@ -1722,6 +1744,9 @@
     if (MAP[v]) return MAP[v];
     var l = v.toLowerCase();
     if (MAP[l]) return MAP[l];
+    if (/minimal|极低/.test(l)) return "minimal";
+    if (/xhigh|extra.?high|更高/.test(l)) return "xhigh";
+    if (/max|最高/.test(l)) return "max";
     if (/low|weak|低|弱/.test(l)) return "low";
     if (/medium|mid|auto|normal|中|默认/.test(l)) return "medium";
     if (/high|strong|高|强/.test(l)) return "high";
