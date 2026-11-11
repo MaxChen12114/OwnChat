@@ -1751,6 +1751,28 @@
       +   '<div id="provList" style="flex:0 0 190px;min-width:158px;display:flex;flex-direction:column;gap:4px;"></div>'
       +   '<div id="provDetail" style="flex:1;min-width:230px;border-left:1px solid var(--border,#333);padding-left:12px;"></div>'
       + '</div>';
+    // 2026-11-11: 这块面板原来全是内联样式 —— 没法写 hover、间距各写各的，50 个模型一摊就显脏。
+    // 改成卡片内一份 scoped 样式表（类名统一 prov- 前缀，不影响别处），下面只写 class。
+    var cardCss = document.createElement('style');
+    cardCss.textContent = [
+      '#byoProviderCard .prov-sec{margin-top:14px}',
+      '#byoProviderCard .prov-sec-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}',
+      '#byoProviderCard .prov-sec-title{font-size:12.5px;font-weight:600}',
+      '#byoProviderCard .prov-chip{font-size:11px;line-height:18px;color:var(--muted);border:1px solid var(--border,#333);border-radius:999px;padding:0 8px;white-space:nowrap}',
+      '#byoProviderCard .prov-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}',
+      '#byoProviderCard .prov-hint{font-size:11px;color:var(--muted)}',
+      '#byoProviderCard .prov-box{margin-top:8px;border:1px solid var(--border,#333);border-radius:8px;max-height:260px;overflow:auto}',
+      '#byoProviderCard .prov-grp{display:flex;justify-content:space-between;gap:8px;padding:8px 10px 3px;font-size:11px;color:var(--muted);border-top:1px solid var(--border-soft,var(--border,#333))}',
+      '#byoProviderCard .prov-grp:first-child{border-top:0}',
+      '#byoProviderCard .prov-row{display:flex;align-items:center;gap:8px;padding:4px 10px;font-size:12.5px;cursor:pointer}',
+      '#byoProviderCard .prov-row:hover{background:var(--ac-soft)}',
+      '#byoProviderCard .prov-row input{accent-color:var(--ac);margin:0;flex:0 0 auto}',
+      '#byoProviderCard .prov-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '#byoProviderCard .prov-empty{padding:10px;font-size:12px;color:var(--muted)}',
+      '#byoProviderCard .prov-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px;font-size:12.5px}',
+      '#byoProviderCard .prov-code{font-size:11.5px;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}',
+    ].join('\n');
+    card.appendChild(cardCss);
     slot.appendChild(card);
     var listEl = card.querySelector('#provList'), detailEl = card.querySelector('#provDetail');
     var selKey = P.effectiveKey(curMode()) || ((P.channels()[0] && P.channels()[0].key) || '');
@@ -1792,42 +1814,45 @@
 
     function modelsBlock(key) {
       var all = P.modelsAll(key);
-      // 2026-11-11(C): 免费档放宽到 50 个模型后，平铺一列没法用 ——
-      // 按厂商(id 里 "/" 前面那段)分组渲染，并给三个批量按钮。
+      // 2026-11-11: 免费档放宽到 50 个模型后，平铺一列没法用 —— 按厂商分组 + 批量按钮。
+      // 行内只显示短名（"/" 之后那段），完整 id 放 title；厂商在分组标题里，不重复占宽度。
       var groups = [], gi = {};
       all.forEach(function (m) {
-        var v = String(m.id).indexOf('/') >= 0 ? String(m.id).split('/')[0] : '其他';
+        var v = String(m.id).indexOf('/') >= 0 ? String(m.id).split('/')[0] : '';
         if (!gi[v]) { gi[v] = { vendor: v, rows: [] }; groups.push(gi[v]); }
         gi[v].rows.push(m);
       });
-      var rows = all.length
+      var onCount = all.filter(function (m) { return m.enabled; }).length;
+      var body = all.length
         ? groups.map(function (g) {
-            // 厂商分组小标题（不吸顶：吸顶要有一个跟卡片底色完全一致的背景色，
-            // 四套主题下容易滚出一条色带，收益不值这个风险）
-            var head = '<div style="font-size:11px;color:var(--muted);margin:8px 0 2px;">'
-              + esc(g.vendor) + ' · ' + g.rows.length + '</div>';
+            var head = '<div class="prov-grp"><span>' + esc(g.vendor || '默认') + '</span><span>' + g.rows.length + '</span></div>';
             return head + g.rows.map(function (m) {
-              return '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0;cursor:pointer;word-break:break-all;">'
-                + '<input type="checkbox" data-mid="' + esc(m.id) + '"' + (m.enabled ? ' checked' : '') + '>'
-                + '<span>' + esc(m.id) + '</span></label>';
+              var id = String(m.id);
+              var short = id.indexOf('/') >= 0 ? id.slice(id.indexOf('/') + 1) : id;
+              return '<label class="prov-row" title="' + esc(id) + '">'
+                + '<input type="checkbox" data-mid="' + esc(id) + '"' + (m.enabled ? ' checked' : '') + '>'
+                + '<span>' + esc(short) + '</span></label>';
             }).join('');
           }).join('')
-        : '<div style="font-size:12px;color:var(--muted);padding:4px 0;">还没拉取过模型列表 · 点上面「拉取模型列表」（拉不到可手填）</div>';
-      var onCount = all.filter(function (m) { return m.enabled; }).length;
-      var bulk = all.length
-        ? '<div class="btns" style="margin-top:6px;gap:6px;">'
+        : '<div class="prov-empty">还没拉取过模型列表 · 点右上「拉取模型列表」（拉不到可手填）</div>';
+      var toolbar = all.length
+        ? '<div class="prov-toolbar">'
           + '<button class="smallbtn" type="button" id="provSelAll">全选</button>'
           + '<button class="smallbtn" type="button" id="provSelRec">恢复推荐</button>'
           + '<button class="smallbtn" type="button" id="provSelNone">清空</button>'
-          + '<span style="font-size:11px;color:var(--muted);align-self:center;">已勾 ' + onCount + ' / 共 ' + all.length + '</span>'
+          + '<span class="prov-hint">勾选 = 出现在顶栏下拉</span>'
           + '</div>'
         : '';
-      return '<div style="margin-top:12px;">'
-        + '<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;color:var(--muted);flex:1;">模型列表（勾选 = 出现在顶栏下拉）</span>'
-        + '<button class="smallbtn" type="button" id="provFetch">拉取模型列表</button></div>'
-        + bulk
-        + '<div style="max-height:240px;overflow:auto;margin-top:6px;">' + rows + '</div>'
-        + '<div id="provFetchMsg" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>'
+      return '<div class="prov-sec">'
+        + '<div class="prov-sec-hd">'
+          + '<span class="prov-sec-title">模型列表</span>'
+          + (all.length ? '<span class="prov-chip">已启用 ' + onCount + ' / ' + all.length + '</span>' : '')
+          + '<span style="flex:1;"></span>'
+          + '<button class="smallbtn" type="button" id="provFetch">拉取模型列表</button>'
+        + '</div>'
+        + toolbar
+        + '<div class="prov-box">' + body + '</div>'
+        + '<div id="provFetchMsg" class="prov-hint" style="margin-top:6px;"></div>'
         + '</div>';
     }
 
@@ -1848,8 +1873,13 @@
           : '<span style="color:var(--muted);">状态未知（没连上服务端）</span>';
         detailEl.innerHTML = '<div style="font-weight:600;font-size:14px;">' + esc(c.name) + '<span style="font-size:11px;color:var(--muted);font-weight:400;">　预设渠道 · ' + esc(m.label || '') + '</span></div>'
           + '<div style="font-size:12px;color:var(--muted);margin-top:4px;">服务端渠道：API Key 存在 Worker 环境变量（' + esc(m.keyEnv || '') + '），本页面不见 Key、不能改。</div>'
-          + '<div style="margin-top:10px;"><label style="' + LBL + '">Endpoint（只读）</label><input readonly value="' + esc(m.endpoint || '') + '" style="' + INP + 'color:var(--muted);"></div>'
-          + '<div style="margin-top:8px;font-size:12.5px;">状态：' + confText + '　·　默认模型：' + esc(m.defaultModel || '（无）') + '</div>'
+          + '<div style="margin-top:10px;"><label style="' + LBL + '">Endpoint（只读）</label><input readonly value="' + esc(m.endpoint || '') + '" style="' + INP + 'color:var(--muted);font-size:12px;"></div>'
+          // 状态与默认模型原来挤在同一行、长 id 一换行就散架 → 拆成可换行的信息行
+          + '<div class="prov-meta">'
+            + '<span>' + confText + '</span>'
+            + '<span class="prov-hint">默认模型</span>'
+            + '<code class="prov-code">' + esc(m.defaultModel || '（无）') + '</code>'
+          + '</div>'
           + modelsBlock(selKey)
           + '<div class="btns" style="margin-top:12px;">' + useBtn(selKey, true) + '</div>';
       } else {
@@ -1871,6 +1901,7 @@
           + modelsBlock(selKey)
           + '<div class="btns" style="margin-top:12px;">' + useBtn(selKey, !!(p.endpoint && p.model), '先保存端点与模型，再启用') + '<button class="smallbtn" type="button" id="provSave">保存此渠道</button><button class="smallbtn danger" type="button" id="provDelete">删除</button></div>';
       }
+      renderedKey = selKey; // 记下这次真正渲染的渠道（滚动保持要比对它）
     }
 
     // 未保存的编辑（草稿）：任何重渲染前先收走、渲染后回填 —— 拉取/事件刷新不会清空正在填的表单。
@@ -1904,7 +1935,21 @@
         needsReasoningHistory: _ts !== 'none',
       });
     }
-    function renderAll() { var d = captureDraft(); renderList(); renderDetail(); restoreDraft(d); }
+    // 2026-11-11: 滚动位置保持 —— 勾一个模型会走 toggleModel→write→emit→renderAll，
+    // 整块 detail 重建后滚动容器是新 DOM，scrollTop 归零（用户看到的就是"点一下就跳回顶部"）。
+    // 关键是比"这次渲染的是不是同一个渠道"（renderedKey），而不是比 selKey ——
+    // 切渠道时 selKey 在渲染前就变了，用 selKey 比会把上个渠道的偏移套到新渠道上。
+    var renderedKey = '';
+    function captureScroll() {
+      var b = detailEl.querySelector('.prov-box');
+      return { key: renderedKey, top: b ? b.scrollTop : 0 };
+    }
+    function restoreScroll(c) {
+      if (!c || !c.top || c.key !== renderedKey || !c.key) return;
+      var b = detailEl.querySelector('.prov-box');
+      if (b) b.scrollTop = c.top;
+    }
+    function renderAll() { var d = captureDraft(); var sc = captureScroll(); renderList(); renderDetail(); restoreDraft(d); restoreScroll(sc); }
 
     // —— 左栏：点击即切换 ——
     listEl.addEventListener('click', function (e) {
