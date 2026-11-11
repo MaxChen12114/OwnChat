@@ -1089,9 +1089,21 @@
       }
     } catch (e) {}
     if (ch) {
-      const label = String(ch.name).slice(0, 14);
-      setIcon(modeToggle, ch.kind === "custom" ? "modeFast" : (ch.mode === "fast" ? "modeFast" : "modeFree"), label);
-      modeToggle.title = "当前渠道：" + ch.name + "；点击切换免费/快速预设（渠道详情见 设置→模型 API）";
+      // 2026-11-11 修：预设渠道不再把中文长名塞进胶囊。
+      // 免费/快速这两个 pill 是**模式开关**，不是渠道显示器 —— 在设置里点过一次渠道
+      // （activeId=preset:nvidia）就会从两个字变成「NVIDIA 免费档」，宽度突变还把顶栏挤歪。
+      // 现在：预设渠道一律只显示两个字（免费 / 快速），渠道名进 title；
+      // 只有「自定义渠道」才显示渠道名 —— 那确实是另一家服务商，两个字表达不了。
+      if (ch.kind === "preset") {
+        const isFastCh = ch.mode === "fast";
+        const word = isFastCh ? "快速" : "免费";
+        setIcon(modeToggle, isFastCh ? "modeFast" : "modeFree", word);
+        modeToggle.title = "当前：" + (isFastCh ? "快速档" : "免费档") + "（渠道 " + ch.name + "）；点击切换免费/快速 · 渠道详情见 设置→模型 API";
+      } else {
+        const label = String(ch.name).slice(0, 14);
+        setIcon(modeToggle, "modeFast", label);
+        modeToggle.title = "当前渠道：" + ch.name + "；点击切换免费/快速预设（渠道详情见 设置→模型 API）";
+      }
     } else {
       modeToggle.textContent = isFast ? "\u26A1 快速" : "\u{1F7E2} 免费";
       setIcon(modeToggle, isFast ? "modeFast" : "modeFree", isFast ? "快速" : "免费"); // 2026-06-07: 线性 SVG 图标 + 文字(覆盖上一行 emoji)
