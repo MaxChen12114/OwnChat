@@ -13,7 +13,7 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);lin
 .h1{font-size:18px;font-weight:750;line-height:1.2;letter-spacing:.2px;white-space:nowrap;color:var(--text)}
 .brand-txt .sub{color:var(--muted);font-size:12px;line-height:1.3}
 .topbar-right{display:flex;align-items:center;gap:10px;flex:none}
-.top-icon-btn{height:38px;min-width:38px;padding:0 14px;border-radius:var(--radius-pill);border:1px solid var(--border-soft);background:var(--btn-bg);color:var(--text);display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;cursor:pointer;font-size:13px;transition:.15s}
+.top-icon-btn{height:38px;min-width:38px;padding:0 14px;border-radius:var(--radius);border:1px solid var(--border-soft);background:var(--btn-bg);color:var(--text);display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;cursor:pointer;font-size:13px;transition:.15s}
 .top-icon-btn:hover{background:var(--btn-bg-hover);border-color:var(--accent-border);color:var(--text)}
 .top-icon-btn svg{width:17px;height:17px;flex:none}
 
@@ -60,13 +60,13 @@ select optgroup{font-weight:700;color:var(--accent-2)}
 .prompt-inner .hint b{color:var(--accent-2)}
 
 /* ===== 按钮 ===== */
-.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:var(--radius-pill);border:1px solid var(--border-soft);background:var(--btn-bg);color:var(--text);cursor:pointer;font-size:14px;font-family:inherit;transition:.15s;text-decoration:none}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:var(--radius);border:1px solid var(--border-soft);background:var(--btn-bg);color:var(--text);cursor:pointer;font-size:14px;font-family:inherit;transition:.15s;text-decoration:none}
 .btn:hover{background:var(--btn-bg-hover);border-color:var(--accent-border);color:var(--text)}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
 .btn svg{width:16px;height:16px;flex:none}
 .btn.small{padding:6px 12px;font-size:12.5px}
 .btn.small svg{width:13px;height:13px}
-.btn.primary{background:var(--grad);border-color:var(--accent-border);color:var(--ac-contrast,var(--card-2))}
+.btn.primary{background:var(--ac);border-color:var(--accent-border);color:var(--ac-contrast,var(--card-2))}
 .btn.primary:hover{filter:brightness(1.08)}
 .btn.ghost{background:transparent;color:var(--muted)}
 .btn.ghost:hover{background:var(--btn-bg-hover);color:var(--text)}
@@ -124,7 +124,7 @@ select optgroup{font-weight:700;color:var(--accent-2)}
    图像工坊 Tab —— 并入创作工坊，复用本页设计语言
    ============================================================ */
 .tabs{display:flex;gap:6px;padding:0 18px 12px;max-width:920px;width:100%;margin:0 auto}
-.tab{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 16px;border-radius:var(--radius-pill);border:1px solid var(--border-soft);background:var(--btn-bg);color:var(--muted);font-size:13.5px;font-family:inherit;cursor:pointer;transition:.15s}
+.tab{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 16px;border-radius:var(--radius);border:1px solid var(--border-soft);background:var(--btn-bg);color:var(--muted);font-size:13.5px;font-family:inherit;cursor:pointer;transition:.15s}
 .tab svg{width:16px;height:16px;flex:none}
 .tab:hover{color:var(--text);border-color:var(--accent-border);background:var(--btn-bg-hover)}
 .tab.active{color:var(--ac-contrast,var(--card-2));background:var(--accent);border-color:var(--accent-border)}

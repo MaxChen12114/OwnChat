@@ -594,6 +594,8 @@ html[data-theme="glass"] .right-sidebar {
 }
 html[data-theme="glass"] .sidebar-header,
 html[data-theme="glass"] .sidebar-section-title { color: #64748b; }
+/* 2026-11-11 (B4)：玻璃下未选中分类药丸同样提到 .72（4.1→约 5:1） */
+html[data-theme="glass"] .settings-cat-nav .scn-item { opacity: .72; }
 html[data-theme="glass"] .sidebar-divider { background: rgba(255,255,255,.42); }
 html[data-theme="glass"] .sidebar-slot-placeholder,
 html[data-theme="glass"] #fishbowlSlot:empty::before { color: #94a3b8; }
@@ -1121,8 +1123,8 @@ html[data-theme="candle"] #topbar #personaToggle:hover {
 .ue-preset-ops { display: flex; gap: 4px; }
 .ue-mini { padding: 2px 8px; font-size: 13px; line-height: 1.2; border-radius: 6px; border: 1px solid rgba(127,127,127,.3); background: transparent; color: inherit; cursor: pointer; }
 .ue-mini:hover { background: rgba(127,127,127,.18); }
-.ue-mini.danger:hover { background: rgba(255, 80, 80, .15); color: #ff7777; border-color: #ff7777; }
-.ue-empty { padding: 28px 16px; text-align: center; opacity: .55; font-size: 13px; border: 1px dashed rgba(127,127,127,.3); border-radius: 10px; }
+.ue-mini.danger:hover { background: var(--danger-soft-hover, rgba(255,80,80,.15)); color: var(--danger, #ff7777); border-color: var(--danger-border, #ff7777); }
+.ue-empty { padding: 28px 16px; text-align: center; opacity: var(--empty-op, .6); font-size: var(--empty-fs, 12.5px); line-height: var(--empty-lh, 1.6); border: 1px dashed rgba(127,127,127,.3); border-radius: 10px; }
 .ue-editor-slot:empty { display: none; }
 .ue-preset-drag { cursor: grab; opacity: .4; font-size: 15px; user-select: none; }
 .ue-preset-row.dragging { opacity: .4; }
@@ -1650,8 +1652,6 @@ html:not([data-theme]):not([data-scheme="dark"]) .rowline { border-top-color:#ec
 
 html:not([data-theme]):not([data-scheme="dark"]) .smallbtn { background:#fff; border:1px solid #e3e3e0; color:#37352f; }
 html:not([data-theme]):not([data-scheme="dark"]) .smallbtn:hover { background:#f1f1ef; }
-html:not([data-theme]):not([data-scheme="dark"]) .smallbtn.danger { background:#fdf0ef; border-color:rgba(220,38,38,.25); color:#b91c1c; }
-html:not([data-theme]):not([data-scheme="dark"]) .smallbtn.danger:hover { background:#fbe3e1; }
 
 html:not([data-theme]):not([data-scheme="dark"]) #customPrompt,
 html:not([data-theme]):not([data-scheme="dark"]) .char-input,
@@ -1865,7 +1865,7 @@ html[data-scheme="light"]:not([data-theme]) {
 .bubble .hljs-attr, .bubble .hljs-attribute, .bubble .hljs-variable, .bubble .hljs-template-variable, .bubble .hljs-params { color: var(--hl-attr); }
 .bubble .hljs-type, .bubble .hljs-built_in, .bubble .hljs-builtin-name, .bubble .hljs-title.class_, .bubble .hljs-class .hljs-title { color: var(--hl-type); }
 .bubble .hljs-meta, .bubble .hljs-selector-id, .bubble .hljs-selector-class { color: var(--hl-meta); }
-.bubble .hljs-deletion { color: #e8607d; }
+.bubble .hljs-deletion { color: var(--danger, #e8607d); }
 .bubble .hljs-emphasis { font-style: italic; }
 .bubble .hljs-strong { font-weight: 700; }
 .bubble .hljs-section { font-weight: 600; }

@@ -15,6 +15,7 @@
   }catch(e){}})();
 </script>
 <link rel="stylesheet" href="/shared/theme.css?v=2" />
+<script src="/shared/chat-stream.js"></script>
 <style>
 /* 主题令牌统一来自 /shared/theme.css(跟随主站主题),本页不再自定义 :root */
 *{box-sizing:border-box}
@@ -49,8 +50,8 @@ svg{vertical-align:middle}
 .edtoolbar{display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap}
 .field{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
 .sel{padding:6px 9px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:inherit;font:inherit;font-size:13px}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:9px;border:1px solid var(--border);background:rgba(127,127,127,.06);color:inherit;font:inherit;font-size:13px;cursor:pointer}
-.btn:hover{background:rgba(127,127,127,.13)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:9px;border:1px solid var(--border);background:var(--btn-bg,rgba(127,127,127,.06));color:inherit;font:inherit;font-size:13px;cursor:pointer}
+.btn:hover{background:var(--ac-soft,rgba(127,127,127,.13))}
 .btn:disabled{opacity:.5;cursor:default}
 .btn svg{width:15px;height:15px}
 .btn.primary{border-color:var(--ac);background:var(--ac);color:var(--ac-contrast)}
@@ -184,14 +185,18 @@ function buildModels(){var sel=$("#model");if(!sel)return;sel.innerHTML="";addGr
 function selModel(){var sel=$("#model");var o=sel&&sel.options[sel.selectedIndex];if(o&&o.getAttribute("data-mode"))return{mode:o.getAttribute("data-mode"),model:o.getAttribute("data-model")};return{mode:"free",model:undefined};}
 
 async function callChat(opts){
-  try{var _bid=localStorage.getItem("cfw_base_id_v1")||"";if(_bid)body.baseId=_bid;}catch(e){}
-  var r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:opts.signal});
-  if(!r.ok){var t="";try{t=await r.text();}catch(e){}throw new Error("服务返回 "+r.status+(t?(" · "+t.slice(0,160)):""));}
-  var reader=r.body.getReader(),dec=new TextDecoder(),buf="",full="";
-  while(true){var rd=await reader.read();if(rd.done)break;buf+=dec.decode(rd.value,{stream:true});var i;while((i=buf.indexOf("\n"))>=0){var line=buf.slice(0,i).trim();buf=buf.slice(i+1);if(!line||line.charAt(0)===":")continue;if(line.indexOf("data:")!==0)continue;var data=line.slice(5).trim();if(data==="[DONE]")continue;try{var j=JSON.parse(data);var d=j&&j.choices&&j.choices[0]&&j.choices[0].delta&&j.choices[0].delta.content;if(d){full+=d;if(opts.onDelta)opts.onDelta(full);}}catch(e){}}}
-  return full;
-}
+  // 2026-11-11 (B8)：统一走 shared/chat-stream.js；write 保留自己的开关 key
+  return window.__chatStream.call({
+    profile: "rp",
 
+    mode: opts.mode,
+    model: opts.model,
+    system: opts.system,
+    user: opts.user,
+    signal: opts.signal,
+    onDelta: opts.onDelta
+  });
+}
 var LS_DOC="cfw_write_doc_v1",LS_TITLE="cfw_write_title_v1";
 var doc=$("#doc"),titleEl=$("#docTitle");
 function save(){try{localStorage.setItem(LS_DOC,doc.value);localStorage.setItem(LS_TITLE,titleEl.value);}catch(e){}$("#saveState").textContent="已自动保存";}

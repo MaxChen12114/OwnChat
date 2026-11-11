@@ -450,33 +450,20 @@
     return 'free';
   }
   async function aiChat(system, user, model, onDelta) {
-    var on = true;
-    var body = { mode: aiModeForModel(model), model: model || "", promptProfile: "assist", use_builtin_persona: on, custom_system_prompt: system || "", thinking: "disabled", messages: [{ role: "user", content: user || "" }] };
-    try { var _bid = localStorage.getItem("cfw_base_id_v1") || ""; if (_bid) body.baseId = _bid; } catch (e) {}
-    
     aiAborter = new AbortController();
-    var resp = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: aiAborter.signal });
-    if (!resp.ok || !resp.body) throw new Error("请求失败 HTTP " + resp.status);
-    var reader = resp.body.getReader(), dec = new TextDecoder(), buf = "", full = "";
-    while (true) {
-      var r = await reader.read();
-      if (r.done) break;
-      buf += dec.decode(r.value, { stream: true });
-      var lines = buf.split("\n"); buf = lines.pop();
-      for (var i = 0; i < lines.length; i++) {
-        var line = lines[i].trim();
-        if (!line || line.indexOf("data:") !== 0) continue;
-        var data = line.slice(5).trim();
-        if (data === "[DONE]") continue;
-        try {
-          var j = JSON.parse(data);
-          var delta = j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content;
-          if (delta) { full += delta; if (onDelta) onDelta(full); }
-        } catch (e) {}
-      }
-    }
-    return full;
+    return window.__chatStream.call({
+      profile: "assist",
+      mode: aiModeForModel(model),
+      model: model || "",
+      system: system || "",
+      user: user || "",
+
+
+      signal: aiAborter.signal,
+      onDelta: onDelta
+    });
   }
+
   function parseManifest(text) {
     var t = stripFences(text);
     try { return JSON.parse(t); } catch (e) {}

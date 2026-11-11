@@ -55,7 +55,7 @@
     var card = document.createElement('div'); card.className = 'card'; card.id = 'imgChCard';
     card.innerHTML = '<h4>图像模型 · 渠道管理</h4>'
       + '<p>图像走哪个渠道，这里说了算。左侧选渠道（点击即切换），右侧看详情：填端点 / Key、模型列表，点「使用此渠道」后，图像工坊、角色立绘、聊天发图和创作工坊页都跟着它走。'
-      + '内置 Gitee 预设走站点代理；自定义渠道由浏览器直连（服务商需允许 CORS，本机 ComfyUI 也需允许 CORS），<b>Key 仅存本设备</b>。</p>'
+      + '内置 Gitee 预设走站点代理；自定义渠道由浏览器直连（服务商需允许 CORS，本机 ComfyUI 也需允许 CORS），<b>API Key 只存本机</b>。</p>'
       + '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;align-items:flex-start;">'
       +   '<div id="imgChList" style="flex:0 0 190px;min-width:158px;display:flex;flex-direction:column;gap:4px;"></div>'
       +   '<div id="imgChDetail" style="flex:1;min-width:230px;border-left:1px solid var(--border,#333);padding-left:12px;"></div>'

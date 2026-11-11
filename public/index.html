@@ -29,7 +29,7 @@
       #settings .card label { font-size: 13px; }
       #settings .card code { font-size: 11.5px; padding: 1px 5px; border-radius: 3px; }
       #settings .card .toggle label { font-size: 13px; }
-      #settings .card .smallbtn { font-size: 12px; }
+      #settings .card .smallbtn { font-size: var(--ctl-fs, 12.5px); }
       /* 4.70: settings 手机端 flex-wrap 修复 */
       #settings .rowline { flex-wrap: wrap; gap: 8px; }
       #settings .toggle  { flex-wrap: wrap; }
@@ -186,7 +186,7 @@
     #rightSidebar .rs-panel[hidden] { display: none; }
     /* 2026-11-09(所有者裁定): 右栏保持「整栏向下滚、时间线一路增高」的原行为 ——
        不把面板收成定高内滚。群聊控制台只调 DOM 顺序(在时间线之上),高度不设限。 */
-    #rightSidebar .rs-empty { font-size: 11.5px; line-height: 1.6; opacity: .5; text-align: center; padding: 18px 12px; }
+    #rightSidebar .rs-empty { font-size: var(--empty-fs, 12.5px); line-height: var(--empty-lh, 1.6); opacity: var(--empty-op, .6); text-align: center; padding: 18px 12px; }
     #rightSidebar #fishbowlSlot:not(:empty) + .rs-empty { display: none; }
     #rightSidebar #agentConsoleSlot:not(:empty) + .rs-empty { display: none; }   /* 活动栏的空态 */
     #rightSidebar .rs-panel .sidebar-slot-placeholder { padding: 0; border: none; background: none; text-align: left; color: inherit; min-height: 0; }
@@ -204,7 +204,7 @@
     #settings .card h4 { font-size: 15px; font-weight: 600; line-height: 1.4; letter-spacing: .01em; }
     #settings .card > p { font-size: 13px; line-height: 1.65; }
     #settings .card label { font-size: 13px; line-height: 1.5; }
-    #settings .card .smallbtn { font-size: 12px; }
+    #settings .card .smallbtn { font-size: var(--ctl-fs, 12.5px); }
     /* 2026-06-08 设置面板规整 + 去 emoji:把散落的 💡/⚠️ 提示行统一为「线性 SVG 图标 + 文字」组件,字号·间距·颜色一致,消除"乱乱的"观感(与全站 SVG 图标语言对齐) */
     #settings .settings-tip, #settings .settings-warn { display: flex; align-items: flex-start; gap: 7px; font-size: 11px; line-height: 1.6; margin-top: 10px; }
     #settings .settings-tip { color: #888; }
@@ -570,7 +570,7 @@
        圆角顶端的渐细像素被削后圆角就"消失"成平头(截图放大肉眼可见)。留出余量后裁剪边远离按钮。 */
     .settings-cat-nav { display: flex; gap: 5px; margin: 4px 0 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 2px 0; }
     .settings-cat-nav::-webkit-scrollbar { display: none; }
-    .settings-cat-nav .scn-item { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; line-height: 1; white-space: nowrap; padding: 8px 12px; border: 1px solid var(--border, #2a2a2a); border-radius: 10px; background: rgba(127,127,127,.06); color: inherit; opacity: .58; cursor: pointer; transition: background .15s, opacity .15s, border-color .15s, transform .1s; }
+    .settings-cat-nav .scn-item { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; font-size: var(--ctl-fs, 12.5px); font-weight: 600; line-height: 1; white-space: nowrap; padding: 8px 12px; min-height: var(--ctl-h, 34px); border: 1px solid var(--border, #2a2a2a); border-radius: var(--ctl-r, 9px); background: rgba(127,127,127,.06); color: inherit; opacity: .58; cursor: pointer; transition: background .15s, opacity .15s, border-color .15s, transform .1s; }
     .settings-cat-nav .scn-item svg { width: 14px; height: 14px; flex: none; display: block; }
     .settings-cat-nav .scn-item:hover { opacity: .88; background: rgba(127,127,127,.12); transform: translateY(-1px); }
     .settings-cat-nav .scn-item:active { transform: translateY(0) scale(.97); }
@@ -581,7 +581,7 @@
        smallbtn 触摸目标同步加高 */
     @media (max-width: 768px) {
       .settings-cat-nav .scn-item { padding: 10px 14px; }
-      #settings .smallbtn { min-height: 34px; padding-top: 6px; padding-bottom: 6px; }
+      #settings .smallbtn { min-height: var(--ctl-h, 34px); padding-top: 6px; padding-bottom: 6px; }
       #settingsHeader .hint, #settings .settings-tip, #settings .settings-tip span, #settings .settings-warn { font-size: 12px; }
       #settings .card p { font-size: 12.5px; }
     }
@@ -589,8 +589,42 @@
     #settingsHeader .sh-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
     #settingsHeader .sh-close { width: 30px; height: 30px; flex: none; border-radius: 9px; border: none; background: rgba(127,127,127,.1); color: inherit; opacity: .5; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: opacity .15s, background .15s; padding: 0; }
     #settingsHeader .sh-close:hover { opacity: 1; background: rgba(127,127,127,.22); }
+    /* 2026-11-11 (B6 P0-3/P0-4)：手机设置 Tab 条 —— 可横滑但没有任何提示，
+       "Agent" 被硬切、后 4 项用户不知道能滑；触控目标也普遍 24–28px。
+       这里补右缘渐隐、滚动吸附、44px 热区（≤720 才生效；721+ 是左侧竖排导航）。 */
+    @media (max-width: 720px) {
+      #settings .settings-cat-nav {
+        gap: 8px;
+        padding-right: 28px;
+        scroll-snap-type: x proximity;
+        -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent 100%);
+        mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent 100%);
+      }
+      #settings .settings-cat-nav .scn-item {
+        min-height: 44px;
+        padding: 0 14px;
+        scroll-snap-align: start;
+      }
+      #settingsHeader .sh-close {
+        width: 44px;
+        height: 44px;
+        margin: -7px -7px 0 0;
+      }
+      #settingsFooter .smallbtn { min-height: 44px; }
+      /* 手机上不画桌面式细滚动条（它压住卡片圆角）；滚动本身不变 */
+      #settings .settings-shell { scrollbar-width: none; }
+      #settings .settings-shell::-webkit-scrollbar { width: 0; height: 0; }
+    }
+
     @media (min-width: 721px) {
       .settings-shell { display: flex; align-items: flex-start; gap: 20px; }
+      /* 2026-11-11 (B6 P0-2)：滚动区底部留白 + 12px 渐隐 —— 旧版内容在 footer 上沿被硬切，像面板断了；
+         留白保证滚到底时最后一张卡完整，渐隐提示"下面还有"。 */
+      #settings .settings-shell {
+        padding-bottom: 16px;
+        -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 12px), transparent 100%);
+        mask-image: linear-gradient(to bottom, #000 calc(100% - 12px), transparent 100%);
+      }
       .settings-cat-nav { flex: 0 0 152px; flex-direction: column; gap: 3px; overflow-x: visible; margin: 0; position: sticky; top: 0; align-self: flex-start; padding-right: 4px; border-right: 1px solid rgba(127,127,127,.1); }
       .settings-cat-nav .scn-item { width: 100%; justify-content: flex-start; }
       .settings-cat-body { flex: 1 1 auto; min-width: 0; }
@@ -1100,7 +1134,7 @@
             <h3>设置</h3>
             <button class="sh-close" onclick="var c=document.getElementById('closeSettings');if(c)c.click();" title="关闭设置" aria-label="关闭设置"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           </div>
-          <div class="hint">本地数据保存在浏览器；启用云同步后也会上传到你的 Cloudflare KV</div>
+          <div class="hint">数据默认存在浏览器；开启云同步后上传到你的 Cloudflare KV。</div>
         </div>
 
         <div class="settings-shell" style="flex:1 1 auto;min-height:0;overflow-y:auto;">
@@ -1119,7 +1153,7 @@
         <div class="settings-cat-body">
 
         <div class="set-cat active" data-cat="account">
-        <div class="settings-group-title">账号 / 数据 / 同步</div>
+        <div class="settings-group-title">账号 · 数据 · 同步</div>
         <!-- 4.70 M1: 账号分类卡 DOM 移出 → settings.js mountAuthCard()(+后续云同步卡) 注入此槽 -->
         <div id="setAccountSlot"></div>
 
@@ -1130,7 +1164,7 @@
         </div><!-- /set-cat account -->
 
         <div class="set-cat" data-cat="appearance">
-        <div class="settings-group-title">外观 / 界面</div>
+        <div class="settings-group-title">外观 · 界面</div>
         <!-- 4.70 M1: 顶栏组件卡 DOM 已移出 index.html → settings.js mountTopbarCostCard() 注入此槽 -->
         <div id="setAppearanceTopSlot"></div>
         <div id="setAppearanceThemeSlot"></div>
@@ -1138,7 +1172,7 @@
         </div><!-- /set-cat appearance -->
 
         <div class="set-cat" data-cat="chat">
-        <div class="settings-group-title">对话 / 玩法</div>
+        <div class="settings-group-title">对话 · 玩法</div>
         <!-- 4.70 M1: 对话分类卡(互动模式 + 显示设置)DOM 已移出 → settings.js mountChatModeCard()/mountDisplayCard() 注入此槽 -->
         <div id="setChatSlot"></div>
 
@@ -1155,14 +1189,14 @@
         </div><!-- /set-cat agent -->
 
         <div class="set-cat" data-cat="skill">
-        <div class="settings-group-title">技能 / Skill（Agent）</div>
+        <div class="settings-group-title">技能 · Agent</div>
         <!-- 2026-06-24 Skill 系统独立分类:skills.js mountCard() 注入 #setSkillSlot(原挂 #setChatSlot,因「对话」分类卡过多而拆出独立「技能」标签)。
      2026-10-06: 分类改名「技能 · Skill（Agent）」——技能只在 agent 模式挂载,名字里点明,免得以为是聊天用的。 -->
         <div id="setSkillSlot"></div>
         </div><!-- /set-cat skill -->
 
         <div class="set-cat" data-cat="image">
-        <div class="settings-group-title">发图 / 图像</div>
+        <div class="settings-group-title">发图 · 图像</div>
         <!-- 2026-05-29 微信发图(实验):chat-image.js 配套设置卡 -->
         <div id="setImageChatSlot"></div>
 
@@ -1174,13 +1208,13 @@
              · 图像渠道(内置 Gitee 预设 + 自定义 OpenAI 兼容 + 本地 ComfyUI,原挂 #settingsImageSlot/「发图」)
              以后接生图/各类外接模型 API 都归这,不再往各玩法 tab 里塞。注:本地 TTS 是本机服务(GPT-SoVITS,无外接端点/Key),不属此类,留在「语音」tab。 -->
         <div class="set-cat" data-cat="modelapi">
-        <div class="settings-group-title">模型 API / 外接模型</div>
+        <div class="settings-group-title">模型 API · 外接模型</div>
         <div id="setModelApiSlot"></div>
         </div><!-- /set-cat modelapi -->
 
         <!-- voice tab 内容区 + slot。mountVoiceCards() → getVoiceSlot() 依赖 #settingsVoiceSlot;本地 GPT-SoVITS 是本机服务、非外接 API,故独立留此 tab。initCatNav() 在非 Tauri 环境自动隐藏 voice tab,故网页版不可见,只有桌面 App 才会展示。 -->
         <div class="set-cat" data-cat="voice">
-        <div class="settings-group-title">语音 / TTS</div>
+        <div class="settings-group-title">语音 · TTS</div>
         <div id="settingsVoiceSlot"></div>
         </div><!-- /set-cat voice -->
 
@@ -1191,7 +1225,7 @@
         </div><!-- /set-cat dev -->
 
         <div class="set-cat" data-cat="advanced">
-        <div class="settings-group-title">记录 / 高级</div>
+        <div class="settings-group-title">费用与记录</div>
         <div id="setCostSlot"></div>
 
         <!-- 自定义人物模板卡已移出 → settings.js mountPersonaCard() 注入 #setChatSlot -->
@@ -1584,7 +1618,7 @@
 <script src="/js/text/data/char-memory.js?v=3"></script>
 <!-- 角色记忆内核：Hindsight 的抽取 prompt + 条目结构 + RRF 融合（英文原文，不翻译）。存储走 IndexedDB，不需要任何服务。 -->
 <script src="/shared/memory-core.js?v=12"></script>
-<script src="/js/text/engine/app.js?v=23"></script>
+<script src="/js/text/engine/app.js?v=25"></script>
   <script src="/js/text/ui/settings.js?v=7"></script>
 <!-- 网页内核(魂)· 工具调用内核 SDK。agent-kernel.js 用 ESM export,必须 type="module"(classic <script> 读到 export 会抛 SyntaxError → window.AgentKernel 不挂载);它底部仍会挂 globalThis.AgentKernel 供非模块代码取用。tools.js 是 IIFE,挂 window.OwnChatTools,仅在 buildRegistry() 运行时才取 AgentKernel,故 classic 加载、顺序无碍。app.js 的 agent 模式分支在「发送」时按需调用 window.AgentKernel.runAgentLoop + window.OwnChatTools.buildRegistry({onImage})。须在 app.js 之后。 -->
 <script type="module" src="/shared/agent-kernel.js"></script>

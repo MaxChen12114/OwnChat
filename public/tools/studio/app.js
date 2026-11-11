@@ -57,28 +57,17 @@ function selModel(){
 
 // ---- /api/chat 流式调用 ----
 async function callChat(opts){
-  var body={ mode:opts.mode||"free", model:opts.model, promptProfile:"rp", use_builtin_persona:true, custom_system_prompt:opts.system, thinking:"disabled", messages:[{role:"user",content:opts.user}] };
-  try{var _bid=localStorage.getItem("cfw_base_id_v1")||"";if(_bid)body.baseId=_bid;}catch(e){}
-  
-  var r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:opts.signal});
-  if(!r.ok){var t="";try{t=await r.text();}catch(e){}throw new Error("服务返回 "+r.status+(t?(" · "+t.slice(0,160)):""));}
-  var reader=r.body.getReader(),dec=new TextDecoder(),buf="",full="";
-  while(true){
-    var rd=await reader.read();if(rd.done)break;
-    buf+=dec.decode(rd.value,{stream:true});
-    var i;
-    while((i=buf.indexOf("\n"))>=0){
-      var line=buf.slice(0,i).trim();buf=buf.slice(i+1);
-      if(!line||line.charAt(0)===":")continue;
-      if(line.indexOf("data:")!==0)continue;
-      var data=line.slice(5).trim();
-      if(data==="[DONE]")continue;
-      try{var j=JSON.parse(data);var d=j&&j.choices&&j.choices[0]&&j.choices[0].delta&&j.choices[0].delta.content;if(d){full+=d;if(opts.onDelta)opts.onDelta(full);}}catch(e){}
-    }
-  }
-  return full;
+  // 2026-11-11 (B8)：统一走 shared/chat-stream.js —— body/SSE/错误文案与 write/coding/flow 同源
+  return window.__chatStream.call({
+    profile: "rp",
+    mode: opts.mode,
+    model: opts.model,
+    system: opts.system,
+    user: opts.user,
+    signal: opts.signal,
+    onDelta: opts.onDelta
+  });
 }
-
 // ====== 提示词（默认值 + 可编辑持久化） ======
 var DEF_STORY="你是一位擅长人物塑造的中文小说作者。根据用户给的种子设定，写一段完整、有画面感的故事或设定稿，重点把出场人物的性格、说话方式、彼此关系和所处世界观写清楚，方便后续抽取成可聊天的角色卡。800-1500 字，可包含对话。直接输出正文，不要标题、不要解释。";
 var DEF_EXTRACT=[

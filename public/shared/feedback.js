@@ -30,7 +30,7 @@
 .fb-toast.fb-info .fb-ico{color:var(--muted,#9a9a9a);}
 .fb-toast.fb-ok .fb-ico{color:#5ec98a;}
 .fb-toast.fb-warn .fb-ico{color:#ffb648;}
-.fb-toast.fb-err .fb-ico{color:#e8607d;}
+.fb-toast.fb-err .fb-ico{color:var(--danger,#e8607d);}
 #feedbackConfirmMask{position:fixed;inset:0;background:rgba(0,0,0,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:99998;padding:20px;box-sizing:border-box;animation:fbFadeIn .16s ease;}
 #feedbackConfirmCard{background:var(--bg,#0b0b0b);color:inherit;border:1px solid var(--border,#2a2a2a);border-radius:18px;padding:20px;width:100%;max-width:360px;box-shadow:0 30px 80px rgba(0,0,0,.5);font-family:var(--chat-font-family,ui-sans-serif,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif);box-sizing:border-box;animation:fbPopIn .18s ease;}
 #feedbackConfirmCard .fb-c-title{font-size:15px;font-weight:700;margin:0 0 10px;}
@@ -38,13 +38,13 @@
 #feedbackConfirmCard .fb-c-btns{display:flex;gap:10px;justify-content:flex-end;}
 #feedbackConfirmCard button{font:600 13px/1 var(--chat-font-family,ui-sans-serif,sans-serif);padding:9px 16px;border-radius:10px;cursor:pointer;border:1px solid var(--border,#2a2a2a);background:var(--btn-bg,#3b3b3b);color:inherit;transition:background .15s ease,border-color .15s ease;}
 #feedbackConfirmCard button:hover{background:var(--btn-bg-hover,#4a4a4a);}
-#feedbackConfirmCard .fb-c-ok.danger{border-color:rgba(232,96,125,.45);background:rgba(232,96,125,.14);color:#e8607d;}
-#feedbackConfirmCard .fb-c-ok.danger:hover{background:rgba(232,96,125,.24);border-color:rgba(232,96,125,.6);}
+#feedbackConfirmCard .fb-c-ok.danger{border-color:var(--danger-border,rgba(232,96,125,.45));background:var(--danger-soft,rgba(232,96,125,.14));color:var(--danger,#e8607d);}
+#feedbackConfirmCard .fb-c-ok.danger:hover{background:var(--danger-soft-hover,rgba(232,96,125,.24));border-color:var(--danger-border,rgba(232,96,125,.6));}
 /* ── 2026-11-10 统一弹窗（ZCode 风）：图标标题 + 正文 + 输入 + 右对齐按钮 ── */
 #feedbackConfirmCard .fb-c-head{display:flex;align-items:flex-start;gap:10px;margin:0 0 6px;}
 #feedbackConfirmCard .fb-c-ico{flex:none;width:28px;height:28px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:rgba(127,127,127,.14);color:var(--accent,#7b82e8);}
 #feedbackConfirmCard .fb-c-ico svg{width:16px;height:16px;display:block;}
-#feedbackConfirmCard .fb-c-ico.danger{background:rgba(232,96,125,.14);color:var(--danger,#e8607d);}
+#feedbackConfirmCard .fb-c-ico.danger{background:var(--danger-soft,rgba(232,96,125,.14));color:var(--danger,#e8607d);}
 #feedbackConfirmCard .fb-c-title{margin:3px 0 0;font-size:15px;line-height:1.3;}
 #feedbackConfirmCard .fb-c-input{width:100%;box-sizing:border-box;margin:10px 0 0;padding:9px 11px;border-radius:10px;border:1px solid var(--border,rgba(127,127,127,.35));background:var(--input-bg,rgba(127,127,127,.10));color:inherit;font:inherit;font-size:13px;outline:none;resize:vertical;min-height:38px;}
 #feedbackConfirmCard .fb-c-input:focus{border-color:var(--accent,#7b82e8);box-shadow:0 0 0 3px var(--accent-soft,rgba(127,127,127,.18));}

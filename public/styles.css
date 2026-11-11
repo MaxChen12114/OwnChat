@@ -15,6 +15,15 @@
   /* 2026-10-13 批 J2 高亮配色：极简黑配蓝（钢蓝家族——参考图取色 #587A9D 基调；去饱和、无霓虹，避开 Tailwind/AI 亮蓝紫） */
   --focus-ring: rgba(127, 164, 201, .55);
   --accent: #7fa4c9; --accent-2: #587a9d; --accent-soft: rgba(88, 122, 157, .18); --accent-border: rgba(120, 155, 190, .42);
+  /* 2026-11-11 (B4)：主站此前没有危险色 token，弹窗/删除按钮恒走 fallback #e8607d */
+  --danger: #e8607d;
+  --danger-soft: rgba(232,96,125,.14);
+  --danger-border: rgba(232,96,125,.45);
+  --danger-soft-hover: rgba(232,96,125,.24);
+  /* 2026-11-11 (B4)：控件几何 token —— 桌面 34px / 半径 9 / 字号 12.5；手机 44 见媒体查询 */
+  --ctl-h: 34px;
+  --ctl-r: 9px;
+  --ctl-fs: 12.5px;
   --bg: #0b0b0b;
   --muted: #9a9a9a;
   --bubble-ai: #141416;
@@ -26,6 +35,10 @@
   --composer-gap: 18px;
   --spacer-extra: 28px;
   --content-max: 760px;
+
+  --empty-fs: 12.5px;
+  --empty-lh: 1.6;
+  --empty-op: .6;
   --content-side: 14px;
   /* 2026-06-08 字体按 Notion 标准统一: 给 --chat-font-family 兜底一套系统无衬线字体栈。
      原本无默认值 → var() 解析失败 → 整站回退浏览器默认衬线体(桌面看着杂乱不优雅)。
@@ -47,6 +60,10 @@ html[data-scheme="light"]:not([data-theme]) {
   --border-soft: #efefec;
   --focus-ring: rgba(55, 53, 47, .42);
   --accent: #37352f; --accent-2: #2a2925; --accent-soft: rgba(55, 53, 47, .08); --accent-border: rgba(55, 53, 47, .38); /* 批 J2：白配深色（Notion 墨黑系） */
+  --danger: #b3261e;
+  --danger-soft: #fdf0ee;
+  --danger-border: #f3c9c2;
+  --danger-soft-hover: #fbe3df;
   --bg: #ffffff;
   --muted: #787774;
   --bubble-ai: #f7f7f5;
@@ -86,9 +103,15 @@ html[data-scheme="light"]:not([data-theme]) textarea#msg::placeholder { color: #
 
 /* 设置面板 / 弹窗 */
 html[data-scheme="light"]:not([data-theme]) #settingsMask,
-html[data-scheme="light"]:not([data-theme]) .char-panel-mask { background: rgba(15,15,15,.28); }
+html[data-scheme="light"]:not([data-theme]) .char-panel-mask { background: rgba(15,15,15,.34); }
+/* 2026-11-11 (B6 P1)：亮色下白面板落在 #fbfbfa 页面上，边框 #ececea 与阴影 .10 都看不见，
+   面板像"浮在空中"的边界消失。加深一档边框与投影，遮罩同步加深。 */
 html[data-scheme="light"]:not([data-theme]) #settings,
-html[data-scheme="light"]:not([data-theme]) .char-panel { background: #ffffff; border-color: #ececea; box-shadow: 0 8px 28px rgba(15,15,15,.10); }
+html[data-scheme="light"]:not([data-theme]) .char-panel {
+  background: #ffffff;
+  border-color: rgba(15,15,15,.12);
+  box-shadow: 0 24px 64px rgba(15,15,15,.18), 0 2px 8px rgba(15,15,15,.06);
+}
 html[data-scheme="light"]:not([data-theme]) #settingsHeader h3 { color: #37352f; }
 html[data-scheme="light"]:not([data-theme]) #settingsHeader .hint { color: #9b9a97; }
 html[data-scheme="light"]:not([data-theme]) .card { background: #f7f7f5; border-color: #ececea; }
@@ -102,8 +125,6 @@ html[data-scheme="light"]:not([data-theme]) #settings .settings-group-title::bef
 html[data-scheme="light"]:not([data-theme]) .rowline { border-top-color: #ececea; }
 html[data-scheme="light"]:not([data-theme]) .smallbtn { background: #f3f3f1; border-color: #e3e2e0; color: #37352f; }
 html[data-scheme="light"]:not([data-theme]) .smallbtn:hover { background: #e9e9e6; }
-html[data-scheme="light"]:not([data-theme]) .smallbtn.danger { background: #fdf0ee; border-color: #f3c9c2; color: #b3261e; }
-html[data-scheme="light"]:not([data-theme]) .smallbtn.danger:hover { background: #fbe3df; }
 html[data-scheme="light"]:not([data-theme]) #customPrompt { background: #ffffff; border-color: #e3e2e0; color: #37352f; }
 html[data-scheme="light"]:not([data-theme]) #customPrompt:focus { border-color: #37352f; }
 
@@ -166,6 +187,8 @@ html[data-scheme="light"]:not([data-theme]) .left-sidebar,
 html[data-scheme="light"]:not([data-theme]) .right-sidebar { background: #fbfbfa; border-color: #ececea; }
 html[data-scheme="light"]:not([data-theme]) .right-sidebar { border-left-color: #ececea; }
 html[data-scheme="light"]:not([data-theme]) .sidebar-header { color: #787774; }
+/* 2026-11-11 (B4)：亮色下未选中的分类药丸 .58 透明度过灰（3.3:1），提到 .72 到 4.5:1 */
+html[data-scheme="light"]:not([data-theme]) .settings-cat-nav .scn-item { opacity: .72; }
 html[data-scheme="light"]:not([data-theme]) .sidebar-section-title { color: #9b9a97; }
 html[data-scheme="light"]:not([data-theme]) .sidebar-divider { background: #ececea; }
 html[data-scheme="light"]:not([data-theme]) .sidebar-slot-placeholder,
@@ -333,6 +356,28 @@ html[data-theme="candle"] #topbar #modeToggle { background: rgba(40,28,18,.45); 
 /* ③ 费用栏两态等宽(桌面 200px 居中;手机解除 min-width 避免顶栏换行挤压) */
 #topbar #costDisplay.topbar-cost-inline { display: inline-flex; align-items: center; justify-content: center; height: 34px; min-width: 0; flex: 0 0 auto; padding: 0 12px; border-radius: 9px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: visible; }
 @media (max-width: 768px) { #topbar #costDisplay.topbar-cost-inline { min-width: 0; } }
+
+/* 2026-11-11 (B4)：聊天区空状态 —— 网页版没有欢迎页，新会话/清空后整块纯色空白。
+   用 #history 的伪元素叠加（不能往 #chat 加 DOM：welcome 逻辑按 #chat 子节点数判定 chat-empty，
+   加节点会让判定永远为假）。桌面壳有 #ownchatWelcome，这里排除 is-desktop 防双空态。 */
+html:not(.is-desktop) #history { position: relative; }
+html:not(.is-desktop) #history:not(:has(#chat .row))::after {
+  /* 不依赖 html.chat-empty：welcome 脚本在网页版可能不跑（无 #ownchatWelcome 时整段 return），
+     直接用 :has 判「没有任何消息行」。 */
+  content: "还没有对话\A 在下方输入开始";
+  white-space: pre-line;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: var(--empty-fs, 12.5px);
+  line-height: var(--empty-lh, 1.6);
+  color: var(--muted, #9a9a9a);
+  opacity: var(--empty-op, .6);
+  pointer-events: none;
+}
 
 #history {
   flex: 1;
@@ -572,6 +617,16 @@ html[data-theme="glass"] .card {
   padding: 18px 20px;
 }
 
+/* 2026-11-11 (B6)：矮屏（横屏手机）下设置面板被 chrome 吃掉大半 —— 实测 667×375 只给
+   内容区留下 98px（header 68 + nav 48 + footer 60）。矮屏放大面板、收紧 chrome、收起说明行。 */
+@media (max-height: 520px) {
+  #settings { max-height: calc(100vh - 10px) !important; }
+  #settingsHeader { margin-bottom: 4px; }
+  #settingsHeader .hint { display: none; }
+  #settingsFooter { margin-top: 8px !important; padding-top: 8px !important; }
+  #appVersionTag { margin-top: 6px !important; }
+}
+
 #settingsHeader {
   /* 4.83: 改列向 —— 旧版行向 flex 让长 hint 与标题挤在同一行,窄屏下"设置"被压成 1 字宽竖排 */
   display: flex;
@@ -628,10 +683,11 @@ html[data-theme="glass"] .card {
   border: 1px solid var(--border-soft, #222429);
   background: rgba(127, 127, 127, .14);
   color: #d8d8d8;
-  border-radius: 9px;
+  border-radius: var(--ctl-r, 9px);
   padding: 7px 12px;
+  min-height: var(--ctl-h, 34px);
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: var(--ctl-fs, 12.5px);
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap; /* 窄宽度下按钮文字不再折行(如「清空对话」被拆成两行) */
@@ -639,8 +695,8 @@ html[data-theme="glass"] .card {
   transition: background .15s, border-color .15s, color .15s;
 }
 .smallbtn:hover { background: rgba(127, 127, 127, .24); } /* E3: 悬停提一档(原 #1b1b1b 与底几乎同色) */
-.smallbtn.danger { border-color: #3a1f1f; background: #1a0f0f; }
-.smallbtn.danger:hover { background: #241010; }
+.smallbtn.danger { border-color: var(--danger-border, #3a1f1f); background: var(--danger-soft, #1a0f0f); color: var(--danger, #e8607d); }
+.smallbtn.danger:hover { background: var(--danger-soft-hover, #241010); }
 
 /* ════════════════════════════════════════════════════════════
    这些类此前在 styles.css 无规则 → 图标/文字松散、对齐飘; 且卡内说明常用
@@ -1141,6 +1197,10 @@ html[data-theme="glass"] {
   --border-soft: rgba(15, 30, 60, .06);
   --focus-ring: rgba(63, 111, 143, .55);
   --accent: #3f6f8f; --accent-2: #345d7c; --accent-soft: rgba(63, 111, 143, .12); --accent-border: rgba(63, 111, 143, .42);
+  --danger: #dc2626;
+  --danger-soft: rgba(254,242,242,.9);
+  --danger-border: rgba(220,38,38,.25);
+  --danger-soft-hover: #fee2e2;
   --bg: #f4f7f6;
   --border: rgba(255, 255, 255, .78);
   --muted: #5f707a;
@@ -1315,12 +1375,6 @@ html[data-theme="glass"] .smallbtn {
   color: #1a1f2e;
 }
 html[data-theme="glass"] .smallbtn:hover { background: #fff; }
-html[data-theme="glass"] .smallbtn.danger {
-  background: rgba(254, 242, 242, .9);
-  border-color: rgba(220, 38, 38, .25);
-  color: #b91c1c;
-}
-html[data-theme="glass"] .smallbtn.danger:hover { background: #fee2e2; }
 
 html[data-theme="glass"] #customPrompt,
 html[data-theme="glass"] .char-input,
@@ -1498,8 +1552,10 @@ html[data-theme="glass"] .theme-swatch { border-color: rgba(15, 30, 60, .12); }
 .cost-meta { color: #777; font-size: 11px; text-align: right; }
 
 .cost-empty {
-  font-size: 12px;
-  color: #888;
+  font-size: var(--empty-fs, 12.5px);
+  line-height: var(--empty-lh, 1.6);
+  color: var(--muted, #888);
+  opacity: var(--empty-op, .6);
   padding: 8px 4px;
   text-align: center;
   font-style: italic;
@@ -1616,6 +1672,10 @@ html[data-theme="candle"] {
   --muted: #8a7a6a;
   --bubble-ai: rgba(40, 28, 18, .55);
   --bubble-user: #d9a868;
+  --danger: #ffb0c0;
+  --danger-soft: rgba(140,30,50,.35);
+  --danger-border: rgba(220,60,90,.42);
+  --danger-soft-hover: rgba(160,40,60,.45);
   --input-bg: rgba(40, 28, 18, .74);
   --input-border: rgba(217, 168, 104, .34);
   --btn-bg: #d9a868;
@@ -1765,11 +1825,6 @@ html[data-theme="candle"] .smallbtn {
   color: #f2e7d6;
 }
 html[data-theme="candle"] .smallbtn:hover { background: rgba(217, 168, 104, .22); }
-html[data-theme="candle"] .smallbtn.danger {
-  background: rgba(140, 30, 50, .35);
-  border-color: rgba(220, 60, 90, .42);
-  color: #e8a58c;
-}
 
 html[data-theme="candle"] #customPrompt,
 html[data-theme="candle"] .char-input,

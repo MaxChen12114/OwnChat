@@ -17,6 +17,7 @@
   }catch(e){}})();
 </script>
 <link rel="stylesheet" href="/shared/theme.css?v=2" />
+<script src="/shared/chat-stream.js"></script>
 <style>
   /* 主题令牌已抽到 /shared/theme.css（公共底座），此处不再重复定义 :root */
   * { box-sizing:border-box; }
@@ -28,7 +29,7 @@
   .tb-spacer { flex:1; }
   .count { font-size:12px; color:var(--muted); }
   .btn { display:inline-flex; align-items:center; gap:6px; padding:7px 12px; border-radius:9px; border:1px solid var(--border); background:var(--panel2); color:var(--text); font:inherit; font-size:13px; cursor:pointer; transition:background .15s,border-color .15s; }
-  .btn:hover { background:rgba(207,207,207,.10); }
+  .btn:hover { background:var(--ac-soft); }
   .btn svg { width:15px; height:15px; }
   .btn.primary { background:var(--ac); border-color:var(--ac); color:var(--ac-contrast); }
   .btn.primary:hover { background:var(--ac-strong); }

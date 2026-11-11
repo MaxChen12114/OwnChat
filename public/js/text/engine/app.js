@@ -4776,21 +4776,44 @@
   function steerAgent() {
     const text = inputEl.value.trim();
     if (!text || !_agentSteerQueue) return null;
+    const isStop = /^(停|停止|停下来|停手|别动|别点了|别再点|stop\b|halt\b)/i.test(text);
     const row = makeRow("user");
     row.bubble.textContent = text;
     applyUserFold(row.bubble);
-    session.push(scopeTag({ role: "user", content: text }));
-    try { row.rowEl.dataset.sidx = String(session.length - 1); } catch (_sx) {}
-    persistSessionIfEnabled();
     inputEl.value = "";
     inputEl.style.height = "auto";
     updateSpacer();
     scrollToBottom();
-    // 明确的停手指令：直接停（消息留在会话里），不再等下一轮模型判断
-    if (/^(停|停止|停下来|停手|别动|别点了|别再点|stop\b|halt\b)/i.test(text)) {
+
+    if (isStop) {
+      const gen = sendGen;
       try { if (window.__stopCurrent) window.__stopCurrent(); } catch (e) {}
+      const pushStop = () => {
+        session.push(scopeTag({ role: "user", content: text }));
+        try { row.rowEl.dataset.sidx = String(session.length - 1); } catch (_sx) {}
+        persistSessionIfEnabled();
+      };
+      const t0 = Date.now();
+      const tick = () => {
+        if (sendGen !== gen) { pushStop(); return; } // 用户已经发了新消息，别把「停」弄丢
+        const kernelBusy = !!(window.AgentKernel && typeof window.AgentKernel.isRunning === "function" && window.AgentKernel.isRunning());
+        if (!isSending && !kernelBusy) {
+          // 等中断产生的半截 assistant 先落盘，再入 session —— 保证「停」是最后一条 user，
+          // 新一轮模型才会针对它回话，而不是接着自己的半截继续说。
+          pushStop();
+          try { sendOne({ allowEmptyText: true }); } catch (e) {}
+          return;
+        }
+        if (Date.now() - t0 > 10000) { pushStop(); return; } // 工具卡死就不强发
+        setTimeout(tick, 250);
+      };
+      setTimeout(tick, 350);
       return null;
     }
+
+    session.push(scopeTag({ role: "user", content: text }));
+    try { row.rowEl.dataset.sidx = String(session.length - 1); } catch (_sx) {}
+    persistSessionIfEnabled();
     const m = { role: "user", content: text };
     _steerMsgs.add(m);            // 已入 session，写回时跳过
     _agentSteerQueue.push(m);     // 内核下一轮请求前 append 进 messages
