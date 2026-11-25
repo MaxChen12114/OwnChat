@@ -89,13 +89,19 @@ function isUnlocked(request, env, payload) {
 // 2026-06-04: 访问码校验端点。前端连点版本号 7 下 → 弹"访问码"框 → POST /api/unlock { token }。
 // 通过返回 { ok:true },前端写入 cfw_unlocked_v1 并保存 token 供后续 /api/chat 带 unlockToken。
 // 失败仅返回 { ok:false },不回传任何 NSFW 字样(前端只抖一下,不暴露用途)。
+// 2026-11-25: 增加 GET —— 只回 { configured }。未配 CHAT_PASSWORD 的部署(公开版默认)以前会让
+// 用户对着一个永远不会成功的框输密码,没有任何解释;设置页凭这个布尔值直接写明"没配访问码"。
+// 只暴露"有没有配"这一位,不暴露值,也不改变 POST 的 401 语义。
 async function handleUnlock(request, env) {
+  const expected = (env.CHAT_PASSWORD || "").trim(); // 2026-06-04: 两边都 trim,避免 secret 末尾换行/空格导致解锁永远失败
+  if (request.method === "GET") {
+    return resp(JSON.stringify({ configured: !!expected }), "application/json; charset=utf-8", 200);
+  }
   let body;
   try { body = await request.json(); } catch { body = {}; }
   const token = (body && typeof body.token === "string") ? body.token.trim() : "";
-  const expected = (env.CHAT_PASSWORD || "").trim(); // 2026-06-04: 两边都 trim,避免 secret 末尾换行/空格导致解锁永远失败
   const ok = !!expected && token === expected;
-  return resp(JSON.stringify({ ok }), "application/json; charset=utf-8", ok ? 200 : 401);
+  return resp(JSON.stringify({ ok, configured: !!expected }), "application/json; charset=utf-8", ok ? 200 : 401);
 }
 
 // 云同步：单 key 存全部用户数据 blob
@@ -1818,7 +1824,8 @@ export default {
       return handleCustomEndpointModels(request, env);
     }
 
-    if (request.method === "POST" && url.pathname === "/api/unlock") {
+    // GET 只回「有没有配访问码」，供设置页给出"未配置"的明示，而不是让用户对着死框输密码。
+    if ((request.method === "POST" || request.method === "GET") && url.pathname === "/api/unlock") {
       return handleUnlock(request, env);
     }
 

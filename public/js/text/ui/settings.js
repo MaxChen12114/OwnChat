@@ -1336,6 +1336,15 @@
     const authStatusEl      = document.getElementById('authStatus');
     if (!syncEnableToggle) return;
 
+    // 未配访问码的部署（公开版默认状态）：登录框永远不会成功，先说明白。
+    // 只问一位布尔值，不猜、不试密码；网络失败就保持沉默，不伪造状态。
+    let unlockConfigured = null;
+    fetch('/api/unlock').then(r => r.json()).then(d => {
+      if (!d || typeof d.configured !== 'boolean') return;
+      unlockConfigured = d.configured;
+      if (!d.configured) refreshAuthUI();
+    }).catch(function () {});
+
     function fmtTime(ms) {
       if (!ms) return '—';
       try { return new Date(ms).toLocaleString('zh-CN', { hour12: false }); } catch { return String(ms); }
@@ -1343,9 +1352,11 @@
     function refreshAuthUI() {
       if (!window.__auth) return;
       const hasToken = !!window.__auth.getToken();
-      if (authStatusEl) authStatusEl.textContent = hasToken
-        ? '已登录（访问码已保存在本机）'
-        : '访客模式 · 使用你自己的模型渠道与 API Key';
+      if (authStatusEl) authStatusEl.textContent = unlockConfigured === false
+        ? '未检测到访问码配置（Cloudflare Secret CHAT_PASSWORD 未设置），登录功能暂不可用。'
+        : hasToken
+          ? '已登录（访问码已保存在本机）'
+          : '访客模式 · 使用你自己的模型渠道与 API Key';
       if (authLogoutBtn) authLogoutBtn.disabled = !hasToken;
     }
     function refreshSyncUI() {

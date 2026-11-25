@@ -114,10 +114,16 @@
     });
   }
 
+  // One switch, two directions; leaving is a mode change, not a logout.
+  //
+  // Keeping the access token on the way out is deliberate: the same passphrase is the app password,
+  // so dropping it would sign the user out of sync just because they wanted the plain UI. The
+  // content gate still closes — chat bodies stop carrying `unlockToken`, and the worker picks the
+  // private registry only from that token.
   function doRelock(){
     var plan=relockPlan("");
     try{
-      plan=relockPlan(localStorage.getItem(THEME_KEY)||"");
+      plan=relockPlan(localStorage.getItem(THEME_KEY)||"", true);
       for(var i=0;i<plan.remove.length;i++) localStorage.removeItem(plan.remove[i]);
       if(plan.theme) localStorage.setItem(THEME_KEY, plan.theme);
       localStorage.setItem(CONTENT_MODE_KEY, plan.contentMode);
@@ -125,31 +131,47 @@
     toast("已退出私密模式");
     setTimeout(function(){ location.reload(); },700);
   }
-  function wireLockBtn(){
-    if(!unlocked()) return;
+
+  // Reopening asks for nothing: a stored access token means the passphrase was accepted on this
+  // device already. No token means the caller is a fresh visitor and wireSwitch never offered this.
+  function doResume(){
+    try{
+      var atok=localStorage.getItem(AUTH_TOKEN_KEY)||"";
+      if(!atok) return;
+      var writes=resumeWrites(atok);
+      for(var i=0;i<writes.length;i++) localStorage.setItem(writes[i].key, writes[i].value);
+    }catch(e){}
+    location.reload();
+  }
+
+  function wireSwitch(){
     if(document.getElementById("relockBtn")) return;
+    var on=unlocked();
+    var atok="";
+    try{ atok=localStorage.getItem(AUTH_TOKEN_KEY)||""; }catch(e){}
+    // Locked visitors without a token see nothing: the switch must not advertise what it switches.
+    // Unlocked always gets the way out, token or not — a one-way door is worse than a leaked word.
+    if(!on && !canResume(atok, "0")) return;
     var b=document.createElement("button");
     b.id="relockBtn";
-    // No lock emoji: the .smallbtn style already carries the context.
-    b.textContent="退出私密模式";
+    b.textContent=on?"退出私密模式":"进入私密模式";
+    b.addEventListener("click", on?doRelock:doResume);
     var footer=document.getElementById("settingsFooter");
     var host=footer?footer.querySelector(".btns"):null;
     if(host){
       b.className="smallbtn";
-      b.addEventListener("click",doRelock);
       host.insertBefore(b,host.firstChild);
       return;
     }
     var tag=document.getElementById("appVersionTag");
     if(!tag) return;
     b.style.cssText="display:block;margin:10px auto 0;padding:6px 14px;border-radius:8px;border:1px solid rgba(127,127,127,.3);background:transparent;color:#9aa3ff;font-size:12px;cursor:pointer;";
-    b.addEventListener("click",doRelock);
     tag.parentNode.insertBefore(b,tag.nextSibling);
   }
 
   document.addEventListener("DOMContentLoaded",function(){
-    enforceMaxed(); applyVisibility(); wireTrigger(); wireLockBtn();
+    enforceMaxed(); applyVisibility(); wireTrigger(); wireSwitch();
     var sb=document.getElementById("settingsBtn");
-    if(sb) sb.addEventListener("click",function(){ setTimeout(wireLockBtn,120); });
+    if(sb) sb.addEventListener("click",function(){ setTimeout(wireSwitch,120); });
   });
 })();

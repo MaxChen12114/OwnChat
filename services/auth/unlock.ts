@@ -9,8 +9,10 @@
  * dropped altogether — only overwritten.
  *
  * An unlock also seeds the access token, because one passphrase is both the private-mode key and the
- * app password. That single write is why relock must clear the access token too: leaving it behind
- * kept every `/api/*` call authenticated after the user had visibly locked the app.
+ * app password. Relock therefore has two shapes and the caller must pick one: keep the access token
+ * (a mode switch — the user stays signed in and can switch back without retyping), or drop it
+ * (a logout). The content gate stays closed in both, because a locked client stops putting
+ * `unlockToken` on chat bodies and the worker only picks the private registry from that token.
  * @module services/auth/unlock
  */
 
@@ -67,12 +69,47 @@ export interface RelockPlan {
   contentMode: string;
 }
 
-export function relockPlan(theme: string): RelockPlan {
+/**
+ * What leaving private mode removes.
+ *
+ * @param keepAuth - `true` keeps the access token, so the switch is reversible without retyping the
+ *   passphrase; `false` drops it as well, which is a logout. Defaults to the destructive shape: a
+ *   caller that has not thought about it must not leave a live token behind a locked-looking UI.
+ */
+export function relockPlan(theme: string, keepAuth: boolean = false): RelockPlan {
+  const remove = [UNLOCK_FLAG_KEY, UNLOCK_TOKEN_KEY, DEV_MODE_KEY];
+  if (!keepAuth) remove.push(AUTH_TOKEN_KEY);
   return {
-    remove: [UNLOCK_FLAG_KEY, UNLOCK_TOKEN_KEY, AUTH_TOKEN_KEY, DEV_MODE_KEY],
+    remove,
     theme: PRIVATE_THEMES.indexOf(theme) >= 0 ? FALLBACK_THEME : "",
     contentMode: contentMode(false),
   };
+}
+
+/**
+ * Whether the switch may reopen private mode without asking for the passphrase again.
+ *
+ * True only while locked and holding an access token: the token is proof the passphrase was already
+ * accepted on this device, so prompting again would be ceremony. A locked client with no token gets
+ * `false` and must go through the passphrase dialog.
+ */
+export function canResume(authToken: string, flag: string): boolean {
+  return flag !== "1" && !!authToken;
+}
+
+/**
+ * What reopening writes: the flag, the content token taken from the access token already held, and
+ * the debug panel — the same end state a passphrase unlock reaches.
+ *
+ * The content token is copied, not derived: the worker compares it to `CHAT_PASSWORD`, so any value
+ * other than the access token would be rejected at the first chat.
+ */
+export function resumeWrites(authToken: string): Write[] {
+  return [
+    { key: UNLOCK_FLAG_KEY, value: "1" },
+    { key: UNLOCK_TOKEN_KEY, value: authToken },
+    { key: DEV_MODE_KEY, value: "1" },
+  ];
 }
 
 /**

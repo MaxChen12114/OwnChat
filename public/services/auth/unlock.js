@@ -10,8 +10,10 @@
  * dropped altogether — only overwritten.
  *
  * An unlock also seeds the access token, because one passphrase is both the private-mode key and the
- * app password. That single write is why relock must clear the access token too: leaving it behind
- * kept every `/api/*` call authenticated after the user had visibly locked the app.
+ * app password. Relock therefore has two shapes and the caller must pick one: keep the access token
+ * (a mode switch — the user stays signed in and can switch back without retyping), or drop it
+ * (a logout). The content gate stays closed in both, because a locked client stops putting
+ * `unlockToken` on chat bodies and the worker only picks the private registry from that token.
  * @module services/auth/unlock
  */
 
@@ -68,12 +70,47 @@ function seedAuthToken(flag        , unlockToken        , authToken        )    
                       
  
 
-function relockPlan(theme        )             {
+/**
+ * What leaving private mode removes.
+ *
+ * @param keepAuth - `true` keeps the access token, so the switch is reversible without retyping the
+ *   passphrase; `false` drops it as well, which is a logout. Defaults to the destructive shape: a
+ *   caller that has not thought about it must not leave a live token behind a locked-looking UI.
+ */
+function relockPlan(theme        , keepAuth          = false)             {
+  const remove = [UNLOCK_FLAG_KEY, UNLOCK_TOKEN_KEY, DEV_MODE_KEY];
+  if (!keepAuth) remove.push(AUTH_TOKEN_KEY);
   return {
-    remove: [UNLOCK_FLAG_KEY, UNLOCK_TOKEN_KEY, AUTH_TOKEN_KEY, DEV_MODE_KEY],
+    remove,
     theme: PRIVATE_THEMES.indexOf(theme) >= 0 ? FALLBACK_THEME : "",
     contentMode: contentMode(false),
   };
+}
+
+/**
+ * Whether the switch may reopen private mode without asking for the passphrase again.
+ *
+ * True only while locked and holding an access token: the token is proof the passphrase was already
+ * accepted on this device, so prompting again would be ceremony. A locked client with no token gets
+ * `false` and must go through the passphrase dialog.
+ */
+function canResume(authToken        , flag        )          {
+  return flag !== "1" && !!authToken;
+}
+
+/**
+ * What reopening writes: the flag, the content token taken from the access token already held, and
+ * the debug panel — the same end state a passphrase unlock reaches.
+ *
+ * The content token is copied, not derived: the worker compares it to `CHAT_PASSWORD`, so any value
+ * other than the access token would be rejected at the first chat.
+ */
+function resumeWrites(authToken        )          {
+  return [
+    { key: UNLOCK_FLAG_KEY, value: "1" },
+    { key: UNLOCK_TOKEN_KEY, value: authToken },
+    { key: DEV_MODE_KEY, value: "1" },
+  ];
 }
 
 /**
@@ -234,10 +271,16 @@ function tapFires(state          )          {
     });
   }
 
+  // One switch, two directions; leaving is a mode change, not a logout.
+  //
+  // Keeping the access token on the way out is deliberate: the same passphrase is the app password,
+  // so dropping it would sign the user out of sync just because they wanted the plain UI. The
+  // content gate still closes — chat bodies stop carrying `unlockToken`, and the worker picks the
+  // private registry only from that token.
   function doRelock(){
     var plan=relockPlan("");
     try{
-      plan=relockPlan(localStorage.getItem(THEME_KEY)||"");
+      plan=relockPlan(localStorage.getItem(THEME_KEY)||"", true);
       for(var i=0;i<plan.remove.length;i++) localStorage.removeItem(plan.remove[i]);
       if(plan.theme) localStorage.setItem(THEME_KEY, plan.theme);
       localStorage.setItem(CONTENT_MODE_KEY, plan.contentMode);
@@ -245,32 +288,48 @@ function tapFires(state          )          {
     toast("已退出私密模式");
     setTimeout(function(){ location.reload(); },700);
   }
-  function wireLockBtn(){
-    if(!unlocked()) return;
+
+  // Reopening asks for nothing: a stored access token means the passphrase was accepted on this
+  // device already. No token means the caller is a fresh visitor and wireSwitch never offered this.
+  function doResume(){
+    try{
+      var atok=localStorage.getItem(AUTH_TOKEN_KEY)||"";
+      if(!atok) return;
+      var writes=resumeWrites(atok);
+      for(var i=0;i<writes.length;i++) localStorage.setItem(writes[i].key, writes[i].value);
+    }catch(e){}
+    location.reload();
+  }
+
+  function wireSwitch(){
     if(document.getElementById("relockBtn")) return;
+    var on=unlocked();
+    var atok="";
+    try{ atok=localStorage.getItem(AUTH_TOKEN_KEY)||""; }catch(e){}
+    // Locked visitors without a token see nothing: the switch must not advertise what it switches.
+    // Unlocked always gets the way out, token or not — a one-way door is worse than a leaked word.
+    if(!on && !canResume(atok, "0")) return;
     var b=document.createElement("button");
     b.id="relockBtn";
-    // No lock emoji: the .smallbtn style already carries the context.
-    b.textContent="退出私密模式";
+    b.textContent=on?"退出私密模式":"进入私密模式";
+    b.addEventListener("click", on?doRelock:doResume);
     var footer=document.getElementById("settingsFooter");
     var host=footer?footer.querySelector(".btns"):null;
     if(host){
       b.className="smallbtn";
-      b.addEventListener("click",doRelock);
       host.insertBefore(b,host.firstChild);
       return;
     }
     var tag=document.getElementById("appVersionTag");
     if(!tag) return;
     b.style.cssText="display:block;margin:10px auto 0;padding:6px 14px;border-radius:8px;border:1px solid rgba(127,127,127,.3);background:transparent;color:#9aa3ff;font-size:12px;cursor:pointer;";
-    b.addEventListener("click",doRelock);
     tag.parentNode.insertBefore(b,tag.nextSibling);
   }
 
   document.addEventListener("DOMContentLoaded",function(){
-    enforceMaxed(); applyVisibility(); wireTrigger(); wireLockBtn();
+    enforceMaxed(); applyVisibility(); wireTrigger(); wireSwitch();
     var sb=document.getElementById("settingsBtn");
-    if(sb) sb.addEventListener("click",function(){ setTimeout(wireLockBtn,120); });
+    if(sb) sb.addEventListener("click",function(){ setTimeout(wireSwitch,120); });
   });
 })();
 
@@ -288,6 +347,8 @@ globalThis.contentMode = contentMode;
 globalThis.unlockWrites = unlockWrites;
 globalThis.seedAuthToken = seedAuthToken;
 globalThis.relockPlan = relockPlan;
+globalThis.canResume = canResume;
+globalThis.resumeWrites = resumeWrites;
 globalThis.chatBodyWithUnlock = chatBodyWithUnlock;
 globalThis.nextTap = nextTap;
 globalThis.tapFires = tapFires;
