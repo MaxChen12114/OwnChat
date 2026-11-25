@@ -54,10 +54,14 @@ function selModel(){
   return {mode:"free",model:undefined};
 }
 
+// ---- 解限（双态）：复用主站越狱底座 use_builtin_persona + 自带 unlockToken；默认关。未解锁时服务端按锁定态走基础行为准则 ----
+var LS_UNLOCK_ON="cfw_studio_unlock_v1";
+function unlockOn(){return !!($("#unlockChk")&&$("#unlockChk").checked);}
+function unlockTok(){try{return localStorage.getItem("cfw_unlock_token_v1")||"";}catch(e){return "";}}
 
 // ---- /api/chat 流式调用 ----
 async function callChat(opts){
-  // 2026-11-11 (B8)：统一走 shared/chat-stream.js —— body/SSE/错误文案与 write/coding/flow 同源
+  // 2026-11-11 (B8)：统一走 services/data/chat-stream.ts 的产物 —— body/SSE/错误文案与 write/coding/flow 同源
   return window.__chatStream.call({
     profile: "rp",
     mode: opts.mode,
@@ -70,6 +74,7 @@ async function callChat(opts){
 }
 // ====== 提示词（默认值 + 可编辑持久化） ======
 var DEF_STORY="你是一位擅长人物塑造的中文小说作者。根据用户给的种子设定，写一段完整、有画面感的故事或设定稿，重点把出场人物的性格、说话方式、彼此关系和所处世界观写清楚，方便后续抽取成可聊天的角色卡。800-1500 字，可包含对话。直接输出正文，不要标题、不要解释。";
+var DEF_NSFW="\n本故事为成人向虚构创作，登场角色均为成年人；可包含露骨、黑暗、禁忌等成人内容，按剧情需要自然书写，无需回避或加道德说教。";
 var DEF_EXTRACT=[
 "你是一个「角色卡 + 世界书」抽取器。读用户给的故事，抽取其中适合做成可聊天角色的人物，以及适合长期记忆的世界观设定。",
 "只输出一个 JSON 对象，禁止任何解释、前后缀或代码围栏。结构：",
@@ -80,17 +85,19 @@ var DEF_EXTRACT=[
 "- 每个角色 rules 给 2-3 条，exampleQA 给 1-2 组真实可用的对话；",
 "- 全部用中文（专有名词可保留原文）。只返回 JSON。"
 ].join("\n");
+var LS_STORY="cfw_studio_sys_story_v1",LS_NSFW="cfw_studio_sys_nsfw_v1",LS_EXTRACT="cfw_studio_sys_extract_v1";
 function loadPrompts(){
   if($("#sysStory"))$("#sysStory").value=localStorage.getItem(LS_STORY)||DEF_STORY;
+  if($("#sysNsfw"))$("#sysNsfw").value=localStorage.getItem(LS_NSFW)||DEF_NSFW;
   if($("#sysExtract"))$("#sysExtract").value=localStorage.getItem(LS_EXTRACT)||DEF_EXTRACT;
 }
 function wirePrompts(){
-  var map=[["#sysStory",LS_STORY],["#sysExtract",LS_EXTRACT]];
+  var map=[["#sysStory",LS_STORY],["#sysNsfw",LS_NSFW],["#sysExtract",LS_EXTRACT]];
   map.forEach(function(p){var e=$(p[0]);if(e)e.addEventListener("input",function(){localStorage.setItem(p[1],e.value);});});
   var rb=$("#promptReset");
-  if(rb)rb.addEventListener("click",function(){localStorage.removeItem(LS_STORY);localStorage.removeItem(LS_EXTRACT);loadPrompts();if($("#promptHint"))$("#promptHint").textContent="已恢复默认提示词";});
+  if(rb)rb.addEventListener("click",function(){localStorage.removeItem(LS_STORY);localStorage.removeItem(LS_NSFW);localStorage.removeItem(LS_EXTRACT);loadPrompts();if($("#promptHint"))$("#promptHint").textContent="已恢复默认提示词";});
 }
-function storySys(){return ($("#sysStory")&&$("#sysStory").value.trim())||DEF_STORY;}
+function storySys(){var base=($("#sysStory")&&$("#sysStory").value.trim())||DEF_STORY;var add=($("#sysNsfw")&&$("#sysNsfw").value)||DEF_NSFW;return base+($("#nsfw").checked?add:"");}
 function extractSys(){return ($("#sysExtract")&&$("#sysExtract").value.trim())||DEF_EXTRACT;}
 
 // ====== Step 1: 写故事 ======
@@ -428,6 +435,7 @@ function injectFuseStyle(){
 buildModels();
 loadPrompts();
 wirePrompts();
+(function(){var u=$("#unlockChk");if(!u)return;try{u.checked=(localStorage.getItem(LS_UNLOCK_ON)==="1");}catch(e){}u.addEventListener("change",function(){try{localStorage.setItem(LS_UNLOCK_ON,u.checked?"1":"0");}catch(e){}if(u.checked)toast(unlockTok()?"已开启解限（复用主站越狱底座）":"已开启解限，但尚未在主站解锁——请先去主站解锁，否则服务端会按锁定态忽略");else toast("已关闭解限");});})();
 $("#gen").addEventListener("click",doGen);
 $("#stop").addEventListener("click",function(){if(genAbort)genAbort.abort();});
 $("#extract").addEventListener("click",doExtract);

@@ -1,0 +1,795 @@
+{
+  "version": 1,
+  "note": "加载清单唯一真源：顺序即执行顺序；w=加载顺序注解（boot 行渲染时剥掉）。加脚本=在此追加一项，再跑 --write。",
+  "scripts": [
+    {
+      "s": "/services/ui/version-painter.js",
+      "c": "classic",
+      "w": "α3 自 index.html 内联 #3 外置（顶栏版本号绘制）（2026-11-17 服务层搬迁：源=services/ui/version-painter.ts，接线 l0/wiring，零自有冻结名）"
+    },
+    {
+      "s": "/services/ui/settings-footer-keeper.js",
+      "c": "classic",
+      "w": "α3 自 index.html 内联 #4 外置（设置页 footer 版本与 settingsBtn 联动）（2026-11-17 服务层搬迁：源=services/ui/settings-footer-keeper.ts，接线 l0/wiring，零冻结名）"
+    },
+    {
+      "s": "/services/ui/mobile-tabs.js",
+      "c": "classic",
+      "w": "α3 自 index.html 内联 #5 外置（手机底部 tab 切换器）；2026-11-16 规则迁 services/ui/mobile-tabs.ts，接线层留查询与写入"
+    },
+    {
+      "s": "/services/ui/left-sidebar-toggle.js",
+      "c": "classic",
+      "w": "α3 自 index.html 内联 #6 外置（左栏开关）（2026-11-17 服务层搬迁：源=services/ui/left-sidebar-toggle.ts，接线 l0/wiring，零冻结名）"
+    },
+    {
+      "s": "/services/ui/fishbowl-cta.js",
+      "c": "classic",
+      "w": "α3 自 index.html 内联 #9 外置（群聊空态引导）；2026-11-16 判定迁 services/ui/fishbowl-cta.ts，接线层留 DOM 与两段文案"
+    },
+    {
+      "s": "/services/ui/sync-indicator.js",
+      "c": "classic",
+      "w": "α3 自 index.html 内联 #7 外置（同步状态指示器）"
+    },
+    {
+      "s": "/services/ui/right-sidebar-tabs.js",
+      "c": "classic",
+      "w": "α3 自 index.html 内联 #8 外置（右栏 tab 控制器）；2026-11-16 选择规则迁 services/ui/right-sidebar-tabs.ts，接线层留 DOM 与三处自动切换"
+    },
+    {
+      "s": "/js/text/boot/tools-pages.js",
+      "c": "classic",
+      "w": "2026-11-17 工具页外挂化：渲染 #toolsPageList（数据源=构建期注入的 #toolsPageCatalog，扫 public/tools/<id>/tool.json）；没有就隐藏整段"
+    },
+    {
+      "s": "/js/text/boot/sw-register.js",
+      "c": "classic",
+      "w": "α3 自 index.html 内联 #10 外置（serviceWorker 注册）"
+    },
+    {
+      "s": "/shared/core/slot-registry.js",
+      "c": "classic",
+      "w": "L1b-2 槽位解析运行时：36 处槽位查询经此解析（回落链表驱动）。必须在全部业务模块之前。"
+    },
+    {
+      "s": "/shared/core/host-api.compat.js",
+      "c": "classic",
+      "w": "α4 hostApi compat 影子期入口：8 门面惰性 getter + tools 契约位（L2 搬迁后整体删除）。"
+    },
+    {
+      "s": "/bundles/agent/manifest/tools.js",
+      "c": "classic",
+      "w": "L2 阶段 2：全量工具清单（60 条，捕获驱动）赋进 hostApi.tools.manifest。生成物勿手改（l0/tools-manifest.mjs --write）。"
+    },
+    {
+      "s": "/shared/core/escape.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/auth/token.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/dev/console.js",
+      "c": "classic",
+      "w": "4.17: dev 控制台必须在 auth.js 后、其他模块前。它 monkey-patch fetch 抓 /api/chat payload,需要包裹 auth.js 的 Authorization 注入(2026-11-15 迁 services/dev/console.ts)"
+    },
+    {
+      "s": "/services/auth/unlock.js",
+      "c": "classic",
+      "w": "2026-06-04 私密解锁门:伪装态隐藏 [data-nsfw] + 版本号 7 连点触发访问码 + 解锁后给 /api/chat 注入 unlockToken。须在 dev.js 后(fetch patch 叠最外层)(2026-11-15 迁 services/auth/unlock.ts)"
+    },
+    {
+      "s": "/services/ui/feedback.js",
+      "c": "classic",
+      "w": "2026-09-14 UI第一轮:统一反馈组件(toast/confirm,自注入样式,零依赖)。运行时才被调用,位置宽松;各模块旧 toast 缺失它时自动回退原实现"
+    },
+    {
+      "s": "/shared/core/i18n.js",
+      "c": "classic",
+      "w": "2026-10-07 双语插件：引擎按需加载字典（未启用英文时零开销；设置→外观可切换）"
+    },
+    {
+      "s": "/services/model-router/provider-merge.js",
+      "c": "classic",
+      "w": "2026-10-13 批 E1b：前端渠道注册表（window.__providers）——预设渠道 + 自定义渠道 + 每模型开关， 数据存 cfw_providers_v3（公开副本 cfw_providers_public_v3 进云同步）。app.js/settings.js 都读它， 须在 app.js 之前加载。 2026-11-13: 渠道合并纯函数（provider-merge.js）须在 providers.js / sync.js 之前加载。2026-11-14 B2 服务层搬迁：源=services/model-router/provider-merge.ts，globalThis 安全接线"
+    },
+    {
+      "s": "/services/model-router/providers.js",
+      "c": "classic",
+      "w": "2026-11-14 B2 服务层搬迁：源=services/model-router/providers.ts，__providers 冻结名与启动副作用四连在 l0/wiring/providers.js"
+    },
+    {
+      "s": "/config.js",
+      "c": "route",
+      "w": "4.37: 改回加载 Worker 动态下发的 /config.js。clientConfigJs() 生成纯 window.APP_* 赋值(无 export),且 worker 路由早于静态资源命中,以 src/config.js 为唯一模型源。 重组目录时误把带 ESM export 的服务端 config 放到了 /js/text/core/config.js,classic <script> 读到 export 即抛 SyntaxError 中断 → window.APP_MODELS_FREE 未赋值 → 模型下拉空。"
+    },
+    {
+      "s": "/services/data/character.js",
+      "c": "classic",
+      "w": "角色卡数据层 + 面板（IDB tavern_chars_v2 双表 chars/affections，LS 活跃卡/关系/情绪/阈值事件）；须在 app.js 前加载，左栏与发送路径都要读当前角色。2026-11-15 data 域搬迁：源=services/data/character.ts，冻结名 __character 与 IDB schema 不变，面板 UI 随 l0/wiring/character.js 下发"
+    },
+    {
+      "s": "/services/data/lorebook.js",
+      "c": "classic",
+      "w": "4.49 P2 世界书数据层:LS tavern_lorebook_v1,随 sync.js 自动上云;须在 app.js 前加载供发送时筛条目。2026-11-15 data 域搬迁：源=services/data/lorebook.ts，冻结名与条目 schema 不变"
+    },
+    {
+      "s": "/services/scene/multi-agent.js",
+      "c": "classic",
+      "w": "多智能体场景：模式开关 + 场景成员 + 按名召唤，源=services/scene/multi-agent.ts，冻结名 __multi 十成员不变；群聊控制台与顶栏按钮随接线层下发"
+    },
+    {
+      "s": "/services/ui/theme.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/sync/chat-events.js",
+      "c": "classic",
+      "w": "2026-11-12 实时聊天事件：纯逻辑（差分包/应用/去重）与角色卡冲突合并，须在 sync.js 之前。2026-11-17 迁 services/sync/，冻结名 __chatEvents 不变"
+    },
+    {
+      "s": "/services/sync/char-sync-merge.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/data/sync.js",
+      "c": "classic",
+      "w": "云同步引擎（五通道：main blob / cost / exclude / chat / chars）；须在 app.js 之前：启动时如已启用云同步会先 pull，避免 app.js init 读到老数据。2026-11-15 data 域搬迁：源=services/data/sync.ts，冻结名与全部 LS 键名不变"
+    },
+    {
+      "s": "/services/data/chat-realtime.js",
+      "c": "classic",
+      "w": "实时聊天事件通道（POST/1.5s 轮询 /sync/chat/events，活动 turn 的事件暂存待 cfw:conv-turns，不可用即回落整段拉取）；须在 sync.js 之后、app.js 之前（app.js 的 persist 钩子会调它）。2026-11-15 data 域搬迁：源=services/data/chat-realtime.ts，冻结名与 LS 键名不变"
+    },
+    {
+      "s": "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.umd.js",
+      "c": "cdn",
+      "x": "sha384-Jy8qDMspJASzATgFngF2ompIKy0StbCcvuTE65mxDm/E0/YSIF6Ndc+5V7bbwRcw",
+      "o": "anonymous",
+      "w": "2026-09-14 UI第一轮:富文本渲染库(marked 解析 + marked-highlight 解析期代码高亮 + highlight.js 常用语言包 + DOMPurify 消毒),供 app.js renderMarkdownSafe 富路径使用。 全部带 SRI 完整性校验,任一加载失败/缺失时 app.js 自动回退原手写渲染器,功能零损失。 注意:marked/marked-highlight 故意用官方未压缩文件 —— jsDelivr 动态压缩产物随其 Terser 版本变化,配 SRI 会随机失效(官方文件字节恒定,配 SRI 安全)。"
+    },
+    {
+      "s": "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/highlight.min.js",
+      "c": "cdn",
+      "x": "sha384-wjfDDhOPPdjtva8vWBhWeVprSpmxisEu5aYT3q1JyACqXpdKpo3PWZTMVq24MBix",
+      "o": "anonymous"
+    },
+    {
+      "s": "https://cdn.jsdelivr.net/npm/marked-highlight@2.2.4/lib/index.umd.js",
+      "c": "cdn",
+      "x": "sha384-BjBE0bY2PIGsLgdqaC1+iwO397c7jxwJdNszWabXYxrbMXBTS9QCPxXJElH8xOE/",
+      "o": "anonymous"
+    },
+    {
+      "s": "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.min.js",
+      "c": "cdn",
+      "x": "sha384-uUMu9JDY09vBzRf9SPcK2VgUj+W/70J6Soc+Dded5P474ElQ63iv9j5N3DE7Kp3N",
+      "o": "anonymous"
+    },
+    {
+      "s": "/services/save-file.js",
+      "c": "classic",
+      "w": "2026-09-14 附件统一层(window.__attach):待发状态 / 文本 chip / 图片卡片+灯箱 / 图片 Blob 存 IndexedDB。 被 chat-extras.js 写入、被 app.js 与 chat-ux.js 读取。零依赖自注入 CSS。 必须排在 app.js 之前:app.js 的 init() 是同步执行(文件末尾),会立刻还原历史会话并渲染附件, 晚于它加载则 __attach 尚不存在,刷新后附件 chip 就渲染不出来。 2026-11-11 统一「保存文件到磁盘」出口:Tauri 壳走原生 export_text_file(修手机壳导出无响应),网页端 <a download>;2026-11-17 迁 services/save-file.ts（壳探测与 Blob/anchor 生命周期在 l0/wiring/save-file.js）"
+    },
+    {
+      "s": "/services/ui/attachments.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/agent/steps.js",
+      "c": "classic",
+      "w": "2026-09-14 Agent 轮次步骤卡片(仅 Agent 模式生效):把工具调用渲染成可折叠卡片(名称/参数/状态/耗时/结果), 摆在气泡上方;实时与历史还原共用同一套 DOM。零依赖自注入 CSS,须在 app.js 之前(还原历史时会用到)"
+    },
+    {
+      "s": "/services/agent/story.js",
+      "c": "classic",
+      "w": "2026-11-17 Work/History 核心：agent-trace → agents/places/lines（借 dsh-layerfs 的 where/pose 规则）。纯模型，无 window.__* 契约；须在 app.js 之前（面板接线时直接读全局函数）"
+    },
+    {
+      "s": "/services/agent/playback.js",
+      "c": "classic",
+      "w": "2026-11-17 Work/History 核心：按调用时间回放（due/LAG、迟到追帧、未播集合、停止唤醒）。纯函数，无 window.__* 契约；与 story 同批加载"
+    },
+    {
+      "s": "/services/ui/history-tree.js",
+      "c": "classic",
+      "w": "2026-11-17 Work/History 核心：History 泳道分配 + 确定性 SVG（借 dsh-layerfs 的 tree.js）。无 DOM，无 window.__* 契约；与 story/playback 同批加载"
+    },
+    {
+      "s": "/services/data/agent-workspace.js",
+      "c": "classic",
+      "w": "Agent 文件工作区(IDB cfw_agent_workspace_v1 v2：files + versions + blobs；files 键=convId::path，版本键=scope#seq，blob 键=convId::hash)+ 六个文件工具(list/read/search/write/edit/delete)+ export；window.__agentWorkspace 增 history/readVersion/restore（尚未加模型工具）。须在 app.js 之前（构建 registry 时调 __agentWorkspace.defineTools）。源=services/data/agent-workspace.ts"
+    },
+    {
+      "s": "/services/agent/text-search.js",
+      "c": "classic",
+      "w": "2026-10-08 大文件分页读/检索（read_file offset+limit、search_file 字面/正则守卫）的纯函数；2026-11-17 迁 services/agent/text-search.ts，冻结名与限值不变"
+    },
+    {
+      "s": "/services/data/checkpoints.js",
+      "c": "classic",
+      "w": "2026-11-17 通用 checkpoint 存储（IDB cfw_checkpoints_v1：checkpoints + blobs）+ roleplay capture/apply；scope=roleplay/work/sandbox，work/sandbox 适配器后续接。须在 app.js 之前（host hook 在 __app/__character/__multi 就绪后由面板调用）"
+    },
+    {
+      "s": "/services/ui/roleplay-checkpoint-plan.js",
+      "c": "classic",
+      "w": "2026-11-18 E 单元：roleplay 存档/回退的纯决策（排序/pre-restore 计划/拒绝文案），emit 产物桥接全局"
+    },
+    {
+      "s": "/js/text/ui/roleplay-checkpoint-ui.js",
+      "c": "classic",
+      "w": "2026-11-18 E 单元：roleplay 存档/回退 UI 的 DOM 胶水（行级入口 + 列表对话框 + 恢复流）；依赖 __checkpoints 与上面的 plan 产物"
+    },
+    {
+      "s": "/services/memory/char-memory.js",
+      "c": "classic",
+      "w": "2026-10-08 角色记忆：小本子（角色 KV）+ 知识库（trigram/BM25 关键词检索，全本地 IndexedDB）。2026-11-14 B3 服务层搬迁：源=services/memory/char-memory.ts，真 IDB 与 v1 导入 UI 在 l0/wiring/char-memory.js"
+    },
+    {
+      "s": "/services/memory/core.js",
+      "c": "classic",
+      "w": "角色记忆内核：Hindsight 的抽取 prompt + 条目结构 + RRF 融合（英文原文，不翻译）。存储走 IndexedDB，不需要任何服务。（2026-11-14 服务层搬迁：源=services/memory/core.ts，IDB/向量加载器在 l0/wiring/memory.js）"
+    },
+    {
+      "s": "/services/model-router/model-think.js",
+      "c": "classic",
+      "w": "模型思考档位表（模型能力会常更新，单独维护；app.js 只消费 __modelThink）。2026-11-14 B2 服务层搬迁：源=services/model-router/model-think.ts，globalThis 安全接线"
+    },
+    {
+      "s": "/services/chat/text-format.js",
+      "c": "classic",
+      "w": "A01: 正文清洗模块（strip*/微信拆条）；必须先于 app.js（app.js 顶部门面在加载期抓引用）。2026-11-14 B1 服务层搬迁：源=services/chat/text-format.ts，冻结名 __textFormat 在 l0/wiring/text-format.js 继续挂"
+    },
+    {
+      "s": "/services/chat/markdown.js",
+      "c": "classic",
+      "w": "A02: Markdown 渲染（富路径 marked+DOMPurify / legacy 回退）；同样先于 app.js"
+    },
+    {
+      "s": "/services/chat/reasoning.js",
+      "c": "classic",
+      "w": "A03: 思考提取/折叠/三源归档；先于 app.js（__app / __pipeline 加载期抓引用）。2026-11-14 B1 服务层搬迁：源=services/chat/reasoning.ts，冻结名 __reasoning 在 l0/wiring/reasoning.js 继续挂"
+    },
+    {
+      "s": "/services/chat/pipeline.js",
+      "c": "classic",
+      "w": "A04: 清洗管线探针（__pipeline.trace）；依赖 text-format + reasoning，须在其后、app.js 前"
+    },
+    {
+      "s": "/services/chat/doc-extract.js",
+      "c": "classic",
+      "w": "附件正文提取（DOCX/XLSX/CSV/TSV 纯解析，无上传无 OCR）。2026-11-15 迁 services/chat/doc-extract.ts：ZIP 读取器走端口，zip-read.js 缺席时 fail-closed 报 ZIP_READER_MISSING"
+    },
+    {
+      "s": "/services/ui/think-control.js",
+      "c": "classic",
+      "w": "A05: 思考档位控制（按钮/菜单/请求参数）；依赖 model-think.js，先于 app.js。2026-11-16 迁 services/ui/think-control.ts：档位表编译/请求字段/菜单行在服务，按钮与弹层在接线"
+    },
+    {
+      "s": "/services/cost/ledger.js",
+      "c": "classic",
+      "w": "A07: 费用流水/计价（calcCost/getPricing/日账单）；先于 app.js（2026-11-14 服务层搬迁：源=services/cost/ledger.ts，产物由 l0/emit.mjs 发射）"
+    },
+    {
+      "s": "/services/model-router/model-catalog.js",
+      "c": "classic",
+      "w": "A09: 模型目录/占位过滤/自动拉取/失效模型自愈；先于 app.js。2026-11-14 B2 服务层搬迁：源=services/model-router/model-catalog.ts，create(host) 契约不变"
+    },
+    {
+      "s": "/services/ui/channel-mode.js",
+      "c": "classic",
+      "w": "A10: 顶栏模式胶囊/渠道信息/applyMode；先于 app.js。2026-11-16 服务层搬迁：源=services/ui/channel-mode.ts，create(host) 契约不变"
+    },
+    {
+      "s": "/services/data/prompt-profile.js",
+      "c": "classic",
+      "w": "A12: 基座/中性/状态层/角色能力/生成参数/联网；先于 app.js。2026-11-14 深夜 data 域搬迁：源=services/data/prompt-profile.ts，create(host) 契约与 __charCaps 时点不变"
+    },
+    {
+      "s": "/services/data/chat-stream.js",
+      "c": "classic",
+      "w": "A27: SSE 传输层（__chatStream.readSse，原 app.js 两处拷贝 + tools 页一份，三合一）；先于 app.js。2026-11-15 data 域搬迁：源=services/data/chat-stream.ts，v:2 与 buildBody 键序不变"
+    },
+    {
+      "s": "/services/chat/retry.js",
+      "c": "classic",
+      "w": "A28: Agent 重试策略（__retry：分类/预算/退避/文案，纯函数）；先于 app.js（sendOneAgent 里取 cfg）。2026-11-14 B1 服务层搬迁：源=services/chat/retry.ts"
+    },
+    {
+      "s": "/services/chat/request.js",
+      "c": "classic",
+      "w": "A26: /api/chat 请求体装配（__request.agentBody：键序与可选层展开顺序有 golden 锁）。2026-11-14 B1 服务层搬迁：源=services/chat/request.ts"
+    },
+    {
+      "s": "/services/agent/turn-runtime.js",
+      "c": "classic",
+      "w": "A24: 每会话一条 turn 的注册表与生命周期（__turnRuntime）；先于 app.js（顶部即 create）(2026-11-15 迁 services/agent/turn-runtime.ts（2026-11-17 并入 agent/）)"
+    },
+    {
+      "s": "/services/agent/registry.js",
+      "c": "classic",
+      "w": "A29: Agent 工具注册表装配（__agentRegistry：内核工具 + 11 组可选能力 + 系统快照）（2026-11-14 服务层搬迁：源=services/agent/registry.ts）"
+    },
+    {
+      "s": "/services/agent/events.js",
+      "c": "classic",
+      "w": "A30: 内核事件记账与分派（__agentEvents：后台也记账、只在当前会话画）（2026-11-14 服务层搬迁：源=services/agent/events.ts）"
+    },
+    {
+      "s": "/services/agent/call-loop.js",
+      "c": "classic",
+      "w": "A31: 单次调用的重试循环 + 静默/总时长看门狗（__callLoop）；依赖 __retry（2026-11-14 服务层搬迁：源=services/agent/call-loop.ts）"
+    },
+    {
+      "s": "/services/agent/peer-calls.js",
+      "c": "classic",
+      "w": "A32: 平级角色模型调用原语（__peerCalls：角色匹配/配置/带手调用/oneShot/发言/讨论区推送；2026-11-15 迁 services/agent/peer-calls.ts）"
+    },
+    {
+      "s": "/services/agent/peer-actions.js",
+      "c": "classic",
+      "w": "A32b: 三个动作的编排（__peerActions：小会/耳语/上台，隔离上下文与不静默截断的不变量在模块头；2026-11-15 迁 services/agent/peer-actions.ts）"
+    },
+    {
+      "s": "/services/agent/turn.js",
+      "c": "classic",
+      "w": "A31: Agent 宿主轮（__agentTurn，循环体/事件分派/权限桥接/工具轮写回）—— sendOneAgent 只留参数组装+host。2026-11-14 服务层搬迁：源=services/agent/turn.ts（2026-11-17 并入 agent/）"
+    },
+    {
+      "s": "/services/session/store.js",
+      "c": "classic",
+      "w": "A22: 会话消息持久化存储层（__sessionStore）；先于 app.js（顶部建门面时即取 create）（2026-11-14 服务层搬迁：源=services/session/store.ts，golden SHA-256 等价锁）"
+    },
+    {
+      "s": "/services/conv/store.js",
+      "c": "classic",
+      "w": "A23: 会话注册表/当前会话/主对话收敛（__convStore）；先于 app.js（顶部建门面时即取 create）（2026-11-14 服务层搬迁：源=services/conv/store.ts）"
+    },
+    {
+      "s": "/services/conv/autoname.js",
+      "c": "classic",
+      "w": "A34: 会话自动命名（本地即时截首句 + 首轮回复后 AI 精炼）；运行时才取 __app/__convList，先于 app.js 加载即可（2026-11-14 服务层搬迁：源=services/conv/autoname.ts）"
+    },
+    {
+      "s": "/services/chat/context.js",
+      "c": "classic",
+      "w": "A14: 场景作用域/发言者投影/协议清洗（__context）；含剧情摘要压缩判定（触发门/切片/回包校验）；先于 app.js（顶部建门面即取 create）（源=services/chat/context.ts）"
+    },
+    {
+      "s": "/services/ui/message-list.js",
+      "c": "classic",
+      "w": "A17: 消息行构造/滚动/底部留白（__messageList）；先于 app.js（顶部建门面时即取四个 DOM 句柄）"
+    },
+    {
+      "s": "/services/ui/composer.js",
+      "c": "classic",
+      "w": "A18+A20（已合一份）: 输入区（自增高/发送键/--kb/@ 召唤补全）（__composer）；先于 app.js（2026-11-16 服务层搬迁：源=services/ui/composer.ts）"
+    },
+    {
+      "s": "/services/ui/pacing.js",
+      "c": "classic",
+      "w": "A19: 真实节奏（攒消息防抖/不秒回/正在输入/群聊在线模式，__pacing）；先于 app.js；2026-11-16 迁 services/ui/pacing.ts"
+    },
+    {
+      "s": "/services/ui/mobile-shell.js",
+      "c": "classic",
+      "w": "A21: 手机壳（滚动隐藏顶/底栏 + 顶栏开发者入口收纳，__mobileShell）；先于 app.js"
+    },
+    {
+      "s": "/services/conv/app-mode.js",
+      "c": "classic",
+      "w": "A24: 顶栏「工作 / 角色扮演」一级模式（__appMode）；请求装配纯函数 decidePayload + 会话级跟随（cfw_conv_meta_v1.appMode）；先于 app.js（顶部建实例时即取 create）(2026-11-15 迁 services/conv/app-mode.ts)"
+    },
+    {
+      "s": "/services/conv/lifecycle.js",
+      "c": "classic",
+      "w": "2026-11-15 会话生命周期搬迁：切换/新建/重命名/删除/远端应用 + 运行期内存槽缓存迁 services/conv/lifecycle.ts，须在 app.js 之前加载"
+    },
+    {
+      "s": "/js/text/engine/app.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/ui/chat-appearance.js",
+      "c": "classic",
+      "w": "主题与文字：字体/文字特效（仅本设备）。先于 settings-data.js，设置页直接消费 __chatAppearance。（2026-11-15 服务层搬迁：源=services/ui/chat-appearance.ts）"
+    },
+    {
+      "s": "/services/ui/settings-gen-params.js",
+      "c": "classic",
+      "w": "2026-11-17 settings 第一刀：生成参数覆盖层（读/写/夹取/预设）。必须先于 settings.js（卡片直接调 window.settingsGenParams）"
+    },
+    {
+      "s": "/services/ui/settings-toggles.js",
+      "c": "classic",
+      "w": "2026-11-17 settings 第二刀：布尔开关的键/极性/类计划（stateLayer、topbarCost、hideMsgActions、hideStats）。必须先于 settings.js"
+    },
+    {
+      "s": "/services/ui/settings-cat-nav.js",
+      "c": "classic",
+      "w": "2026-11-17 settings 第三刀：分类可见性与落点计划（devOnly / voice 仅壳内 / 失效回落）。必须先于 settings.js"
+    },
+    {
+      "s": "/services/ui/settings-card-order.js",
+      "c": "classic",
+      "w": "2026-11-18 settings 第五刀：卡片挂载顺序表（27 步、每步带理由）。必须先于 settings.js（其映射表与该表互锁）"
+    },
+    {
+      "s": "/services/ui/settings-autoname.js",
+      "c": "classic",
+      "w": "2026-11-18 settings 第六刀：会话自动命名主从联动（键/极性/禁用门）。必须先于 settings.js；键与 conv/autoname.ts 同源"
+    },
+    {
+      "s": "/services/ui/settings-personalize.js",
+      "c": "classic",
+      "w": "2026-11-21 settings 逐卡搬：Agent 个性化字节预算（100KB 上限/trim 空删除/read 共用）。必须先于 settings.js 与 app.js（两侧加载期取实例）"
+    },
+    {
+      "s": "/services/ui/settings-agent-tools.js",
+      "c": "classic",
+      "w": "2026-11-21 settings 逐卡搬：Agent 工具档位/工作模式白名单/轮数上限（与 services/agent/registry.ts 读侧同口径）。必须先于 settings.js"
+    },
+    {
+      "s": "/services/ui/settings-background.js",
+      "c": "classic",
+      "w": "2026-11-21 settings 逐卡搬：聊天背景图存储形状/滑块解析/居中标签/4MB 上限/删键规则。必须先于 settings.js"
+    },
+    {
+      "s": "/services/ui/tool-mode-card.js",
+      "c": "classic",
+      "w": "B2 C-4（2026-11-19）：工具目录模式行（full/directory）· 读侧容忍脏值默认 full + 生效模式显示规则（运行时缺件回落 full 时如实显示），源=services/ui/tool-mode-card.ts，接线挂 window.settingsToolMode（非 __ 名不扩冻结面）并注入 #agentToolsCard 行 DOM；settings.js 卡内一行 attach。"
+    },
+    {
+      "s": "/js/text/ui/settings.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/agent/agent-kernel.js",
+      "c": "classic",
+      "w": "网页内核(魂)· 工具调用内核 SDK，实现在 services/agent/agent-kernel.ts，classic 产物由接线挂 window.AgentKernel（createToolRegistry / runAgentLoop / isRunning / pairPendingToolCalls）。2026-11-17 迁出前它是 ESM（export 语法必须 type=\"module\"）；产物是 IIFE，故改回 classic：执行时机从 defer 提前到本行位置，仍在 app.js 之后，而 app.js 只在「发送」时按需取 window.AgentKernel，因此不受影响。tools.js 是 IIFE，挂 window.OwnChatTools，仅在 buildRegistry() 运行时才取 AgentKernel。"
+    },
+    {
+      "s": "/services/policy/tool-policy.js",
+      "c": "classic",
+      "w": "B2 C-3（2026-11-19）：policy 域入 emit 通道· 策略编译器（compileTools 一次编译出注册/下发/展示三答案），源=services/policy/tool-policy.ts，接线挂 window.__toolPolicy。本域依赖走 emit globalThis 桥，boot 顺序 tool-policy 在最前。"
+    },
+    {
+      "s": "/services/policy/registry-adapter.js",
+      "c": "classic",
+      "w": "B2 C-3（2026-11-19）：registry→policy 适配器（活 schema 按 id 补 manifest 元数据，缺的保守默认不抛），源=services/policy/registry-adapter.ts，接线挂 window.__policyAdapter。"
+    },
+    {
+      "s": "/services/policy/tool-search.js",
+      "c": "classic",
+      "w": "B2 C-3（2026-11-19）：tool_search 运行时（目录匹配器 + 随 kernel 生命周期累积的发现集），源=services/policy/tool-search.ts，接线挂 window.__toolSearch。"
+    },
+    {
+      "s": "/services/policy/tool-mode.js",
+      "c": "classic",
+      "w": "B2 C-3（2026-11-19）：工具模式接线（LS cfw_tool_mode_v1 读侧容忍脏值默认 full；directory 时在 kernel 注册 tool_search 执行器 + 每轮 resolveSchemas 合并发现集），源=services/policy/tool-mode.ts，接线挂 window.__toolMode 并从 policy 桥注入依赖。"
+    },
+    {
+      "s": "/services/agent/trace.js",
+      "c": "classic",
+      "w": "2026-11-12 B5: Agent 回合回放（IndexedDB）· agent-trace.js 只做存储+内核装饰器，trace-boot.js 等内核挂载后 调 installKernelTrace(runAgentLoop 自动 begin/end)。用轮询绕开 module/classic 执行顺序，故放在内核之后即可。 路径已按 shared 结构归位：/shared/agent/agent-trace.js。"
+    },
+    {
+      "s": "/services/agent/trace-boot.js",
+      "c": "classic",
+      "w": "（2026-11-17 服务层搬迁：源=services/agent/trace-boot.ts，接线 l0/wiring；__agentTraceBoot 挂载照旧）"
+    },
+    {
+      "s": "/services/tools/agent/subagent/index.js",
+      "c": "classic",
+      "w": "2026-11-21：子 agent 派生的编排（深度上限 / 最小权限档 / 事件 / 错误归一）从 tools.js 抽出，源=services/tools/agent/subagent/index.ts；tools.js 只在 run() 里转发。必须先于 tools.js 加载。"
+    },
+    {
+      "s": "/services/tools/agent/image/index.js",
+      "c": "classic",
+      "w": "2026-11-21：send_image 的生成调用与 150s 工具级硬上限从 tools.js 抽出，源=services/tools/agent/image/index.ts；tools.js 只转发。必须先于 tools.js 加载。"
+    },
+    {
+      "s": "/services/tools/agent/cost/index.js",
+      "c": "classic",
+      "w": "2026-11-21：query_cost 的两本账（token 费 vs 联网费）、档位说明与 ¥ 四位小数从 tools.js 抽出，源=services/tools/agent/cost/index.ts。必须先于 tools.js 加载。"
+    },
+    {
+      "s": "/services/tools/agent/speak/index.js",
+      "c": "classic",
+      "w": "2026-11-21：speak 的「无声不是错误」返回形状与三条降级说明从 tools.js 抽出，源=services/tools/agent/speak/index.ts。必须先于 tools.js 加载。"
+    },
+    {
+      "s": "/services/tools/agent/skill/index.js",
+      "c": "classic",
+      "w": "2026-11-21：load_skill 的 level 2 取正文与两种拒绝口径（不存在 / 存在但未启用）从 tools.js 抽出，源=services/tools/agent/skill/index.ts。必须先于 tools.js 加载。"
+    },
+    {
+      "s": "/services/tools/agent/choices/index.js",
+      "c": "classic",
+      "w": "2026-11-21：offer_choices 的 autoSend 约定、{label} 归一与「空列表是拒绝不是空渲染」从 tools.js 抽出，源=services/tools/agent/choices/index.ts。必须先于 tools.js 加载。"
+    },
+    {
+      "s": "/services/tools/agent/character/index.js",
+      "c": "classic",
+      "w": "2026-11-21：adjust_affinity 的好感写入与 delta/value 双字段返回形状从 tools.js 抽出，源=services/tools/agent/character/index.ts。必须先于 tools.js 加载。"
+    },
+    {
+      "s": "/services/data/presets.js",
+      "c": "classic",
+      "w": "2026-11-25 预设数据层统一：cfw_prompt_presets_v1 的 load/save/uid/order 唯一实现（源=services/data/presets.ts），接线发布 window.presetStore；save 必走 touchSync 修 agent 改预设漏推云同步。须先于 tools.js 与 prompt-editor.js 加载。桥点不带 __ 前缀，冻结契约面不变"
+    },
+    {
+      "s": "/shared/agent/tools.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/agent/source-tools.js",
+      "c": "classic",
+      "w": "2026-11-06: 源码/产物检索工具组（可选开发工具，后端=scripts/dev/source-server.mjs）"
+    },
+    {
+      "s": "/services/local/service-manager.js",
+      "c": "classic",
+      "w": "4.72: 本地服务管家（设置→高级·开发工具）；2026-11-17 行渲染/动作计划迁 services/local/service-manager.ts，接线层留壳探测与 DOM"
+    },
+    {
+      "s": "/services/agent/reach.js",
+      "c": "classic",
+      "w": "2026-06-16 Agent-Reach Skill 模块:fetch_page(Jina Reader) / web_search / search_bilibili / search_github / read_rss;须在 tools.js 之后(buildRegistry 调用时会取 AgentReach.defineTools)"
+    },
+    {
+      "s": "/services/agent/agent-local-tools.js",
+      "c": "classic",
+      "w": "4.70 本地能力:local_env / local_list_dir / local_read_file / local_write_file / local_run_command。只桌面端注册; 门控分层(2026-10-05 如实修订,旧版写的\"agent-tests/ + node --permission\"是被废弃的窄版方案,从未上线): ① 文件类:Rust 侧 canonicalize + 组件级 starts_with,限用户在设置里选的**工作目录**; ② local_run_command:无 Rust 沙箱(工作目录只是 cwd),spawn 前弹**原生确认框**(页面无法伪造), 工具环境经清洗(键名含 KEY/PASSWORD/SECRET/TOKEN 的不传); ③ 闸门:前端确认卡 + 工作模式(confirm/auto/plan/full),与原生框是两层独立防线。 命令已在 build.rs 登记并在 capabilities/remote.json 授权(未登记/未授权则远程页调不到)。 本地工具集刻意不含 read_file → read_text_file 这类**无门控路径**:read_text_file 在 Rust 侧不限 工作目录,接上等于给 agent 任意文件读取。"
+    },
+    {
+      "s": "/services/agent/ambient-tools.js",
+      "c": "classic",
+      "w": "2026-10-06 氛围音导演:标签协议 [[amb:id|音量]]/[[mus:…]]/[[voice:…]] + set_ambient 工具 + 导演系统提示。 执行落在 theme.js 的 window.__ambient 双轨混音器；本文件只在调用时读它，加载顺序无要求"
+    },
+    {
+      "s": "/services/agent/env-context.js",
+      "c": "classic",
+      "w": "2026-06-18 环境感知 / 自检:self_diagnostics(环境快照 + 加载完整性 + 联网逐环节自检,联网委托 AgentReach.diagnose)。须在 agent-reach.js 之后,只读探测"
+    },
+    {
+      "s": "/shared/agent/agent-console.js",
+      "c": "module",
+      "w": "4.69 Agent 控制台渲染器:渲染 runAgentLoop 事件流 → 右栏 Agent tab;提供 mountAgentConsole(container,{autoApprove}) → {onEvent,ensurePermission,clear,root}"
+    },
+    {
+      "s": "/services/agent/skills.js",
+      "c": "classic",
+      "w": "2026-06-24 Skill 系统(window.__skills)·全局能力层(归 /shared/):纯 Markdown SKILL.md 加载器。 2026-10-06: 改成三级渐进披露 —— 只有「名称 + 描述」目录挂进 agent 模式的系统提示(app.js 的 agent 装配点), 正文由 load_skill 工具按需取;普通对话不再注入技能正文。管理面 = 设置·技能分类(#setSkillSlot)。"
+    },
+    {
+      "s": "/services/agent/skills-import.js",
+      "c": "classic",
+      "w": "B4 技能包导入（原 public/shared/agent/skills-import.js，2026-11-24 迁 services/agent/skills-import.ts）：ZIP/文件夹技能包、路径/扩展名/符号链接/体积/压缩比闸、冲突 skip/overwrite/rename。须排在 skills.js 之后；ZIP 读取器按调用时从惰性加载结果取，顺序无关。"
+    },
+    {
+      "s": "/services/agent/workflow-schema.js",
+      "c": "classic",
+      "w": "B7 工作流包校验（原 public/shared/agent/workflow-schema.js，2026-11-24 迁 services/agent/workflow-schema.ts）：声明式 prompt/tool/condition、{{name}} 前向引用闸、20 步 / 10 分钟上限。接线层挂 window.__workflowSchema；须先于 runner 加载。"
+    },
+    {
+      "s": "/services/agent/workflow-runner.js",
+      "c": "classic",
+      "w": "B7 工作流执行器（原 public/shared/agent/workflow-runner.js，2026-11-24 迁 services/agent/workflow-runner.ts）：宿主注入 callModel/callTool/onEvent/signal，20 步 / 10 分钟 / 循环 50 次闸与 Abort/超时。接线层挂 window.__workflowRunner，schema 按调用时注入，不读全局单例。"
+    },
+    {
+      "s": "https://cdn.jsdelivr.net/npm/resonance-audio/build/resonance-audio.min.js",
+      "c": "cdn",
+      "w": "本地语音 TTS(应用端独有):tts.js 自注入 🔊 朗读按钮,调本地 GPT-SoVITS(经 Tauri http_request 代理打到 127.0.0.1:<port>)。 端口由宿主设置层保存(Rust kv settings.tts_port,默认 9880;托盘「语音 · 启动服务」可拉起/自启),App 内暂无改端口的 UI(2026-10-09 更正旧注释)。 IIFE 自执行 + MutationObserver 监听 .row.ai 注入按钮,无依赖;网页版无 window.__TAURI__ 时静默不启用。放 shared 这组末尾即可。"
+    },
+    {
+      "s": "/services/media/tts-text.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/agent/fishbowl.js",
+      "c": "classic",
+      "w": "鱼缸引擎 V3:必须在 app.js 之后(依赖 window.__app.sendOne / abortCurrent / injectModeratorMsg)"
+    },
+    {
+      "s": "/services/ui/wechat-group.js",
+      "c": "classic",
+      "w": "群聊(打包层):一键建群入口 + 群聊头部皮肤;复用 multi-agent + fishbowl + app.js(发言人气泡/@/自动接力) + wechat 风格。须在 app.js + fishbowl-engine 之后"
+    },
+    {
+      "s": "/services/ui/cost-log.js",
+      "c": "classic",
+      "w": "费用日志卡：今日/近 7 日/本月/总计四窗口 + 按日明细；须在 app.js 与 slot-registry 之后（2026-11-16 服务层搬迁：源=services/ui/cost-log.ts，槽位挂载与三按钮在 l0/wiring/cost-log.js）"
+    },
+    {
+      "s": "/services/image/channels.js",
+      "c": "classic",
+      "w": "2026-05-29 微信发图 文本侧编排(raw):配合图像侧 window.__chatImage 契约,契约未上线走 mock 2026-05-29 image side chat-photo contract (raw): provides window.__chatImage; load before chat-image.js 2026-11-06 图像渠道注册表（数据驱动）：Gitee 只是内置 openai/site 预设，可新增任意 OpenAI 兼容渠道/本地 ComfyUI。 必须在 image-common.js 之前加载；UI 卡在设置·模型 API 分类里，由 image-channels-ui.js 挂载。(2026-11-15 迁 services/image/channels.ts)"
+    },
+    {
+      "s": "/services/image/common.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/image/channels-ui.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/image/chat.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/image/chat-text.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/ui/chat-ux.js",
+      "c": "classic",
+      "w": "对话区交互判据(chatUx*):回合删除区间/sidx 解析/重试放弃/滚动跟随窗。必须在 app.js 之后(依赖 window.__abortCurrent/__sessionDeleteAt 等)"
+    },
+    {
+      "s": "/services/ui/choices.js",
+      "c": "classic",
+      "w": "选项分支芯片条(window.__choices):解析 [选项]…[/选项] → 输入框上方可点芯片;autopilot 半自动暂停出口也用它。依赖 #msg + #chat,放 chat-ux.js 之后"
+    },
+    {
+      "s": "/services/usage/stats.js",
+      "c": "classic",
+      "w": "2026-09-14 UI第二轮:状态面板(上下文容量/最近请求/系统状态)· 桌面右栏第三 tab + 手机底栏双挂载。依赖 app.js/角色/世界书/技能/同步模块均已就绪（2026-11-14 服务层搬迁：源=services/usage/stats.ts）"
+    },
+    {
+      "s": "/services/ui/status-panel.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/agent/autopilot.js",
+      "c": "classic",
+      "w": "自驱引擎(window.__autopilot):单角色叙事自驱循环,与鱼缸同辈。运行时依赖 app.js sendOne/abortCurrent + __fishbowl(互斥) + choices.js(暂停出口) + tts.js whenIdle(读完再续),均已先加载"
+    },
+    {
+      "s": "/services/ui/chat-extras.js",
+      "c": "classic",
+      "w": "4.64 对话工具(保留输入框回形针 + 聊天同步冲突面板;左栏文件上传/多开聊天按钮已移除)。依赖 window.__app 会话 hooks,须在 app.js 之后"
+    },
+    {
+      "s": "/services/ui/conv-list.js",
+      "c": "classic",
+      "w": "2026-09-14 左栏常驻会话列表:参与角色头像 + 会话名 + 最后消息预览 + 相对时间,点击切换、⋯ 重命名/删除。依赖 __app 会话 CRUD"
+    },
+    {
+      "s": "/services/ui/prompt-editor.js",
+      "c": "classic",
+      "w": "4.7 提示词编辑器（Prompt Editor）：3-tab Modal · LS+IDB 混合存储"
+    },
+    {
+      "s": "/services/ui/sidebar-groups.js",
+      "c": "classic",
+      "w": "2026-09-14 左栏分组折叠:运行时把 .sidebar-section-title 及其后按钮包成可折叠分组(不改 HTML 模板)。须在 conv-list.js 之后,才能把「对话」分组一并纳入"
+    },
+    {
+      "s": "/services/image/embed.js",
+      "c": "classic",
+      "w": "Phase 2 图像嵌入三模块(顺序 embed→quickgen→gallery): image-embed.js 工坊 Modal,运行时自动解锁左栏「图像(生/改)」按钮(2026-11-15 迁 services/image/embed.ts)；渠道/模型下拉跟随 __imageChannels image-quickgen.js 一键生/改图引擎（右栏快捷面板 2026-10-16 批 Q 移除；工坊/左栏路径共用本引擎）;提示词走 /api/chat 免费模式零费用 image-gallery.js 工坊内画廊 tab + 收藏,依赖 /img/r2/* /img/gallery;未配 R2/KV(IMAGES_BUCKET/IMAGES_SYNC)时返 501 → 纯本地降级,不阻塞"
+    },
+    {
+      "s": "/services/image/quickgen.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/image/gallery.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/image/quota.js",
+      "c": "classic",
+      "w": "2026-05-30 图像额度每日计数(单设备本地估算):fetch 层拦截 /img/v1 生成端点按张数累加今日用量 + Settings 计数卡"
+    },
+    {
+      "s": "/services/image/portrait.js",
+      "c": "classic",
+      "w": "2026-05-30 角色立绘桥接:读角色卡拼提示词→z-image 出半身立绘→一键设为发图基准图 + 全局画风设置(2026-11-15 迁 services/image/portrait.ts)"
+    },
+    {
+      "s": "/services/image/cache.js",
+      "c": "classic",
+      "w": "2026-05-30 提示词缓存去重:包 fetch 拦截重复生图,命中复用不计额度;须在 image-quota 之后加载"
+    },
+    {
+      "s": "/services/image/album.js",
+      "c": "classic",
+      "w": "2026-05-30 纯本地画廊闭环:fetch 观察生图/改图→存 IndexedDB,每张设基准/插入/再改;须在 image-cache 之后加载"
+    },
+    {
+      "s": "/services/image/expressions.js",
+      "c": "classic",
+      "w": "2026-05-30 表情差分包:基于基准图 Qwen-Edit 只改表情,依赖 image-chat 的 editImage(2026-11-15 迁 services/image/expressions.ts)"
+    },
+    {
+      "s": "/services/image/avatar.js",
+      "c": "classic",
+      "w": "2026-05-30 角色头像:以基准图裁近景头像(可选表情),存 cfw_char_avatar_v1+发 avatar:changed(2026-11-15 迁 services/image/avatar.ts)"
+    },
+    {
+      "s": "/services/panel/panel-frame.js",
+      "c": "classic",
+      "w": "2026-11-09 内容面板:frame 必须先于 host 加载(host 在 boot 时取全局引用)"
+    },
+    {
+      "s": "/services/panel/panel-host.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/ui/stage-tools.js",
+      "c": "classic",
+      "w": "agent 内容画布工具组（stage_list/open/close/view/call）：2026-11-17 迁 services/ui/stage-tools.ts，五个工具文本与结果文案在服务，__panel 门面查询与 __stageTools 桥在 l0/wiring/stage-tools.js"
+    },
+    {
+      "s": "/services/agent/job-tools.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/agent/council-tools.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/local/local-exec-tools.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/local/pc-tools.js",
+      "c": "classic",
+      "w": "remote-desk：远程电脑（私密模式；pc-tools 门控未解锁/未启用时零注册）"
+    },
+    {
+      "s": "/services/local/pc-settings-card.js",
+      "c": "classic",
+      "w": "设置里的「远程电脑」卡（私密模式已解锁才挂；2026-11-17 迁 services/local/pc-settings-card.ts，标记与文案在服务、localStorage/fetch/监听在 l0/wiring/pc-settings-card.js）"
+    },
+    {
+      "s": "/services/ui/topbar-cost.js",
+      "c": "classic"
+    },
+    {
+      "s": "/services/ui/think-level-map.js",
+      "c": "classic",
+      "w": "α3 自 index.html 内联 #12 外置（思考档位归一映射）"
+    },
+    {
+      "s": "/services/ui/android-mark.js",
+      "c": "classic",
+      "w": "α3 自 index.html 内联 #13 外置（Android 壳标记）（2026-11-17 服务层搬迁：源=services/ui/android-mark.ts，接线 l0/wiring，零冻结名）"
+    },
+    {
+      "s": "/services/ui/welcome-greeting.js",
+      "c": "classic",
+      "w": "α3 自 index.html 内联 #14 外置（欢迎屏/首日问候）"
+    },
+    {
+      "s": "/services/ui/settings-nav-init.js",
+      "c": "classic",
+      "w": "α3 自 index.html 内联 #15 外置（设置页分类导航 init）"
+    },
+    {
+      "s": "/services/ui/settings-orphan-observer.js",
+      "c": "classic",
+      "w": "α3 自 index.html 内联 #16 外置（设置孤儿卡兜底观察器）（2026-11-17 服务层搬迁：源=services/ui/settings-orphan-observer.ts，接线 l0/wiring，零冻结名；SKIP_IDS 与 footer-keeper 相扣）"
+    },
+    {
+      "s": "/services/ui/agent-mode-orchestrator.js",
+      "c": "classic",
+      "w": "α3 自 index.html 内联 #17 外置（Agent 模式编排器）"
+    },
+    {
+      "s": "/services/ui/sidebar-collapse.js",
+      "c": "classic",
+      "w": "α3 自 index.html 内联 #18 外置（桌面侧栏折叠）"
+    },
+    {
+      "s": "/bundles/mobile-shell/mobile-entry.js",
+      "c": "module",
+      "w": "手机壳 shell bundle v0.2.0（自归档分支 archive/mobile-shell-20261114 无害接上）：自注入样式与 DOM、自搬节点；桌面 ≥1024px 零开销；?shell=off 一键回退。清单末位 = 原 index.html 末行位置。2026-11-14 C2：改载 l0/bundle.mjs 的 IIFE 产物（源=public/shell/mobile-entry.js，改源后须 node l0/bundle.mjs --write 再 node l0/build.mjs --write）。v0.2.0：底栏令牌对齐主站四主题、与顶栏同款直角/blur 语言；演示台→控制台（覆盖式面板）、作品→产物。v0.3.0：顶栏状态胶囊 —— #modeToggle 与 .model-pill 搬进胶囊弹层（真节点搬家，桌面自动还原），「工作/角色扮演」常驻顶栏。v0.4.0：产物→沙盘（agent 挂载页/地图/图片/文档都算内容，手机态补齐 __panel 契约、内容落进沙盘页 iframe）、底栏三 tab 等宽。v0.4.1：修通 stage_open 真链路（open 立即记当前内容、点沙盘即铺开、state/view 不再报空）+ 补 stage_call 的 iframe 转发。"
+    }
+  ]
+}

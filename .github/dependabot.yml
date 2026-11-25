@@ -1,0 +1,49 @@
+version: 2
+
+# 依赖升级统一在 04:00 (Asia/Shanghai) 批量跑，30 天冷却期 —— 新版本先让别人踩。
+# 标签用 GitHub 默认的 dependencies；若启用 kind/* + area/* 分类法，改回
+# "kind/dependency" + "area/infra"（需先在仓库里建好这两个标签）。
+updates:
+  - package-ecosystem: "npm"
+    directory: "/tooling/typecheck"
+    schedule:
+      interval: "cron"
+      cronjob: "0 4 * * *"
+      timezone: "Asia/Shanghai"
+    cooldown:
+      default-days: 30
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "npm"
+    directory: "/src-tauri"
+    schedule:
+      interval: "cron"
+      cronjob: "0 4 * * *"
+      timezone: "Asia/Shanghai"
+    cooldown:
+      default-days: 30
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "cargo"
+    directory: "/src-tauri"
+    schedule:
+      interval: "cron"
+      cronjob: "0 4 * * *"
+      timezone: "Asia/Shanghai"
+    cooldown:
+      default-days: 30
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "cron"
+      cronjob: "0 4 * * *"
+      timezone: "Asia/Shanghai"
+    cooldown:
+      default-days: 30
+    labels:
+      - "dependencies"

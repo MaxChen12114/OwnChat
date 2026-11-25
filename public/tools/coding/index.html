@@ -5,9 +5,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>代码台 · OwnChat</title>
-<script src="/shared/escape.js"></script>
+<script src="/shared/core/escape.js"></script>
 <script>
-  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/theme.css) */
+  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/core/theme.css) */
   (function(){try{
     var t=localStorage.getItem("cfw_theme_v1")||"minimal";
     if(t&&t!=="minimal")document.documentElement.setAttribute("data-theme",t);
@@ -15,10 +15,10 @@
     if(s==="light"||s==="dark")document.documentElement.setAttribute("data-scheme",s);
   }catch(e){}})();
 </script>
-<link rel="stylesheet" href="/shared/theme.css?v=2" />
-<script src="/shared/chat-stream.js"></script>
+<link rel="stylesheet" href="/shared/core/theme.css?v=2" />
+<script src="/services/data/chat-stream.js"></script>
 <style>
-  /* 主题令牌统一来自 /shared/theme.css(跟随主站主题),本页不再自定义 :root */
+  /* 主题令牌统一来自 /shared/core/theme.css(跟随主站主题),本页不再自定义 :root */
   * { box-sizing:border-box; }
   html,body { height:100%; margin:0; }
   body { background:var(--bg); color:var(--text); font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; display:flex; flex-direction:column; overflow:hidden; }
@@ -215,6 +215,7 @@
           </select>
           <select class="ai-sel" id="aiModel" title="模型"></select>
           <label class="ai-check" id="twoPassWrap" title="先让 AI 把需求扩写成详细规格，确认/编辑后再生成代码（默认关）"><input type="checkbox" id="twoPass" />两段式</label>
+          <label class="ai-check" id="unlockWrap" title="解限：复用主站越狱底座（需先在主站连点版本号解锁），与代码助手提示词共存；默认关闭"><input type="checkbox" id="unlockChk" />解限</label>
           <span class="ai-status" id="aiStatus"></span>
         </div>
         <div class="ai-input">
@@ -279,7 +280,7 @@
   </div>
 
   <script src="/config.js"></script>
-  <script src="/shared/i18n.js"></script>
+  <script src="/shared/core/i18n.js"></script>
   <script src="/tools/coding/app.js"></script>
 </body>
 </html>

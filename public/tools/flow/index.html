@@ -6,9 +6,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>节点工作台 · OwnChat</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow@0.0.59/dist/drawflow.min.css" />
-<script src="/shared/escape.js"></script>
+<script src="/shared/core/escape.js"></script>
 <script>
-  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/theme.css) */
+  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/core/theme.css) */
   (function(){try{
     var t=localStorage.getItem("cfw_theme_v1")||"minimal";
     if(t&&t!=="minimal")document.documentElement.setAttribute("data-theme",t);
@@ -16,10 +16,10 @@
     if(s==="light"||s==="dark")document.documentElement.setAttribute("data-scheme",s);
   }catch(e){}})();
 </script>
-<link rel="stylesheet" href="/shared/theme.css?v=2" />
-<script src="/shared/chat-stream.js"></script>
+<link rel="stylesheet" href="/shared/core/theme.css?v=2" />
+<script src="/services/data/chat-stream.js"></script>
 <style>
-  /* 主题令牌已抽到 /shared/theme.css（公共底座），此处不再重复定义 :root */
+  /* 主题令牌已抽到 /shared/core/theme.css（公共底座），此处不再重复定义 :root */
   * { box-sizing:border-box; }
   html,body { height:100%; margin:0; }
   body { background:var(--bg); color:var(--text); font:14px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",Helvetica,Arial,sans-serif; display:flex; flex-direction:column; overflow:hidden; }
@@ -162,7 +162,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/drawflow@0.0.59/dist/drawflow.min.js"></script>
   <script src="/config.js"></script>
-  <script src="/shared/i18n.js"></script>
+  <script src="/shared/core/i18n.js"></script>
   <script src="/tools/flow/engine.js"></script>
   <script src="/tools/flow/nodes.js"></script>
   <script src="/tools/flow/canvas.js"></script>

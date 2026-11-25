@@ -4,12 +4,15 @@ fn main() {
             tauri_build::AppManifest::new().commands(&[
                 "ping",
                 "open_external",
+                "open_panel_window",
+                "close_panel_window",
                 // 2026-10-07 域中立壳：启动页读写服务器地址（授权/导航在 Rust 侧一并完成）
                 "get_server_url",
                 "set_server_url",
                 "read_text_file",
                 "import_text_file",
                 "export_text_file",
+                "export_binary_file",
                 "get_storage_dir",
                 "set_storage_dir",
                 "pick_storage_dir",
@@ -41,6 +44,12 @@ fn main() {
                 "local_write_file",
                 "local_run_command",
                 "local_env_info",
+                // 4.72 本地服务管家（services.rs）：随 App 启停/重启本机服务
+                "svc_list",
+                "svc_set_enabled",
+                "svc_start",
+                "svc_stop",
+                "svc_restart",
             ]),
         ),
     )

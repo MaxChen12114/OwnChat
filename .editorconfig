@@ -1,0 +1,15 @@
+# 编辑器侧的行尾声明。与 .gitattributes 分工:
+#   .gitattributes 锁定 GIT 产出什么(检出即成 LF);
+#   本文件锁定编辑器写盘时写什么 —— 那是 git 过滤器唯一够不到的路径。
+# 缺了这一段,Windows 上编辑器会把载荷文本(.md/.txt 底座)悄悄存成 CRLF,
+# 生成脚本再读出来就是 CR,门禁按字节比对立刻假红。
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+
+# 二进制与敏感文件不做行尾声明(与 .gitattributes 里的 binary 保持一致)。
+[{*.key,*.key.pub,*.mp3,*.png,*.jpg,*.jpeg,*.webp,*.ico,*.gif,*.pdf}]
+end_of_line = unset
+insert_final_newline = unset

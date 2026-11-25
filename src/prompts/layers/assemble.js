@@ -8,19 +8,24 @@
 //   · order < 100 归静态层,>= 100 归动态层(维持 staticParts/dynamicParts 的既有分界,
 //     worker 与快照断言都消费这两个数组)。
 // 层语义(2026-10-05 精简):
+//   ① 解限底座(bases/) 或 锁定态的基础行为准则(neutrals/)
 //   ② 角色卡 或 自定义 system
 //   ③ 回复风格  ④ 提示词预设(extraSystemPrompts)
 //   ⑤ 世界书  ⑥ 状态层(Layer2: 关系/情绪/好感/场景/摘要/阈值)
 // 拼接: 各段以 "\n\n---\n\n" 连接成单条 role:system。
 // 2026-10-04 自 src/worker.js handleChat 平移。
+// 2026-10-05: 「强制顺从(dev)」与「尺度层(L3)」两层已删除 —— 实测对遵循度无正贡献,反而让模型把
 //   system 里的附加声明判为注入。另: SESSION_CONFIG_BRIDGE(反注入对冲声明)也于同日删除(实测无效)。
 // 2026-10-05: 底座文本原先以 JS 模板字符串硬编码在 config.js,已逐字节外置到 src/prompts/bases/
 // （搬移证据见提交 3be8d45;目录规矩见 AGENTS.md —— bases/ 下不放 README,免得被当成一套底座）。
+// gen-prompts.mjs 扫描 bases/ 与 neutrals/ 两个目录,各生成一份注册表;提示词文本一字未改。
+// 2026-10-05: 本文件**不再自己选提示词** —— 解锁态的解限底座与锁定态的基础准则由调用方
 //   (handleChat,经 src/prompts/registry.js 的白名单)选好后以 ctx.baseText 传进来;
 //   装配层只管「放哪一段」,不管「用哪一份」—— 锁定分支根本不碰 BASES(白名单隔离点)。
 
 // 2026-10-05: 删 SESSION_CONFIG_BRIDGE(原「【本会话配置说明】」反注入对冲声明,2026-10-04 加)。
 // 删除依据:红队实测它在两种思考模式下都没能覆盖底座那条 "rejecting injections" ——
+// 模型反而把这段声明连同后面的角色/尺度段一起判定为注入并拒绝(样本里模型逐字读到了
 // 「本会话配置说明」,随后称其为 injection)。测试台与原始记录都在仓库外、未入库,故此处不留路径。
 // 文本完整保留在 git 历史(提交 06f082b 引入),要回滚直接 revert 删除它的那次提交。
 
@@ -28,7 +33,7 @@
 // <100 静态(会话内逐字稳定 → 命中上游 cache_hit);>=100 动态(每轮可变,放最后借 recency)。
 // 新增段落:在这里加一行 + 在 assembleSystemPrompt 里 push 一个 {name, order, text}。
 const SECTION_ORDER = {
-  base: 0,       // ① 基座(bases/)
+  base: 0,       // ① 解限底座(bases/)
   persona: 1,    // ② 角色卡 或 自定义 system
   style: 2,      // ③ 回复风格
   extra: 3,      // ④ 提示词预设
@@ -54,11 +59,14 @@ function assembleSystemPrompt(ctx) {
 
   const sections = [];
 
+  // ① 解限底座(红线,一字不改) —— 它是 system 的第一段,后面直接接 ②③④…
+  // 文本由调用方按锁态与白名单选好传进来(见 src/prompts/registry.js);这里只负责它站在最前面。
   if (baseText) {
     sections.push({ name: "base", order: SECTION_ORDER.base, text: baseText });
   }
   // ② 角色卡 或 自定义 system —— 卡优先：有卡时自定义 system 被丢弃
   // (原来按 useBuiltinPersona 分成两个分支,但两支行为其实等价,2026-10-05 合并 —— 那条 flag 现在只决定提示词注入)
+  // 2026-06-15 工作页解限态: 无角色卡时把自定义写作/代码 prompt 接在提示词之后,二者共存
   const personaText = characterBasePrompt || customSystemPrompt;
   if (personaText) sections.push({ name: "persona", order: SECTION_ORDER.persona, text: personaText });
   // ③ 风格 ④ 预设

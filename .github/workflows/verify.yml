@@ -27,3 +27,23 @@ jobs:
         run: |
           node scripts/gen-prompts.mjs
           node scripts/check-syntax.mjs
+
+      # 代码里不许出现过程文档（方案 / 计划 / 施工单 / 轮次账本）的文件名或章节号。
+      # 那些文档是沿革记录，章节号随修订漂移；指针写进代码就必然烂掉，而烂掉的指针不会报错。
+      - name: Reject process-doc pointers in code
+        run: node scripts/check-doc-pointers.mjs
+
+      # boot 清单里的脚本共用全局词法环境：两个脚本顶层 const 同名，后加载的整个脚本
+      # 实例化失败（不是某个函数坏，是那份产物的服务与接线全都不执行）。逐文件语法门查不出。
+      - name: Reject top-level lexical collisions across classic scripts
+        run: node scripts/check-global-collisions.mjs
+
+      # 双语字典契约：字典是唯一允许承载译文的数据资产。校验它可加载、无重复键（JS 会静默
+      # 保留最后一个重复键，翻译到第一处就永远不生效）、无未译空条目、正则规则合法、冻结名在册。
+      - name: Enforce i18n dictionary contract
+        run: node scripts/check-i18n-contract.mjs
+
+      # 双语覆盖度防回退：--strict 只拦两类退化——原本覆盖的字符串掉出字典、字典规模缩水；
+      # 新增未覆盖字符串仍照旧只报告（字典本就设计为增量补）。基线在 scripts/.i18n-baseline.json。
+      - name: Reject i18n coverage regressions
+        run: node scripts/check-i18n.mjs --strict --top 0

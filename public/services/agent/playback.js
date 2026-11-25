@@ -1,0 +1,200 @@
+(function () {
+/**
+ * Time-ordered playback for an agent run's lines.
+ *
+ * Adapted from Ephemeral-AI-Lab/dsh-layerfs (MIT):
+ *   packages/client/src/client/playback.ts
+ *
+ * The original plays LayerFS SDK trace lines in step with a live run: each line
+ * shows LAG_MS after the call ended, so on-screen gaps are the run's own gaps;
+ * lines whose time has passed apply at once, so a tab opened late catches up
+ * instead of replaying an old run in slow motion. This module keeps that
+ * contract for OwnChat's `TraceLine` shape and owns no clock or timer: `now`,
+ * `setTimer` and `clearTimer` are ports, which is what lets tests drive it
+ * with a fake clock.
+ *
+ * A line is `{ id, start, ms }`, with `start` on the same clock as `now` and
+ * `ms` the call's duration. Feed end lines only; start lines are the running
+ * set's input, not playback's.
+ * @module services/agent/playback
+ */
+
+/** Matches dsh-layerfs: longer than the Host poll, so a call is usually here before its time. */
+const LAG_MS = 2000;
+
+                               
+                       
+                 
+              
+                         
+ 
+
+                                
+                                                           
+                     
+                                                                         
+                                                     
+                                         
+                                                                         
+                 
+                                                               
+                                                                               
+ 
+
+                             
+                     
+              
+ 
+
+                              
+                           
+                          
+                             
+                             
+                               
+                                                  
+                                             
+               
+                
+                        
+ 
+
+/** When a line shows: LAG_MS after the call ended, by the same clock as `start`. */
+function dueOf(line              , lagMs         )         {
+  const lag = typeof lagMs === "number" && Number.isFinite(lagMs) ? lagMs : LAG_MS;
+  return Number(line.start || 0) + Number(line.ms || 0) + lag;
+}
+
+/**
+ * Build a playback over the ports. The returned object exposes the queue and
+ * the two sets for a view's note line and running markers; `feed` is the only
+ * way lines enter.
+ */
+function createPlayback(ports                = {})              {
+  const now = typeof ports.now === "function" ? ports.now : function ()         { return Date.now(); };
+  const setTimer = typeof ports.setTimer === "function"
+    ? ports.setTimer
+    : function (fn            , ms        )          { return setTimeout(fn, ms); };
+  const clearTimer = typeof ports.clearTimer === "function"
+    ? ports.clearTimer
+    : function (handle         )       {
+        // Browser setTimeout returns a number; a non-number handle belongs to a
+        // host that supplied setTimer, and only that host knows how to clear it.
+        if (typeof handle === "number") clearTimeout(handle);
+      };
+  const lagMs = typeof ports.lagMs === "number" && Number.isFinite(ports.lagMs) ? ports.lagMs : LAG_MS;
+  const onStep = typeof ports.onStep === "function" ? ports.onStep : function ()       {};
+
+  const seen = new Set        ();
+  const done = new Set        ();
+  const queue               = [];
+  let running = false;
+  let stopped = false;
+  let timer          = null;
+  let wake                      = null;
+  let played = 0;
+
+  function wakeUp()       {
+    if (wake) wake();
+  }
+
+  function until(due        )                {
+    const left = due - now();
+    if (left <= 0) return Promise.resolve();
+    return new Promise      ((resolve) => {
+      let settled = false;
+      const finish = ()       => {
+        if (settled) return;
+        settled = true;
+        if (timer != null) {
+          clearTimer(timer);
+          timer = null;
+        }
+        wake = null;
+        resolve();
+      };
+      timer = setTimer(finish, left);
+      wake = finish;
+    });
+  }
+
+  async function play()                {
+    if (running) return;
+    running = true;
+    try {
+      while (queue.length && !stopped) {
+        await until(queue[0].due);
+        if (stopped) return;
+        const at = now();
+        while (queue.length && queue[0].due <= at && !stopped) {
+          const step = queue.shift();
+          if (!step) break;
+          const key = String(step.line.id);
+          done.add(key);
+          played++;
+          await onStep(step.line, api);
+        }
+      }
+    } finally {
+      running = false;
+    }
+  }
+
+  const api              = {
+    get waiting()         {
+      return queue.length;
+    },
+    get played()         {
+      return played;
+    },
+    seen,
+    done,
+    queue,
+    unplayed(lines                )                 {
+      return (Array.isArray(lines) ? lines : []).filter((line) => line && line.id != null && !done.has(String(line.id)));
+    },
+    feed(lines                )                {
+      const ordered = (Array.isArray(lines) ? lines : []).slice();
+      ordered.sort((a, b) => dueOf(a, lagMs) - dueOf(b, lagMs));
+      for (const line of ordered) {
+        if (!line || line.id == null) continue;
+        const key = String(line.id);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const due = Math.max(
+          dueOf(line, lagMs),
+          queue.length ? queue[queue.length - 1].due : 0,
+        );
+        queue.push({ line, due });
+      }
+      wakeUp();
+      return play();
+    },
+    stop()       {
+      stopped = true;
+      queue.length = 0;
+      wakeUp();
+    },
+    reset()       {
+      stopped = false;
+      seen.clear();
+      done.clear();
+      queue.length = 0;
+      played = 0;
+    },
+    play,
+  };
+  return api;
+}
+
+// Browser wiring (injected by l0/emit.mjs): none yet.
+//
+// services/agent/playback.ts is the pure time-ordered playback: due times,
+// catch-up, the unplayed set and stop. It owns no clock or timer; a host passes
+// `now`/`setTimer`/`clearTimer`. No window.__* contract and no boot row until
+// the Work/History panel consumes it.
+
+globalThis.LAG_MS = LAG_MS;
+globalThis.dueOf = dueOf;
+globalThis.createPlayback = createPlayback;
+})();

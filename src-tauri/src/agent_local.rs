@@ -50,7 +50,7 @@ const MAX_READ_CHARS: usize = 200_000;
 const WD_NAMESPACE: &str = "settings";
 const WD_KEY: &str = "agent_workdir";
 
-fn workdir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn workdir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     match crate::kv_read(app, WD_NAMESPACE, WD_KEY)? {
         Some(s) if !s.trim().is_empty() => {
             let p = PathBuf::from(s.trim());

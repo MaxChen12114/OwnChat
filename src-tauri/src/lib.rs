@@ -9,6 +9,7 @@ use base64::Engine;
 mod http_stream;
 mod runtime;       // 4.70 测试扩展:Node 运行时定位(自包含优先 / 系统回退)
 mod agent_local;   // 4.70 本地能力:工作目录内的文件读写 + 通用命令执行
+mod services;      // 4.72 本地服务管家:随 App 启停/重启，替代计划任务与看护脚本
 
 #[tauri::command]
 fn ping() -> String {
@@ -20,6 +21,52 @@ fn ping() -> String {
 #[tauri::command]
 fn open_external(url: String) -> Result<(), String> {
     tauri_plugin_opener::open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
+/// 4.72: 内容面板「拉出为独立窗口」。
+/// Tauri 的 WebView 不实现浏览器 window.open（网页里调用会拿到 null → 前端只能报 popup-blocked），
+/// 所以桌面壳必须自己开原生窗口；网页版仍然走 window.open。
+/// 多窗口是桌面端能力：手机端没有第二窗口，给一个明确的错误即可。
+#[cfg(desktop)]
+#[tauri::command]
+async fn open_panel_window(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    let label = "panel";
+    if let Some(w) = app.get_webview_window(label) {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+        return Ok(());
+    }
+    let parsed = tauri::Url::parse(&url).map_err(|e| format!("地址无效：{e}"))?;
+    tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::External(parsed))
+        .title("OwnChat · 内容面板")
+        .inner_size(480.0, 780.0)
+        .min_inner_size(320.0, 400.0)
+        .build()
+        .map_err(|e| format!("打开面板窗口失败：{e}"))?;
+    Ok(())
+}
+
+#[cfg(mobile)]
+#[tauri::command]
+async fn open_panel_window(_app: tauri::AppHandle, _url: String) -> Result<(), String> {
+    Err("手机版不支持独立窗口".to_string())
+}
+
+/// 关闭「内容面板」独立窗口（网页里 window.close 对原生窗口无效）
+#[cfg(desktop)]
+#[tauri::command]
+fn close_panel_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(w) = app.get_webview_window("panel") {
+        w.close().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[cfg(mobile)]
+#[tauri::command]
+fn close_panel_window(_app: tauri::AppHandle) -> Result<(), String> {
+    Ok(())
 }
 
 // === 本地文件导入 / 导出 ===
@@ -100,14 +147,81 @@ async fn export_text_file(
         std::fs::write(&path, content).map_err(|e| e.to_string())?;
         Ok(Some(path.to_string_lossy().to_string()))
     }
-    // Android / iOS：写应用数据目录（resolve_storage_dir = 文档/OwnChat；Android 上是应用专属
-    // 外部目录），不弹对话框 —— 手机上没有可用的系统"另存为"，返回真实路径让 UI 能如实展示。
+    // Android / iOS：写「Android/media/<包名>/OwnChat/exports」——比 Android/data 好在文件管理器
+    // 能看见（4.72 改），并且不需要任何存储权限；建不出来再退回应用专属目录。
     #[cfg(mobile)]
     {
-        let dir = resolve_storage_dir(&app)?.join("exports");
+        let dir = mobile_export_dir(&app);
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let path = dir.join(&safe_name);
         std::fs::write(&path, content).map_err(|e| e.to_string())?;
+        Ok(Some(path.to_string_lossy().to_string()))
+    }
+}
+
+// 手机端导出目录：优先 Android/media/<包名>/OwnChat/exports（属主可写、文件管理器可见），
+// 失败才退回应用专属目录（Android/data/...，系统文件管理器默认看不到）。
+#[cfg(mobile)]
+fn mobile_export_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
+    let id = app.config().identifier.clone();
+    let media = std::path::Path::new("/storage/emulated/0/Android/media")
+        .join(id)
+        .join("OwnChat")
+        .join("exports");
+    if std::fs::create_dir_all(&media).is_ok() {
+        return media;
+    }
+    resolve_storage_dir(app)
+        .map(|d| d.join("exports"))
+        .unwrap_or(media)
+}
+
+/// 4.72: 二进制导出（图片 / 附件）。桌面弹系统保存框；手机写 Android/media 下的 exports 目录，
+/// 返回真实路径。调用方传 base64（dataURL 去掉前缀即可）。
+#[tauri::command]
+async fn export_binary_file(
+    app: tauri::AppHandle,
+    suggested_name: String,
+    base64_data: String,
+) -> Result<Option<String>, String> {
+    let leaf = suggested_name
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let safe_name = if leaf.is_empty() {
+        "image.png".to_string()
+    } else {
+        leaf.replace([':', '*', '?', '"', '<', '>', '|'], "_")
+    };
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64_data.as_bytes())
+        .map_err(|e| format!("base64 解析失败：{e}"))?;
+    if bytes.is_empty() {
+        return Err("文件内容为空".to_string());
+    }
+
+    #[cfg(desktop)]
+    {
+        let picked = app
+            .dialog()
+            .file()
+            .set_file_name(&safe_name)
+            .blocking_save_file();
+        let Some(fp) = picked else {
+            return Ok(None);
+        };
+        let path = fp.into_path().map_err(|e| e.to_string())?;
+        std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
+        Ok(Some(path.to_string_lossy().to_string()))
+    }
+    #[cfg(mobile)]
+    {
+        let dir = mobile_export_dir(&app);
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let path = dir.join(&safe_name);
+        std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
         Ok(Some(path.to_string_lossy().to_string()))
     }
 }
@@ -876,17 +990,64 @@ fn set_server_url(app: tauri::AppHandle, url: String) -> Result<String, String> 
 //   · 跨站外链 → 调用 open_external 用系统默认浏览器打开
 // 桌面 webview 没有标签页系统，默认会忽略 target=_blank，导致这些入口点了没反应。
 // 另提供 鼠标侧键「后退」/ Alt+← 返回聊天页。
-const NAV_PATCH_JS: &str = r#"
+const NAV_PATCH_JS: &str = r##"
 (function () {
   if (window.__ownchatNavPatch) return;
   window.__ownchatNavPatch = 1;
+  var MOBILE = __OWNCHAT_MOBILE__;
+  // 只有聊天主页面才接管站内 _blank；子页面（iframe 里的 /tools/*）保持自身导航。
+  var IS_CHAT_PAGE = (location.pathname === "/" || /\/index\.html$/.test(location.pathname));
+
+  // 2026-11-12 修「APP 里打开子页面再切回，AI 回复被切断 + 多一条空消息」：
+  // 旧逻辑在手机壳里对同源 _blank 做 location.assign → 聊天页整个卸载，
+  // 正在流式的轮次当场断掉；回来只能从 localStorage 重放半截回合。
+  // 手机没有第二窗口，所以改用应用内全屏 iframe 承载子页面：聊天页不卸载，轮次继续跑。
+  function closeSubpage() {
+    var w = document.getElementById("__ownchatSubpage");
+    if (w && w.parentNode) w.parentNode.removeChild(w);
+    window.__ownchatSubpageOpen = false;
+  }
+  function openSubpage(href, label) {
+    closeSubpage();
+    var wrap = document.createElement("div");
+    wrap.id = "__ownchatSubpage";
+    wrap.setAttribute("style", "position:fixed;inset:0;z-index:2147483000;background:#0b0b0e;display:flex;flex-direction:column;");
+    var bar = document.createElement("div");
+    bar.setAttribute("style", "flex:0 0 auto;display:flex;align-items:center;gap:10px;height:52px;padding:0 12px;background:#111;color:#eee;font:14px/1.2 system-ui,sans-serif;border-bottom:1px solid rgba(255,255,255,.12);");
+    var back = document.createElement("button");
+    back.type = "button";
+    back.textContent = "← 返回聊天";
+    back.setAttribute("style", "flex:0 0 auto;height:34px;padding:0 12px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#eee;font:13px system-ui,sans-serif;");
+    back.addEventListener("click", closeSubpage);
+    var t = document.createElement("span");
+    t.textContent = String(label || "子页面").split(/[:：(（]/)[0].slice(0, 24);
+    t.setAttribute("style", "flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.85;");
+    bar.appendChild(back);
+    bar.appendChild(t);
+    var f = document.createElement("iframe");
+    f.src = href;
+    f.setAttribute("style", "flex:1 1 auto;width:100%;height:100%;border:0;background:#fff;");
+    wrap.appendChild(bar);
+    wrap.appendChild(f);
+    document.body.appendChild(wrap);
+    window.__ownchatSubpageOpen = true;
+    try { history.pushState({ __ownchatSubpage: 1 }, ""); } catch (e) {}
+  }
+  window.__ownchatCloseSubpage = closeSubpage;
+  // 硬件返回键：pushState 进来的那条历史 → popstate 关掉覆盖层，而不是退出 App
+  window.addEventListener("popstate", function () {
+    if (window.__ownchatSubpageOpen) closeSubpage();
+  });
+
   document.addEventListener('click', function (e) {
     var a = (e.target && e.target.closest) ? e.target.closest('a[target="_blank"]') : null;
     if (!a || !a.href) return;
     var dest;
     try { dest = new URL(a.href, location.href); } catch (err) { return; }
     if (dest.origin === location.origin) {
+      if (!IS_CHAT_PAGE) return; // 子页面内部跳转：保持原生行为
       e.preventDefault();
+      if (MOBILE) { openSubpage(dest.href, a.getAttribute('title') || a.textContent); return; }
       window.location.assign(dest.href);
     } else {
       e.preventDefault();
@@ -902,7 +1063,7 @@ const NAV_PATCH_JS: &str = r#"
     if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); history.back(); }
   });
 })();
-"#;
+"##;
 
 // 自动更新：启动时检查 GitHub Releases 上的 latest.json，有新版本就询问用户并安装
 #[cfg(desktop)]
@@ -957,12 +1118,18 @@ pub fn run() {
 
     builder
         .manage(TtsProcess(std::sync::Mutex::new(None)))
+        .manage(services::ServiceManager::default())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![ping, open_external, get_server_url, set_server_url, read_text_file, import_text_file, export_text_file, get_storage_dir, set_storage_dir, pick_storage_dir, open_storage_dir, kv_set, kv_get, kv_list, kv_delete, http_request, http_stream::http_request_stream, tts_get_config, tts_set_config, tts_start, tts_stop, tts_pick_dir, tts_list_models, tts_pick_file, tts_pick_files, agent_local::agent_workdir_get, agent_local::agent_workdir_pick, agent_local::agent_workdir_set, agent_local::local_list_dir, agent_local::local_read_file, agent_local::local_write_file, agent_local::local_run_command, agent_local::local_env_info])
+        .invoke_handler(tauri::generate_handler![ping, open_external, open_panel_window, close_panel_window, get_server_url, set_server_url, read_text_file, import_text_file, export_text_file, export_binary_file, get_storage_dir, set_storage_dir, pick_storage_dir, open_storage_dir, kv_set, kv_get, kv_list, kv_delete, http_request, http_stream::http_request_stream, tts_get_config, tts_set_config, tts_start, tts_stop, tts_pick_dir, tts_list_models, tts_pick_file, tts_pick_files, agent_local::agent_workdir_get, agent_local::agent_workdir_pick, agent_local::agent_workdir_set, agent_local::local_list_dir, agent_local::local_read_file, agent_local::local_write_file, agent_local::local_run_command, agent_local::local_env_info, services::svc_list, services::svc_set_enabled, services::svc_start, services::svc_stop, services::svc_restart])
         // 每次页面加载完成后注入导航补丁：站内 _blank 子页面同窗口打开 + 外链走系统浏览器
         .on_page_load(|webview, payload| {
             if let PageLoadEvent::Finished = payload.event() {
-                let _ = webview.eval(NAV_PATCH_JS);
+                // 手机壳：站内子页面走应用内 iframe（聊天页不卸载）；桌面：保持同窗口跳转。
+                let js = NAV_PATCH_JS.replace(
+                    "__OWNCHAT_MOBILE__",
+                    if cfg!(mobile) { "true" } else { "false" },
+                );
+                let _ = webview.eval(js.as_str());
             }
         })
         .setup(|app| {
@@ -1238,6 +1405,12 @@ pub fn run() {
                 }
             }
 
+            // 4.72: 拉起 autostart 的本地服务（spawn 立即返回，不阻塞启动；失败静默，设置页能看到状态）
+            {
+                let h = app.handle().clone();
+                services::autostart(&h);
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -1280,6 +1453,12 @@ pub fn run() {
             }
             _ => {}
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // 4.72: 真正退出时收掉本 App 拉起的本地服务（托盘「退出」/正常退出都走这里）
+            if matches!(event, tauri::RunEvent::Exit) {
+                services::shutdown_all(app);
+            }
+        });
 }

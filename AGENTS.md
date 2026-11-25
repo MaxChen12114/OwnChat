@@ -1,20 +1,22 @@
 # AGENTS.md — 给 AI 助手的仓库约定
 
-> 这份是公开版（与私有开发线同源，由导出脚本生成）：**没有访问码门**。
-> 基座分两套目录 —— `src/prompts/bases/`（内置：随包一份「基础」）与 `src/prompts/custom/`
-> （使用者自己的那份，只有他自己的部署看得见；顶栏按钮切到「自定义」时用它，为空时回落内置默认档）。
+> 这份是公开版（与私有开发线同源，由导出脚本生成）：**与私有版功能一致，含私密模式**。
+> 私密模式用什么底座由部署者自己决定 —— 随包只有 bases/unlocked/ 里一份中性准则作兜底，
+> 使用者可换成自己的底座（放 `src/prompts/bases/unlocked/`，别提交进公开仓库）。
+> 两套目录：`src/prompts/bases/unlocked/`（解锁态基座）与 `src/prompts/bases/locked/`
+> （锁定态「基础行为准则」）。
 
 ## 底座文本是载荷，不是文档
 
-`src/prompts/bases/` 与 `src/prompts/custom/` 下的 `.md` / `.txt` 与子目录都是**逐字发送给模型的文本本体**：
+`src/prompts/bases/*/` 下的 `.md` / `.txt` 与子目录都是**逐字发送给模型的文本本体**：
 既有内容不许被「顺手」改动（改名 / 换扩展名可以）。要新版本就**新增**一个文件或子目录，
 放进去即自动进白名单与前端下拉，id = 文件名 / 目录名。底座必须保持 LF（`.gitattributes` 钉死）。
 
 ## 注册表是生成物
 
 `src/prompts/*/index.js` 是**生成物**（已 gitignore，勿手改勿提交）：由 `scripts/gen-prompts.mjs`
-扫描目录生成，`wrangler dev` / `wrangler deploy` 前自动执行（`[build] command` 里还串了一道
-`scripts/check-syntax.mjs` 真语法门）。
+扫描目录生成，`wrangler dev` / `wrangler deploy` 前自动执行（`[build] command` 里还串了
+`node l0/build.mjs --write` 与 `scripts/check-syntax.mjs` 真语法门）。
 
 ## 语言 / 风格
 
@@ -33,8 +35,9 @@
 ## 安全
 
 - `.dev.vars`（`DEEPSEEK_API_KEY` / `NVIDIA_API_KEY` / `CHAT_PASSWORD`）与 `*.key` **永不入库**。
-- 设置了 `CHAT_PASSWORD` 后，`/api/*` 与 `/sync` 一律要求 `Authorization: Bearer <密码>`；
-  未设置则不校验 —— 那等于把模型额度开放给任何拿到地址的人。**部署时务必设置**。
+- 私密模式的解锁访问码就是 `CHAT_PASSWORD`：设置后 `/api/*` 与 `/sync` 一律要求
+  `Authorization: Bearer <密码>`（解锁态另带 `unlockToken`）；未设置则不校验 —— 那等于把
+  模型额度开放给任何拿到地址的人。**部署时务必设置**。
 - 提示词正文（基座 / 指令模块库 / 技能库）只下发通过密码校验的请求。
 
 ## 验证

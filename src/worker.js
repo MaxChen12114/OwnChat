@@ -18,11 +18,11 @@ import {
 } from "./model/providers.js";
 import { isPrivateHost } from "./net-guard.js";
 import { assembleSystemPrompt } from "./prompts/layers/assemble.js";
-import { resolveBaseId, resolveCustomId, baseTextForId, customTextForId, baseIds, customIds, presetEntries, skillEntries, libraryVersions } from "./prompts/registry.js";
+import { resolveBaseId, resolveNeutralId, baseTextForId, neutralTextForId, baseIds, neutralIds, presetEntries, skillEntries, libraryVersions } from "./prompts/registry.js";
 import { buildCharacterBasePrompt, buildLayer2, isValidCard } from "./prompts/layers/rp.js";
 import { buildLorebookInstruction, buildReplyStyleInstruction, buildSummarizeSysPrompt, buildTurnNudge } from "./prompts/layers/chat.js";
 import { handleImageRequest } from "./image-routes.js";
-
+import { handlePcProxy } from "./pc-proxy.js";
 
 // 渠道注册表 / 统一解析(resolveProvider) / 模型 id 网关 已搬到 src/model/providers.js
 // 2026-10-13 (批 E1):请求按 payload.providerId(预设) / payload.customProvider(BYO) 路由;
@@ -33,6 +33,9 @@ import { handleImageRequest } from "./image-routes.js";
 //   · rp.js       角色层: 角色卡基座 + 状态聚合(关系情绪/好感度/场景/召唤/阈值)
 //   · chat.js     通用聊天层: 回复风格/世界书/先前摘要/摘要任务/鱼缸催发言
 //   · assemble.js 唯一装配入口: 层顺序 + 分隔符拼接
+//   身份铁则 / 尺度 / 开发者三层已于 2026-10-05 删除。
+//   两套提示词注册表: 解锁 → src/prompts/bases/(解限底座,红线一字不改),
+//                     锁定 → src/prompts/neutrals/(基础行为准则);均由 scripts/gen-prompts.mjs 生成。
 
 // ────────────────────────────
 // 鉴权 + 云同步
@@ -72,16 +75,27 @@ function byoRequiredResp() {
   return resp(JSON.stringify({ error: "访客模式：请先在 设置 → 模型 API 新增自己的渠道并填写 API Key。", code: "byo_required" }), "application/json; charset=utf-8", 403);
 }
 
+// 2026-06-04: 私密解锁闸门 —— 站点默认锁定(正经态),只有证明掌握访问码才解锁；解锁只决定「注入哪一套注册表」(bases/ vs neutrals/)。
+// 复用 CHAT_PASSWORD;纯令牌制:只认 payload.unlockToken(2026-09-10 起 Bearer 通道已移除,早期注释中的
+// "Authorization Bearer 任一命中即解锁"描述的是已废弃的旧实现)。
 // 未设 CHAT_PASSWORD 时一律视为锁定(安全默认,避免裸站泄露)。
+function isUnlocked(request, env, payload) {
+  const expected = (env.CHAT_PASSWORD || "").trim(); // 2026-06-04: 两边都 trim,避免 secret 末尾换行/空格导致闸门永远判锁
+  if (!expected) return false;
+  const t = (payload && typeof payload.unlockToken === "string") ? payload.unlockToken.trim() : "";
+  return !!t && t === expected; // 纯令牌制:只认前端解锁后带的 unlockToken,伪装态对所有人都干净
+}
 
-
-// 访问控制只剩一层：设置了 CHAT_PASSWORD 时 /api/* 与 /sync 一律要求 Authorization: Bearer <密码>
-// （前端有登录弹窗，见 public/js/text/core/auth.js）；未设置密码则不校验 —— 那等于把模型额度开放给
-// 任何拿到地址的人，部署时请务必 `wrangler secret put CHAT_PASSWORD`（README 有说明）。
-function requireAuth(request, env) {
-  const v = checkAuth(request, env);
-  if (v === null && !(env.CHAT_PASSWORD || "").trim()) return true;
-  return v === true;
+// 2026-06-04: 访问码校验端点。前端连点版本号 7 下 → 弹"访问码"框 → POST /api/unlock { token }。
+// 通过返回 { ok:true },前端写入 cfw_unlocked_v1 并保存 token 供后续 /api/chat 带 unlockToken。
+// 失败仅返回 { ok:false },不回传任何 NSFW 字样(前端只抖一下,不暴露用途)。
+async function handleUnlock(request, env) {
+  let body;
+  try { body = await request.json(); } catch { body = {}; }
+  const token = (body && typeof body.token === "string") ? body.token.trim() : "";
+  const expected = (env.CHAT_PASSWORD || "").trim(); // 2026-06-04: 两边都 trim,避免 secret 末尾换行/空格导致解锁永远失败
+  const ok = !!expected && token === expected;
+  return resp(JSON.stringify({ ok }), "application/json; charset=utf-8", ok ? 200 : 401);
 }
 
 // 云同步：单 key 存全部用户数据 blob
@@ -89,13 +103,12 @@ function requireAuth(request, env) {
 // PUT /sync  → 把 body 整段写入 KV（body 是前端 dump 出的 JSON 字符串）
 // 2026-10-06: 两库下发。只回 {version, presets, skills}；库文本本身就是提示词，
 
-// 所以库文本只回给通过密码校验的请求（未登录 403，一个字符都不给）。
+// 所以与 bases/neutrals 同一条纪律：**必须** isUnlocked 才回（锁定态 403，一个字符都不给）。
 
 async function handlePresetLibrary(request, env) {
   let payload = null;
   try { payload = await request.json(); } catch { payload = null; }
-  // 公开版：库文本不下发给未登录访客（只发通过密码校验的本人）
-  if (!requireAuth(request, env)) {
+  if (!isUnlocked(request, env, payload)) {
     return resp(JSON.stringify({ error: "Unauthorized" }), "application/json; charset=utf-8", 403);
   }
   const versions = libraryVersions();
@@ -182,6 +195,23 @@ async function handleSyncCost(request, env) {
           typeof e.prompt === "number" || typeof e.completion === "number") return { legacy: e };
       return e;
     };
+    // 2026-11-12: 新桶带 models/estimated（按模型分线统计）；同设备跨端仍取 max，模型名并集。
+    const mergeModels = (a, b) => {
+      const out = {};
+      const names = new Set([...Object.keys(a && typeof a === "object" ? a : {}), ...Object.keys(b && typeof b === "object" ? b : {})]);
+      for (const name of names) {
+        const x = (a && a[name]) || {};
+        const y = (b && b[name]) || {};
+        out[name] = {
+          cost: Math.max(x.cost || 0, y.cost || 0),
+          prompt: Math.max(x.prompt || 0, y.prompt || 0),
+          completion: Math.max(x.completion || 0, y.completion || 0),
+          requests: Math.max(x.requests || 0, y.requests || 0),
+          estimated: Math.max(x.estimated || 0, y.estimated || 0),
+        };
+      }
+      return out;
+    };
     const merged = {};
     const days = new Set([...Object.keys(prev), ...Object.keys(incoming)]);
     for (const day of days) {
@@ -197,6 +227,8 @@ async function handleSyncCost(request, env) {
           prompt: Math.max(a.prompt || 0, b.prompt || 0),
           completion: Math.max(a.completion || 0, b.completion || 0),
           requests: Math.max(a.requests || 0, b.requests || 0),
+          estimated: Math.max(a.estimated || 0, b.estimated || 0),
+          models: mergeModels(a.models, b.models),
         };
       }
       merged[day] = m;
@@ -310,6 +342,10 @@ async function handleSyncChat(request, env) {
   }
   if (request.method === "DELETE") {
     await env.TAVERN_SYNC.delete(KEY);
+    // 清空聊天快照时，把实时事件也一并清掉，避免旧事件把已删会话“复活”。
+    if (env.TAVERN_EVENTS) {
+      try { await env.TAVERN_EVENTS.prepare("DELETE FROM chat_events WHERE user = ?").bind("default").run(); } catch {}
+    }
     return resp(JSON.stringify({ ok: true, deleted: true, savedAt: Date.now() }), "application/json; charset=utf-8");
   }
   return resp("Method not allowed", "text/plain; charset=utf-8", 405);
@@ -442,6 +478,148 @@ function mergeCharsBlobsServer(a, b) {
   return { cards, meta, affections, tombstones };
 }
 
+// ─── 2026-11-12: 实时聊天事件（D1） ────────────────────────────────────────
+// 事件表只做追加；seq 由 D1 自增，是跨设备唯一顺序。客户端按 since 轮询。
+const CHAT_EVENT_TYPES = new Set([
+  "msg.append",
+  "conv.create",
+  "conv.meta",
+  "conv.delete",
+  "session.replace",
+  "conv.invalidate",
+]);
+const CHAT_EVENT_CONV_RE = /^c_[A-Za-z0-9_-]{1,80}$/;
+const CHAT_EVENT_ID_RE = /^e_[A-Za-z0-9_-]{1,96}$/;
+const CHAT_EVENT_MAX_BYTES = 256 * 1024;
+const CHAT_EVENT_BATCH = 50;
+const CHAT_EVENT_KEEP = 2000;
+
+function chatEventJson(value) {
+  return JSON.stringify(value);
+}
+
+function parseChatEventPayload(text) {
+  try { return JSON.parse(text); } catch { return null; }
+}
+
+async function handleChatEvents(request, env, ctx) {
+  if (checkAuth(request, env) !== true) {
+    return resp("Unauthorized", "text/plain; charset=utf-8", 401);
+  }
+  if (!env.TAVERN_EVENTS) {
+    return resp(JSON.stringify({ error: "实时同步未启用：D1 binding TAVERN_EVENTS 未绑定", code: "d1_not_bound" }), "application/json; charset=utf-8", 503);
+  }
+  const db = env.TAVERN_EVENTS;
+  const user = "default";
+
+  if (request.method === "GET") {
+    const url = new URL(request.url);
+    const hasSince = url.searchParams.has("since");
+    const sinceRaw = Number(url.searchParams.get("since"));
+    const since = Number.isFinite(sinceRaw) && sinceRaw >= 0 ? Math.floor(sinceRaw) : -1;
+    const latestRow = await db.prepare("SELECT COALESCE(MAX(seq), 0) AS latest FROM chat_events WHERE user = ?").bind(user).first();
+    const latestSeq = Number(latestRow && latestRow.latest) || 0;
+    // 没有 since / since<0：只报最新 seq，供客户端 bootstrap。
+    if (!hasSince || since < 0) {
+      return resp(JSON.stringify({ ok: true, events: [], latestSeq, reset: false, bootstrap: true }), "application/json; charset=utf-8");
+    }
+    // 落后太多：让客户端走 /sync/chat 全量快照，再重置基线。
+    if (since < latestSeq - CHAT_EVENT_KEEP) {
+      return resp(JSON.stringify({ ok: true, events: [], latestSeq, reset: true }), "application/json; charset=utf-8");
+    }
+    // 2026-11-13: 客户端基线比服务端还新 —— 说明事件表被清过（「覆盖云端」）或换了账号。
+    // 不回 reset 的话，这些设备会拿着一个永远追不上的 since 干等，表现像"同步坏了"。
+    if (since > latestSeq) {
+      return resp(JSON.stringify({ ok: true, events: [], latestSeq, reset: true }), "application/json; charset=utf-8");
+    }
+    const r = await db.prepare(
+      "SELECT seq, conv_id, event_id, device_id, type, payload, created_at FROM chat_events WHERE user = ? AND seq > ? ORDER BY seq ASC LIMIT 500"
+    ).bind(user, since).all();
+    const rows = (r && r.results) || [];
+    const events = rows.map((row) => ({
+      seq: Number(row.seq),
+      eventId: row.event_id,
+      convId: row.conv_id,
+      deviceId: row.device_id,
+      type: row.type,
+      payload: parseChatEventPayload(row.payload),
+      createdAt: Number(row.created_at),
+    }));
+    return resp(JSON.stringify({ ok: true, events, latestSeq, reset: false }), "application/json; charset=utf-8");
+  }
+
+  if (request.method === "POST") {
+    const body = await request.text();
+    if (!body) return resp("Empty body", "text/plain; charset=utf-8", 400);
+    if (body.length > 1.5 * 1024 * 1024) return resp("Body too large (>1.5MB)", "text/plain; charset=utf-8", 413);
+    let incoming;
+    try { incoming = JSON.parse(body); } catch { return resp("Bad JSON", "text/plain; charset=utf-8", 400); }
+    const list = Array.isArray(incoming && incoming.events)
+      ? incoming.events
+      : (incoming && incoming.event ? [incoming.event] : []);
+    if (!list.length) return resp("No events", "text/plain; charset=utf-8", 400);
+    if (list.length > CHAT_EVENT_BATCH) return resp("Too many events", "text/plain; charset=utf-8", 400);
+
+    const now = Date.now();
+    const validated = [];
+    for (const ev of list) {
+      if (!ev || typeof ev !== "object") return resp("Bad event", "text/plain; charset=utf-8", 400);
+      const convId = String(ev.convId || "");
+      const eventId = String(ev.eventId || "");
+      const type = String(ev.type || "");
+      const deviceId = String(ev.deviceId || "").slice(0, 80);
+      if (!CHAT_EVENT_CONV_RE.test(convId)) return resp("Bad convId", "text/plain; charset=utf-8", 400);
+      if (!CHAT_EVENT_ID_RE.test(eventId)) return resp("Bad eventId", "text/plain; charset=utf-8", 400);
+      if (!CHAT_EVENT_TYPES.has(type)) return resp("Bad event type", "text/plain; charset=utf-8", 400);
+      const payload = (ev.payload && typeof ev.payload === "object" && !Array.isArray(ev.payload)) ? ev.payload : {};
+      if (type === "msg.append") {
+        const msg = payload.message;
+        if (!msg || typeof msg !== "object" || !/^m_[A-Za-z0-9_-]{1,96}$/.test(String(msg.id || ""))) {
+          return resp("msg.append requires message.id", "text/plain; charset=utf-8", 400);
+        }
+      }
+      const payloadText = chatEventJson(payload);
+      if (payloadText.length > CHAT_EVENT_MAX_BYTES) {
+        return resp(JSON.stringify({ error: "event too large", code: "event_too_large", eventId }), "application/json; charset=utf-8", 413);
+      }
+      validated.push({ convId, eventId, type, deviceId, payloadText });
+    }
+
+    const stmts = validated.map((v) =>
+      db.prepare(
+        "INSERT OR IGNORE INTO chat_events (user, conv_id, event_id, device_id, type, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      ).bind(user, v.convId, v.eventId, v.deviceId, v.type, v.payloadText, now)
+    );
+    if (typeof db.batch === "function") await db.batch(stmts);
+    else for (const stmt of stmts) await stmt.run();
+
+    const marks = validated.map(() => "?").join(",");
+    const sel = await db.prepare(
+      `SELECT event_id, seq FROM chat_events WHERE user = ? AND event_id IN (${marks})`
+    ).bind(user, ...validated.map((v) => v.eventId)).all();
+    const seqMap = {};
+    for (const row of ((sel && sel.results) || [])) seqMap[row.event_id] = Number(row.seq);
+    const latestRow = await db.prepare("SELECT COALESCE(MAX(seq), 0) AS latest FROM chat_events WHERE user = ?").bind(user).first();
+    const latestSeq = Number(latestRow && latestRow.latest) || 0;
+    if (ctx && typeof ctx.waitUntil === "function" && latestSeq > CHAT_EVENT_KEEP) {
+      ctx.waitUntil(
+        db.prepare("DELETE FROM chat_events WHERE user = ? AND seq <= ?").bind(user, latestSeq - CHAT_EVENT_KEEP).run().catch(() => {})
+      );
+    }
+    return resp(JSON.stringify({
+      ok: true,
+      events: validated.map((v) => ({ eventId: v.eventId, seq: seqMap[v.eventId] || 0 })),
+      latestSeq,
+    }), "application/json; charset=utf-8");
+  }
+
+  if (request.method === "DELETE") {
+    await db.prepare("DELETE FROM chat_events WHERE user = ?").bind(user).run();
+    return resp(JSON.stringify({ ok: true, deleted: true, savedAt: Date.now() }), "application/json; charset=utf-8");
+  }
+  return resp("Method not allowed", "text/plain; charset=utf-8", 405);
+}
+
 function resp(body, contentType = "text/plain; charset=utf-8", status = 200, extraHeaders = {}) {
   return new Response(body, {
     status,
@@ -494,10 +672,11 @@ function clientConfigJs() {
     // 2026-09-14:模型上下文窗口表(上游 /v1/models 不返回该字段,只能由 worker 配置下发)
     `window.APP_CTX_EXACT = ${JSON.stringify(CTX_EXACT || {})};`,
     `window.APP_CTX_HINTS = ${JSON.stringify(CTX_HINTS || [])};`,
-    // 基座候选(来自 bases/index.js 的自动发现注册表)。只下发 id 列表、不下发文本。
+    // 2026-10-05: 解限底座版本候选(来自 bases/index.js 的自动发现注册表)。
+    // 只下发 id 列表、不下发文本 —— 锁定时前端本就整块不渲染,文本也只在解锁态才会进 system。
     `window.APP_BASE_IDS = ${JSON.stringify(baseIds())};`,
-    // 2026-10-09: 自定义目录（custom/）的候选 id。同样只下发 id、不下发文本。
-    `window.APP_CUSTOM_IDS = ${JSON.stringify(customIds())};`,
+    // 2026-10-05: 锁定态的基础行为准则候选（neutrals/ 注册表）。同样只发 id，不发文本。
+    `window.APP_NEUTRAL_IDS = ${JSON.stringify(neutralIds())};`,
     MODEL_POOL_OVERRIDE_JS,
   ].join("\n");
 }
@@ -507,7 +686,7 @@ function clientConfigJs() {
 // NIM 上百来个模型,不过滤的话抽屉里糊一屏根本没法选。拉不到时回内置兜底表,UI 不至于空。
 // 2026-10-13 (E1): 加 ?provider=<id|preset:id> 参数(压过 mode)—— 前端供应商管理按渠道拉取。
 async function handleModelsList(request, env) {
-  if (!requireAuth(request, env)) {
+  if (checkAuth(request, env) === false) {
     return resp("Unauthorized", "text/plain; charset=utf-8", 401);
   }
   const url = new URL(request.url);
@@ -554,7 +733,7 @@ async function handleModelsList(request, env) {
 // 2026-10-13 (E1): GET /api/providers —— 渠道注册表(预设)元数据,给前端「供应商管理」页用。
 // 只暴露 UI 需要的字段;key 本体永不出服务端,configured 仅透出"服务端是否配过 key"的布尔。
 function handleProvidersList(request, env) {
-  if (!requireAuth(request, env)) {
+  if (checkAuth(request, env) === false) {
     return resp("Unauthorized", "text/plain; charset=utf-8", 401);
   }
   const presets = Object.values(PRESET_PROVIDERS).map((p) => ({
@@ -565,7 +744,11 @@ function handleProvidersList(request, env) {
     keyEnv: p.keyEnv,
     configured: !!(env && env[p.keyEnv]),
     supportsThinking: !!p.supportsThinking,
-    thinkingStyle: p.thinkingStyle === "vllm" ? "vllm" : "deepseek",
+    // 2026-11-13: 补 none / effort 直通 —— 原来只认 vllm/deepseek,会把新方言一律误报成 deepseek
+    thinkingStyle: p.thinkingStyle === "vllm" ? "vllm"
+      : (p.thinkingStyle === "none" ? "none" : (p.thinkingStyle === "effort" ? "effort" : "deepseek")),
+    // effort 方言的可选档位（渠道自己声明；前端据此收窄下拉，避免发出上游不认的值）
+    effortValues: Array.isArray(p.effortValues) && p.effortValues.length ? p.effortValues.slice(0, 8) : null,
     defaultModel: p.defaultModel || "",
   }));
   return resp(
@@ -578,7 +761,7 @@ function handleProvidersList(request, env) {
 // 前端传 chat/completions 全路径或 base URL 均可；这里归一到 /v1/models。
 // Key 不落 KV、不写日志、不返回前端，只用于本次代请求。失败时返回 ok:false，让前端保留手填 fallback。
 async function handleCustomEndpointModels(request, env) {
-  if (!requireAuth(request, env)) {
+  if (checkAuth(request, env) === false) {
     return resp("Unauthorized", "text/plain; charset=utf-8", 401);
   }
   let body;
@@ -652,7 +835,9 @@ function streamWithHeartbeat(upstreamBody, prefixChunk) {
   return new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
+      // 2026-06-15 dev 回显: 仅 dev/解锁本人调试时,流首注入一行 SSE 注释(": __dbg__ {...}")
       // 携带"真正发给模型"的 system 装配 + 最终 messages 快照。注释行不以 data: 开头,
+      // 标准 SSE 解析器(含本站前端)自动忽略,对正常聊天零侵入。红线无关: 只读反射,不改任何 prompt。
       if (prefixChunk) { try { controller.enqueue(encoder.encode(prefixChunk)); } catch {} }
       const ticker = setInterval(() => {
         try { controller.enqueue(encoder.encode(": ping\n\n")); } catch {}
@@ -700,10 +885,15 @@ async function handleChat(request, env) {
   // mode: "free"=免费档 | "fast"=快速档（渠道经 provider 注册表解析；预设默认 NVIDIA 免费档 / DeepSeek 官方，可在「设置→模型 API」改）
   const mode = payload?.mode === "fast" ? "fast" : "free";
 
+  // 2026-06-04: 私密解锁闸门。未解锁 → 后端绝不下发解限底座(尺度层/身份铁则层/强制顺从层已于 2026-10-05 删除),
+  // 即使前端被改或直接打接口也套不出底座内容。锁态改注入另一套「基础行为准则」(neutrals/),
   // 两套注册表在 src/prompts/registry.js 里严格隔离 —— 锁定分支根本不读 BASES。
+  const unlocked = isUnlocked(request, env, payload);
 
   // 2026-06-16 (4.69 BYO): 自定义模型直连 —— payload.customProvider={endpoint,model,apiKey[,...]} 时,
   // 跳过预设白名单替换,直连用户自带的 OpenAI 兼容端点(GPT/Qwen/Kimi/本地 vLLM 等)。
+  // 仍完整流经下方 staticParts 解限装配: 底座选择与模型无关(payload.baseId > 默认档),
+  // 故自定义模型在解锁态(useBuiltinPersona)下同样吃解限底座。红线无关: 底座文本一字不改。
   // 2026-10-13 (E1): 统一渠道解析(BYO > payload.providerId 预设 > mode 别名)。旧 payload(仅 mode)行为不变。
   const _cfg = resolveProvider(payload);
   const byo = _cfg.isCustom ? _cfg.provider : null; // 下游多处按 byo 判分支,保留这个变量名
@@ -721,7 +911,7 @@ async function handleChat(request, env) {
   }
   const model = _resolved.model;
 
-  // 「内置/自定义」总开关。
+  // 「解限/自定义」总开关。锁态**不再**被钳成 false —— 锁态改为注入 neutrals/ 那套准则(见下方两支分流)。
   const useBuiltinPersona = payload?.use_builtin_persona !== false;
   const customSystemPrompt =
     typeof payload?.custom_system_prompt === "string"
@@ -733,7 +923,10 @@ async function handleChat(request, env) {
   const emotion = typeof payload?.emotion === "string" ? payload.emotion : "neutral";
   const thinking = payload?.thinking === "enabled" ? "enabled" : "disabled";
   // 4.69 G1: DeepSeek 思考强度 + OpenAI 兼容采样/JSON 模式透传(仅 payload 显式提供时带,默认保持旧行为)
-  const reasoningEffort = ["high", "medium", "low"].includes(payload?.reasoning_effort) ? payload.reasoning_effort : null;
+  // 2026-11-13: 档位表放宽到 model-think 的全集 —— 原来只放行 high/medium/low,
+  //   xhigh/minimal/max 会被静默丢弃(AMD 实测只认 xhigh/medium/low,high 直接报错)。
+  //   上游不认的取值由 handleChat 的 400 降级重试兜底(去掉思考参数重试一次)。
+  const reasoningEffort = ["minimal", "low", "medium", "high", "xhigh", "max"].includes(payload?.reasoning_effort) ? payload.reasoning_effort : null;
   const responseFormat = (payload?.response_format && typeof payload.response_format === "object") ? payload.response_format : null;
   const temperature = (typeof payload?.temperature === "number") ? payload.temperature : null;
   const topP = (typeof payload?.top_p === "number") ? payload.top_p : null;
@@ -754,8 +947,10 @@ async function handleChat(request, env) {
   const fishbowlMode = typeof payload?.fishbowlMode === "string" ? payload.fishbowlMode : "";
   const topic = typeof payload?.topic === "string" ? payload.topic : "";
   // Phase 4 阶段 6：提示词预设库（前端已 join('\n\n') 成一整段，worker 只负责追加在系统提示末尾）
+  // 红线：解限底座(src/prompts/bases/ 下的 .md/.txt 与子目录)一字不改，本字段只能追加，不能替换
   let extraSystemPrompts = typeof payload?.extraSystemPrompts === "string" ? payload.extraSystemPrompts.trim() : "";
   // 4.21 占位符宏替换: 预设(starter-presets.json / 自定义)中的 char / user 替换为实际名字
+  // 红线无关: 只作用于 extraSystemPrompts 追加层, 不触碰解限底座
   if (extraSystemPrompts) {
     const _charName = (characterCard && typeof characterCard.name === "string" && characterCard.name.trim()) ? characterCard.name.trim() : "角色";
     const _userName = (typeof payload?.userName === "string" && payload.userName.trim()) ? payload.userName.trim() : "用户";
@@ -763,11 +958,16 @@ async function handleChat(request, env) {
       .replace(/\{\{\s*char\s*\}\}/gi, _charName)
       .replace(/\{\{\s*user\s*\}\}/gi, _userName);
   }
+  // 2026-10-05: 尺度层(L3)已删除 —— 提示词里不再有「尺度」这个概念;锁态与解锁态的差别只剩「注入哪一套注册表」。
+  // payload.nsfwLevel / strictRoleplay 一律忽略(老客户端仍在发,不报错)。
   // 2026-05-29: 回复风格 (default / wechat / verbose) - 所有象限通用追加层
   const replyStyle = (payload?.replyStyle === "wechat" || payload?.replyStyle === "verbose") ? payload.replyStyle : "default";
+  // 2026-10-05: 锁态不再「一律关掉内置提示词」(旧代码: `if (!unlocked) useBuiltinPersona = false;`),
+  //   而是**换成另一套注册表**: 锁定 → neutrals/(基础行为准则), 解锁 → bases/(解限底座)。
   //   门禁没放宽,只是换了形状 —— 两支的注册表在 registry.js 里严格隔离,锁定分支根本不读 BASES,
   //   所以「锁定态传 baseId」既拿不到底座文本(有回归用例),也不会报错。
   // promptProfile="rp" 吃 Layer2 状态层(关系/情绪/好感/场景/摘要);"assist" 不吃。
+  // 2026-10-05: dev / 尺度 两层删除后,这是 rp 与 assist **唯一**的差别。
   // 缺省回退: 有角色卡 → rp, 无卡 → assist(旧客户端不发该字段也不炸)。
   const promptProfile = (payload?.promptProfile === "rp" || payload?.promptProfile === "assist")
     ? payload.promptProfile
@@ -801,19 +1001,23 @@ async function handleChat(request, env) {
   // ── 2026-06-15 缓存友好的 system 装配 ───────────────────────────────
   // DeepSeek cache_hit 命中条件: 请求前缀逐字稳定。旧装配把动态状态(Layer2: 好感/情绪/摘要/
   // 场景)夹在 system 中段,每轮状态一变就击穿整个前缀,连带后面对话历史一起无法命中。
+  // 新装配: 会话内稳定的内容(解限 base + 角色基座 + 回复风格 + 预设库)钉在前缀,半动态/动态内容
   // (世界书 + Layer2 状态)统一挪到 system 末尾——既最大化缓存命中,又借 recency 提升状态遵从。
-  const debugEcho = requireAuth(request, env) && payload?._debugEcho === true;
+  // 红线无关: 解限底座一字不改,仅调整各层在 system 内的先后顺序。
+  // 2026-06-15 dev 回显闸门: 仅"已解锁(掌握访问码)的本人" + 前端 dev 面板显式带 _debugEcho 时,
+  // 才把真实装配快照回传。锁定态/普通调用一律不回显,避免裸接口 dump 服务端解限 prompt。红线无关: 只读。
+  const debugEcho = unlocked && payload?._debugEcho === true;
   const lorebookEntries = Array.isArray(payload?.lorebook) ? payload.lorebook : [];
   const lorebookInstr = buildLorebookInstruction(lorebookEntries);
   const replyStyleInstr = buildReplyStyleInstruction(replyStyle);
 
   // 静态前缀段(会话内逐字稳定 → 命中缓存);层顺序/拼接见 src/prompts/layers/assemble.js
+  // 2026-10-05: 两套注册表按解锁态分流 —— 解锁读 bases/(payload.baseId),锁定读 neutrals/(payload.neutralId),
   // 各自走白名单(resolve*Id:乱传/缺省回落各自注册表的默认档)。锁定分支**不读 BASES**,
   // 所以「锁定态传 baseId」既拿不到底座文本、也不会报错(隔离回归见 redteam/e2e-prompts.mjs)。
-  // 两套目录（bases/ 内置 · custom/ 自定义）：前端按钮决定用哪套，id 各自过白名单。
-  const useCustomBase = payload?.use_custom_base === true;
-  const promptId = useCustomBase ? resolveCustomId(payload?.customId) : resolveBaseId(payload?.baseId);
-  const promptText = useBuiltinPersona ? (useCustomBase ? customTextForId(promptId) : baseTextForId(promptId)) : "";
+  // 「解限/自定义」总开关(use_builtin_persona)对两边都生效：关掉 = 不注入任何内置提示词。
+  const promptId = unlocked ? resolveBaseId(payload?.baseId) : resolveNeutralId(payload?.neutralId);
+  const promptText = useBuiltinPersona ? (unlocked ? baseTextForId(promptId) : neutralTextForId(promptId)) : "";
   const { systemContent, staticParts, dynamicParts } = assembleSystemPrompt({
     baseText: promptText, characterBasePrompt, customSystemPrompt,
     replyStyleInstr, extraSystemPrompts, lorebookInstr, characterStatePrompt,
@@ -959,10 +1163,10 @@ async function handleChat(request, env) {
   // 供本人 dev 面板做底层输入核对。仅 debugEcho 命中时构造,普通请求为 null 零开销。
   const _dbg = debugEcho ? {
     v: 1, t: "dbg", at: Date.now(),
-    model, mode, upstream: provider.label, authed,
+    model, mode, upstream: provider.label, unlocked,
     thinking: provider.supportsThinking ? thinking : "n/a",
     reasoningEffort, temperature, topP, maxTokens, wantStream,
-    flags: { useBuiltinPersona, prompt: (useCustomBase ? "custom:" : "base:") + promptId, replyStyle, needsReasoningHistory, promptProfile, stateLayer: injectStateLayer },
+    flags: { useBuiltinPersona, prompt: (unlocked ? "base:" : "neutral:") + promptId, replyStyle, needsReasoningHistory, promptProfile, stateLayer: injectStateLayer },
     sysParts: staticParts.length + " static / " + dynamicParts.length + " dynamic",
     sysChars: systemContent.length,
     msgCount: cleanedMessages.length,
@@ -979,6 +1183,12 @@ async function handleChat(request, env) {
     if (!provider.supportsThinking) return {};
     const enabled = thinking === "enabled";
     const effort = (enabled && reasoningEffort) ? { reasoning_effort: reasoningEffort } : {};
+    // 2026-11-13: 第三种方言 effort —— 只发 reasoning_effort,绝不发 thinking。
+    // 适用端点:AMD Token Factory(收到 thinking:{type} 直接 400);以后同类的"只认 effort"端点可直接选它。
+    // 关闭态发空对象:这类端点没有"强制不思考"的取值,不传即按模型默认(AMD 文档明载各模型默认不同)。
+    if (provider.thinkingStyle === "effort") {
+      return enabled ? { reasoning_effort: reasoningEffort || "medium" } : {};
+    }
     if (provider.thinkingStyle === "vllm") {
       // 免费档只在「开启思考」时附加该参数 —— 关闭态保持与旧版一字不差的请求体,
       // 否则不认 chat_template_kwargs 的上游会给每次普通对话都多来一轮 400 降级重试。
@@ -1560,7 +1770,7 @@ async function handleSearchProxy(request, env) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     // 2026-10-05: 工具页已移入 /tools/*(public/tools/)。这里对旧地址做 302 兜底,
@@ -1608,6 +1818,22 @@ export default {
       return handleCustomEndpointModels(request, env);
     }
 
+    if (request.method === "POST" && url.pathname === "/api/unlock") {
+      return handleUnlock(request, env);
+    }
+
+    // remote-desk：远程电脑（私密模式闸门 + PC 隧道代理）
+    // checkAuth 只认 Authorization: Bearer <CHAT_PASSWORD>；没解锁的手机拿不到 token。
+    if (url.pathname === "/api/pc" || url.pathname.startsWith("/api/pc/")) {
+      if (checkAuth(request, env) !== true) {
+        return resp("Unauthorized", "text/plain; charset=utf-8", 401);
+      }
+      return handlePcProxy(request, env);
+    }
+
+    // 2026-10-06: 指令模块库 + 技能库（解锁门禁）。它们原本是 public/presets/*.json ——
+    // 静态资产，人人可 GET，且锁定访客也会被 seeding（含 NSFW 字样的条目文本就这样流出去过）。
+    // 收口成 POST + isUnlocked：锁定态 403，不泄漏任何库文本（与 bases 同一条纪律）。
     if (request.method === "POST" && url.pathname === "/api/presets") {
       return handlePresetLibrary(request, env);
     }
@@ -1656,6 +1882,14 @@ export default {
     // 4.78: 角色卡独立同步通道,按卡 id LWW 合并 + tombstone,跨设备不再被 main blob 整段覆盖
     if ((request.method === "GET" || request.method === "PUT" || request.method === "DELETE") && url.pathname === "/sync/chars") {
       return handleSyncChars(request, env);
+    }
+
+    // 2026-11-12: 实时聊天事件通道（D1 自增 seq + 短轮询）。D1 未绑定/表缺失返回 503，客户端自动降级。
+    if ((request.method === "GET" || request.method === "POST" || request.method === "DELETE") && url.pathname === "/sync/chat/events") {
+      try { return await handleChatEvents(request, env, ctx); }
+      catch (e) {
+        return resp(JSON.stringify({ error: "实时同步数据库不可用", code: "d1_error", detail: String((e && e.message) || e) }), "application/json; charset=utf-8", 503);
+      }
     }
 
     // 图像侧统一代理:/img/* (代理 Gitee + /img/dl 下载 + /img/r2 + /img/gallery);非 /img/* 返回 null 交回静态兜底

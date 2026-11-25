@@ -8,8 +8,9 @@
 填地址连接；**在本机运行**（源码用 `npx wrangler dev` 起在 `http://127.0.0.1:8787`，不需要域名 ——
 仓库根的 `start-local.cmd` / `start-local.sh` 双击即起，国内访问不了 `*.workers.dev` 时走这条）；
 **一键部署向导**（约 3 分钟把 Worker 部署到你自己的 Cloudflare）。填入地址后，Rust 侧只为**这一个源**
-动态授予 IPC 能力（见 `src/lib.rs` 的「服务器地址」一节）再导航过去 —— 公开仓库不带静态能力清单
-（`capabilities/remote.json` 已被移除）。`http://127.0.0.1` 这类本机源同样支持（动态授权不看 scheme）。
+动态授予 IPC 能力（见 `src/lib.rs` 的「服务器地址」一节）再导航过去。静态清单
+`capabilities/remote.json` 里的个人域名已占位为 `your-domain.example`，自部署者改成自己的域名；
+`http://127.0.0.1` 这类本机源同样支持（动态授权不看 scheme）。
 
 想让自己出的包直连某站、跳过设置页，改这两处：
 
@@ -17,7 +18,7 @@
    `shell=android` 参数启用移动端布局）。
 2. `identifier`：换成你自己的（它就是安卓的 `applicationId`，上线后再改等于换应用）。
 
-自己发布时若坚持要用静态授权（不用启动页），可以自行添加 `capabilities/remote.json` ——
+要调整静态授权，可编辑 `capabilities/remote.json` 把占位域名换成自己的 ——
 权限清单与 `src/lib.rs` 的 `REMOTE_PERMISSIONS` 必须保持同一口径（改一处要改两处）。
 
 ## 自动更新
@@ -50,7 +51,7 @@ Windows 出 NSIS `.exe`，安卓出调试 APK（产物在 Actions Artifacts / Re
 
 ## 安全模型
 
-远程页面**不是**按"普通网页"运行：`withGlobalTauri: true` + `capabilities/remote.json` 的授权
+远程页面**不是**按"普通网页"运行：`withGlobalTauri: true` + 授权清单
 让页面可以调用本机命令（本地文件读写、执行命令、TTS 代理等）。所有命令都在 `build.rs` 登记、
 未登记/未授权的命令远程页调不到；本地文件读写受工作目录门控，命令执行前有**系统原生确认框**。
 换域名时记得同步改 capabilities —— 授予了谁，就等于把本机能力交给了谁。

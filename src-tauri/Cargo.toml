@@ -1,6 +1,6 @@
 [package]
 name = "ownchat"
-version = "4.71.0"
+version = "4.72.0"
 description = "OwnChat · 数据留在自己手里的 AI 创作平台"
 authors = ["MaxChen12114"]
 edition = "2021"

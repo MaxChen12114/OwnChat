@@ -8,6 +8,7 @@
 // 2026-05-29: 回复风格约束层 (所有象限通用,作为 system prompt 末尾追加)
 //   wechat: 微信连发风格, 1-2 句一条,多条用 || 分隔(前端拆气泡)
 //   verbose: 鼓励 200-600 字丰满段落,环境/心理/动作描写拉满(写小说党)
+//   default: 不注入 (角色卡/自定义 system 自带风格最好;2026-10-05 起不再有身份铁则与尺度层兜底)
 function buildReplyStyleInstruction(style) {
   // 4.44 #8: 微信连发放宽字数(原"≤30字/最多3句"太死,改为短句为主、可灵活拆条)
   if (style === "wechat") {
@@ -43,6 +44,7 @@ function buildPriorSummaryInstruction(summary) {
 }
 
 // 4.49 P3 世界书注入：前端 lorebook.js getActiveEntries 已按 scope + alwaysOn/关键词命中筛好
+// 每条形如 { name, content }，已完成 priority 排序。红线无关：只追加【世界设定】块，解限底座一字不改
 function buildLorebookInstruction(entries) {
   if (!Array.isArray(entries) || !entries.length) return "";
   const lines = entries

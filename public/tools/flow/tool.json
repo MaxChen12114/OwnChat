@@ -1,0 +1,9 @@
+{
+  "id": "flow",
+  "label": "节点工作台",
+  "icon": "flow",
+  "href": "/tools/flow/",
+  "order": 3,
+  "desc": "拖拽式可视化工作流（节点 = AI 工具 / GIS 处理 / 文本处理），不止于代码（独立页，新标签打开）",
+  "capabilities": []
+}

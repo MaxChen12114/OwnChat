@@ -2,12 +2,24 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "本地页面（启动页 / 更换服务器地址窗口）能力集：只给地址读写与探针所需的最小集合",
-  "windows": ["main", "server-setup"],
+  "windows": [
+    "main",
+    "server-setup",
+    "panel"
+  ],
   "permissions": [
     "core:default",
     "allow-open-external",
     "allow-http-request",
     "allow-get-server-url",
-    "allow-set-server-url"
+    "allow-set-server-url",
+    "allow-export-binary-file",
+    "allow-svc-list",
+    "allow-svc-set-enabled",
+    "allow-svc-start",
+    "allow-svc-stop",
+    "allow-svc-restart",
+    "allow-open-panel-window",
+    "allow-close-panel-window"
   ]
 }

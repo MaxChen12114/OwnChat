@@ -1,10 +1,9 @@
 // public/audio/app.js
-// 音频工作台 (/audio/) · window.__omniReader
+// 音频工作台 (/audio/)
 // 选本地文本文件 → 切句 → 逐句 GPT-SoVITS 合成 → 顺序播放。复用 window.__omniTTS(tts.js)。
 // 仅桌面 App 内可真正发声(依赖 __TAURI__ + 本地 9880);网页版降级为只读提示。
 (function () {
   'use strict';
-  if (window.__omniReader) return;
 
   var TTS = window.__omniTTS || null;
   var inApp = !!(window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke);
@@ -310,11 +309,4 @@
     bind(); renderFile(); renderSentences(); renderProgress(); syncControls(); refreshVoiceStatus(); showEditor();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
-
-  window.__omniReader = {
-    loadText: loadText,
-    play: function () { if (!state.playing) playFrom(state.idx || 0); },
-    pause: pause, stop: stopAll, prev: prev, next: next, seekTo: seekTo,
-    state: state
-  };
 })();

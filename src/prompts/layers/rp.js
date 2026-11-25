@@ -1,16 +1,23 @@
 // src/prompts/layers/rp.js — RP(角色扮演)专属提示词层
 // ─────────────────────────────────────────────────────────────
 // 2026-10-04 自 src/worker.js 平移(纯搬家,提示词文本逐字未动,仅加导出)。
+// 2026-10-05: 身份铁则(META_IDENTITY / META_IDENTITY_SOFT) 与 尺度层(buildNsfwInstruction / L3) 已删除 ——
 //   实测两者对遵循度无正贡献,反而让模型把 system 里这些附加声明一起判为注入(红队样本可证)。
+//   现在解锁只决定「是否注入解限底座」,其余只剩角色卡与状态数据。
 // 内容: 关系/情绪 · 好感度阶梯 · 角色卡(Layer1) · 状态聚合(Layer2) · 多人场景 · 召唤 · 阈值事件。
+// 装配入口见 src/prompts/layers/assemble.js;解限底座文本在 src/prompts/bases/(红线,一字不改)。
 import { buildPriorSummaryInstruction } from "./chat.js";
 
+// 2026-10-05 删除 META_IDENTITY / META_IDENTITY_SOFT（身份铁则，硬/软两版）。
+//   依据：实测无正贡献，且与解限底座框架打架（模型把 system 里的附加声明判为注入）。
 
+// 2026-10-05 删除尺度层 buildNsfwInstruction（L3）。依据同身份铁则：实测无正贡献，
+//   且「完全开放 / 放下自我审查」这类措辞本身就是越狱指纹（模型据此把角色卡一起拒绝）。
 
 const RELATION_MAP = {
   default: "",
   friendly: "你现在对眼前的用户抱有一定好感，愿意与他友善交谈。",
-  loving: "你现在对眼前的用户怀有爱慕之情，语气宠溺温柔。",  // 2026-05-29 简化减负: 去除自审尾巴
+  loving: "你现在对眼前的用户怀有爱慕之情，语气宠溺温柔。",  // 2026-05-29 简化减负: 去除自审尾巴, 与解限 base 不再打架
   hostile: "你现在对眼前的用户充满敌意和警惕，言辞冷淡刻薄。",
   fearful: "你现在对眼前的用户感到畏惧，说话小心谨慎，不敢直视。",
   dom: "你现在在关系中占据主导地位（Dom）。语气自信、果断、带掌控感，习惯用陈述句和指令句引导节奏、沉住场面，不轻易让步；不卑微讨好。用户撒娇/退缩时你会顺势接住，但仍保持主导。",  // 2026-06-01: 彻底去自审尾巴(删"不霸凌不羞辱"软限，与 L3/强制顺从不打架)
@@ -144,6 +151,7 @@ function buildLayer2(rel, emo, affection, sceneOtherNames, thresholdEvents, prio
 }
 
 // 2026-06-15 缓存友好重排: 静态角色基座(角色卡 Layer1)与动态状态层(Layer2)分离,基座钉 system 前缀命中缓存。
+// 2026-10-05: 原「身份铁则」层已删除,这里只剩角色卡本身(签名里的 strictRoleplay / nsfwLevel 一并去掉)。
 function buildCharacterBasePrompt(card) {
   if (!isValidCard(card)) return "";
   return buildLayer1(card);

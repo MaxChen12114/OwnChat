@@ -23,7 +23,8 @@ build/
 # 两份提示词注册表：源 = src/prompts/bases/ 与 src/prompts/neutrals/ 下的 .md/.txt，
 # 由 scripts/gen-prompts.mjs 生成（wrangler dev/deploy 前自动跑）。
 # 不提交 —— 避免与文本源并存两份事实源而漂移。
-src/prompts/bases/index.js
+src/prompts/bases/unlocked/index.js
+src/prompts/bases/locked/index.js
 src/prompts/presets/index.js
 src/prompts/skills/index.js
 
@@ -40,15 +41,8 @@ desktop.ini
 
 # ===== 环境变量（其他常见命名）=====
 .env
-.env.*
 .env.local
 .env.*.local
-
-# 签名/证书类（安卓打包、桌面发布）
-keystore.properties
-*.jks
-*.keystore
-*.p12
 
 # ===== Tauri 签名密钥（私钥绝对不能提交！）=====
 ownchat.key
@@ -59,5 +53,13 @@ ownchat.key
 public/models/
 .tmp-fetch-model/
 
+# 2026-11-14：tests 用 tsc 把 services/*.ts 编译到仓内临时目录再求值
+# （TS7 是原生二进制，没有 transpileModule；且它写不了仓外的 AppData\Local\Temp）。
+# 目录由 test 自己建、自己删；这里只是防"测试半路崩了留下未跟踪物"。
+.tmp-policy-emit/
+.tmp-gate-emit/
+
 # 2026-11-09：agent 跑测试时落的产物（fig.png / results.json 等），不进仓库
 public/_art/
+.tmp-bundle/
+.tmp-*-emit/

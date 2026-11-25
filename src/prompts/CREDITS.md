@@ -5,7 +5,7 @@
 
 - 库的**源文件**：`src/prompts/presets/{functional,behavioral}/<名字>.md`（指令模块；显示分组名走 front-matter 的 `group`）与 `src/prompts/skills/<名字>.md`（技能；显示名走 `name`）。**路径一律 ASCII**，中文只出现在 front-matter 的显示名里。
 - 生成物 `index.js` 不进版本库（`.gitignore`），由 `scripts/gen-prompts.mjs` 在 dev/deploy 前生成。
-- 下发走 `POST /api/presets`（**需登录**）：未通过校验 403，一个字符都不给。
+- 下发走 `POST /api/presets`（**解锁门禁**）：锁定态 403，一个字符都不给。
 - 想加/删/改条目：往对应目录放文件或改文件 —— **别改本文件之外的第三方正文措辞**（要改就在 front-matter 的 `note` 里写明，或直接换成自己的条目）。
 
 ## 第三方正文的使用范围
@@ -32,7 +32,7 @@
 
 MIT / CC-BY 类条目在再分发时保留版权与许可声明即满足要求；本文件与各条目的 front-matter 就是这份声明。
 
-## 基础准则（`src/prompts/bases/基础.md`）的来源
+## 中性 base（`src/prompts/neutrals/基础.md`）的来源
 
 这份是**自写**的，不是从别处抄的 —— 查过一圈的结论是：开源世界没有可直接拿来用的通用助手 base，能合法拿到的现成货全是 coding harness（ZCode Apache-2.0 / deepseek-harness MIT 的提示词都在引用自家工具名，放进创作/扮演场景会指错路）。所以：
 

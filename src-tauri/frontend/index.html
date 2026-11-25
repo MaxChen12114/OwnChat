@@ -333,6 +333,7 @@
             await invoke("set_server_url", { url: base });
             say("ok", t("saved"));
             // 正常路径：Rust 侧随即导航到该地址，这一页会被替换掉；万一导航没发生（地址异常等），
+            // 2 秒后把按钮解锁，别把用户永久卡在禁用态。
             setTimeout(function () {
               if (!document.body.contains(connectBtn)) return;
               busy = false; connectBtn.disabled = false; connectBtn.classList.remove("busy");

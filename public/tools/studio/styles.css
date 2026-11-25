@@ -1,5 +1,5 @@
 /* public/studio/styles.css — 创作工作台
-   主题令牌统一来自 /shared/theme.css(跟随主站主题): minimal/glass/candle + 明暗双态。
+   主题令牌统一来自 /shared/core/theme.css(跟随主站主题): minimal/glass/candle + 明暗双态。
    本文件只保留组件布局;颜色一律走令牌。 */
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}

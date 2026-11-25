@@ -7,6 +7,7 @@
 //      - showTopbarCostToggle  → cfw_show_topbar_cost_v1   (外观 · 顶栏资金按钮)
 //      - hideMsgActionsToggle  → cfw_hide_msg_actions_v1   (外观 · 显示设置)
 //      - hideStatsToggle       → cfw_hide_stats_v1         (外观 · 显示设置)
+//      (2026-09-10 精简掉 strictRoleplayToggle / NSFW 等级单选；「尺度」概念本身已于 2026-10-05 随尺度层删除)
 //      - replyStyleSel         → cfw_reply_style_v1        (对话 · 回复风格)
 //      - 字号 / 字体           → cfw_chat_font_size_v1 / cfw_chat_font_family_v1 (外观 · 显示设置)
 //      - syncIncludeChatToggle → cfw_sync_include_chat_v1
@@ -27,7 +28,7 @@
     return Promise.resolve(window.confirm(String(msg)));
   }
   // ─── 0. BYO 自定义模型配置（批 E1b：薄壳转发 window.__providers，形状不变）───
-  // 真正的注册表在 /shared/providers.js（window.__providers）：预设渠道 + 自定义渠道 + 每模型开关。
+  // 真正的注册表在 /js/text/data/providers.js（window.__providers）：预设渠道 + 自定义渠道 + 每模型开关。
   // 这里只保留老契约 get()（app.js / 适配器读取形状照旧）；providers.js 缺席时退回 v2 直读兜底（旧缓存页）。
   // 语义修正：兜底路径也要求 activeId 命中才返回 —— 修掉 v2「列表里有任何服务商就劫持全部请求」的旧病。
   window.__byoProvider = {
@@ -56,7 +57,8 @@
   // 2026-10-05: 标题由「顶栏组件(Topbar Components)」改成「顶栏资金按钮」—— 卡里实际只有一个开关
   // (那个实时资金按钮),旧名承诺了"可选组件"复数,名不副实。归属(外观·界面)不变:顶栏就是界面。
   function mountTopbarCostCard() {
-    var slot = document.getElementById('setAppearanceTopSlot');
+    var slot = window.slotRegistry.pick('setAppearanceTopSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'showTopbarCostToggle', slotId: 'setAppearanceTopSlot' });
     if (!slot || document.getElementById('showTopbarCostToggle')) return;
     var card = document.createElement('div'); card.className = 'card';
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><path d="M3.5 9.2h17"/></svg>顶栏资金按钮</h4>'
@@ -71,7 +73,8 @@
   // 它不负责创建 DOM,原 DOM 在 index.html 里,M1 迁移时漏了这一个。这里补回卡片 DOM + 自带读写逻辑
   // (不依赖 theme.js 的 load 时机,自己订阅 __theme,双重保险)。
   function mountMobileAppLayoutCard() {
-    var slot = document.getElementById('setAppearanceThemeSlot') || document.getElementById('setAppearanceTopSlot');
+    var slot = window.slotRegistry.pick('setAppearanceThemeSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'mobileAppLayoutCard', slotId: 'setAppearanceThemeSlot' });
     if (!slot || document.getElementById('mobileAppLayoutCard')) return;
     var K = 'cfw_mobile_bottom_tabs_v1';
     var card = document.createElement('div'); card.className = 'card'; card.id = 'mobileAppLayoutCard';
@@ -106,11 +109,12 @@
   //   cfw_ui_assets_v1.bgData = 本机上传的 base64（该键在 sync 的 PROTECTED 里，永不上云）
   // 应用由 theme.js 的 __theme.applyBg() 负责（启动时自动一次）。
   function mountBackgroundCard() {
-    var slot = document.getElementById('setAppearanceThemeSlot') || document.getElementById('setAppearanceTopSlot');
+    var slot = window.slotRegistry.pick('setAppearanceThemeSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'chatBgCard', slotId: 'setAppearanceThemeSlot' });
     if (!slot || document.getElementById('chatBgCard')) return;
     var card = document.createElement('div'); card.className = 'card'; card.id = 'chatBgCard';
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 16l-5-5L5 20"/></svg>聊天背景图</h4>'
-      + '<p>给聊天区铺一张背景图（覆盖在主题底色上）。<b>仅本设备生效</b>：填 URL 会随云同步，上传的图片只留本机。</p>'
+      + '<p>给聊天区铺一张背景图（覆盖在主题底色上）。<b>仅本设备生效</b>：URL、图片、模糊与位置都不进云同步，换设备需要重新设置。</p>'
       + '<div style="margin-top:8px;"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">图片 URL</label>'
       + '<div style="display:flex;gap:6px;"><input id="chatBgUrl" type="text" placeholder="https://… 或留空" style="flex:1;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;">'
       + '<button class="smallbtn" id="chatBgUrlApply" type="button">应用</button></div></div>'
@@ -122,75 +126,54 @@
       + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>上传的图片以 base64 存在本机（体积大，不进云同步）；换设备请用 URL。位置滑杆用来挪画面：0% = 靠左/靠上，100% = 靠右/靠下（图片按 cover 铺满，挪动即换露出区域）。背景图只在没有实色底的地方透出来，不影响侧栏与气泡可读性。</span></div>';
     slot.appendChild(card);
     var q = function (id) { return card.querySelector('#' + id); };
-    function conf() { try { return JSON.parse(localStorage.getItem('cfw_ui_overrides_v1') || '{}') || {}; } catch (e) { return {}; } }
-    function saveConf(o) { try { localStorage.setItem('cfw_ui_overrides_v1', JSON.stringify(o || {})); } catch (e) {} if (window.__theme && window.__theme.applyBg) window.__theme.applyBg(); }
-    function assets() { try { return JSON.parse(localStorage.getItem('cfw_ui_assets_v1') || '{}') || {}; } catch (e) { return {}; } }
-    function saveAssets(o) { try { localStorage.setItem('cfw_ui_assets_v1', JSON.stringify(o || {})); } catch (e) {} }
+    // 背景图存储形状/滑块解析/居中标签/删键规则已下沉 services/ui/settings-background.ts
+    //（window.settingsBackground）；本卡只留 DOM、文件选择、状态文案与测试连接。
+    var _bg = window.settingsBackground;
     function status(t) { var el = q('chatBgStatus'); if (el) el.textContent = t || ''; }
     function sync(fromAsset) {
-      var bg = (conf().bg) || {};
-      if (!fromAsset) { var u = q('chatBgUrl'); if (u) u.value = (bg.src && bg.src !== '__local__') ? bg.src : ''; }
-      var op = (bg.opacity != null && bg.opacity !== '') ? parseInt(bg.opacity, 10) : 100;
-      var bl = (bg.blur != null && bg.blur !== '') ? parseInt(bg.blur, 10) : 0;
-      var px = (bg.posX != null && bg.posX !== '') ? parseInt(bg.posX, 10) : 50;
-      var py = (bg.posY != null && bg.posY !== '') ? parseInt(bg.posY, 10) : 50;
-      if (!isFinite(px)) px = 50; if (!isFinite(py)) py = 50;
+      var bgRaw = _bg.readConfig().bg || {};
+      var cfg = _bg.parseConfig(bgRaw);
+      if (!fromAsset) { var u = q('chatBgUrl'); if (u) u.value = (cfg.src && cfg.src !== '__local__') ? cfg.src : ''; }
       var oe = q('chatBgOpacity'), be = q('chatBgBlur'), xe = q('chatBgPosX'), ye = q('chatBgPosY');
-      if (oe) oe.value = String(op); if (be) be.value = String(bl);
-      if (xe) xe.value = String(px); if (ye) ye.value = String(py);
+      if (oe) oe.value = String(cfg.opacity); if (be) be.value = String(cfg.blur);
+      if (xe) xe.value = String(cfg.posX); if (ye) ye.value = String(cfg.posY);
       var ol = q('chatBgOpacityLbl'), bll = q('chatBgBlurLbl'), xl = q('chatBgPosXLbl'), yl = q('chatBgPosYLbl');
-      if (ol) ol.textContent = op + '%'; if (bll) bll.textContent = bl + 'px';
-      // 位置标签：非中位时直接显示百分比，中位写「居中」，一眼能看出有没有挪过
-      var posLabel = function (v) { return v === 50 ? '居中' : v + '%'; };
-      if (xl) xl.textContent = posLabel(px);
-      if (yl) yl.textContent = posLabel(py);
-      status(bg.src ? (bg.src === '__local__' ? '当前：本机上传的图片' : '当前：URL') : '当前：未设置');
+      if (ol) ol.textContent = cfg.opacity + '%'; if (bll) bll.textContent = cfg.blur + 'px';
+      if (xl) xl.textContent = _bg.posLabel(cfg.posX);
+      if (yl) yl.textContent = _bg.posLabel(cfg.posY);
+      status(cfg.src ? (cfg.src === '__local__' ? '当前：本机上传的图片' : '当前：URL') : '当前：未设置');
     }
     q('chatBgUrlApply').addEventListener('click', function () {
-      var url = (q('chatBgUrl').value || '').trim();
-      var o = conf(); o.bg = o.bg || {};
-      if (!url) { delete o.bg.src; } else { o.bg.src = url; }
-      if (!o.bg.src) delete o.bg;
-      saveConf(o); sync();
+      _bg.writeConfig(_bg.applyUrl(_bg.readConfig(), q('chatBgUrl').value));
+      sync();
     });
     q('chatBgPick').addEventListener('click', function () { q('chatBgFile').click(); });
     q('chatBgFile').addEventListener('change', function (e) {
       var f = e.target.files && e.target.files[0]; if (!f) return;
-      if (f.size > 4 * 1024 * 1024) { status('图片超过 4MB，换一张小一点的（base64 会更大）'); e.target.value = ''; return; }
+      if (_bg.isOverUploadLimit(f.size)) { status('图片超过 4MB，换一张小一点的（base64 会更大）'); e.target.value = ''; return; }
       var rd = new FileReader();
       rd.onload = function () {
-        var a = assets(); a.bgData = String(rd.result || ''); saveAssets(a);
-        var o = conf(); o.bg = o.bg || {}; o.bg.src = '__local__'; saveConf(o); sync(true);
+        var a = _bg.readAssets(); a.bgData = String(rd.result || ''); _bg.writeAssets(a);
+        _bg.setLocalSource(); sync(true);
       };
       rd.onerror = function () { status('读取文件失败'); };
       rd.readAsDataURL(f); e.target.value = '';
     });
     q('chatBgClear').addEventListener('click', function () {
-      var o = conf(); delete o.bg; saveConf(o);
-      var a = assets(); delete a.bgData; saveAssets(a);
+      _bg.writeConfig(_bg.clearBg(_bg.readConfig()));
+      var a = _bg.readAssets(); delete a.bgData; _bg.writeAssets(a);
       var u = q('chatBgUrl'); if (u) u.value = '';
       sync();
     });
-    q('chatBgOpacity').addEventListener('input', function () {
-      var o = conf(); o.bg = o.bg || {}; o.bg.opacity = q('chatBgOpacity').value; saveConf(o);
-      sync(true);
-    });
-    q('chatBgBlur').addEventListener('input', function () {
-      var o = conf(); o.bg = o.bg || {}; o.bg.blur = q('chatBgBlur').value; saveConf(o);
-      sync(true);
-    });
-    q('chatBgPosX').addEventListener('input', function () {
-      var o = conf(); o.bg = o.bg || {}; o.bg.posX = q('chatBgPosX').value; saveConf(o);
-      sync(true);
-    });
-    q('chatBgPosY').addEventListener('input', function () {
-      var o = conf(); o.bg = o.bg || {}; o.bg.posY = q('chatBgPosY').value; saveConf(o);
-      sync(true);
-    });
+    q('chatBgOpacity').addEventListener('input', function () { _bg.setField('opacity', q('chatBgOpacity').value); sync(true); });
+    q('chatBgBlur').addEventListener('input', function () { _bg.setField('blur', q('chatBgBlur').value); sync(true); });
+    q('chatBgPosX').addEventListener('input', function () { _bg.setField('posX', q('chatBgPosX').value); sync(true); });
+    q('chatBgPosY').addEventListener('input', function () { _bg.setField('posY', q('chatBgPosY').value); sync(true); });
     sync();
   }
   function mountThemeCard() {
-    var slot = document.getElementById('setAppearanceThemeSlot');
+    var slot = window.slotRegistry.pick('setAppearanceThemeSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'appearanceThemeCard', slotId: 'setAppearanceThemeSlot' });
     if (!slot || document.getElementById('appearanceThemeCard')) return;
     var card = document.createElement('div'); card.className = 'card'; card.id = 'appearanceThemeCard';
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>外观风格</h4>'
@@ -198,9 +181,9 @@
       + '<div class="theme-options">'
       + '<label class="theme-option"><input type="radio" name="cfwTheme" value="minimal"><div class="theme-swatch theme-swatch-minimal"></div><div class="theme-text"><div class="theme-title">极简</div><div class="theme-sub">Notion 风格，日/夜双态</div></div></label>'
       + '<label class="theme-option"><input type="radio" name="cfwTheme" value="glass"><div class="theme-swatch theme-swatch-glass"></div><div class="theme-text"><div class="theme-title">玻璃</div><div class="theme-sub">毛玻璃，晴空竹屋</div></div></label>'
-      + '<label class="theme-option"><input type="radio" name="cfwTheme" value="candle"><div class="theme-swatch theme-swatch-candle"></div><div class="theme-text"><div class="theme-title">烛夜私语</div><div class="theme-sub">暗调 · 烛光</div></div></label>'
+      + '<label class="theme-option" data-nsfw><input type="radio" name="cfwTheme" value="candle"><div class="theme-swatch theme-swatch-candle"></div><div class="theme-text"><div class="theme-title">烛夜私语</div><div class="theme-sub">暗调 · 私享</div></div></label>'
       + '</div>'
-      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>烛夜私语是暗调主题,含烛光薄雾与暗角;极简风格下方会出现日/夜切换。</span></div>';
+      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>烛夜私语需先解锁才可见,含呼吸光效;极简风格下方会出现日/夜切换。</span></div>';
     slot.appendChild(card);
     function syncChecked() {
       var cur = (window.__theme && window.__theme.get && window.__theme.get().style) || 'minimal';
@@ -218,8 +201,10 @@
   // ─── §氛围音卡（2026-10-06 双轨混音器：环境 amb × 音乐 mus）───
   // chips 与事件接线都在 theme.js 的 wireAmbientCard()（音轨注册表 = 唯一来源），
   // 本函数只负责卡壳子：总开关 / 两轨音量 / 两条 chips 容器 / 全部停止。
+  // 不挂 data-nsfw —— 氛围音全主题可用（这是它存在的意义：工作背景音也能用）。
   function mountAmbientCard() {
-    var slot = document.getElementById('setAppearanceThemeSlot');
+    var slot = window.slotRegistry.pick('setAppearanceThemeSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'ambientCard', slotId: 'setAppearanceThemeSlot' });
     if (!slot || document.getElementById('ambientCard')) return;
     var card = document.createElement('div'); card.className = 'card'; card.id = 'ambientCard';
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h2l2-5 3 10 3-7 2 4h6"/></svg>氛围音</h4>'
@@ -236,16 +221,48 @@
     slot.appendChild(card);
     try { if (window.__theme && window.__theme.wireAmbientCard) window.__theme.wireAmbientCard(); } catch (e) {}
   }
+  // ─── §基座. 基础行为准则卡（2026-10-05 新增）───
+  // 锁定态注入 src/prompts/bases/locked/ 里那套准则；解锁后本卡隐藏（data-locked-only + index.html 的反向 CSS 规则），
+  // 槽位由「解限底座」卡顶上 —— 两张卡都 prepend 进 #setChatSlot，隐藏的那张不占位，
+  // 所以视觉上永远是「该状态的那一张」在首卡位置（对应服务端的两套注册表）。
+  // 文案纪律：本卡**只在锁定态可见**，所以字面上一律不提「解锁 / 解限 / 私人模式」——
+  // 锁定态是伪装态，任何"存在一个隐藏开关"的暗示都属于泄底（与 data-nsfw 那套隐藏同一理由）。
+  // 反过来，两边互斥这件事写在「解限底座」卡的提示里（那张卡只有解锁后才看得到）。
+  function mountNeutralCard() {
+    var slot = window.slotRegistry.pick('setChatSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'neutralCard', slotId: 'setChatSlot' });
+    if (!slot || document.getElementById('neutralCard')) return;
+    var esc = window.__ownEscape.esc;
+    var card = document.createElement('div');
+    card.className = 'card'; card.id = 'neutralCard'; card.setAttribute('data-locked-only', '');
+    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>基础行为准则</h4><p>给助手定的 system 行为准则——语言口吻、事实与诚实、扮演与创作、代码与技术、排版格式。</p><div style="margin-top:10px;"><select id="neutralIdSel" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"></select></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>文件放在 <code>src/prompts/bases/locked/</code>（规则与 <code>bases/unlocked/</code> 一致：任意 <code>.md</code>/<code>.txt</code>/子目录，id = 文件名）。<b>默认</b> = 排序第一份。切换后<b>下一轮</b>生效。往那里放一个新文件、部署，这里自动多一项。</span></div>`;
+    slot.prepend(card);
+    var bs = document.getElementById('neutralIdSel');
+    if (!bs) return;
+    var KB = 'cfw_neutral_id_v1';
+    var ids = Array.isArray(window.APP_NEUTRAL_IDS) ? window.APP_NEUTRAL_IDS : [];
+    bs.innerHTML = '<option value="">默认</option>' + ids.map(function (id) {
+      return '<option value="' + esc(id) + '">' + esc(id) + '</option>';
+    }).join('');
+    try { bs.value = localStorage.getItem(KB) || ''; } catch (e) {}
+    bs.addEventListener('change', function () {
+      try { if (bs.value) localStorage.setItem(KB, bs.value); else localStorage.removeItem(KB); } catch (e) {}
+    });
+  }
+  // ─── §基座. 解限底座版本卡(2026-10-05 从「聊天模型·自定义直连」卡里拆出,独立成卡)───
   // 为什么独立:底座是 system 提示词的第一段,对全部聊天生效(内置模型与自定义直连都吃),
   // 本身与"直连"毫无关系 —— 塞在直连卡最底部、隔一条分割线时,没人能找到它。
   // 为什么放「对话」类目首卡:基座影响一切,理应排在该分类最上面(prepend 保证位置,不依赖挂载顺序)。
+  // 锁定态整卡不显示:卡上带 data-nsfw,由 html:not(.unlocked) [data-nsfw]{display:none} 隐藏
+  // —— 与 NSFW 主题同一套机制(未解锁=不渲染,而不是置灰)。
   function mountBaseIdCard() {
-    var slot = document.getElementById('setChatSlot');
+    var slot = window.slotRegistry.pick('setChatSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'baseIdCard', slotId: 'setChatSlot' });
     if (!slot || document.getElementById('baseIdCard')) return;
     var esc = window.__ownEscape.esc;
     var card = document.createElement('div');
-    card.className = 'card'; card.id = 'baseIdCard';
-    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>基座提示词（系统提示第一段）</h4><p>底座是 system 提示词的第一段，所有聊天都吃它——内置模型与自定义直连一样。</p><div style="margin-top:10px;"><select id="baseIdSel" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"></select></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>选项就是 <code>src/prompts/bases/</code> 里的文件名（<b>默认</b> = 排序第一份；想让某份当默认，就在它名字最前面加个数字）。切换后<b>下一轮</b>生效（上游缓存前缀会重算一次）。两个目录：<code>src/prompts/bases/</code> 放正经的（随包一份「基础」），<code>src/prompts/custom/</code> 放你自己留着的那些 —— 顶栏那个按钮在两者之间切换。各放一个 <code>.md</code> / <code>.txt</code>（或一整个子目录 = 多文件基座），部署后下拉里自动多一项。<b><code>custom/</code> 里的东西别提交进公开仓库</b>（加进 <code>.gitignore</code>）。</span></div>`;
+    card.className = 'card'; card.id = 'baseIdCard'; card.setAttribute('data-nsfw', '');
+    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>解限底座（基座提示词版本）</h4><p>底座是 system 提示词的第一段，所有聊天都吃它——内置模型与自定义直连一样。</p><div style="margin-top:10px;"><select id="baseIdSel" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"></select></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>选项就是 <code>src/prompts/bases/unlocked/</code> 里的文件名（<b>默认</b> = 排序第一份；想让某份当默认，就在它名字最前面加个数字）。切换后<b>下一轮</b>生效（上游缓存前缀会重算一次）。往那里放一个新 <code>.md</code>，部署后这里自动多一项。锁定态走的是另一套「基础行为准则」（<code>bases/locked/</code>），与本卡互斥显示。</span></div>`;
     slot.prepend(card);
     // 候选项来自 /config.js 的 APP_BASE_IDS(worker 侧 bases/index.js 自动发现的产物)。
     // 只存 id、不存文本;真正的取舍在服务端 resolveBaseId 白名单,前端这里只负责挑。
@@ -294,12 +311,40 @@
       if (host) host.insertBefore(wrap, bs.parentNode.nextSibling);
     }
   }
+  // ─── §基座目录. 内置 / 自定义 两套目录的切换（2026-11-14 从顶栏按钮降级到这里）───
+  // 为什么搬：顶栏 #personaToggle 原来同时承担「切目录」（内置 bases/ ↔ 自定义 custom/）
+  // 与「切档位」两种语义，在用户认知里又长期和 unlock.js 的私人解锁混为一谈。
+  // 2026-11-14 该按钮改为「工作 / 角色扮演」，目录切换就只剩这一个入口 ——
+  // 写 cfw_base_registry_v1，prompt-profile 的 baseIdPayload 每次装配请求现读，不用重绘。
+  // 只在公开渠道构建（window.__baseSwitchMode）出现：私有版只有一套目录，给了也是空下拉。
+  // 与 mountBaseIdCard 同样带 data-nsfw：未解锁态整卡不渲染，避免「切了目录却看不到档位」。
+  function mountBaseRegistryCard() {
+    if (!window.__baseSwitchMode) return;
+    var slot = window.slotRegistry.pick('setChatSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'baseRegistryCard', slotId: 'setChatSlot' });
+    if (!slot || document.getElementById('baseRegistryCard')) return;
+    var card = document.createElement('div');
+    card.className = 'card'; card.id = 'baseRegistryCard'; card.setAttribute('data-nsfw', '');
+    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5h6l1.6 2h9.4v9a1.5 1.5 0 0 1-1.5 1.5H4.5A1.5 1.5 0 0 1 3 18.5v-11z"/><path d="M3.5 7.5V6a1.5 1.5 0 0 1 1.5-1.5h4"/></svg>基座目录</h4><p>两套目录，二选一：<b>内置</b>读 <code>src/prompts/bases/</code>，<b>自定义</b>读 <code>src/prompts/custom/</code>。选定目录后再到下面「解限底座」卡里挑具体哪一份。</p><div style="margin-top:10px;"><select id="baseRegistrySel" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"><option value="">内置（src/prompts/bases/）</option><option value="custom">自定义（src/prompts/custom/）</option></select></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>切换后<b>下一轮</b>生效。两套目录各自记住自己的档位（<code>cfw_base_id_v1</code> / <code>cfw_custom_id_v1</code>），来回切不会丢选择；某套目录为空时 worker 回落到默认档。这里原来在顶栏那个「内置 / 自定义」按钮上，与私人解锁无关。</span></div>`;
+    slot.prepend(card);
+    var sel = document.getElementById('baseRegistrySel');
+    if (!sel) return;
+    var KR = 'cfw_base_registry_v1';
+    try { sel.value = localStorage.getItem(KR) === 'custom' ? 'custom' : ''; } catch (e) {}
+    sel.addEventListener('change', function () {
+      try {
+        if (sel.value === 'custom') localStorage.setItem(KR, 'custom');
+        else localStorage.removeItem(KR);
+      } catch (e) {}
+    });
+  }
   // ─── §联网搜索卡（2026-10-07 新增）───
   // 背景：联网由本项目的 Worker 代查：免费 DuckDuckGo/Bing 兜底；勾「深度搜索」时优先 DeepSeek
   // 搜索 API（2026-10-17 上线，/v1/tools/search），未配 key 再用 Exa。
   // 开关默认关（不静默把查询外发）；只对普通聊天生效，Agent 模式本来就有 web_search 工具。
   function mountWebSearchCard() {
-    var slot = document.getElementById('setChatSlot');
+    var slot = window.slotRegistry.pick('setChatSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'webSearchCard', slotId: 'setChatSlot' });
     if (!slot || document.getElementById('webSearchCard')) return;
     var card = document.createElement('div'); card.className = 'card'; card.id = 'webSearchCard';
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>联网搜索</h4>'
@@ -332,7 +377,8 @@
   // (关系/情绪/好感/场景/摘要)。这个开关就是那个手动把手:关掉后角色卡照旧,只是不再注入状态。
   // 为什么单独成卡而不是塞进「回复风格」卡:那卡只管排版取材,这个名字也对不上(旧账就是乱放被挑过)。
   function mountStateLayerCard() {
-    var slot = document.getElementById('setChatSlot');
+    var slot = window.slotRegistry.pick('setChatSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'stateLayerToggle', slotId: 'setChatSlot' });
     if (!slot || document.getElementById('stateLayerToggle')) return;
     var card = document.createElement('div'); card.className = 'card';
     card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V10"/><path d="M6 20v-6"/><path d="M18 20V4"/></svg>角色状态层</h4><p>有角色卡时，服务端会把「【当前状态】」那一段（关系 / 情绪 / 好感度 / 场景 / 剧情摘要）接在 system 末尾。<b>关掉后角色卡照旧生效，只是不再注入这些状态</b>——想让它纯按角色卡演、不吃好感度与场景提示时用。</p><div class="rowline"><div class="toggle"><input type="checkbox" id="stateLayerToggle"><label for="stateLayerToggle">注入角色状态层（【当前状态】/ 场景 / 摘要）</label></div></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>切换后<b>下一轮</b>生效。默认开 —— 不是按模型判的，就一条规则：有角色卡就注入。工具/Agent 那条路径本来就不吃状态层。</span></div>`;
@@ -342,10 +388,11 @@
   // (隐藏小按钮/隐藏统计小字 → 搬进「外观·显示设置」卡)。卡名与内容对齐:它现在只管回复风格。
   // 守卫 ID 随之从 hideMsgActionsToggle 换成本卡仍有的 replyStyleSel —— 否则 toggle 搬走后守卫失效,会反复重挂。
   function mountChatModeCard() {
-    var slot = document.getElementById('setChatSlot');
+    var slot = window.slotRegistry.pick('setChatSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'replyStyleSel', slotId: 'setChatSlot' });
     if (!slot || document.getElementById('replyStyleSel')) return;
     var card = document.createElement('div'); card.className = 'card';
-    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19l8.5-8.5"/><path d="M15 4.5l.9 2 2 .9-2 .9-.9 2-.9-2-2-.9 2-.9z"/><path d="M6.5 4.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/></svg>回复风格</h4><p>控制 AI 回复的取材与排版。</p><div style="margin-top:10px;"><div style="font-size:12px;color:var(--muted);margin-bottom:8px;">回复风格</div><select id="replyStyleSel" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border, #333);background:transparent;color:inherit;font-size:13px;"><option value="default">默认（交由角色卡决定）</option><option value="wechat">微信连发（1-2 句一条，多气泡连发）</option><option value="verbose">长段叙事（小说式丰满段落，写小说）</option></select></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>单人普通对话<b>没有字数限制</b>,写小说请选 <b>长段叙事</b> 档。字数限制(150-250 字)只存在于鱼缸接龙/讨论模式,保持多人轮转节奏。</span></div>`;
+    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19l8.5-8.5"/><path d="M15 4.5l.9 2 2 .9-2 .9-.9 2-.9-2-2-.9 2-.9z"/><path d="M6.5 4.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/></svg>回复风格</h4><p>控制 AI 回复的取材与排版。<span data-nsfw>内容尺度已改为跟随私人模式:解锁即固定拉满,锁定即关闭,不再有等级或开关(退出按钮在设置面板底部)。</span></p><div style="margin-top:10px;"><div style="font-size:12px;color:var(--muted);margin-bottom:8px;">回复风格</div><select id="replyStyleSel" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border, #333);background:transparent;color:inherit;font-size:13px;"><option value="default">默认（交由角色卡决定）</option><option value="wechat">微信连发（1-2 句一条，多气泡连发）</option><option value="verbose">长段叙事（小说式丰满段落，写小说）</option></select></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>单人普通对话<b>没有字数限制</b>,写小说请选 <b>长段叙事</b> 档。字数限制(150-250 字)只存在于鱼缸接龙/讨论模式,保持多人轮转节奏。</span></div>`;
     slot.appendChild(card);
   }
   // 显示设置卡 = 聊天区呈现的唯一去处(字号 / 字体 / 内容里的显示开关)。
@@ -353,14 +400,16 @@
   // 显示类开关原本被拆在两个类目里(字号字体在外观、两个 toggle 在对话),现在收拢到一处。
   // 接线不受影响:它们由 ID 查元素(见本文件 initPanelToggle 区),不依赖父节点。
   function mountDisplayCard() {
-    var slot = document.getElementById('setAppearanceThemeSlot') || document.getElementById('setAppearanceTopSlot');
+    var slot = window.slotRegistry.pick('setAppearanceThemeSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'chatFontSizeRange', slotId: 'setAppearanceThemeSlot' });
     if (!slot || document.getElementById('chatFontSizeRange')) return;
     var card = document.createElement('div'); card.className = 'card';
-    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h8M16 7h4M4 12h2M10 12h10M4 17h6M14 17h6"/><circle cx="14" cy="7" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="12" cy="17" r="2"/></svg>显示设置</h4><p>调整聊天区字号、字体，以及聊天内容里的显示开关。<b>仅本设备生效</b>(不进云同步)，刷新页面也会保留。</p><div style="margin-top:8px;"><label for="chatFontSizeRange" style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px;"><span>聊天字号</span><span id="chatFontSizeLabel" style="font-variant-numeric:tabular-nums;">13px</span></label><input type="range" id="chatFontSizeRange" min="12" max="22" step="1" value="13" style="width:100%;"></div><div style="margin-top:14px;"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;">聊天字体</div><select id="chatFontFamilySel" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border, #333);background:transparent;color:inherit;font-size:13px;"><option value="">系统默认（苹方/微软雅黑）</option><option value='"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif'>圆体（PingFang）</option><option value='"Noto Serif SC", "Source Han Serif SC", "SimSun", serif'>宋体（Noto Serif）</option><option value='"Kaiti SC", "STKaiti", KaiTi, serif'>楷体（Kaiti）</option><option value='FangSong, STFangsong, serif'>仿宋（FangSong）</option><option value='ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'>等宽（Monospace）</option></select></div><div class="rowline" style="margin-top:14px;"><div class="toggle"><input type="checkbox" id="hideMsgActionsToggle"><label for="hideMsgActionsToggle">隐藏消息行下方的小按钮(重试/删除/复制)</label></div></div><div class="rowline"><div class="toggle"><input type="checkbox" id="hideStatsToggle"><label for="hideStatsToggle">隐藏统计小字(token / 速度 / 累计费用)</label></div></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>气泡跳动同步梳理主题请到「外观风格」卡切主题；wechat 连发模式会自动隐藏小按钮(同时被上面的 toggle 接管)。</span></div>`;
+    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h8M16 7h4M4 12h2M10 12h10M4 17h6M14 17h6"/><circle cx="14" cy="7" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="12" cy="17" r="2"/></svg>显示设置</h4><p>调整聊天区字号、字体，以及聊天内容里的显示开关。<b>仅本设备生效</b>(不进云同步)，刷新页面也会保留。</p><div style="margin-top:8px;"><label for="chatFontSizeRange" style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px;"><span>聊天字号</span><span id="chatFontSizeLabel" style="font-variant-numeric:tabular-nums;">13px</span></label><input type="range" id="chatFontSizeRange" min="12" max="22" step="1" value="13" style="width:100%;"></div><div style="margin-top:14px;"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;">聊天字体</div><select id="chatFontFamilySel" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border, #333);background:transparent;color:inherit;font-size:13px;"><option value="">系统默认（苹方/微软雅黑）</option><option value='"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif'>圆体（PingFang）</option><option value='"Noto Serif SC", "Source Han Serif SC", "SimSun", serif'>宋体（Noto Serif）</option><option value='"Kaiti SC", "STKaiti", KaiTi, serif'>楷体（Kaiti）</option><option value='FangSong, STFangsong, serif'>仿宋（FangSong）</option><option value='ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'>等宽（Monospace）</option><option value="__custom__">自定义字体…</option></select></div><div class="rowline" style="margin-top:8px;align-items:center;gap:8px;"><input type="text" id="chatFontCustom" maxlength="200" placeholder="自定义字体名，如 LXGW WenKai, serif" style="flex:1;min-width:0;padding:8px 10px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"><button class="smallbtn" id="chatFontCustomApply" type="button">应用</button><button class="smallbtn" id="chatFontCustomClear" type="button">清除</button></div><div class="font-preview" id="chatFontPreview" data-text-fx="off"><div class="font-preview-label">字体与出字效果</div><div class="font-preview-line" id="chatFontPreviewLine">落霞与孤鹜齐飞，秋水共长天一色。</div><div class="font-preview-foot"><span class="font-preview-text">改字体或换效果，这句话会重新演示一遍</span><button type="button" class="font-preview-replay" id="chatFontPreviewReplay">再看一遍</button></div></div><div style="margin-top:14px;"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;">文字特效</div><select id="chatTextFxSel" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border, #333);background:transparent;color:inherit;font-size:13px;"><option value="off">无（默认）</option><option value="soft">轻（柔和投影）</option><option value="strong">强（更清晰的文字层次）</option></select></div><div class="rowline" style="margin-top:14px;"><div class="toggle"><input type="checkbox" id="hideMsgActionsToggle"><label for="hideMsgActionsToggle">隐藏消息行下方的小按钮(重试/删除/复制)</label></div></div><div class="rowline"><div class="toggle"><input type="checkbox" id="hideStatsToggle"><label for="hideStatsToggle">隐藏统计小字(token / 速度 / 累计费用)</label></div></div><div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>字体预览与文字特效<b>仅本设备生效</b>，特效只作用于聊天正文，不影响设置/按钮；主题请到「外观风格」卡切换。wechat 连发模式会自动隐藏小按钮(同时被上面的 toggle 接管)。</span></div>`;
     slot.appendChild(card);
   }
   function mountAuthCard() {
-    var slot = document.getElementById('setAccountSlot');
+    var slot = window.slotRegistry.pick('setAccountSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'authCard', slotId: 'setAccountSlot' });
     if (!slot || document.getElementById('authCard')) return;
     var card = document.createElement('div');
     card.className = 'card';
@@ -369,17 +418,19 @@
     slot.appendChild(card);
   }
   function mountSyncCard() {
-    var slot = document.getElementById('setAccountSlot');
+    var slot = window.slotRegistry.pick('setAccountSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'syncEnableToggle', slotId: 'setAccountSlot' });
     if (!slot || document.getElementById('syncEnableToggle')) return;
     var card = document.createElement('div');
     card.className = 'card';
-    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 18.5a4.5 4.5 0 0 1-.7-8.95A5.5 5.5 0 0 1 17 9.1 3.7 3.7 0 0 1 16.8 18.5z"/></svg>云同步</h4><p>同步到 Cloudflare KV，换浏览器或设备都能看到角色卡、指令模块、亲密度与费用日志。对话历史需勾选「同步聊天历史」；改动 30 秒内自动上传。<b>不同步：</b>访问码与同步状态。</p><div class="rowline"><div class="toggle"><input type="checkbox" id="syncEnableToggle"><label for="syncEnableToggle">启用云同步</label></div><div class="toggle" style="margin-top:6px;"><input type="checkbox" id="syncIncludeChatToggle"><label for="syncIncludeChatToggle">同步聊天历史（跨设备共享对话）</label></div><div class="btns"><button class="smallbtn" id="syncNowBtn" title="只推本机改动；拉取其他设备请用「云端拉取」"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v3.5h-3.5"/></svg>立即上传</button><button class="smallbtn" id="syncPullBtn" title="拉取其他设备的改动（只在点这里时拉取，不会自动拉取）">云端拉取</button><button class="smallbtn" id="syncExportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导出备份</button><button class="smallbtn" id="syncImportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导入备份</button><input type="file" id="syncImportFile" accept=".json" style="display:none"><button class="smallbtn danger" id="syncWipeBtn" title="删除云端 KV 上的全部数据(角色卡/指令模块/费用/对话的云端副本)。本地数据保留;同步仍开启时下次本地改动会重新上传,想让云端保持空请清空后关闭云同步。"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5h15"/><path d="M9 6.5V5.2A1.7 1.7 0 0 1 10.7 3.5h2.6A1.7 1.7 0 0 1 15 5.2V6.5"/><path d="M6.8 6.5l.7 12.2a1.8 1.8 0 0 0 1.8 1.7h5.4a1.8 1.8 0 0 0 1.8-1.7l.7-12.2"/></svg>清空云端</button></div></div><div id="syncStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div><div id="syncQuotaWarn" style="font-size:11px;color:#f80;margin-top:4px;display:none;"></div><details id="cloudExcludeSection" style="margin-top:10px;"><summary style="cursor:pointer;font-size:12px;color:var(--muted);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 16.5a4.2 4.2 0 0 1-.6-8.35A5.2 5.2 0 0 1 16.5 8"/><path d="M14.5 14l5 5M19.5 14l-5 5"/></svg>按角色/会话 只清云端（保留本地）</summary><div style="font-size:11px;color:var(--muted);margin:6px 0;line-height:1.5;">只把选中项从云端 KV 抹掉,本地保留且本设备不再上传(tombstone)。<b>会话</b>仅在开了「同步聊天历史」时云端才有副本。<b>跨设备注意:</b>排除清单仅本设备生效,其他仍持有该数据且未排除的设备改动后可能把它推回。</div><div id="cloudExcludeList" style="display:flex;flex-direction:column;gap:6px;"></div></details>`;
+    card.innerHTML = `<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 18.5a4.5 4.5 0 0 1-.7-8.95A5.5 5.5 0 0 1 17 9.1 3.7 3.7 0 0 1 16.8 18.5z"/></svg>云同步</h4><p>同步到 Cloudflare KV，换浏览器或设备都能自动看到角色卡、指令模块、亲密度、费用与对话。<b>打开即全同步</b>：改动 30 秒内自动上传，其他设备自动跟进；「强制刷新」只在怀疑不一致时用。<b>不同步：</b>访问码与同步状态。渠道（聊天/图像）与 API Key 也随账号同步，换设备不用重填。</p><div class="rowline"><div class="toggle"><input type="checkbox" id="syncEnableToggle"><label for="syncEnableToggle">启用云同步（聊天、角色卡、设置全部跟随）</label></div></div><div class="btns"><button class="smallbtn" id="syncNowBtn" title="立即把本机改动推上云（平时 30 秒内会自动推）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v3.5h-3.5"/></svg>立即上传</button><button class="smallbtn" id="syncPullBtn" title="诊断用：重新对齐本机与云端（平时不需要点，改动会自动同步）">强制刷新</button><button class="smallbtn" id="syncExportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导出备份</button><button class="smallbtn" id="syncImportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导入备份</button><input type="file" id="syncImportFile" accept=".json" style="display:none"><button class="smallbtn danger" id="syncWipeBtn" title="用本机数据覆盖云端：先清空云端副本，再把本机数据完整上传。其他设备重新打开后自动跟上；本机数据不受影响。"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5h15"/><path d="M9 6.5V5.2A1.7 1.7 0 0 1 10.7 3.5h2.6A1.7 1.7 0 0 1 15 5.2V6.5"/><path d="M6.8 6.5l.7 12.2a1.8 1.8 0 0 0 1.8 1.7h5.4a1.8 1.8 0 0 0 1.8-1.7l.7-12.2"/></svg>覆盖云端</button></div></div><div id="syncStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div><div id="syncRealtimeStatus" style="font-size:11px;color:var(--muted);margin-top:4px;"></div><div id="syncQuotaWarn" style="font-size:11px;color:#f80;margin-top:4px;display:none;"></div><details id="cloudExcludeSection" style="margin-top:10px;"><summary style="cursor:pointer;font-size:12px;color:var(--muted);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 16.5a4.2 4.2 0 0 1-.6-8.35A5.2 5.2 0 0 1 16.5 8"/><path d="M14.5 14l5 5M19.5 14l-5 5"/></svg>按角色/会话 只清云端（保留本地）</summary><div style="font-size:11px;color:var(--muted);margin:6px 0;line-height:1.5;">只把选中项从云端 KV 抹掉,本地保留且本设备不再上传(tombstone)。<b>会话</b>的云端副本随云同步自动维护。<b>跨设备注意:</b>排除清单仅本设备生效,其他仍持有该数据且未排除的设备改动后可能把它推回。</div><div id="cloudExcludeList" style="display:flex;flex-direction:column;gap:6px;"></div></details>`;
     slot.appendChild(card);
   }
   // ─── M1: 本地对话记忆卡(#historyKeep / #promptKeep / #clearHistory) ───
   // 保存逻辑由 app.js 按 ID 接线；settings.js 仅在 openPanel 时同步显示值(见 initPanelToggle)。
   function mountLocalHistoryCard() {
-    var slot = document.getElementById('setAccountSlot');
+    var slot = window.slotRegistry.pick('setAccountSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'historyKeep', slotId: 'setAccountSlot' });
     if (!slot || document.getElementById('historyKeep')) return;
     var card = document.createElement('div'); card.className = 'card'; card.id = 'localHistoryCard';
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>本地记忆</h4>'
@@ -392,24 +443,38 @@
 
   // ─── M1: 网页自定义人物模板卡(#customPrompt) ───
   // 保存逻辑由 app.js 按 ID 接线；settings.js 仅在 openPanel 时回填 LS 值(见 initPanelToggle)。
+  // 2026-11-14：卡里补一个「注入内置角色提示词」开关（#useBuiltinToggle / cfw_use_builtin）——
+  // 这个能力原来只在顶栏 #personaToggle 上（私有版构建点一下切内置/自定义），
+  // 该按钮改为「工作 / 角色扮演」后，这里是它唯一的入口。文案里原来说的
+  // 「仅在顶栏切到自定义」已不成立，一并改掉。
   function mountPersonaCard() {
-    var slot = document.getElementById('setChatSlot');
+    var slot = window.slotRegistry.pick('setChatSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'customPrompt', slotId: 'setChatSlot' });
     if (!slot || document.getElementById('customPrompt')) return;
     var card = document.createElement('div'); card.className = 'card'; card.id = 'personaTemplateCard';
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>网页自定义人物模板</h4>'
-      + '<p>仅在顶栏切到「自定义」且当前无角色卡时生效（有卡时角色卡优先，本段不会发送）。适合补充你对 AI 行为的统一要求。仅本设备。</p>'
+      + '<div class="rowline" style="margin-bottom:8px;"><div class="toggle"><input type="checkbox" id="useBuiltinToggle"><label for="useBuiltinToggle">注入内置角色提示词</label></div></div>'
+      + '<p>关掉上面的开关 = 不发送内置的角色提示词，只发下面这段（当前会话有角色卡时，角色卡仍然优先）。适合你想完全接管人设的场合。仅本设备。</p>'
       + '<textarea id="customPrompt" rows="5" placeholder="输入自定义人物设定或全局指令…" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;resize:vertical;"></textarea>'
-      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>上方「追加自定义提示词」开关控制本内容是否实际发送。留空 = 不追加任何内容。</span></div>';
+      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>「追加自定义提示词」开关控制本段是否实际发送。留空 = 不追加任何内容。</span></div>';
     slot.appendChild(card);
+    var ub = document.getElementById('useBuiltinToggle');
+    if (!ub) return;
+    try { ub.checked = (localStorage.getItem('cfw_use_builtin') ?? '1') === '1'; } catch (e) {}
+    ub.addEventListener('change', function () {
+      try { localStorage.setItem('cfw_use_builtin', ub.checked ? '1' : '0'); } catch (e) {}
+      // app.js 把 useBuiltin 缓存在模块变量里（请求装配要用），靠这个广播让它重读。
+      try { window.dispatchEvent(new CustomEvent('cfw:external-settings')); } catch (e) {}
+    });
   }
 
   // ─── 2026-11-11: Agent 个性化（对齐 ZCode 设置 → 个性化）───
   // 独立于「网页自定义人物模板」：只作用于 Agent 模式的后续会话，不受顶栏「内置/自定义」和角色卡影响。
-  // 写入 cfw_agent_personalize_v1；Agent 请求装配时作为 extraSystemPrompts 追加。
-  var LS_AGENT_PERSONALIZE = 'cfw_agent_personalize_v1';
-  var AGENT_PERSONALIZE_MAX_BYTES = 100 * 1024;
+  // 字节预算/trim 空删除 + 读侧判定已下沉 services/ui/settings-personalize.ts（window.settingsPersonalize），
+  // 与 engine/app.js 的请求注入共用同一套语义；本卡只留 textarea、计数标签与事件。
   function mountPersonalizeCard() {
-    var slot = document.getElementById('setPersonalizeSlot') || document.getElementById('setAgentSlot');
+    var slot = window.slotRegistry.pick('setPersonalizeSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'agentPersonalize', slotId: 'setPersonalizeSlot' });
     if (!slot || document.getElementById('agentPersonalize')) return;
     var card = document.createElement('div'); card.className = 'card'; card.id = 'agentPersonalizeCard';
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 19a6.5 6.5 0 0 1 13 0"/><path d="M18.6 5.1l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"/></svg>个性化</h4>'
@@ -422,25 +487,20 @@
     var countEl = card.querySelector('#agentPersonalizeCount');
     var saveBtn = card.querySelector('#agentPersonalizeSave');
     var cancelBtn = card.querySelector('#agentPersonalizeCancel');
+    var _pers = window.settingsPersonalize;
     var saved = "";
-    function bytes(s) {
-      try { return new TextEncoder().encode(s).length; } catch (e) { return String(s || '').length; }
-    }
-    function fmtBytes(n) {
-      return n < 1024 ? (n + ' B') : ((n / 1024).toFixed(1) + ' KB');
-    }
     function renderCount() {
-      var n = bytes(ta.value);
-      var over = n > AGENT_PERSONALIZE_MAX_BYTES;
+      var n = _pers.byteLen(ta.value);
+      var over = _pers.isOverLimit(ta.value);
       if (countEl) {
-        countEl.textContent = fmtBytes(n) + ' / 100 KB';
+        countEl.textContent = _pers.fmtBytes(n) + ' / 100 KB';
         countEl.style.color = over ? 'var(--danger, #e8607d)' : 'var(--muted)';
       }
       if (saveBtn) saveBtn.disabled = over;
     }
     // 每次打开设置都回读已保存值，同时把「取消」的基准线同步成 LS —— 否则上次的未保存文本会被当成基准。
     function resetFromLS() {
-      saved = localStorage.getItem(LS_AGENT_PERSONALIZE) || '';
+      saved = _pers.readRaw();
       ta.value = saved;
       renderCount();
     }
@@ -448,11 +508,10 @@
     ta.addEventListener('input', renderCount);
     if (saveBtn) saveBtn.addEventListener('click', function () {
       var v = ta.value;
-      if (bytes(v) > AGENT_PERSONALIZE_MAX_BYTES) return;
-      if (v.trim()) localStorage.setItem(LS_AGENT_PERSONALIZE, v);
-      else localStorage.removeItem(LS_AGENT_PERSONALIZE);
+      var result = _pers.save(v);
+      if (!result.stored) return;
       saved = v;
-      try { if (window.__feedback && window.__feedback.toast) window.__feedback.toast(v.trim() ? '个性化指令已保存' : '个性化指令已清空', 1800); } catch (e) {}
+      try { if (window.__feedback && window.__feedback.toast) window.__feedback.toast(result.trimmed ? '个性化指令已保存' : '个性化指令已清空', 1800); } catch (e) {}
     });
     if (cancelBtn) cancelBtn.addEventListener('click', function () {
       ta.value = saved;
@@ -464,7 +523,8 @@
   // ─── 自驱叙事控制卡(autopilot.js 的入口 UI · 决策 O 默认半自动) ───
   // 写 cfw_autopilot_* + cfw_address_mode_v1 + cfw_choices_freq_v1;开始/停止直接调 window.__autopilot。仅本设备。挂 #setChatSlot。
   function mountAutopilotCard() {
-    var slot = document.getElementById('setChatSlot');
+    var slot = window.slotRegistry.pick('setChatSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'autopilotCard', slotId: 'setChatSlot' });
     if (!slot || document.getElementById('autopilotCard')) return;
     // 2026-09-10 瘦身: speed / climax 两个 key 随 arousal 机制一起下线(见 autopilot.js)
     var K = { mode: 'cfw_autopilot_mode_v1', auto: 'cfw_autopilot_auto_v1', maxSeg: 'cfw_autopilot_max_segments_v1', gateTts: 'cfw_autopilot_gate_tts_v1', address: 'cfw_address_mode_v1', choices: 'cfw_choices_freq_v1' };
@@ -511,7 +571,8 @@
   // 用户口径：编排玩法与工作能力是两件事，各占一张卡。工具是否注册由 tools.js 的 MA_GATED
   // 三重条件共同决定：① 侧栏「多智能体」模式开着 ② 本卡对应开关开着 ③ 当前不是子 agent 档。
   function mountMultiAgentCard() {
-    var slot = document.getElementById('setAgentSlot') || document.getElementById('setChatSlot');
+    var slot = window.slotRegistry.pick('setAgentSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'multiAgentCard', slotId: 'setAgentSlot' });
     if (!slot || document.getElementById('multiAgentCard')) return;
     var SS = 'flex:1;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;';
     var card = document.createElement('div'); card.className = 'card'; card.id = 'multiAgentCard';
@@ -551,7 +612,7 @@
 
   // ─── 2026-11-06：开发工具卡（源码/产物检索；本地 source-server） ───
   function mountDevToolsCard() {
-    var slot = document.getElementById('setCostSlot');
+    var slot = window.slotRegistry.pick('setCostSlot');
     // 2026-11-08 修(审查 P0/P1): ① id 改名 sourceToolsCard —— 旧 id 与 dev.js 的开发者工具卡
     // 冲突(同名 id 静默互吞,本卡永不出现); ② 补本地 SS(旧版引用未定义变量,潜伏 ReferenceError)
     if (!slot || document.getElementById('sourceToolsCard')) return;
@@ -592,17 +653,20 @@
     paint();
   }
 
-  // ─── Agent 工具集档位(对应 shared/tools.js 里的 CORE_TOOLS 门控 · LS cfw_agent_tools_v1) ───
+  // ─── Agent 工具集档位(对应 shared/agent/tools.js 里的 CORE_TOOLS 门控 · LS cfw_agent_tools_v1) ───
   // 两档: core(常用) / full(全量,自检时才开)。档位数在卡内动态点数（作者会持续加工具）。
   function mountAgentToolsCard() {
     // 2026-09-14:Agent 配置独立成分类(工具档位 / 轮数 / 工作模式);旧页面回落 #setChatSlot
-    var slot = document.getElementById('setAgentSlot') || document.getElementById('setChatSlot');
+    var slot = window.slotRegistry.pick('setAgentSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'agentToolsCard', slotId: 'setAgentSlot' });
     if (!slot || document.getElementById('agentToolsCard')) return;
-    var K = 'cfw_agent_tools_v1';
+    // 工具档位/工作模式/轮数的读写规则已下沉 services/ui/settings-agent-tools.ts
+    //（window.settingsAgentTools），与 services/agent/registry.ts 读侧共用同一口径。
+    var _at = window.settingsAgentTools;
     var SS = 'flex:1;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;';
     var card = document.createElement('div'); card.className = 'card'; card.id = 'agentToolsCard';
     card.innerHTML = '<h4>Agent 工作模式</h4>'
-      + '<p>决定 Agent 执行动作时的放行策略(对齐成熟 agent 工具的做法)。<b>仅本设备</b>。</p>'
+      + '<p>决定 Agent 执行动作时的放行尺度(对齐成熟 agent 工具的做法)。<b>仅本设备</b>。</p>'
       + '<div class="rowline" style="align-items:center;gap:10px;"><label style="font-size:12px;color:var(--muted);min-width:42px;">模式</label><select id="agentWorkMode" style="' + SS + '">'
       + '<option value="confirm">变更前确认：有副作用的操作先问我</option>'
       + '<option value="auto">自动编辑：文件类操作直接做，其余仍问</option>'
@@ -642,12 +706,9 @@
       full: '在常用基础上再加：设定集 / 指令模块 / 换主题 / 换模型 / 改设置 / 开编辑器 / 查费用 / 生成视频故事。其中视频故事一跑就是一两小时且不能关页 —— 只建议临时开。'
     };
     function render() { if (desc) desc.textContent = TXT[sel.value] || ''; }
-    var v = 'core'; try { v = localStorage.getItem(K) === 'full' ? 'full' : 'core'; } catch (e) {}
-    sel.value = v; render();
-    sel.addEventListener('change', function () {
-      try { if (sel.value === 'full') localStorage.setItem(K, 'full'); else localStorage.setItem(K, 'core'); } catch (e) {}
-      render();
-    });
+    sel.value = _at.readTools(); render();
+    sel.addEventListener('change', function () { _at.writeTools(sel.value); render(); });
+    // 2026-09-14:工作模式(放行尺度)—— 与工具档位、轮数同属 Agent 分类
     var wmEl = card.querySelector('#agentWorkMode'), wdEl = card.querySelector('#agentWorkDesc');
     var WORK_TXT = {
       confirm: '有副作用的工具(写文件、改角色卡/设定集/指令模块、改设置、换主题换模型等)执行前会弹确认,由你放行或拒绝。最安全,但会打断节奏。',
@@ -655,39 +716,21 @@
       plan: 'Agent 只做只读调查(抓网页/搜索/读文件),**不会真的动手改**;先给你一份计划,你确认后再切到别的模式执行。',
       full: '所有工具直接执行、完全不确认。快,但写错就是写错了 —— 只在你完全信任当前任务时用。'
     };
-    var WM_KEY = 'cfw_agent_work_mode_v1';
     function renderWork() { if (wdEl) wdEl.textContent = WORK_TXT[wmEl.value] || ''; }
-    var wmv = 'confirm'; try { var _w = localStorage.getItem(WM_KEY); if (_w && WORK_TXT[_w]) wmv = _w; } catch (e) {}
     if (wmEl) {
-      wmEl.value = wmv; renderWork();
-      wmEl.addEventListener('change', function () {
-        try { localStorage.setItem(WM_KEY, wmEl.value); } catch (e) {}
-        renderWork();
-      });
+      wmEl.value = _at.readMode(); renderWork();
+      wmEl.addEventListener('change', function () { _at.writeMode(wmEl.value); renderWork(); });
     }
 
     // 2026-09-14:最大工具轮数(原来写死 8)—— 复杂任务会被中途截断,这里放开可调
     var roundsEl = card.querySelector('#agentMaxRounds');
     if (roundsEl) {
-      var RK = 'cfw_agent_max_rounds_v1';
-      var _curR = null;
-      try {
-        var _raw = (localStorage.getItem(RK) || '').trim();
-        var _n = parseInt(_raw, 10);
-        _curR = (_raw && isFinite(_n) && _n > 0) ? Math.min(1000, _n) : null;
-      } catch (e) {}
+      var _curR = _at.readRounds();
       roundsEl.value = (_curR == null) ? '' : String(_curR);
       roundsEl.addEventListener('change', function () {
-        var raw = String(roundsEl.value || '').trim();
-        var v2 = parseInt(raw, 10);
-        if (!raw || !isFinite(v2) || v2 <= 0) { // 留空/0 = 不限
-          try { localStorage.removeItem(RK); } catch (e) {}
-          roundsEl.value = '';
-          return;
-        }
-        v2 = Math.min(1000, v2);
-        roundsEl.value = String(v2);
-        try { localStorage.setItem(RK, String(v2)); } catch (e) {}
+        // 留空/0/非法 = 不限 → 服务删键；有效值夹到 1000 后回写输入框
+        var next = _at.writeRounds(roundsEl.value);
+        roundsEl.value = (next == null) ? '' : String(next);
       });
     }
 
@@ -751,6 +794,10 @@
         });
       }
     }
+
+    // 2026-11-19 B2 C-4：工具目录模式（full/directory）行 → services/ui/tool-mode-card.ts
+    //（window.settingsToolMode）；directory 仅在 __toolMode 就位时可选，行内显示生效模式。
+    try { if (window.settingsToolMode && typeof window.settingsToolMode.attach === 'function') window.settingsToolMode.attach(card); } catch (e) {}
   }
 
   // ─── 4.83: 生成参数（temperature / max_tokens）───
@@ -759,16 +806,13 @@
   // 也不会覆盖上游针对模型做的调校。
   // 落库 key 与 app.js 的 LS_GEN_PARAMS 一致；app.js 通过 genParamPayload() 展开进 /api/chat body
   // （worker 侧早就支持 temperature/top_p/max_tokens 透传，只是此前没有正式 UI 入口）。
-  var GEN_PARAMS_KEY = 'cfw_gen_params_v1';
-  function readGenParams() {
-    try {
-      var o = JSON.parse(localStorage.getItem(GEN_PARAMS_KEY) || '{}');
-      return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
-    } catch (e) { return {}; }
-  }
-  function writeGenParams(o) { try { localStorage.setItem(GEN_PARAMS_KEY, JSON.stringify(o || {})); } catch (e) {} }
+  // 2026-11-17 服务层搬迁：读写/夹取/预设进 services/ui/settings-gen-params.ts（window.settingsGenParams）。
+  // 存储键与 app.js 的 LS_GEN_PARAMS 相同——两侧必须同步，键本身只在该服务里定义。
+  function readGenParams() { return window.settingsGenParams.read(); }
+  function writeGenParams(o) { window.settingsGenParams.write(o || {}); }
   function mountGenParamsCard() {
-    var slot = document.getElementById('setModelApiSlot');
+    var slot = window.slotRegistry.pick('setModelApiSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'genParamsCard', slotId: 'setModelApiSlot' });
     if (!slot || document.getElementById('genParamsCard')) return;
     var inp = 'style="width:110px;padding:6px 8px;border-radius:7px;border:1px solid var(--border,#2a2a2a);background:rgba(127,127,127,.08);color:inherit;font-size:13px;"';
     var row = 'style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"';
@@ -790,15 +834,8 @@
       mEl.value = (typeof g.maxTokens === 'number') ? g.maxTokens : '';
     }
     function save(syncBack) {
-      var g = readGenParams();
-      var t = parseFloat(tEl.value);
-      var m = parseInt(mEl.value, 10);
-      // 空值 = 删除该覆盖（回到"不干预"），而不是写 0
-      if (tEl.value.trim() === '' || isNaN(t)) delete g.temperature;
-      else g.temperature = Math.max(0, Math.min(2, t));
-      if (mEl.value.trim() === '' || isNaN(m)) delete g.maxTokens;
-      else g.maxTokens = Math.max(1, Math.floor(m));
-      writeGenParams(g);
+      // 夹取与「空值 = 删键」的语义在服务里（mergeGenInputs）；这里只负责把输入框原样交出去。
+      window.settingsGenParams.applyInputs(tEl.value, mEl.value);
       if (syncBack) sync();
     }
     // input:即时落库 —— 用户清空输入框就立刻回到"默认",不依赖失焦。
@@ -809,16 +846,12 @@
     mEl.addEventListener('input', function () { save(false); });
     tEl.addEventListener('change', function () { save(true); });
     mEl.addEventListener('change', function () { save(true); });
-    var PRESETS = {
-      rp:    { temperature: 1.2 },                    // 角色扮演:偏创意,避免长对话重复
-      write: { temperature: 1.4, maxTokens: 8192 },   // 长文写作:更放 + 输出上限留足
-      code:  { temperature: 0.3 },                    // 编程 / 工具调用:求稳,参数填报更准
-    };
+    // 预设值也在服务里（GEN_PRESETS）：角色扮演偏创意 / 长文写作留足输出 / 编程求稳。
     card.querySelectorAll('[data-genpreset]').forEach(function (b) {
       b.addEventListener('click', function () {
         var k = b.dataset.genpreset;
-        if (k === 'reset') { writeGenParams({}); sync(); return; }
-        if (PRESETS[k]) { writeGenParams(Object.assign({}, PRESETS[k])); sync(); }
+        if (k === 'reset') { window.settingsGenParams.reset(); sync(); return; }
+        window.settingsGenParams.applyPreset(k); sync();
       });
     });
     sync();
@@ -831,7 +864,8 @@
   // 注意：气泡级的毛玻璃与 ::after 流光**所有档位都关**（成本随消息数线性增长），这里换不回来。
   function mountAppFxCard() {
     if (!document.documentElement.classList.contains('android-app')) return;
-    var slot = document.getElementById('setAppearanceThemeSlot') || document.getElementById('setAppearanceTopSlot');
+    var slot = window.slotRegistry.pick('setAppearanceThemeSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'appFxCard', slotId: 'setAppearanceThemeSlot' });
     if (!slot || document.getElementById('appFxCard')) return;
     var card = document.createElement('div'); card.className = 'card'; card.id = 'appFxCard';
     card.innerHTML = '<h4>App 内特效档位</h4>'
@@ -856,11 +890,12 @@
   }
 
   // ─── §外观. 界面语言（2026-10-07 新增，双语插件）───
-  // 双语是「插件脚本」实现：/shared/i18n.js 引擎 + /shared/i18n-dict.js 字典（启用英文才懒加载，
+  // 双语是「插件脚本」实现：/shared/core/i18n.js 引擎 + /shared/core/i18n-dict.js 字典（启用英文才懒加载，
   // 中文用户零开销）。按已渲染文本整串替换，模型输出/用户内容不在翻译范围；覆盖主路径，
   // 未覆盖的仍显示中文（可增量补字典，`node scripts/check-i18n.mjs` 审计缺口）。切换会整页刷新。
   function mountI18nCard() {
-    var slot = document.getElementById('setAppearanceThemeSlot') || document.getElementById('setAppearanceTopSlot');
+    var slot = window.slotRegistry.pick('setAppearanceThemeSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'i18nCard', slotId: 'setAppearanceThemeSlot' });
     if (!slot || document.getElementById('i18nCard')) return;
     var card = document.createElement('div'); card.className = 'card'; card.id = 'i18nCard';
     card.innerHTML = '<h4>界面语言</h4>'
@@ -875,57 +910,89 @@
     });
   }
 
+  // 2026-11-13 A34: 会话自动命名开关。两个开关都只写本设备 LS，模块运行时读同一对键，
+  // 因此这里不依赖 __convAutoname 是否已加载（脚本顺序 / 老页面刷新都安全）。
+  function mountConvAutonameCard() {
+    var slot = window.slotRegistry.pick('setChatSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'convAutonameCard', slotId: 'setChatSlot' });
+    if (!slot || document.getElementById('convAutonameCard')) return;
+    var card = document.createElement('div'); card.className = 'card'; card.id = 'convAutonameCard';
+    card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5h16M4 12h10M4 17.5h7"/><circle cx="18.5" cy="16.5" r="3"/></svg>会话自动命名</h4>'
+      + '<p>新建会话默认叫「新对话」。开启后，发出第一条消息就会用本地规则截取一个短名，首轮回复后再让模型精炼成更贴切的名称。<b>仅本设备生效</b>。</p>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="convAutonameToggle"><label for="convAutonameToggle">新对话自动命名（本地即时，零请求）</label></div></div>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="convAutonameAiToggle"><label for="convAutonameAiToggle">首轮回复后用 AI 精炼标题（每个新会话多一次轻量模型调用）</label></div></div>'
+      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>只作用于名字仍是「新对话」的会话；你手动改过的名字不会被覆盖，「主对话」保持原名，已有历史会话不动。</span></div>';
+    slot.appendChild(card);
+    // 2026-11-18 服务层搬迁：主从联动（键/极性/禁用门）在 services/ui/settings-autoname.ts
+    // （window.settingsAutoname）；键与 conv/autoname.ts 同源，测试锁住漂移。
+    var t = card.querySelector('#convAutonameToggle'), ai = card.querySelector('#convAutonameAiToggle');
+    var pair = window.settingsAutoname.read();
+    t.checked = pair.on; ai.checked = pair.aiOn; ai.disabled = !pair.on;
+    t.addEventListener('change', function () {
+      var p2 = window.settingsAutoname.writeMaster(t.checked);
+      ai.checked = p2.aiOn; ai.disabled = !p2.on;
+    });
+    ai.addEventListener('change', function () {
+      window.settingsAutoname.writeAi(ai.checked);
+    });
+  }
   function mountStaticSettingsCards() {
-    mountAuthCard();
-    mountLocalHistoryCard(); // 常用:放账号页第一屏
-    mountSyncCard();
-    mountTopbarCostCard();
-    mountThemeCard();
-    mountAmbientCard();   // 氛围音双轨混音器（环境×音乐），全主题可用
-    mountBackgroundCard(); // 2026-10-06: 背景图从编辑器 UI 页搬来（外观分类）
-    mountMobileAppLayoutCard();
-    mountDisplayCard();      // 字号/字体属于外观
-    mountAppFxCard();        // 2026-10-07 (E-B): App 壳内特效档位（仅壳内出现）
-    mountI18nCard();         // 2026-10-07: 界面语言（双语插件开关）
-    mountStateLayerCard();  // 角色状态层开关(有卡就注入的把手)
-    mountWebSearchCard();   // 2026-10-07: 联网搜索（Worker 代查 + Exa 可选）
-    mountBaseIdCard();       // 基座:放「对话」首卡 —— 它影响一切,理应最上面
-    mountChatModeCard();
-    mountAutopilotCard();
-    mountAgentToolsCard();
-    mountMultiAgentCard();   // 2026-10-08 独立成卡（编排玩法与工作能力分开）
-    mountDevToolsCard();     // 2026-11-06 开发工具（源码/产物检索，本地服务）
-    mountPersonaCard();      // M1
-    mountPersonalizeCard();  // 2026-11-11: Agent 个性化（独立分类，作用于 Agent 后续会话）
-    // 2026-10-13 (批 E1b): 旧「模型候选池」卡已并入下面 mountByoCard() 的渠道管理卡 ——
-    // 每模型勾选从「按 free/fast 源」改为「按渠道」,存量选择由 providers.js 首拉时自动迁移。
-    mountByoCard(); // 2026-06-24: 聊天模型自定义直连归「模型 API」分类(原在「对话」)
-    mountCustomPricingCard(); // 2026-09-12 / 4.70: 自定义模型定价 UI,写 cfw_custom_pricing_v1(已进云同步白名单)
-    mountGenParamsCard(); // 4.83: 生成参数(temperature / max_tokens),留空=不干预(app.js genParamPayload 展开)
+    // 2026-11-18 服务层搬迁：挂载顺序表在 services/ui/settings-card-order.ts（每步带理由、可被锁
+    // 审计），这里只做「按 plan 查映射表调函数」。未知/缺失的 id 由 plan 过滤，不占位。
+    const MOUNTS = {
+      mountConvAutonameCard: mountConvAutonameCard,
+      mountAuthCard: mountAuthCard,
+      mountLocalHistoryCard: mountLocalHistoryCard,
+      mountSyncCard: mountSyncCard,
+      mountTopbarCostCard: mountTopbarCostCard,
+      mountThemeCard: mountThemeCard,
+      mountAmbientCard: mountAmbientCard,
+      mountBackgroundCard: mountBackgroundCard,
+      mountMobileAppLayoutCard: mountMobileAppLayoutCard,
+      mountDisplayCard: mountDisplayCard,
+      mountAppFxCard: mountAppFxCard,
+      mountI18nCard: mountI18nCard,
+      mountNeutralCard: mountNeutralCard,
+      mountStateLayerCard: mountStateLayerCard,
+      mountWebSearchCard: mountWebSearchCard,
+      mountBaseIdCard: mountBaseIdCard,
+      mountBaseRegistryCard: mountBaseRegistryCard,
+      mountChatModeCard: mountChatModeCard,
+      mountAutopilotCard: mountAutopilotCard,
+      mountAgentToolsCard: mountAgentToolsCard,
+      mountMultiAgentCard: mountMultiAgentCard,
+      mountDevToolsCard: mountDevToolsCard,
+      mountPersonaCard: mountPersonaCard,
+      mountPersonalizeCard: mountPersonalizeCard,
+      mountByoCard: mountByoCard,
+      mountCustomPricingCard: mountCustomPricingCard,
+      mountGenParamsCard: mountGenParamsCard,
+    };
+    const plan = window.planCardMounts(Object.keys(MOUNTS));
+    for (let i = 0; i < plan.length; i++) {
+      const fn = MOUNTS[plan[i]];
+      if (typeof fn === "function") fn();
+    }
   }
 
   // ─── 1. 分类标签切换 ───
-  const LS_CAT = 'cfw_settings_cat_v1';
   function initCatNav() {
     const nav = document.querySelector('.settings-cat-nav');
     if (!nav) return;
     const items = Array.from(nav.querySelectorAll('.scn-item'));
     const cats  = Array.from(document.querySelectorAll('.set-cat'));
-    const devOn = localStorage.getItem('cfw_dev_mode_v1') === '1';
-    const isApp = !!(window.__TAURI__ || window.__TAURI_INTERNALS__);
+    // 2026-11-17 服务层搬迁：可见性门（devOnly / voice 仅壳内）与「保存的分类失效就回落首个可见」
+    // 的决策在 services/ui/settings-cat-nav.ts（window.settingsCatNav），这里只应用计划。
+    const plan = window.settingsCatNav.plan(items.map(it => ({ cat: it.dataset.cat, devOnly: !!it.dataset.devOnly })));
     items.forEach(it => {
-      if (it.dataset.devOnly && !devOn) it.style.display = 'none';
-      if (it.dataset.cat === 'voice' && !isApp) it.style.display = 'none';
+      if (plan.hidden.indexOf(it.dataset.cat) >= 0) it.style.display = 'none';
     });
     function switchTo(cat) {
       items.forEach(it => it.classList.toggle('active', it.dataset.cat === cat));
       cats.forEach(c  => c.classList.toggle('active',  c.dataset.cat  === cat));
-      localStorage.setItem(LS_CAT, cat);
+      window.settingsCatNav.save(cat);
     }
-    const saved = localStorage.getItem(LS_CAT);
-    const validItem = items.find(it => it.dataset.cat === saved && it.style.display !== 'none');
-    const firstVisible = items.find(it => it.style.display !== 'none') || items[0];
-    switchTo(validItem ? saved : (firstVisible && firstVisible.dataset.cat || 'account'));
+    switchTo(plan.active);
     items.forEach(it => it.addEventListener('click', () => switchTo(it.dataset.cat)));
   }
 
@@ -990,9 +1057,10 @@
   function initStateLayerToggle() {
     const el = document.getElementById('stateLayerToggle');
     if (!el) return;
-    el.checked = localStorage.getItem('cfw_state_layer_v1') !== '0';
+    // 键与极性在 services/ui/settings-toggles.ts（与 app.js 的 stateLayerPayload 同键）。
+    el.checked = window.settingsToggles.read('stateLayer');
     el.addEventListener('change', () => {
-      localStorage.setItem('cfw_state_layer_v1', el.checked ? '1' : '0');
+      window.settingsToggles.write('stateLayer', el.checked);
     });
   }
 
@@ -1001,12 +1069,17 @@
     const html = document.documentElement;
     const t = document.getElementById('showTopbarCostToggle');
     if (!t) return;
-    const on = localStorage.getItem('cfw_show_topbar_cost_v1') !== '0';
+    const on = window.settingsToggles.read('topbarCost');
     t.checked = on;
-    html.classList.toggle('hide-topbar-cost', !on);
+    // 这个开关是反极性的：类在「关」时加（hide-topbar-cost），由服务的 planClass 决定。
+    const applyCost = (v) => {
+      const p = window.settingsToggles.planClass('topbarCost', v);
+      if (p.className) html.classList.toggle(p.className, p.add);
+    };
+    applyCost(on);
     t.addEventListener('change', () => {
-      localStorage.setItem('cfw_show_topbar_cost_v1', t.checked ? '1' : '0');
-      html.classList.toggle('hide-topbar-cost', !t.checked);
+      window.settingsToggles.write('topbarCost', t.checked);
+      applyCost(t.checked);
     });
   }
 
@@ -1015,22 +1088,27 @@
     const html = document.documentElement;
     const hideMsgEl = document.getElementById('hideMsgActionsToggle');
     if (hideMsgEl) {
-      hideMsgEl.checked = localStorage.getItem('cfw_hide_msg_actions_v1') === '1';
+      hideMsgEl.checked = window.settingsToggles.read('hideMsgActions');
       hideMsgEl.addEventListener('change', () => {
-        localStorage.setItem('cfw_hide_msg_actions_v1', hideMsgEl.checked ? '1' : '0');
-        html.classList.toggle('hide-msg-actions', hideMsgEl.checked);
+        window.settingsToggles.write('hideMsgActions', hideMsgEl.checked);
+        const p = window.settingsToggles.planClass('hideMsgActions', hideMsgEl.checked);
+        if (p.className) html.classList.toggle(p.className, p.add);
       });
     }
     const hideStEl = document.getElementById('hideStatsToggle');
     if (hideStEl) {
-      hideStEl.checked = localStorage.getItem('cfw_hide_stats_v1') === '1';
+      hideStEl.checked = window.settingsToggles.read('hideStats');
       hideStEl.addEventListener('change', () => {
-        localStorage.setItem('cfw_hide_stats_v1', hideStEl.checked ? '1' : '0');
-        html.classList.toggle('hide-stats', hideStEl.checked);
+        window.settingsToggles.write('hideStats', hideStEl.checked);
+        const p = window.settingsToggles.planClass('hideStats', hideStEl.checked);
+        if (p.className) html.classList.toggle(p.className, p.add);
       });
     }
+    // 2026-09-10 精简: 删掉「严格角色扮演」toggle 与「NSFW 等级」四档单选。
+    //   · 尺度改由锁态派生: unlock.js 写 cfw_nsfw_mode_v1(解锁=3 / 锁定=0),worker 侧按 unlocked 硬算,UI 上不再有可调项;
     //   · 原四档单选配上 theme.js 的自动覆写 = 「选了没用 + 刷新就回弹」,这次一并拔除;
     //   · 严格角色扮演(cfw_strict_roleplay_v1)与强制顺从(cfw_dev_force_comply_v1)两个键已彻底作废（2026-10-05 删掉对应提示词层）。
+    // 注: cfw_nsfw_mode_v1 这个 key 不能删 —— chat-image.js / theme.js / tools.js / index.html 的 data-nsfw 都在读它。
     const replyStyleEl = document.getElementById('replyStyleSel');
     if (replyStyleEl) {
       replyStyleEl.value = localStorage.getItem('cfw_reply_style_v1') || 'default';
@@ -1053,45 +1131,112 @@
         localStorage.setItem('cfw_chat_font_size_v1', String(v));
       });
     }
+    // 2026-11-12 主题与文字：字体预览 + 自定义字体 + 三档文字特效。
+    // 纯逻辑在 chat-appearance.js（先于 settings.js 加载）；这里只做控件回填/交互。
+    const A = window.__chatAppearance;
     const fontFamilyEl = document.getElementById('chatFontFamilySel');
+    const customFontEl = document.getElementById('chatFontCustom');
+    const customApply = document.getElementById('chatFontCustomApply');
+    const customClear = document.getElementById('chatFontCustomClear');
+    const fontPreview = document.getElementById('chatFontPreview');
+    const previewLine = document.getElementById('chatFontPreviewLine');
+    const previewReplay = document.getElementById('chatFontPreviewReplay');
+    const fxEl = document.getElementById('chatTextFxSel');
+    const LS_FONT = 'cfw_chat_font_family_v1';
+    const LS_FX = 'cfw_chat_text_fx_v1';
+    function currentFont() {
+      if (A) return A.readFont();
+      try { return localStorage.getItem(LS_FONT) || ''; } catch (e) { return ''; }
+    }
+    function currentFx() {
+      if (A) return A.readFx();
+      try { const v = localStorage.getItem(LS_FX) || 'off'; return (v === 'soft' || v === 'strong') ? v : 'off'; } catch (e) { return 'off'; }
+    }
+    function applyFontLocal(v) {
+      const s = String(v == null ? '' : v).trim();
+      if (A) return A.setFont(s);
+      try { if (s) localStorage.setItem(LS_FONT, s); else localStorage.removeItem(LS_FONT); } catch (e) {}
+      if (s) html.style.setProperty('--chat-font-family', s);
+      else html.style.removeProperty('--chat-font-family');
+      return s;
+    }
+    function presetFor(v) {
+      if (A) return A.presetFor(v);
+      if (!fontFamilyEl || !v) return null;
+      return Array.from(fontFamilyEl.options).find(o => o.value === v && o.value !== '__custom__') || null;
+    }
+    function syncFontUI() {
+      const v = currentFont();
+      const p = presetFor(v);
+      if (fontFamilyEl) fontFamilyEl.value = p ? p.value : (v ? '__custom__' : '');
+      if (customFontEl) customFontEl.value = p ? '' : v;
+    }
+    function syncFxUI() {
+      const fx = currentFx();
+      if (fxEl) fxEl.value = fx;
+      if (fontPreview) fontPreview.setAttribute('data-text-fx', fx);
+    }
+    // 预览重放：换字体/换效果后，让那句示例诗按当前效果重新出一遍字。
+    function replayPreview() {
+      if (!previewLine) return;
+      previewLine.classList.remove('is-replay');
+      void previewLine.offsetWidth; // 强制回流，动画才能重跑
+      previewLine.classList.add('is-replay');
+    }
+    if (previewReplay) previewReplay.addEventListener('click', replayPreview);
     if (fontFamilyEl) {
-      fontFamilyEl.value = localStorage.getItem('cfw_chat_font_family_v1') || '';
       fontFamilyEl.addEventListener('change', () => {
-        const v = fontFamilyEl.value || '';
-        localStorage.setItem('cfw_chat_font_family_v1', v);
-        if (v) document.documentElement.style.setProperty('--chat-font-family', v);
-        else   document.documentElement.style.removeProperty('--chat-font-family');
+        const v = fontFamilyEl.value;
+        if (v === '__custom__') { if (customFontEl) customFontEl.focus(); return; }
+        applyFontLocal(v);
+        if (customFontEl) customFontEl.value = '';
+        syncFontUI();
+        replayPreview();
       });
     }
+    if (customApply && customFontEl) {
+      customApply.addEventListener('click', () => {
+        const v = applyFontLocal(customFontEl.value);
+        if (!v) { customFontEl.focus(); return; }
+        syncFontUI();
+        replayPreview();
+      });
+      customFontEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); customApply.click(); }
+      });
+    }
+    if (customClear) {
+      customClear.addEventListener('click', () => {
+        applyFontLocal('');
+        if (customFontEl) customFontEl.value = '';
+        syncFontUI();
+        replayPreview();
+      });
+    }
+    if (fxEl) {
+      fxEl.addEventListener('change', () => {
+        const v = fxEl.value;
+        if (A) A.setFx(v);
+        else {
+          try { localStorage.setItem(LS_FX, v); } catch (e) {}
+          if (v === 'soft' || v === 'strong') html.setAttribute('data-text-fx', v);
+          else html.removeAttribute('data-text-fx');
+        }
+        syncFxUI();
+        replayPreview();
+      });
+    }
+    syncFontUI();
+    syncFxUI();
+    replayPreview();
   }
 
   // ─── 5. 同步聊天历史 toggle ───
-  // 2026-10-07: 初值从 __sync.includeChat() 读（"默认开"的口径只在 sync.js 一处），
-  // 打开时立刻 pull→push 一轮并给可见反馈 —— 旧版只写 LS，用户勾了看不到任何动静。
-  function initSyncChatToggle() {
-    const t = document.getElementById('syncIncludeChatToggle');
-    if (!t) return;
-    const st = (window.__sync && window.__sync.getStatus && window.__sync.getStatus()) || {};
-    t.checked = !!st.includeChat;
-    t.addEventListener('change', async () => {
-      if (window.__sync && window.__sync.setIncludeChat) window.__sync.setIncludeChat(t.checked);
-      else localStorage.setItem('cfw_sync_include_chat_v1', t.checked ? '1' : '0');
-      if (!t.checked) return;
-      const el = document.getElementById('syncStatus');
-      const say = (s) => { if (el) el.textContent = s; };
-      say('正在拉取云端对话…');
-      try {
-        const r = await window.__sync.pullChatNow();
-        if (r && r.skipped) { say(r.skipped === 'sync-off' ? '请先打开上面的「启用云同步」并输入密码，对话才能同步' : '对话同步未生效'); return; }
-        if (r && r.error) { say('拉取云端对话失败：' + r.error); return; }
-        say('已拉取云端对话，正在上传本机对话…');
-        const p = await window.__sync.pushChatNow();
-        say(p && p.ok ? ('对话同步已开启，已上传 ' + (p.slots || 0) + ' 条会话') : '对话同步已开启（本机暂无会话可上传）');
-      } catch (e) { say('对话同步失败：' + ((e && e.message) || e)); }
-    });
-  }
+  // 2026-11-13: 「同步聊天历史」开关已撤（跟随云同步总开关，旧值由 sync.js 一次性归一）。
+  // 空壳保留，避免旧调用点与历史文档引用报错。
+  function initSyncChatToggle() {}
 
-  // ─── 6. 清空云端按钮 ───
+  // ─── 6. 覆盖云端按钮（2026-11-13：原「清空云端」）───
   function initSyncWipeBtn() {
     const wb = document.getElementById('syncWipeBtn');
     if (!wb) return;
@@ -1099,18 +1244,18 @@
       const sync = window.__sync;
       if (!sync || typeof sync.wipeCloud !== 'function') { await uiAlert('云同步模块未就绪'); return; }
       const st = (sync.getStatus && sync.getStatus()) || {};
-      if (!st.enabled || !st.hasToken) { await uiAlert('请先启用云同步(需密码)再清空云端'); return; }
-      if (!(await uiConfirm('确定清空云端的全部数据吗?\n\n删除：角色卡/指令模块/亲密度/费用/对话历史的【云端副本】\n保留：本设备本地数据全部不动\n注意：同步仍开启时,下次本地改动会把本地重新上传。想让云端保持空,请清空后关闭云同步。', { title: '清空云端', okText: '清空云端', danger: true }))) return;
-      const old = wb.textContent; wb.disabled = true; wb.textContent = '清空中…';
+      if (!st.enabled || !st.hasToken) { await uiAlert('请先启用云同步（需要访问码）再覆盖云端'); return; }
+      if (!(await uiConfirm('用本机数据覆盖云端吗？\n\n过程：先清空云端副本，再把本机数据完整上传一次。\n影响：其他设备的云端内容会被替换成本机这份（它们重新打开页面后自动跟上）。\n注意：本机数据不受影响；执行期间请勿关闭页面。', { title: '覆盖云端', okText: '覆盖云端', danger: true }))) return;
+      const old = wb.textContent; wb.disabled = true; wb.textContent = '覆盖中…';
       try {
         await sync.wipeCloud();
-        wb.textContent = '已清空';
+        wb.textContent = '已覆盖';
         const s = document.getElementById('syncStatus');
-        if (s) s.textContent = '云端已清空 · ' + new Date().toLocaleTimeString();
+        if (s) s.textContent = '云端已用本机数据覆盖 · ' + new Date().toLocaleTimeString();
         setTimeout(() => { wb.textContent = old; wb.disabled = false; }, 2000);
       } catch (e) {
         wb.textContent = old; wb.disabled = false;
-        await uiAlert('清空云端失败:' + (e && e.message || e));
+        await uiAlert('覆盖云端失败:' + (e && e.message || e));
       }
     });
   }
@@ -1184,6 +1329,8 @@
     const syncImportBtn     = document.getElementById('syncImportBtn');
     const syncImportFile    = document.getElementById('syncImportFile');
     const syncStatusEl      = document.getElementById('syncStatus');
+    const syncRealtimeToggle = document.getElementById('syncRealtimeToggle');
+    const syncRealtimeStatus = document.getElementById('syncRealtimeStatus');
     const authLoginBtn      = document.getElementById('authLoginBtn');
     const authLogoutBtn     = document.getElementById('authLogoutBtn');
     const authStatusEl      = document.getElementById('authStatus');
@@ -1208,10 +1355,26 @@
       const parts = [s.enabled ? '已启用' : '未启用'];
       if (s.lastPush) parts.push('上次推送 ' + fmtTime(s.lastPush));
       if (syncStatusEl) syncStatusEl.textContent = parts.join('，');
+      if (syncRealtimeToggle) syncRealtimeToggle.checked = !!(window.__chatRealtime && window.__chatRealtime.enabled && window.__chatRealtime.enabled());
+      if (syncRealtimeStatus) {
+        var rt = null;
+        try { rt = (window.__chatRealtime && window.__chatRealtime.status) ? window.__chatRealtime.status() : null; } catch (e) {}
+        var map = { connected: '已连接 · 1.5 秒轮询', reconnecting: '重连中', offline: '离线', manual: '不可用 · 已自动回落整段同步', error: '错误' };
+        syncRealtimeStatus.textContent = '实时消息同步：' + (rt ? (map[rt.state] || rt.state) : '未加载') + (rt && rt.error ? ' · ' + rt.error : '');
+      }
     }
 
     window.__settingsRefreshAuth = refreshAuthUI;
     window.__settingsRefreshSync = refreshSyncUI;
+    if (syncRealtimeToggle) {
+      syncRealtimeToggle.addEventListener('change', function () {
+        try {
+          if (window.__chatRealtime && window.__chatRealtime.setEnabled) window.__chatRealtime.setEnabled(!!syncRealtimeToggle.checked);
+        } catch (e) {}
+        refreshSyncUI();
+      });
+    }
+    window.addEventListener('chat-realtime-status', function () { try { refreshSyncUI(); } catch (e) {} });
 
     if (window.__sync) {
       window.__sync.onStatus((st, detail) => {
@@ -1243,8 +1406,10 @@
         window.__sync.setSyncEnabled(true);
         refreshAuthUI(); refreshSyncUI();
         window.__sync.pullOnStartup();
+        try { if (window.__chatRealtime && window.__chatRealtime.start) window.__chatRealtime.start(); } catch (e) {}
       } else {
         window.__sync.setSyncEnabled(false);
+        try { if (window.__chatRealtime && window.__chatRealtime.stop) window.__chatRealtime.stop(); } catch (e) {}
         refreshSyncUI();
       }
     });
@@ -1288,25 +1453,26 @@
     if (syncPullBtn) syncPullBtn.addEventListener('click', async () => {
       if (!window.__sync) { await uiAlert('云同步模块未就绪'); return; }
       var st = (window.__sync.getStatus && window.__sync.getStatus()) || {};
-      if (!st.hasToken) { await uiAlert('请先在上方打开「启用云同步」并输入密码,再点云端拉取'); return; }
+      if (!st.hasToken) { await uiAlert('请先在上方打开「启用云同步」并输入访问码'); return; }
       var _old = syncPullBtn.innerHTML;
       syncPullBtn.disabled = true;
-      syncPullBtn.textContent = '拉取中…';
+      syncPullBtn.textContent = '刷新中…';
       try {
         // 主数据：pullOnStartup 在云端更新时会恢复并 reload（预期行为）
         await window.__sync.pullOnStartup();
-        var c = window.__sync.pullChatNow ? await window.__sync.pullChatNow() : null;
+        // 2026-11-13: 强制刷新走全量 3-way 合并（不复用实时补事件），这才是「对齐」的语义
+        var c = window.__sync.pullChatNow ? await window.__sync.pullChatNow({ full: true }) : null;
         if (window.__sync.pullCharsOnStartup) await window.__sync.pullCharsOnStartup();
         var _when = new Date().toLocaleString('zh-CN', { hour12: false });
         if (c && c.skipped === 'chat-off') {
-          syncPullBtn.textContent = '✓ 已拉取(不含对话)';
-          if (syncStatusEl) syncStatusEl.textContent = '对话历史未拉取:勾选上方「同步聊天历史」后才会拉，' + _when;
+          syncPullBtn.textContent = '✓ 已刷新(不含对话)';
+          if (syncStatusEl) syncStatusEl.textContent = '对话同步被旧开关关闭过，未拉取对话，' + _when;
         } else if (c && c.error) {
           syncPullBtn.textContent = '部分失败';
-          if (syncStatusEl) syncStatusEl.textContent = '主数据/角色卡拉取完成,对话拉取失败:' + c.error + '，' + _when;
+          if (syncStatusEl) syncStatusEl.textContent = '主数据/角色卡已对齐，对话拉取失败:' + c.error + '，' + _when;
         } else {
-          syncPullBtn.textContent = '✓ 已拉取';
-          if (syncStatusEl) syncStatusEl.textContent = '拉取完成(有云端更新时会提示刷新)，' + _when;
+          syncPullBtn.textContent = '✓ 已刷新';
+          if (syncStatusEl) syncStatusEl.textContent = '已与云端对齐，' + _when;
         }
       } catch (e) {
         syncPullBtn.textContent = '拉取失败';
@@ -1337,14 +1503,14 @@
       try {
         const pw = await window.__auth.promptForPassword({
           title: '输入访问码',
-          hint: '输入访问码（与 Cloudflare Secret CHAT_PASSWORD 相同）。',
+          hint: '输入访问码（与私密模式解锁时相同）。',
         });
         if (!pw) return;
         window.__auth.setToken(pw);
         try {
-          
-          
-          
+          localStorage.setItem('cfw_unlocked_v1', '1');
+          localStorage.setItem('cfw_unlock_token_v1', pw);
+          localStorage.setItem('cfw_nsfw_mode_v1', '3');
           localStorage.setItem('cfw_auth_token_v1', pw);
         } catch (e) {}
         location.reload();
@@ -1353,13 +1519,13 @@
 
     if (authLogoutBtn) authLogoutBtn.addEventListener('click', async () => {
       if (!window.__auth) return;
-      if (!(await uiConfirm('退出登录会清除本地访问码，并关闭云同步。确认？', { title: '退出登录', okText: '退出', danger: true }))) return;
+      if (!(await uiConfirm('退出登录会清除本地访问码、退出私密模式，并关闭云同步。确认？', { title: '退出登录', okText: '退出', danger: true }))) return;
       window.__auth.clearToken();
       if (window.__sync) window.__sync.setSyncEnabled(false);
       try {
-        
-        
-        
+        localStorage.removeItem('cfw_unlocked_v1');
+        localStorage.removeItem('cfw_unlock_token_v1');
+        localStorage.removeItem('cfw_nsfw_mode_v1');
         localStorage.removeItem('cfw_dev_mode_v1');
       } catch (e) {}
       refreshAuthUI(); refreshSyncUI();
@@ -1391,27 +1557,28 @@
     const label = document.createElement('span');
     label.textContent = '思考过程显示';
     label.style.whiteSpace = 'nowrap';
-    label.title = '思考模式下模型产生的思考内容如何呈现';
+    label.title = '解限/思考模式下模型产生的思考内容如何呈现';
     const sel = document.createElement('select');
     sel.id = 'thinkDisplaySel';
     sel.style.cssText = 'padding:4px 8px;border-radius:6px;';
-    [['collapse', '折叠(默认)'], ['show', '展开'], ['hide', '隐藏']].forEach(([v, t]) => {
+    // 2026-11-17：三态与存储键的唯一家是 services/chat/reasoning.ts（__reasoning 门面），
+    // 下拉只负责渲染选项与回调（选项表也来自服务，标签不会与读取规则漂移）。
+    const MODES = (window.__reasoning && window.__reasoning.THINK_DISPLAY_MODES) || [['collapse', '折叠(默认)']];
+    MODES.forEach((m) => {
       const o = document.createElement('option');
-      o.value = v; o.textContent = t;
+      o.value = Array.isArray(m) ? m[0] : m.value;
+      o.textContent = Array.isArray(m) ? m[1] : m.label;
       sel.appendChild(o);
     });
-    function getVal() {
-      const v = localStorage.getItem('cfw_think_display_v1');
-      return (v === 'show' || v === 'hide') ? v : 'collapse';
-    }
+    function getVal() { return window.__reasoning.getThinkDisplay(); }
     sel.value = getVal();
     sel.addEventListener('change', () => {
-      localStorage.setItem('cfw_think_display_v1', sel.value);
-      if (window.__app && window.__app.applyAllThinkDisplay) {
-        window.__app.applyAllThinkDisplay();
+      window.__reasoning.setThinkDisplay(sel.value);
+      if (window.hostApi.app && window.hostApi.app.applyAllThinkDisplay) {
+        window.hostApi.app.applyAllThinkDisplay();
       } else {
         document.querySelectorAll('.reasoning-block').forEach(el => {
-          try { if (window.__app && window.__app.applyThinkDisplay) window.__app.applyThinkDisplay(el); } catch(e) {}
+          try { if (window.hostApi.app && window.hostApi.app.applyThinkDisplay) window.hostApi.app.applyThinkDisplay(el); } catch(e) {}
         });
       }
     });
@@ -1431,11 +1598,11 @@
 
   // ─── 10. 图像模块设置卡挂载 ───
   function getSlot() {
-    return document.getElementById('settingsImageSlot') || document.getElementById('settings');
+    return window.slotRegistry.pick('settingsImageSlot');
   }
   // 4.71: 语音 tab slot
   function getVoiceSlot() {
-    return document.getElementById('settingsVoiceSlot') || null;
+    return window.slotRegistry.pick('settingsVoiceSlot') || null;
   }
   var _imgCardsMounted = false;
   function mountImageCards() {
@@ -1492,7 +1659,7 @@
     // 2026-11-06: 升级为「图像渠道」卡(渠道=数据, Gitee 只是内置预设)，由 image-channels-ui.js 挂载；
     // 旧版单 Key 卡仅在新 UI 未加载时兜底。
     if (window.__imageChannelsUI && window.__imageChannelsUI.mount) { window.__imageChannelsUI.mount(); return; }
-    var slot=document.getElementById('setModelApiSlot')||getSlot(); if(!slot||document.getElementById('imgKeyCard'))return;
+    var slot=window.slotRegistry.pick('setModelApiSlot')||getSlot(); if(!slot||document.getElementById('imgKeyCard'))return; if (slot) window.slotRegistry.claim({ cardId: 'imgKeyCard', slotId: 'setModelApiSlot' });
     var K='cfw_image_key_v1';
     var card=document.createElement('div'); card.className='card'; card.id='imgKeyCard';
     card.innerHTML='<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>图像 API Key（Gitee）</h4><p>图像工坊（生图/改图）调用 <code>ai.gitee.com</code>，需要单独的 Gitee API Key（LS <code>cfw_image_key_v1</code>），不进云同步。</p><div class="rowline"><input type="password" id="imgKeyInput" placeholder="Bearer Token" style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;"></div><div class="rowline" style="margin-top:8px;"><div></div><div class="btns"><button class="smallbtn" id="imgKeySave">保存</button><button class="smallbtn danger" id="imgKeyClear">清除</button></div></div><div id="imgKeyStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div>';
@@ -1719,12 +1886,13 @@
   }
 
   // ─── §模型API. 模型渠道管理卡（批 E1b：预设组 + 自定义组统一注册表）───
-  // 数据层 = window.__providers（/shared/providers.js，cfw_providers_v3）；本卡只做 DOM/接线。
+  // 数据层 = window.__providers（/js/text/data/providers.js，cfw_providers_v3）；本卡只做 DOM/接线。
   //   · 预设渠道：服务端注册表（GET /api/providers），Key 在 Worker env，UI 只读状态；
   //   · 自定义渠道：本机 endpoint/apiKey，走 /api/custom-endpoint/models 代理拉模型（解 CORS/GFW）；
   //   · 每模型开关：勾选 = 出现在顶栏模型下拉；切走渠道 = 聊天即走它。
   function mountByoCard() {
-    var slot = document.getElementById('setModelApiSlot') || document.getElementById('settings');
+    var slot = window.slotRegistry.pick('setModelApiSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'byoProviderCard', slotId: 'setModelApiSlot' });
     if (!slot || document.getElementById('byoProviderCard')) return;
     if (!window.__providers) return; // providers.js 未加载(旧缓存页兜底):不挂卡,不炸
     var P = window.__providers;
@@ -1746,7 +1914,7 @@
     var card = document.createElement('div'); card.className = 'card'; card.id = 'byoProviderCard';
     card.innerHTML = '<h4>聊天模型 · 渠道管理</h4>'
       + '<p>聊天走哪个模型渠道，这里说了算。左侧选渠道（点击即切换），右侧看详情：拉取模型列表、<b>勾选要用的模型</b>（未勾选的不会出现在顶栏下拉里）。'
-      + '「预设渠道」的 Key 在服务端 Worker 里（本页只见状态）；「自定义渠道」可接任意 OpenAI 兼容端点（云厂商 / 本地 vLLM、ollama、LM Studio），<b>API Key 只存本机</b>，不同步。</p>'
+      + '「预设渠道」的 Key 在服务端 Worker 里（本页只见状态）；「自定义渠道」可接任意 OpenAI 兼容端点（云厂商 / 本地 vLLM、ollama、LM Studio），<b>API Key 随账号同步</b>（存在你自己的 Cloudflare KV，换设备不用重填）。</p>'
       + '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;align-items:flex-start;">'
       +   '<div id="provList" style="flex:0 0 190px;min-width:158px;display:flex;flex-direction:column;gap:4px;"></div>'
       +   '<div id="provDetail" style="flex:1;min-width:230px;border-left:1px solid var(--border,#333);padding-left:12px;"></div>'
@@ -1800,7 +1968,7 @@
       chs.forEach(function (c) {
         if (c.kind !== curKind) {
           curKind = c.kind;
-          html += '<div style="font-size:11px;color:var(--muted);margin:' + (html ? '8px' : '0') + ' 0 2px;">' + (c.kind === 'preset' ? '预设渠道（服务端 Key）' : '自定义直连（本机保存）') + '</div>';
+          html += '<div style="font-size:11px;color:var(--muted);margin:' + (html ? '8px' : '0') + ' 0 2px;">' + (c.kind === 'preset' ? '预设渠道（服务端 Key）' : '自定义直连（账号同步）') + '</div>';
         }
         var isAct = act === c.key, isEff = !act && eff === c.key, isSel = selKey === c.key;
         var badge = isAct ? '<span style="color:var(--accent,#7aa2f7);">　● 使用中</span>' : (isEff ? '<span style="color:var(--muted);">　○ 跟随免费/快速</span>' : '');
@@ -1886,7 +2054,7 @@
         var p = c.detail || {};
         var enabled = P.enabledModels(selKey);
         var selOpts = enabled.map(function (mm) { return '<option value="' + esc(mm.id) + '"' + (p.model === mm.id ? ' selected' : '') + '>' + esc(mm.id) + '</option>'; }).join('');
-        detailEl.innerHTML = '<div style="font-weight:600;font-size:14px;">' + esc(p.name || c.id) + '<span style="font-size:11px;color:var(--muted);font-weight:400;">　自定义直连 · API Key 只存本机</span></div>'
+        detailEl.innerHTML = '<div style="font-weight:600;font-size:14px;">' + esc(p.name || c.id) + '<span style="font-size:11px;color:var(--muted);font-weight:400;">　自定义直连 · Key 随账号同步</span></div>'
           + '<div style="margin-top:10px;"><label style="' + LBL + '">名称</label><input id="provName" value="' + esc(p.name || '') + '" style="' + INP + '"></div>'
           + '<div style="margin-top:8px;"><label style="' + LBL + '">Endpoint（/v1/chat/completions 全路径，或 /v1 base）</label><input id="provEndpoint" value="' + esc(p.endpoint || '') + '" placeholder="https://integrate.api.nvidia.com/v1/chat/completions" style="' + INP + '"></div>'
           + '<div style="margin-top:8px;"><label style="' + LBL + '">API Key（本地 vLLM/ollama/LM Studio 可留空）</label><input id="provKey" type="password" value="' + esc(p.apiKey || '') + '" placeholder="Bearer Token" style="' + INP + '"></div>'
@@ -1896,7 +2064,9 @@
           + '<div class="rowline" style="margin-top:8px;align-items:center;gap:8px;"><label style="' + LBL + 'margin:0;min-width:64px;">思考支持</label><select id="provThinkingStyle" style="' + INP + 'flex:1;min-width:0;">'
           + '<option value="none"' + (!p.supportsThinking ? ' selected' : '') + '>不支持思考</option>'
           + '<option value="onoff"' + (p.supportsThinking && p.thinkingStyle === 'vllm' ? ' selected' : '') + '>支持 · vLLM / NIM 接口</option>'
-          + '<option value="levels"' + (p.supportsThinking && p.thinkingStyle !== 'vllm' ? ' selected' : '') + '>支持 · DeepSeek 接口</option>'
+          + '<option value="levels"' + (p.supportsThinking && p.thinkingStyle !== 'vllm' && p.thinkingStyle !== 'effort' ? ' selected' : '') + '>支持 · DeepSeek 接口</option>'
+          // 2026-11-13: 第三种方言 —— 只发 reasoning_effort、不发 thinking（AMD Token Factory 这类端点收到 thinking 会 400）
+          + '<option value="effort"' + (p.supportsThinking && p.thinkingStyle === 'effort' ? ' selected' : '') + '>支持 · 仅 reasoning_effort（AMD 等）</option>'
           + '</select></div>'
           + modelsBlock(selKey)
           + '<div class="btns" style="margin-top:12px;">' + useBtn(selKey, !!(p.endpoint && p.model), '先保存端点与模型，再启用') + '<button class="smallbtn" type="button" id="provSave">保存此渠道</button><button class="smallbtn danger" type="button" id="provDelete">删除</button></div>';
@@ -1931,7 +2101,7 @@
         apiKey: (d.apiKey || '').trim(),
         model: ((d.model || '') || (d.sel || '')).trim(),
         supportsThinking: _ts !== 'none',
-        thinkingStyle: _ts === 'onoff' ? 'vllm' : (_ts === 'none' ? 'none' : 'deepseek'),
+        thinkingStyle: _ts === 'onoff' ? 'vllm' : (_ts === 'none' ? 'none' : (_ts === 'effort' ? 'effort' : 'deepseek')),
         needsReasoningHistory: _ts !== 'none',
       });
     }
@@ -2018,7 +2188,7 @@
           apiKey: (kyEl.value || '').trim(),
           model: model,
           supportsThinking: thinkStyle !== 'none',
-          thinkingStyle: thinkStyle === 'onoff' ? 'vllm' : (thinkStyle === 'none' ? 'none' : 'deepseek'),
+          thinkingStyle: thinkStyle === 'onoff' ? 'vllm' : (thinkStyle === 'none' ? 'none' : (thinkStyle === 'effort' ? 'effort' : 'deepseek')),
           needsReasoningHistory: thinkStyle !== 'none',
         });
         toastFn('已保存此渠道', 1800);
@@ -2074,7 +2244,8 @@
   // 写 cfw_custom_pricing_v1；app.js calcCost 每次实时合并，因此保存后立即生效。
   // 该 key 已加入 sync.js 主同步白名单，可跨端同步；不含 API Key。
   function mountCustomPricingCard() {
-    var slot = document.getElementById('setModelApiSlot') || document.getElementById('settings');
+    var slot = window.slotRegistry.pick('setModelApiSlot');
+    if (slot) window.slotRegistry.claim({ cardId: 'customPricingCard', slotId: 'setModelApiSlot' });
     if (!slot || document.getElementById('customPricingCard')) return;
     var K = 'cfw_custom_pricing_v1';
     function read() { try { var o = JSON.parse(localStorage.getItem(K) || '{}'); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; } catch (e) { return {}; } }
@@ -2141,7 +2312,8 @@
   const SYNCED_CONTROLS = [
     ["historyKeep", "cfw_history_enabled"],
     ["promptKeep", "cfw_prompt_enabled"],
-    ["syncIncludeChatToggle", "cfw_sync_include_chat_v1"],
+    // 2026-11-14: 内置角色提示词开关（顶栏按钮改模式后挪到「网页自定义人物模板」卡）
+    ["useBuiltinToggle", "cfw_use_builtin"],
     ["appFxRichToggle", "cfw_app_fx_rich_v1"],
     ["appMemIdleToggle", "cfw_mem_idle_release_v1"],
     ["maDelegate", "cfw_ma_delegate_v1"],

@@ -3,6 +3,31 @@
 Notable changes per public release. Release notes live in
 [GitHub Releases](https://github.com/MaxChen12114/OwnChat/releases).
 
+## 4.72.0 — 2026-11-11
+
+Shell-only release: the version number tracks the desktop / mobile shell. The web app ships continuously
+and is labelled **OwnChat Web** without a version.
+
+- **Local capabilities are actually usable now** — the eight agent-local commands (`agent_workdir_get/pick/set`,
+  `local_list_dir`, `local_read_file`, `local_write_file`, `local_run_command`, `local_env_info`) are declared in
+  the build manifest and granted to the remote-page capability. Before this build, the app shipped commands that
+  the permission layer denied, so "choose workspace / read a local file / run a local command" failed with
+  `Command … not allowed by ACL`.
+- **Version display** — the app now shows its real version instead of `unknown` (the page reads it from the shell
+  at startup and also feeds it to the agent's environment snapshot).
+- **Local service manager** — the helper services (remote-computer bridge, source search) now ship **inside the
+  installer** and are managed by the shell: settings only shows a status light, a "start with the app" switch and
+  start/stop buttons — no paths or commands to fill in. Services marked to start with the app are launched on
+  launch and shut down when the app quits; the shell starts them hidden and kills the whole process tree on stop.
+  The Windows scheduled tasks and per-minute watchdog scripts are no longer needed (they were the source of the
+  flashing console windows).
+- **Binary export** — images and other binary attachments can be saved from the phone and the desktop. Desktop
+  shows the native save dialog; on Android the file is written to `Android/media/<package>/OwnChat/exports`, which
+  file managers can actually see (the old `Android/data` path was hidden by scoped storage). Text exports follow
+  the same visible location.
+- **Command execution hardening** (carried from the same cycle) — process-tree termination, child environment
+  scrubbing, and a native confirmation dialog in the shell for `local_run_command`.
+
 ## Unreleased
 
 - **Image sending no longer uses a separate expander model** — the main model already writes the

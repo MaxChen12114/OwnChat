@@ -109,6 +109,4 @@
     if (link) bar.insertBefore(btn, link); else bar.appendChild(btn);
   }
   injectBtn();
-
-  window.__codingHelp = { open: open, close: close };
 })();
