@@ -1,0 +1,9 @@
+{
+  "id": "mobile-shell",
+  "version": "0.5.0",
+  "entry": "mobile-entry.js",
+  "format": "module",
+  "capabilities": [],
+  "slots": [],
+  "trust": "core"
+}

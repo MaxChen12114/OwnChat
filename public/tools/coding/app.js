@@ -35,10 +35,12 @@
   var saveTimer = null;
   var LS_LAST = "cfw_coding_ide_last_v1";
   var LS_MODEL = "cfw_coding_ide_model_v1";
-  // 公开版：基座只有一套，恒用内置（use_builtin_persona = true）
-  
+  var LS_UNLOCK_ON = "cfw_coding_unlock_v1";
+  function unlockOn() { return !!($("#unlockChk") && $("#unlockChk").checked); }
+  function unlockTok() { try { return localStorage.getItem("cfw_unlock_token_v1") || ""; } catch (e) { return ""; } }
+
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
-  var esc = window.__ownEscape.esc;
+  var esc = window.escapeSvc.esc;
   function syncScroll() { var pre = $("#edPre"), ed = $("#editor"); if (pre && ed) { pre.scrollTop = ed.scrollTop; pre.scrollLeft = ed.scrollLeft; } }
   function updateHighlight() {
     var code = $("#edHL"); if (!code) return;
@@ -450,15 +452,16 @@
     return 'free';
   }
   async function aiChat(system, user, model, onDelta) {
+    // 2026-11-11 (B8)：统一走 services/data/chat-stream.ts 的产物；code 页的解限来自页面 checkbox，显式传入
     aiAborter = new AbortController();
-    return window.__chatStream.call({
+    return window.chatStreamSvc.call({
       profile: "assist",
       mode: aiModeForModel(model),
       model: model || "",
       system: system || "",
       user: user || "",
-
-
+      persona: unlockOn(),
+      unlockToken: unlockTok(),
       signal: aiAborter.signal,
       onDelta: onDelta
     });
@@ -798,6 +801,7 @@
     window.addEventListener("message", function (ev) { var d = ev.data; if (d && d.__cfwRun) runConsolePush(d.t || "log", String(d.m)); });
     wireFileModal();
     wireSpecModal();
+    (function () { var u = $("#unlockChk"); if (!u) return; try { u.checked = (localStorage.getItem(LS_UNLOCK_ON) === "1"); } catch (e) {} u.addEventListener("change", function () { try { localStorage.setItem(LS_UNLOCK_ON, u.checked ? "1" : "0"); } catch (e) {} if ($("#aiStatus")) $("#aiStatus").textContent = u.checked ? (unlockTok() ? "已开启解限（复用主站越狱底座）" : "已开启解限，但尚未在主站解锁——请先去主站解锁，否则按锁定态忽略") : "已关闭解限"; }); })();
     window.addEventListener("beforeunload", function () { if (cur) { try { saveNow(); } catch (e) {} } });
   }
   function fillModels() {

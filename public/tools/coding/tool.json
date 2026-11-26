@@ -1,0 +1,16 @@
+{
+  "id": "coding",
+  "label": "代码台",
+  "icon": "coding",
+  "href": "/tools/coding/",
+  "order": 4,
+  "desc": "浏览器内轻量 IDE — 在线建项目存 IndexedDB、文件树管理、AI 生成/改写文件、一键导出 zip（右栏标签打开；右键可开新浏览器页）",
+  "page": true,
+  "sidebar": true,
+  "embed": true,
+  "chrome": "",
+  "singleton": true,
+  "keepAlive": false,
+  "requires": [],
+  "capabilities": []
+}

@@ -21,6 +21,9 @@ import { NIM_NON_CHAT_PATTERNS, NIM_RECOMMEND_PATTERNS, isPlaceholderModelId } f
 // 给人看的中文放 title(UI/错误提示取 title||label)。
 const NVIDIA_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/v1/chat/completions";
+// 2026-11-13: AMD Radeon Cloud 的 Token Factory(仅中国站)共享模型池,OpenAI 兼容。
+// 浏览器直连会被 CORS 拦(实测 OPTIONS 405、无 ACAO 头)——必须走本 Worker 代请求。
+const AMD_ENDPOINT = "https://developer.amd.com.cn/radeon/api/v1/chat/completions";
 
 export const PRESET_PROVIDERS = {
   deepseek: {
@@ -64,9 +67,36 @@ export const PRESET_PROVIDERS = {
     // (仍低于 CF 边缘 ~100s 阈值;流式体一旦开始就由心跳接管)。
     ttfbTimeoutMs: 90000,
   },
+  amd: {
+    id: "amd",
+    label: "amd-token-factory", // ASCII：进响应头/接口用
+    title: "AMD Token Factory（免费共享）", // 中文显示名
+    endpoint: AMD_ENDPOINT,
+    keyEnv: "AMD_API_KEY",
+    // 2026-11-13 官方文档 + 实测:该端点只认 reasoning_effort,发 thinking:{type} 直接 400。
+    // 故走第三种方言 "effort" —— 只发 reasoning_effort,不发 thinking(见 worker 的 thinkParams)。
+    supportsThinking: true,
+    thinkingStyle: "effort",
+    // 2026-11-13 实测钉死:该端点只认 xhigh / medium / low —— 发 high 会报
+    // "Unexpected reasoning effort high. Supported types are xhigh (default), medium, and low."
+    // 但全局文档只承诺「已验证档位的模型都接受 low 和 medium」,所以只把这两个放进默认 UI,
+    // 不赌每个模型都吃 xhigh。要放开某个模型时改这一行即可。
+    effortValues: ["low", "medium"],
+    needsReasoningHistory: false,
+    // 每日上限用尽会返 429(Retry-After 到次日 0 点),重试没有意义 → 不自动重试
+    retryOnBusy: false,
+    // 官方原话「提供哪些模型由平台决定,会不定期调整」,且 /v1/models 只返回可用的 → 不写死白名单
+    allowAnyModel: true,
+    // 2026-11-13 实测该模型 idle(利用率 32.6%);GLM-5.3-Flash / DeepSeek 两个热门档当时 74~89% 繁忙,
+    // 拿它们当默认会让新装用户第一次对话就排队。
+    defaultModel: "Qwen3.8-27B",
+    // 共享池,社区实测首 token 可达 22s(本仓未复验)→ 与免费档同口径给 90s 首字节预算
+    ttfbTimeoutMs: 90000,
+  },
 };
 
 // mode → 预设 的兼容映射（"免费/快速"两个 pill = 两个预设的快捷位）
+// 注意:amd 不占 pill 位 —— 它只能从「设置 → 模型渠道」里显式选中(activeId=preset:amd)。
 export const MODE_TO_PRESET = { fast: "deepseek", free: "nvidia" };
 
 // 兼容别名：旧引用点(如 summarize)仍可直接取 PROVIDERS.deepseek
@@ -172,8 +202,9 @@ export function normalizeByoProvider(payload) {
   const mdl = typeof c.model === "string" ? c.model.trim() : "";
   if (!ep || !mdl) return null; // endpoint + model 必填,缺一则回落内置 provider
   // 2026-11-11: 思考形态跟自定义渠道一起下发 —— none / vllm（只有开/关）/ deepseek（低中高三档）。
+  // 2026-11-13: 新增 effort —— 只发 reasoning_effort,不发 thinking(AMD 这类端点收到 thinking 会 400)。
   const _thinkStyle = c.supportsThinking === true
-    ? (c.thinkingStyle === "vllm" ? "vllm" : "deepseek")
+    ? (c.thinkingStyle === "vllm" ? "vllm" : (c.thinkingStyle === "effort" ? "effort" : "deepseek"))
     : "none";
   return {
     label: "byo-custom",

@@ -1,6 +1,6 @@
 [package]
 name = "ownchat"
-version = "4.71.0"
+version = "4.72.0"
 description = "OwnChat · 数据留在自己手里的 AI 创作平台"
 authors = ["MaxChen12114"]
 edition = "2021"
@@ -14,10 +14,12 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-# dynamic-acl：运行时按用户配置的域名动态授予 IPC 能力（域中立壳，见 lib.rs 服务器地址一节）。
+# 2026-11-28（T4-B 固定 origin）：`dynamic-acl` 已移除 —— 那条特性只为「按用户填的域名动态授予
+# IPC」存在（域中立壳）。现在页面永远从随包资源加载，capabilities/default.json 就是唯一授权面；
+# 留着它能用的 API（add_capability）反而是个随时可能被误用的口子。
 # devtools 移到可选 feature：发布包不再带 webview 调试器（体积/开销都省），本地调试用
 # `cargo tauri dev --features devtools` 或 `cargo build --features devtools`。
-tauri = { version = "2", features = ["tray-icon", "dynamic-acl"] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 rusqlite = { version = "0.32", features = ["bundled"] }

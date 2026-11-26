@@ -19,7 +19,17 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 公开版开箱即用：安装包内置 Node 24 运行时（下面的 step 会把它复制进 bundle resources），
+          # 同一次构建的 stage-host 脚本也跑在这个版本上。
+          node-version: 24
+
+      - name: Stage the bundled Node runtime
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri/runtime/node | Out-Null
+          Copy-Item (Get-Command node).Source src-tauri/runtime/node/node.exe
+          node --version
+          "{0:N1} MB" -f ((Get-Item src-tauri/runtime/node/node.exe).Length / 1MB)
 
       - name: Generate Tauri icons
         run: npx --yes @tauri-apps/cli@2 icon public/assets/icon-512.png -o src-tauri/icons
@@ -83,10 +93,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-
-      - name: Generate Tauri icons
-        run: npx --yes @tauri-apps/cli@2 icon public/assets/icon-512.png -o src-tauri/icons
+          node-version: 24
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -113,6 +120,69 @@ jobs:
 
       - name: Init Android project
         run: npx --yes @tauri-apps/cli@2 android init
+
+      # 2026-11-11 修复「安卓没有图标」：icon 必须放在 android init 之后。
+      # 先 init 后 icon 时，CLI 会把自适应图标（mipmap-*/ic_launcher_foreground、
+      # mipmap-anydpi-v26/ic_launcher.xml 等）直接写进 gen/android 工程；
+      # 反过来（旧的顺序）工程里只会留模板默认图标，装出来是黄青色 S 形默认图。
+      - name: Generate Tauri icons (after android init → writes mipmaps into gen/android)
+        run: npx --yes @tauri-apps/cli@2 icon public/assets/icon-512.png -o src-tauri/icons
+
+      # 双保险：无论 CLI 是否把图标写进工程，这里都校验并补齐；
+      # 同时把关键文件的 md5 打进日志，下次构建能直接看出图标有没有进包。
+      - name: Ensure Android launcher icons are in the project
+        run: |
+          RES=src-tauri/gen/android/app/src/main/res
+          SRC=src-tauri/icons/android
+          echo "--- generated: $SRC ---"; ls -1 "$SRC" 2>/dev/null || true
+          echo "--- project res (before) ---"; ls -1 "$RES" | grep mipmap || true
+          if [ -d "$SRC" ]; then
+            mkdir -p "$RES"
+            cp -R "$SRC"/. "$RES"/
+          fi
+          echo "--- project res (after) ---"
+          ls -1 "$RES" | grep mipmap || true
+          echo "--- md5 (generated vs project) ---"
+          md5sum "$SRC/mipmap-xxxhdpi/ic_launcher.png" "$RES/mipmap-xxxhdpi/ic_launcher.png" 2>/dev/null || true
+          md5sum "$SRC/mipmap-xxxhdpi/ic_launcher_foreground.png" "$RES/mipmap-xxxhdpi/ic_launcher_foreground.png" 2>/dev/null || true
+          # 2026-11-11 修复「安卓图标被裁边、看着比同级 App 大一圈」：
+          # 自适应图标的可视安全区只有 108dp 画布中间的 66dp，而 CLI 生成的前景是整张图
+          # 铺满画布 —— 圆形/圆角遮罩会切掉四周。这里按「内容边界」把前景缩到画布的 66%
+          # 并居中，背景色对齐源图底色（#15161A），缩完看不出接缝。
+          # 强制覆盖、不沿用 CLI 版本：保证背景色与前景缩放是同一套口径。
+          mkdir -p "$RES/mipmap-anydpi-v26" "$RES/values"
+          cat > "$RES/values/ic_launcher_background.xml" <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="ic_launcher_background">#15161A</color>
+          </resources>
+          XML
+          cat > "$RES/mipmap-anydpi-v26/ic_launcher.xml" <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_launcher_background" />
+              <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+          </adaptive-icon>
+          XML
+          if [ -f "$RES/mipmap-anydpi-v26/ic_launcher_round.xml" ]; then
+            cp "$RES/mipmap-anydpi-v26/ic_launcher.xml" "$RES/mipmap-anydpi-v26/ic_launcher_round.xml"
+          fi
+          # 前景用仓库里**预生成**的安全区版本覆盖（public/assets/android-adaptive/）。
+          # 不在 CI 里缩放：runner 的 python3 没有 Pillow，ImageMagick 版本又不可控；
+          # 预生成 + 纯文件拷贝是零依赖、且能本地逐像素验证的做法。
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            SRC_FG="public/assets/android-adaptive/mipmap-$d/ic_launcher_foreground.png"
+            DST_FG="$RES/mipmap-$d/ic_launcher_foreground.png"
+            if [ ! -f "$SRC_FG" ]; then
+              echo "::error::缺少预生成前景 $SRC_FG（public/assets/android-adaptive 没有入库？）"; exit 1
+            fi
+            if [ ! -d "$RES/mipmap-$d" ]; then
+              echo "::error::工程里没有 mipmap-$d（Tauri 模板密度集变了？）"; exit 1
+            fi
+            cp "$SRC_FG" "$DST_FG"
+            echo "foreground replaced: mipmap-$d ($(stat -c%s "$DST_FG") bytes)"
+          done
+          md5sum "$RES"/mipmap-*/ic_launcher_foreground.png
 
       - name: Patch AndroidManifest (windowSoftInputMode=adjustResize)
         run: |
@@ -207,8 +277,49 @@ jobs:
             > src-tauri/gen/android/keystore.properties
           echo "keystore.properties written (storeFile=$KS)"
 
-      - name: Build APK (release, signed)
+      - name: Build APK (release)
         run: npx --yes @tauri-apps/cli@2 android build --apk
+
+      # 2026-11-11 修复「Release 上的 APK 装不上，提示没有证书」：
+      # tauri android init 生成的 app/build.gradle.kts 没有 release signingConfig，
+      # 上一步写进 gen/android 的 keystore.properties 根本没人读，Gradle 实际产出的是
+      # app-universal-release-unsigned.apk。这里用 apksigner 显式签名，并当场 verify —
+      # 签名失败就让 job 红掉，绝不把未签名包挂到 Release。
+      - name: Sign APK (apksigner) & verify
+        shell: bash
+        env:
+          KS: ${{ github.workspace }}/src-tauri/gen/android/ownchat-release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          echo "build-tools: $BT"
+          DIR=src-tauri/gen/android/app/build/outputs/apk/universal/release
+          IN=$(ls "$DIR"/*.apk 2>/dev/null | head -1 || true)
+          if [ -z "${IN:-}" ]; then
+            IN=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | head -1 || true)
+          fi
+          if [ -z "${IN:-}" ]; then
+            echo "::error::没有找到构建出的 APK"; ls -R src-tauri/gen/android/app/build/outputs/apk || true; exit 1
+          fi
+          echo "built: $IN ($(stat -c%s "$IN") bytes)"
+          OUTNAME=$(basename "$IN" | sed 's/-unsigned//')
+          "$BT/zipalign" -p -f 4 "$IN" "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" sign --ks "$KS" \
+            --ks-pass "env:ANDROID_KEYSTORE_PASSWORD" \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --key-pass "env:ANDROID_KEY_PASSWORD" \
+            --out "$RUNNER_TEMP/$OUTNAME" "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" verify --verbose --print-certs "$RUNNER_TEMP/$OUTNAME"
+          rm -f "$DIR"/*.apk
+          cp "$RUNNER_TEMP/$OUTNAME" "$DIR/$OUTNAME"
+          sha256sum "$DIR/$OUTNAME"
+          if ls "$DIR"/*unsigned*.apk >/dev/null 2>&1; then
+            echo "::error::仍有未签名 APK 残留：$(ls "$DIR"/*unsigned*.apk)"; exit 1
+          fi
+          echo "signed APK ready: $DIR/$OUTNAME"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -259,6 +370,12 @@ jobs:
           if [ ${#apks[@]} -eq 0 ]; then
             echo "::error::No APK found in artifact ownchat-android-release"; exit 1
           fi
+          # 2026-11-11：未签名包一律不上 Release（上一版就是这么把 unsigned 包挂出去的）
+          for f in "${apks[@]}"; do
+            case "$(basename "$f")" in
+              *unsigned*) echo "::error::artifact 里有未签名 APK: $f"; exit 1;;
+            esac
+          done
           for f in "${apks[@]}"; do
             if [ ${#apks[@]} -eq 1 ]; then
               name="OwnChat_${VERSION}_android.apk"

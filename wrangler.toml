@@ -2,20 +2,33 @@ name = "ownchat"
 main = "src/worker.js"
 compatibility_date = "2026-03-11"
 
-# 构建步骤：扫 src/prompts/bases/ 生成基座注册表（改基座文件后自动生效），再跑一道真语法门。
+# 2026-10-05: 提示词注册表自动发现 ——
+# 每次 dev/deploy 前扫 bases/ 与 neutrals/ 两个目录，各生成一份注册表。
+# 加新版 = 往对应目录放一个 .md/.txt，不碰代码(白名单与前端下拉自动包含它)。
+# 再跑一遍真语法门(wrangler 只解析 worker 的 import 链，不会碰 public/**；
+# 而 `node --check` 对本仓库的 .js 会漏报 —— 理由与正控写在 scripts/check-syntax.mjs 顶部)。
 [build]
-command = "node scripts/gen-prompts.mjs && node scripts/check-syntax.mjs"
+# 2026-11-14 L0a-2a: ?v= 内容哈希生成器接进发布链 —— 业务线改 public/** 脚本后不必手工
+# bump，部署时 l0/build.mjs --write 自动愈合过期哈希（幂等：无漂移零写入）。
+# 顺序在 check-syntax 之前：生成出的 index.html 也要过真语法门。刻意不加 tsc（内环提速）。
+command = "node scripts/gen-prompts.mjs && node l0/build.mjs --write && node scripts/check-syntax.mjs"
 
 [assets]
 directory = "./public"
 binding = "ASSETS"
-# 这些前缀必须先进 worker 才有机会处理（API / 动态 config / 旧书签重定向 / 工具页）
-run_worker_first = ["/api/*", "/config.js", "/write", "/write/*", "/coding", "/coding/*", "/flow", "/flow/*", "/studio", "/studio/*", "/audio", "/audio/*", "/image", "/image/*"]
+# 2026-10-05: 工具页移入 /tools/* 后,旧路径(/write 等)靠 worker 302 兜底旧书签 ——
+# 这些前缀必须先进 worker 才有机会重定向;新路径 /tools/* 直接走静态资产,不进 worker。
+run_worker_first = ["/api/*", "/sync/*", "/config.js", "/write", "/write/*", "/coding", "/coding/*", "/flow", "/flow/*", "/studio", "/studio/*", "/audio", "/audio/*", "/image", "/image/*"]
 
-# 云同步用的 KV。两条路二选一：
-#   · 一键部署（Deploy 按钮）：它会读取这里的占位 id，并在部署时自动创建同名 namespace 后回填；
-#   · 手动部署：wrangler kv namespace create TAVERN_SYNC，把打印的 id 填到这里。
-# 不配也能跑：KV 只服务可选的云同步，聊天本身不依赖它。
 [[kv_namespaces]]
 binding = "TAVERN_SYNC"
 id = "<在这里填 wrangler kv namespace create 打印出来的 id>"
+
+# 2026-11-12: 实时聊天事件表（/sync/chat/events）。
+# 生产启用前先 `wrangler d1 create ownchat-events`，把返回的 database_id 填到下面；
+# 本地 `wrangler d1 migrations apply ownchat-events --local` 即可，不依赖真实 id。
+[[d1_databases]]
+binding = "TAVERN_EVENTS"
+database_name = "ownchat-events"
+database_id = "<在这里填 wrangler d1 create 打印出来的 database_id>"
+migrations_dir = "migrations"

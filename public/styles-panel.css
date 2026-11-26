@@ -12,63 +12,152 @@ html.panel-expanded .app-shell {
   grid-template-columns: 240px minmax(0, 1fr) min(var(--panel-w, 460px), calc(100vw - 700px));
 }
 
-/* 撕离缝：右栏脱离主面板，左侧留一条深色带作为拖拽把手 */
+/* ── 撕离缝 v2（2026-11-13）：隔离条主题化 + 可发现 + 拖拽反馈 ──────────
+   旧版把缝写成恒定的 --panel-seam 渐变，但该变量只在 /shared/core/theme.css 里定义，
+   而主站 index.html 从未引入 theme.css —— 于是四个主题都 fallback 成 #05060a 黑带，
+   在极简亮 / 玻璃主题里成了整页最扎眼的一条黑。同时没有任何把手提示与 hover/拖拽
+   反馈，用户看不出这条缝能拖。
+   现在补上本文件自持的令牌（四主题各自对齐），把「10px 缝 + 内侧把手」做成一条有
+   层次的隔离带：缝底色、右缘细线、中央握把；悬停或拖拽时握把亮成主题强调色。
+   布局常量 margin-left:10px 保持不动，避免牵动 --panel-actual / 输入框定位。 */
+:root {
+  --panel-seam: #0b0c0f;                       /* 缝底色 */
+  --panel-seam-shadow: rgba(0, 0, 0, .30);    /* 景深投影 */
+  --panel-seam-line: rgba(255, 255, 255, .10);/* 右缘 1px 细线 */
+  --panel-seam-fade: rgba(0, 0, 0, .22);      /* 内侧淡出 */
+  --panel-grip: rgba(255, 255, 255, .22);     /* 握把常态 */
+  --panel-grip-on: var(--accent, #7fa4c9);    /* 握把高亮 */
+}
+html[data-scheme="light"]:not([data-theme]) {
+  --panel-seam: #f0f0ee;
+  --panel-seam-shadow: rgba(15, 15, 15, .08);
+  --panel-seam-line: rgba(55, 53, 47, .14);
+  --panel-seam-fade: rgba(55, 53, 47, .06);
+  --panel-grip: rgba(55, 53, 47, .26);
+}
+html[data-theme="glass"] {
+  --panel-seam: rgba(226, 236, 246, .70);
+  --panel-seam-shadow: rgba(40, 70, 110, .14);
+  --panel-seam-line: rgba(63, 111, 143, .20);
+  --panel-seam-fade: rgba(63, 111, 143, .06);
+  --panel-grip: rgba(52, 93, 124, .30);
+}
+html[data-theme="candle"] {
+  --panel-seam: #1c120a;
+  --panel-seam-shadow: rgba(0, 0, 0, .40);
+  --panel-seam-line: rgba(217, 168, 104, .22);
+  --panel-seam-fade: rgba(0, 0, 0, .26);
+  --panel-grip: rgba(217, 168, 104, .30);
+}
+
 html.panel-expanded .right-sidebar {
   margin-left: 10px;
   border-left: none;
-  box-shadow: -12px 0 28px rgba(0, 0, 0, .45);
+  /* 第一层 0 模糊的硬阴影把 10px 缝填成主题色：box-shadow 不受元素自身
+     overflow-y:auto 裁剪，所以不必把伪元素挪到 left:-10px（那样会被裁掉）。 */
+  box-shadow: -10px 0 0 var(--panel-seam),
+              -14px 0 26px var(--panel-seam-shadow);
   position: relative;
   cursor: default;
 }
-/* 拖拽把手：必须在容器**内侧**。原先 left:-10px 会被 .right-sidebar 的
-   overflow-y:auto 裁剪掉 → 左缘点不到、拖不动。 */
+/* 拖拽把手：仍留在容器**内侧**（left:0），JS 用同一条 10px 命中带判定。 */
 html.panel-expanded .right-sidebar::before {
   content: "";
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: 10px;
   cursor: col-resize;
-  background: linear-gradient(to right, var(--panel-seam, #05060a), transparent);
+  border-left: 1px solid var(--panel-seam-line);
+  background: linear-gradient(to right, var(--panel-seam-fade), transparent);
   z-index: 25; /* 盖在 iframe 之上，否则鼠标落在 iframe 里 */
+  transition: background .18s ease, border-left-color .18s ease;
+}
+/* 中央握把：常驻但低对比，给「这里能拖」一个可见线索。
+   pointer-events:none —— 命中全部交给 ::before，避免握把抢走 mousedown。 */
+html.panel-expanded .right-sidebar::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 38px;
+  border-radius: 3px;
+  background: var(--panel-grip);
+  z-index: 25;
+  pointer-events: none;
+  transition: background .18s ease, box-shadow .18s ease, height .18s ease;
+}
+/* 只由 panel-host 在指针确实落在隔离带上时加类，右栏本体 hover 不会误亮 */
+html.panel-expanded .right-sidebar.seam-hover::before,
+html.panel-resizing .right-sidebar::before {
+  border-left-color: var(--panel-grip-on);
+  background: linear-gradient(to right, var(--accent-soft, rgba(127, 164, 201, .16)), transparent);
+}
+html.panel-expanded .right-sidebar.seam-hover::after,
+html.panel-resizing .right-sidebar::after {
+  background: var(--panel-grip-on);
+  box-shadow: 0 0 0 3px var(--accent-soft, rgba(127, 164, 201, .16));
+  height: 52px;
+}
+/* 拖拽期间禁止选中文字（缝两侧都是可选中的聊天/画布内容） */
+html.panel-resizing,
+html.panel-resizing body { user-select: none; -webkit-user-select: none; }
+@media (prefers-reduced-motion: reduce) {
+  html.panel-expanded .right-sidebar::before,
+  html.panel-expanded .right-sidebar::after { transition: none; }
+}
+/* 手机端（<1024）panel-host 不初始化，缝与把手全部收掉 */
+@media (max-width: 1023px) {
+  html.panel-expanded .right-sidebar { margin-left: 0; box-shadow: none; }
+  html.panel-expanded .right-sidebar::before,
+  html.panel-expanded .right-sidebar::after { display: none; }
 }
 
 /* 展开态：原文字 tab 行让位给图形钮（[hidden] 会被 .rs-tabs 的 display:flex 覆盖，必须显式压过） */
 #rightSidebar .rs-tabs[hidden] { display: none !important; }
 
-/* ── 面板条（展开态替换 tab 行） ── */
+/* 2026-11-11（所有者）：演示台顶栏与聊天区顶栏等高对齐。
+   两个成因：
+     ① .right-sidebar 自带 padding: 14px 12px 20px —— 整个面板被压低 14px；
+     ② .rs-header 自己写 8px/6px，控件 34px，合计 48px。
+   聊天区顶栏 = .topbar-shell 的 10px 上 + 34px 控件 + 10px 下 = 54px（另加 1px 描边）。
+   这里把侧栏顶部内边距清零、头部改成 10px 上下，两条顶栏的控件就落在同一水平线上。
+   !important 用于压掉 index.html 内联 <style> 里那条同特异性的 8px 8px 6px。 */
+@media (min-width: 1024px) {
+  #rightSidebar { padding-top: 0; }
+  #rightSidebar .rs-header { padding: 10px 12px !important; }
+}
+
+/* ── 面板条（展开态替换 tab 行） ──
+   2026-11-11（所有者定稿）：条上只有 [内容▾][⋯][拉出][关闭]。
+   工具与视图都收进「⋯」，所以这条永远放得下，不需要折行逻辑。 */
 .pbar {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 4px;
   flex: 1 1 auto;
   min-width: 0;
+  flex-wrap: wrap;
+  row-gap: 2px;
 }
 .pbar[hidden] { display: none !important; }
-
-/* 工具位靠左；标题占中；仪表与窗口控制靠右 */
-.pbar-tools {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: none;
-}
-.pbar-sep {
-  width: 1px;
-  height: 16px;
-  background: var(--border-soft, #2a2b30);
-  margin: 0 3px;
-  flex: none;
-}
-.pbtn-tool { opacity: .78; }
-.pbtn-tool:hover { opacity: 1; }
-/* 未连接的外部工具（GEO 地图未配地址时） */
+/* 2026-11-11：面板条两态（panel-host 的 wireBarFit 按条宽切 .pbar-wide）
+   宽 → 工具/视图直接铺在条上，「⋯」隐藏；
+   窄 → 工具/视图收进「⋯」菜单。 */
+.pbar-tools { display: flex; align-items: center; gap: 4px; flex: none; }
+.pbar:not(.pbar-wide) .pbar-tools { display: none; }
+.pbar:not(.pbar-wide) .pbar-acts [data-pv] { display: none; }
+.pbar.pbar-wide #panelMoreBtn { display: none; }
 .pbtn-tool.pbtn-off { opacity: .38; }
 .pbtn-tool.pbtn-off:hover { opacity: .62; }
-
+/* 没有内容时标题退成占位词「内容」 */
+.pbar.pbar-plain-title .pbar-title { color: var(--muted); }
+.pbar.pbar-plain-title .pbar-title-tx { opacity: .8; }
 /* 面板条上的内容标题：可点开的下拉（名字 + 生成时间，可回看最近 10 份） */
 .pbar-title {
   display: flex;
@@ -76,6 +165,7 @@ html.panel-expanded .right-sidebar::before {
   gap: 3px;
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 34px; /* 与两侧 34px 图标键齐平 */
   padding: 3px 6px;
   border: 1px solid transparent;
   border-radius: 7px;
@@ -100,9 +190,11 @@ html.panel-expanded .right-sidebar::before {
 .pbar-menu {
   position: absolute;
   top: 34px;
-  left: 56px;
+  left: 0;
   width: 236px;
-  max-width: calc(100% - 64px);
+  /* 旧值 calc(100% - 64px) 是按"标题在左"留的边距，会让「⋯」菜单只剩 126px 宽（实测文字全被截）。
+     现在由 placeMenu() 按触发按钮右对齐算宽度，这里只兜一个不越出面板的上限。 */
+  max-width: calc(100% - 8px);
   z-index: 30;
   padding: 4px;
   background: var(--surface-2, #1b1c20);
@@ -113,6 +205,19 @@ html.panel-expanded .right-sidebar::before {
   overflow-y: auto;
 }
 .pbar-menu[hidden] { display: none !important; }
+/* 2026-11-11：菜单分两段（视图 / 最近内容） */
+.pmenu-sec {
+  font-size: 10.5px;
+  color: var(--dim, #6f6f76);
+  padding: 5px 8px 2px;
+  letter-spacing: .02em;
+}
+.pmenu-sec:not(:first-child) { border-top: 1px solid var(--border-soft, #2a2b30); margin-top: 4px; }
+.pmenu-empty {
+  font-size: 11.5px;
+  color: var(--dim, #6f6f76);
+  padding: 6px 8px;
+}
 .pmenu-item {
   display: flex;
   align-items: center;
@@ -171,13 +276,15 @@ html.panel-expanded .right-sidebar::before {
 #panelCanvasBox .pframe-text { border-radius: 8px; }
 
 .pbtn {
-  width: 28px;
-  height: 28px;
+  /* 2026-11-11（所有者）：跟聊天区顶栏的 .iconbtn 同一尺寸（34px / 圆角 9 / 图标 18），
+     面板条与主顶栏并排时不再一高一矮。 */
+  width: 34px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 9px;
   background: transparent;
   color: inherit;
   opacity: .62;
@@ -191,7 +298,12 @@ html.panel-expanded .right-sidebar::before {
   background: var(--accent-soft, rgba(127, 127, 127, .22));
   border-color: var(--border-soft, #2a2b30);
 }
-.pbtn svg { width: 17px; height: 17px; flex: none; }
+.pbtn svg { width: 18px; height: 18px; flex: none; }
+
+/* 「⋯」菜单里的工具项：图标 + 文字 */
+.pmenu-ico { display: inline-flex; width: 17px; height: 17px; flex: none; opacity: .8; }
+.pmenu-ico svg { width: 17px; height: 17px; }
+.pmenu-item.is-off { opacity: .5; }
 
 /* ── 内容画布 ── */
 .rs-canvas {
@@ -209,6 +321,95 @@ html.panel-expanded .right-sidebar::before {
   position: relative;
   background: var(--bg, #0e0e11);
 }
+
+/* ── 内容标签条：每页一个标签，横向滚动；"+ 下拉"含目录与最近关闭 ── */
+.ptab-strip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px;
+  position: relative;
+  min-width: 0;
+  border-bottom: 1px solid var(--border-soft, #2a2b30);
+  background: var(--surface-2, #16171a);
+}
+.ptab-scroll {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.ptab {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  max-width: 190px;
+  border-radius: 8px;
+  background: rgba(127, 127, 127, .08);
+}
+.ptab.on { background: var(--accent-soft, rgba(127, 164, 201, .18)); }
+.ptab-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 4px 2px 4px 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  opacity: .72;
+  cursor: pointer;
+}
+.ptab.on .ptab-main { opacity: 1; }
+.ptab-main svg { width: 14px; height: 14px; flex: none; }
+.ptab-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ptab-x {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-right: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: .45;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ptab-x:hover { opacity: 1; background: rgba(0, 0, 0, .28); }
+.ptab-add {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-soft, #2a2b30);
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  opacity: .75;
+  cursor: pointer;
+}
+.ptab-add:hover { opacity: 1; background: rgba(127, 127, 127, .12); }
+.ptab-add svg { width: 14px; height: 14px; }
+/* 每个标签一个 pane；后台 pane 保留 iframe 但隐藏并收到 visibility:false。 */
+.ptab-pane {
+  position: absolute;
+  inset: 0;
+  background: var(--bg, #0e0e11);
+}
+.ptab-pane[hidden] { display: none !important; }
+.ptab-pane .pframe { width: 100%; height: 100%; border: 0; display: block; }
 
 /* 空态：没有内容时的引导（有内容后由 .has-content 隐藏） */
 .pframe-empty {
@@ -401,9 +602,16 @@ html.panel-window body { background: var(--bg, #0e0e11); overflow: hidden; }
 html.topbar-tight .topbar-inner { gap: 6px; }
 html.topbar-tight .topbar-shell { padding-left: 10px; padding-right: 8px; }
 html.topbar-tight .model-pill .model-label { display: none; }
-html.topbar-tight .model-pill select { min-width: 78px; max-width: 132px; }
-html.topbar-tight #personaToggle { padding: 0; width: 34px; gap: 0; }
-html.topbar-tight #personaToggle .btn-text { display: none; }
+/* 2026-11-11（所有者：最小状态下设置按钮被挡住）：这两条以前被 index.html 里
+   `#topbar .model-pill #modelSel`（2 个 id）压住，从未真正生效（死规则）—— 窄中栏时
+   select 仍保持 179px，把 ⚙ 挤出可视区。提高选择器特异性，让「窄屏收模型名」按设计生效。
+   限定桌面：.topbar-tight 只看 #app 宽度，手机上也会 <560；不加这个 media，
+   手机模型名会被从 200px 砍到 132px（桌面右栏场景才该让位）。 */
+@media (min-width: 1024px) {
+  html.topbar-tight #topbar .model-pill #modelSel { min-width: 78px; max-width: 132px; }
+  html.topbar-tight #topbar #personaToggle { padding: 0; width: 34px; gap: 0; }
+}
+html.topbar-tight #topbar #personaToggle .btn-text { display: none; }
 html.topbar-tight #syncStatusIndicator { display: none; }
 
 /* ── 计费按钮 + 账单卡 ── */

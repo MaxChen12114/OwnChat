@@ -31,6 +31,7 @@ use std::time::{Duration, Instant};
 // lib.rs 里也有这条 import,但那是它自己的作用域 —— 子模块看不到,必须各自引入。
 // (CI 首轮编译报的是 "no method named `dialog` found",原因就是这个。)
 #[cfg(desktop)]
+use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 /// 单次命令的时间上限(毫秒)
@@ -50,7 +51,7 @@ const MAX_READ_CHARS: usize = 200_000;
 const WD_NAMESPACE: &str = "settings";
 const WD_KEY: &str = "agent_workdir";
 
-fn workdir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn workdir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     match crate::kv_read(app, WD_NAMESPACE, WD_KEY)? {
         Some(s) if !s.trim().is_empty() => {
             let p = PathBuf::from(s.trim());
@@ -467,6 +468,7 @@ pub struct LocalEnvInfo {
 #[tauri::command]
 pub fn local_env_info(app: tauri::AppHandle) -> Result<LocalEnvInfo, String> {
     let storage = crate::resolve_storage_dir(&app)?;
+    let resource_dir = app.path().resource_dir().ok();
     let wd = crate::kv_read(&app, WD_NAMESPACE, WD_KEY)?
         .filter(|s| !s.trim().is_empty())
         .map(|s| PathBuf::from(s.trim().to_string()));
@@ -477,7 +479,7 @@ pub fn local_env_info(app: tauri::AppHandle) -> Result<LocalEnvInfo, String> {
     Ok(LocalEnvInfo {
         workdir: wd.as_ref().map(|p| p.to_string_lossy().to_string()),
         entries,
-        node: crate::runtime::status(&storage),
+        node: crate::runtime::status(&storage, resource_dir.as_deref()),
         platform: std::env::consts::OS.to_string(),
     })
 }

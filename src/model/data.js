@@ -116,6 +116,7 @@ export const NIM_VENDOR_PREFIXES = [];
 
 // 2026-10-05: persona 机制退役。原先它按模型 id 前缀决定「不选底座时用哪一套」(glm → 2 等),
 // 现在底座选择只有一条规则:payload.baseId(白名单) > 默认档(排序第一份)。详见 AGENTS.md。
+// 要换底座走 payload.baseId(锁定态走 payload.neutralId);/api/chat 不接收 persona 字段。
 // (候选池里那个 P1/P2/P3 徽标随之一并删除 —— 它展示的正是这里的映射,留着就是指错路。)
 
 // ────────────────────────────

@@ -17,7 +17,7 @@
   var LS_GRAPH = 'cfw_coding_graph_v1';
   var LS_MODEL = 'cfw_coding_model_v1';
 
-  var esc = window.__ownEscape.esc;
+  var esc = window.escapeSvc.esc;
 
   function models() {
     var free = (window.APP_MODELS_FREE && window.APP_MODELS_FREE.length) ? window.APP_MODELS_FREE : ['deepseek-ai/deepseek-v4-pro', 'z-ai/glm-5.1', 'openai/gpt-oss-120b'];
@@ -147,15 +147,16 @@
 
   // ── /api/chat 流式(与 studio/write 同契约) ──
   async function chat(opts) {
+    // 2026-11-11 (B8)：统一走 services/data/chat-stream.ts 的产物。flow 原本不发 unlock 字段 → 显式 unlock:false
     // 保持行为不变；将来要开启，去掉这个参数即可（行为变化由所有者拍板）。
     var model = opts.model || '';
-    var full = await window.__chatStream.call({
+    var full = await window.chatStreamSvc.call({
       profile: 'assist',
       mode: modeForModel(model),
       model: model,
       system: opts.system || '',
       user: opts.user || '',
-
+      unlock: false
     });
     // 空输出兜底:线路抽风返回空流时抛清晰错误,而不是静默返回空串骗到下游
     if (!full.trim()) throw new Error('模型未返回任何内容（线路可能不稳定，换个模型或重试）');

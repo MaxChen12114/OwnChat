@@ -1,0 +1,61 @@
+{
+  "entries": [
+    {
+      "id": "read_file",
+      "group": "文件",
+      "summary": "按行分页读会话工作区文件，大文件可用 start/lines 续读。",
+      "keywords": ["读文件", "read", "file", "分页", "续读"],
+      "provider": "__agentWorkspace",
+      "requires": ["workspace"],
+      "risk": "read",
+      "sideEffect": false,
+      "residentCandidate": true,
+      "defaultEnabled": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string", "description": "工作区内的相对路径" },
+          "start": { "type": "number", "description": "起始行，默认 1" },
+          "lines": { "type": "number", "description": "本次读取行数" }
+        },
+        "required": ["path"]
+      }
+    },
+    {
+      "id": "web_search",
+      "group": "联网",
+      "summary": "联网搜索，返回标题、链接与摘要；不知道 URL 时先搜再抓。",
+      "keywords": ["搜索", "search", "web", "联网", "新闻"],
+      "provider": "AgentReach",
+      "requires": ["network"],
+      "risk": "external",
+      "sideEffect": false,
+      "residentCandidate": true,
+      "defaultEnabled": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string" },
+          "deep": { "type": "boolean", "description": "付费深度搜索，默认 false" }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "id": "pc_shot",
+      "group": "远程电脑",
+      "summary": "截取被控电脑屏幕，返回截图；需要私密模式与远程通道已就绪。",
+      "keywords": ["截图", "screen", "shot", "远程电脑", "屏幕"],
+      "provider": "__pcTools",
+      "requires": ["unlocked", "pcEnabled", "pcToken"],
+      "risk": "external",
+      "sideEffect": false,
+      "residentCandidate": false,
+      "defaultEnabled": false,
+      "schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}

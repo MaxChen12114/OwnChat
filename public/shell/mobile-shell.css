@@ -1,0 +1,343 @@
+/* public/shell/mobile-shell.css
+ * 手机壳 shell bundle v0.2.0。只在 html.shell-mobile 下生效，桌面零影响。
+ *
+ * ── 主题（2026-11-14 修复）────────────────────────────────────────────
+ * v0.1.0 用的是 var(--panel) / var(--text)，这两个令牌只在
+ * public/shared/core/theme.css 里定义，而主站 index.html 不加载它 —— 运行时
+ * 永远落到深色 fallback（#1a1b20 / #e9e9e7），于是亮色/玻璃/烛光下底栏恒黑。
+ * check-tokens 是全 public/ 文本扫描（不区分作用域），跨文件看到 theme.css 的
+ * 定义就绿灯，没抓到这个错配。
+ * v0.2.0 全部改挂 styles.css 在四个主题下都真实覆盖的令牌：
+ *   --bg / --surface-2 / --border / --border-soft / --muted / --accent 家族
+ * 文字色不再自行声明，直接继承 body（各主题自己定 color）。
+ *
+ * ── 视觉语言（与 #topbar 对齐）────────────────────────────────────────
+ * 顶栏：全宽直角贴边、1px 实线边、面板色 + blur(8px)、控件 9px 圆角。
+ * 壳：  去掉 dock 的 14px 上圆角与投影，改直角 + 1px 上边 + 同款 blur；
+ *       页头与顶栏同高同底同边框；控件圆角统一到 --ctl-r (9px)，卡片 12px。
+ */
+
+/* 壳语义层：一处映射，四主题自动跟随 */
+html.shell-mobile {
+  --sh-bar: var(--surface-2);
+  --sh-line: var(--border);
+  --sh-ink-dim: var(--muted);
+  --sh-hi: var(--accent);
+  --sh-hi-soft: var(--accent-soft);
+  --sh-hi-line: var(--accent-border);
+  --sh-card: var(--bubble-ai, rgba(127, 127, 127, .06));
+  --sh-r: var(--ctl-r, 9px);
+  --shell-dock-h: 56px;
+  --shell-chat-space: 96px;
+}
+
+html.shell-mobile #mobileShell { display: flex; }
+
+#mobileShell {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  flex-direction: column;
+  background: var(--bg, #0b0b0b);
+  color: inherit;                 /* 不写 --text：跟随 body 当前主题的文字色 */
+  padding-top: env(safe-area-inset-top);
+}
+
+/* 旧四 tab 底栏退役；壳自带 dock */
+html.shell-mobile #mobileBottomTabs { display: none !important; }
+html.shell-mobile .input-floating { bottom: calc(var(--shell-dock-h) + 10px) !important; }
+html.shell-mobile #chat { padding-bottom: var(--shell-chat-space); }
+
+/* ── 页面容器 ── */
+#mobileShell .sh-body { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+#mobileShell .sh-page {
+  position: absolute; inset: 0;
+  display: none; flex-direction: column; min-height: 0;
+  background: var(--bg, #0b0b0b);
+}
+#mobileShell .sh-page.on { display: flex; }
+/* 对话页：原界面本体透出来，不搬节点，只留出 dock 的空间 */
+#mobileShell .sh-page[data-page="chat"] { background: transparent; }
+
+/* ── 页头：与 #topbar 同款（直角 / 1px 边 / 面板底 + blur / 34×34·9px 控件） ── */
+#mobileShell .sh-head {
+  display: flex; align-items: center; gap: 8px;
+  min-height: 52px; padding: 8px 12px;
+  flex: 0 0 auto;
+  background: var(--sh-bar);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--sh-line);
+  border-radius: 0;
+}
+#mobileShell .sh-head h2 {
+  margin: 0; font-size: 14px; font-weight: 600;
+  flex: 1 1 auto; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#mobileShell .sh-head .sh-sub {
+  flex: 0 1 auto; min-width: 0; font-size: 11px; color: var(--sh-ink-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#mobileShell .sh-close {
+  width: 34px; height: 34px; flex: 0 0 34px;
+  border: 1px solid transparent; border-radius: var(--sh-r);
+  background: transparent; color: inherit;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+#mobileShell .sh-close:hover { background: var(--sh-hi-soft); }
+#mobileShell .sh-close:active { background: rgba(127, 127, 127, .14); }
+#mobileShell .sh-body-in {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 12px;
+  display: flex; flex-direction: column;
+}
+
+/* ── 控制台面板：搬进来的右栏改成整页宽 ── */
+html.shell-mobile #mobileShell #rightSidebar {
+  display: flex !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 100%;
+  flex: 1 1 auto;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  position: static !important;
+}
+/* 滚动交给外层 .sh-body-in，右栏自身别再开一个滚动容器 */
+html.shell-mobile #mobileShell #rightSidebar .rs-body {
+  flex: 1 1 auto; min-height: 0; overflow: visible !important;
+}
+html.shell-mobile #mobileShell #rightSidebar .rs-header { padding: 8px 10px 6px; }
+
+/* ── 沙盘页（v0.4.0：产物 → 沙盘，内容不再只有图片） ── */
+#mobileShell .sh-seg {
+  display: flex; gap: 6px; padding: 10px 12px 0; flex: 0 0 auto;
+  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+#mobileShell .sh-seg::-webkit-scrollbar { display: none; }
+#mobileShell .sh-seg button {
+  flex: 0 0 auto; height: 30px; padding: 0 13px; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--sh-line); border-radius: var(--sh-r);
+  background: none; color: var(--sh-ink-dim); white-space: nowrap;
+}
+#mobileShell .sh-seg button.on {
+  background: var(--sh-hi-soft); border-color: var(--sh-hi-line); color: var(--sh-hi);
+}
+#mobileShell .sh-panes { flex: 1 1 auto; min-height: 0; }
+#mobileShell .sh-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  padding: 10px 12px;
+}
+#mobileShell .sh-card {
+  display: block; width: 100%; padding: 0; text-align: left;
+  font: inherit; color: inherit; cursor: pointer;
+  border: 1px solid var(--sh-line);
+  border-radius: 12px; overflow: hidden;
+  background: var(--sh-card);
+}
+#mobileShell .sh-card:active { background: var(--sh-hi-soft); }
+#mobileShell .sh-card .th {
+  display: flex; height: 62px; align-items: center; justify-content: center;
+  color: var(--sh-ink-dim); background: rgba(127, 127, 127, .06);
+}
+#mobileShell .sh-card .tt2 { display: block; font-size: 12px; padding: 6px 8px 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#mobileShell .sh-card .ss { display: block; font-size: 10.5px; padding: 0 8px 8px; color: var(--sh-ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#mobileShell .sh-hint {
+  margin: 12px 12px 20px; padding: 12px 14px; border-radius: 12px;
+  background: var(--sh-card); color: var(--sh-ink-dim);
+  font-size: 11.5px; line-height: 1.7;
+}
+#mobileShell .sh-hint b { display: block; color: inherit; font-weight: 600; font-size: 12.5px; margin-bottom: 3px; }
+#mobileShell .sh-empty {
+  margin: 24px 12px; padding: 22px 16px; text-align: center;
+  border: 1px dashed var(--sh-line); border-radius: 12px;
+  color: var(--sh-ink-dim); font-size: 12px; line-height: 1.7;
+}
+#mobileShell .sh-empty b { display: block; color: inherit; font-weight: 600; margin-bottom: 4px; font-size: 13px; }
+
+/* ── 内容舞台：覆盖沙盘页整页，iframe 留着复用（返回再进不重载） ── */
+#mobileShell .sh-stage {
+  position: absolute; inset: 0; z-index: 3;
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--bg, #0b0b0b);
+}
+#mobileShell .sh-stage[hidden] { display: none; }
+#mobileShell .sh-stage-bar {
+  display: flex; align-items: center; gap: 8px; flex: 0 0 auto;
+  min-height: 48px; padding: 6px 10px;
+  border-bottom: 1px solid var(--sh-line); background: var(--sh-bar);
+}
+#mobileShell .sh-stage-bar b {
+  flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#mobileShell .sh-stage-btn {
+  flex: 0 0 auto; height: 32px; padding: 0 11px; font-size: 12px;
+  color: inherit; cursor: pointer;
+  border: 1px solid var(--sh-line); border-radius: var(--sh-r); background: none;
+}
+#mobileShell .sh-stage-btn:active { background: var(--sh-hi-soft); }
+#mobileShell .sh-stage-box { flex: 1 1 auto; min-height: 0; position: relative; }
+#mobileShell .sh-stage-box iframe { display: block; width: 100%; height: 100%; border: 0; background: var(--bg, #0b0b0b); }
+#mobileShell .sh-stage-text {
+  margin: 0; padding: 14px; height: 100%; box-sizing: border-box; overflow: auto;
+  white-space: pre-wrap; word-break: break-word; color: inherit;
+  font: 12px/1.6 ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* ── 底栏 dock：直角贴边，与顶栏的 border-bottom 对称 ── */
+#mobileShell .sh-dock {
+  flex: 0 0 auto;
+  display: flex; align-items: stretch;
+  padding: 4px 6px calc(4px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--sh-line);
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--sh-bar);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+#mobileShell .sh-item {
+  flex: 1 1 0;
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: 46px; padding: 4px 0;
+  border: 0; border-radius: var(--sh-r); background: transparent;
+  color: var(--sh-ink-dim); font-size: 10.5px; cursor: pointer;
+}
+html.shell-mobile .sh-item.on { color: var(--sh-hi); background: var(--sh-hi-soft); }
+html.shell-mobile .sh-item svg { display: block; }
+
+/* v0.4.0：三个按钮等宽同形。控制台仍是覆盖式抽屉（不切走当前页），
+   层级由 .on 高亮 + 遮罩表达，不再用 78px 窄钮把底栏摆得宽窄不齐。 */
+html.shell-mobile .sh-item.has-new::after {
+  content: ""; position: absolute; top: 5px; right: 26%;
+  width: 7px; height: 7px; border-radius: 50%; background: var(--sh-hi);
+}
+
+/* ── 顶栏状态胶囊（v0.3.0）──────────────────────────────────────────
+ * 手机顶栏原来并排「免费/快速」按钮 + 模型下拉，390px 下模型条占 188px，
+ * 把「工作/角色扮演」和设置键挤到边上。现在两者搬进胶囊弹层，顶栏只留一枚
+ * 胶囊；桌面（≥1024px）由 JS 搬回原位，本段选择器全部带 html.shell-mobile，
+ * 桌面零影响。
+ */
+html:not(.shell-mobile) #shCapsule { display: none; }
+html.shell-mobile #shCapsule {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; min-width: 0; flex: 1 1 auto; max-width: 260px;
+  margin-right: auto;            /* 吃掉弹性间距，把「工作/角色扮演」和设置键顶到右侧 */
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--sh-line); border-radius: var(--sh-r);
+  background: var(--sh-bar); color: inherit;
+  font-size: 12.5px; line-height: 1; cursor: pointer;
+}
+html.shell-mobile #shCapsule:active { background: var(--sh-hi-soft); }
+html.shell-mobile #shCapsule .sh-cap-text {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html.shell-mobile #shCapsule .sh-cap-dot {
+  flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--sh-ink-dim);
+}
+html.shell-mobile #shCapsule.is-fast .sh-cap-dot {
+  background: var(--sh-hi);
+  box-shadow: 0 0 0 3px var(--sh-hi-soft);
+}
+html.shell-mobile #shCapsule .sh-cap-caret { flex: 0 0 auto; opacity: .55; }
+
+/* 「工作 / 角色扮演」是意图轴的一级开关，手机上也要带字 ——
+ * index.html 的 ≤640px 规则会隐藏所有顶栏按钮的 .btn-text（图标-only），
+ * 但那对「角色扮演」这种四字新语义不成立：光一个面具图标认不出来。
+ * 这里只对壳启用时的 #personaToggle 破例，宽度交回内容，胶囊让位（可缩、可省略）。 */
+@media (max-width: 640px) {
+  html.shell-mobile #topbar #personaToggle {
+    width: auto; padding: 0 9px; gap: 5px; flex: 0 0 auto;
+  }
+  html.shell-mobile #topbar #personaToggle .btn-text { display: inline; font-size: 12.5px; }
+  html.shell-mobile #shCapsule { max-width: none; }
+}
+
+/* 弹层：贴顶栏下沿（top 由 JS 按实际高度写内联样式，字号变大也不会错位） */
+#mobileShell .sh-cap-scrim {
+  position: absolute; inset: 0; z-index: 3;
+  background: rgba(0, 0, 0, .28);
+  opacity: 0; pointer-events: none;
+  transition: opacity .18s ease;
+}
+html.shell-cap-open #mobileShell .sh-cap-scrim { opacity: 1; pointer-events: auto; }
+#mobileShell .sh-cap-pop {
+  position: absolute; left: 8px; right: 8px; top: 52px; z-index: 4;
+  background: var(--bg, #0b0b0b);
+  border: 1px solid var(--sh-line); border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .24);
+  transform: translateY(-6px); opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease, visibility 0s linear .16s;
+}
+html.shell-cap-open #mobileShell .sh-cap-pop {
+  transform: none; opacity: 1; visibility: visible; pointer-events: auto;
+  transition: opacity .16s ease, transform .16s ease, visibility 0s;
+}
+#mobileShell .sh-cap-pop .sh-head { border-bottom: 1px solid var(--sh-line); border-radius: 12px 12px 0 0; }
+#mobileShell .sh-cap-body { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+#mobileShell .sh-cap-tip {
+  padding: 0 12px 12px; font-size: 11px; line-height: 1.6; color: var(--sh-ink-dim);
+}
+/* 搬进来的真控件：拉满一行，别保留顶栏里的小尺寸 */
+#mobileShell .sh-cap-body #modeToggle {
+  width: 100%; height: 38px; flex: 0 0 auto;
+  justify-content: flex-start; padding: 0 12px;
+  border: 1px solid var(--sh-line); border-radius: var(--sh-r);
+}
+#mobileShell .sh-cap-body .model-pill {
+  width: 100%; height: 38px; display: flex; gap: 8px; align-items: center;
+}
+#mobileShell .sh-cap-body .model-pill select { flex: 1 1 auto; min-width: 0; width: auto !important; }
+@media (prefers-reduced-motion: reduce) {
+  #mobileShell .sh-cap-pop, #mobileShell .sh-cap-scrim { transition: none; }
+}
+
+/* ── 对话页：壳让位给原界面，只留 dock 悬浮（不再有圆角/投影） ── */
+html.shell-mobile.shell-chat #mobileShell {
+  background: transparent;
+  pointer-events: none;
+  padding-top: 0;
+}
+html.shell-mobile.shell-chat #mobileShell .sh-page { pointer-events: none; }
+html.shell-mobile.shell-chat #mobileShell .sh-dock { pointer-events: auto; }
+html.shell-mobile:not(.shell-chat) #mobileShell .sh-dock { background: var(--sh-bar); }
+
+/* ── 控制台覆盖面板（从底部升起，不切走当前页） ── */
+#mobileShell .sh-scrim {
+  position: absolute; inset: 0; z-index: 1;
+  background: rgba(0, 0, 0, .34);
+  opacity: 0; pointer-events: none;
+  transition: opacity .22s ease;
+}
+html.shell-mobile.shell-console-open #mobileShell .sh-scrim { opacity: 1; pointer-events: auto; }
+#mobileShell .sh-console {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+  height: min(72%, 560px);
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--bg, #0b0b0b);
+  border-top: 1px solid var(--sh-line);
+  border-radius: 0;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, .18);
+  transform: translateY(102%);
+  visibility: hidden;
+  transition: transform .24s cubic-bezier(.2, .8, .2, 1), visibility 0s linear .24s;
+  pointer-events: auto;
+}
+html.shell-mobile.shell-console-open #mobileShell .sh-console {
+  transform: none;
+  visibility: visible;
+  transition: transform .24s cubic-bezier(.2, .8, .2, 1), visibility 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  #mobileShell .sh-console, #mobileShell .sh-scrim { transition: none; }
+}

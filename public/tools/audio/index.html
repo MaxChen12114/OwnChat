@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>音频工作台 · OwnChat</title>
   <script>
-  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/theme.css) */
+  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/core/theme.css) */
   (function(){try{
     var t=localStorage.getItem('cfw_theme_v1')||'minimal';
     if(t&&t!=='minimal')document.documentElement.setAttribute('data-theme',t);
@@ -14,9 +14,9 @@
     if(s==='light'||s==='dark')document.documentElement.setAttribute('data-scheme',s);
   }catch(e){}})();
 </script>
-<link rel="stylesheet" href="/shared/theme.css?v=2" />
+<link rel="stylesheet" href="/shared/core/theme.css?v=2" />
 <style>
-    /* 主题令牌统一来自 /shared/theme.css(跟随主站主题);本页组件一律平面+细边框,不再使用拟物阴影 */
+    /* 主题令牌统一来自 /shared/core/theme.css(跟随主站主题);本页组件一律平面+细边框,不再使用拟物阴影 */
     :root{
       --surface:var(--panel);
       --accent:var(--ac); --accent-deep:var(--ac-strong); --accent2:var(--ac);
@@ -180,9 +180,10 @@
 
   <!-- 加载顺序:空间层 → tts 主体(空间层须在 tts 之前,tts 播放图依赖它) → reader 控制器 -->
   <!-- 2026-09-14 UI第一轮:统一反馈组件(toast/confirm,自注入样式),须在 app.js 前 -->
-  <script src="/shared/feedback.js"></script>
-  <script src="/shared/i18n.js"></script>
-  <script src="/shared/tts.js"></script>
+  <script src="/services/ui/feedback.js"></script>
+  <script src="/shared/core/i18n.js"></script>
+  <script src="/services/platform/tauri.js"></script>
+  <script src="/services/media/tts-text.js"></script>
   <script src="/tools/audio/app.js"></script>
 </body>
 </html>

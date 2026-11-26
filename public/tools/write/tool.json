@@ -1,0 +1,16 @@
+{
+  "id": "write",
+  "label": "写作台",
+  "icon": "write",
+  "href": "/tools/write/",
+  "order": 2,
+  "desc": "文档式写作台：左大纲右正文，选中文字浮起 AI 续写 / 扩写 / 润色（右栏标签打开；右键可开新浏览器页）",
+  "page": true,
+  "sidebar": true,
+  "embed": true,
+  "chrome": "",
+  "singleton": true,
+  "keepAlive": false,
+  "requires": [],
+  "capabilities": []
+}

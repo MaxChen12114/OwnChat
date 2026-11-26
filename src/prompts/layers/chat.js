@@ -8,6 +8,7 @@
 // 2026-05-29: 回复风格约束层 (所有象限通用,作为 system prompt 末尾追加)
 //   wechat: 微信连发风格, 1-2 句一条,多条用 || 分隔(前端拆气泡)
 //   verbose: 鼓励 200-600 字丰满段落,环境/心理/动作描写拉满(写小说党)
+//   default: 不注入 (角色卡/自定义 system 自带风格最好;2026-10-05 起不再有身份铁则与尺度层兜底)
 function buildReplyStyleInstruction(style) {
   // 4.44 #8: 微信连发放宽字数(原"≤30字/最多3句"太死,改为短句为主、可灵活拆条)
   if (style === "wechat") {
@@ -43,6 +44,7 @@ function buildPriorSummaryInstruction(summary) {
 }
 
 // 4.49 P3 世界书注入：前端 lorebook.js getActiveEntries 已按 scope + alwaysOn/关键词命中筛好
+// 每条形如 { name, content }，已完成 priority 排序。红线无关：只追加【世界设定】块，解限底座一字不改
 function buildLorebookInstruction(entries) {
   if (!Array.isArray(entries) || !entries.length) return "";
   const lines = entries
@@ -69,7 +71,9 @@ function buildSummarizeSysPrompt(priorSum) {
     "5. 未决问题与待办（用户明确提出过、尚未完成的）。",
     "6. 略去寒暄、重复、无关闲聊。",
     "7. 篇幅：默认 600 字以内；真实指令较多时可放宽到 1200 字。优先级 = 真实指令 > 当前状态 > 关键进展 > 其余。",
-    "8. 直接输出摘要正文，不要任何前后缀（如 '摘要：'、'好的' 等）。",
+    "8. 强制保留清单（不管篇幅多紧都要保住）：人名与称谓、具体数值（金额/数量/日期/时间/等级）、双方的承诺或约定、未完成事项、当前目标、时间与地点。",
+    "   若摘要会超出篇幅预算，先保这份清单，再压缩环境、心理、动作等描写；清单里的信息不许用「若干」「一些」模糊化。",
+    "9. 直接输出摘要正文，不要任何前后缀（如 '摘要：'、'好的' 等）。",
     priorSum ? `\n已有先前摘要（请在其基础上整合新内容，输出一份合并后的完整摘要）：\n${priorSum}` : "",
   ].filter(Boolean).join("\n");
 }

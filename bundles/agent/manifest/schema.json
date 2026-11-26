@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ownchat.local/schemas/tool-manifest.json",
+  "title": "OwnChat Agent 工具清单（L2 起点 v0.1）",
+  "description": "工具清单的声明格式。这是 L2 的零冲突前置，不是最终清单：全量清单由 L0a 生成器从各 provider 声明汇总产出，禁止手写全量表（手写等于再造一个写死点）。",
+  "type": "object",
+  "required": ["entries"],
+  "additionalProperties": false,
+  "properties": {
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/entry" }
+    }
+  },
+  "definitions": {
+    "entry": {
+      "type": "object",
+      "required": [
+        "id",
+        "group",
+        "summary",
+        "keywords",
+        "provider",
+        "requires",
+        "risk",
+        "sideEffect",
+        "residentCandidate",
+        "defaultEnabled",
+        "schema"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "工具名，必须与运行时 registry.define 的 name 逐字一致"
+        },
+        "group": {
+          "type": "string",
+          "minLength": 1,
+          "description": "分组，用于能力页折叠与 tool_search 的 group 过滤"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "一句说明，进目录文本；与 services/agent/tool-catalog.ts 的 summaryOf 口径一致"
+        },
+        "keywords": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "检索词，含中英文与工具名分词"
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1,
+          "description": "提供该工具的模块标识，用于生成期校验 provider 是否真实存在"
+        },
+        "requires": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "能力位，由 L1c capability provider 判定；不满足则状态为 off-caps"
+        },
+        "risk": {
+          "type": "string",
+          "enum": ["read", "write", "external", "destructive"],
+          "description": "风险档。v0.1 四值初版，按实测 36 个工具归类；TS 侧暂保持 string，迁移实测后再决定是否同步收紧"
+        },
+        "sideEffect": {
+          "type": "boolean",
+          "description": "是否有副作用；与 workMode 的确认闸门联动"
+        },
+        "residentCandidate": {
+          "type": "boolean",
+          "description": "常驻候选（决策 7：名单待统计，不预先写死）"
+        },
+        "defaultEnabled": {
+          "type": "boolean",
+          "description": "默认开关。high risk 工具应显式置 false，走 fail-closed"
+        },
+        "schema": {
+          "type": "object",
+          "description": "完整 JSON Schema，下发给模型用；生成期从 provider 实现抽取"
+        }
+      }
+    }
+  }
+}

@@ -5,14 +5,20 @@
 ## 文件一览
 
 | 文件 | 导出 | 加载方式 | 状态 |
+> **加载路径的唯一真源是 `l0/scripts.json`，不是下表。** 2026-11-21 起，`agent/agent-kernel.js`、
+> `agent/agent-reach.js`、`agent/env-context.js`、`agent/skills.js`、`media/tts.js` 等已迁到
+> `services/**`（TS 源，由 `l0/emit.mjs` 生成产物），另有 `agent/agent-local-tools.js` 等仍在原处。
+> 下表保留的是**出口与形态**（谁挂什么全局、是经典脚本还是 module），这部分仍然是契约；路径已经不准。
+
 | --- | --- | --- | --- |
-| `agent-kernel.js` | `globalThis.AgentKernel = { createToolRegistry, runAgentLoop }` | **`<script type="module">`**（用了 ES `export`，经典脚本会抛 SyntaxError，全局永不挂载） | ✅ 已接线 |
-| `tools.js` | `globalThis.OwnChatTools = { buildRegistry, defineTools }` | 经典 `<script>`（IIFE，顺序在 agent-kernel 之后即可，运行时才引用 AgentKernel） | ✅ 已接线 |
-| `agent-reach.js` | `globalThis.AgentReach = { defineTools }` | 经典 `<script>` | ✅ 已接线（app.js 无条件追加其 7 个联网工具） |
-| `agent-console.js` | `mountAgentConsole(container, opts)` | **`<script type="module">`** | ✅ 已接线（右栏运行面板） |
-| `env-context.js` | `globalThis.__envContext` | 经典 `<script>` | ✅ 已接线（self_diagnostics 工具 + 会话环境快照） |
-| `skills.js` / `tts*.js` / `image-channels.js` / `image-common.js` | `window.__skills / __omniTTS / __imageChannels / __imageCommon ...` | 经典 `<script>` | ✅ 主站各链使用（`image-channels.js` 须在 `image-common.js` 之前） |
-| `agent-llm-adapter.js` | ESM `createLLMClient` | **未加载** | ⚠️ 未来选项：provider-agnostic callModel 适配层（DeepSeek V4 消息清洗 / 流式 tool_calls 重组）。其清洗逻辑需先与 app.js 现内联实现比对后才能接入或删除 |
+| `agent/agent-kernel.js` | `globalThis.AgentKernel = { createToolRegistry, runAgentLoop }` | **`<script type="module">`**（用了 ES `export`，经典脚本会抛 SyntaxError，全局永不挂载） | ✅ 已接线 |
+| `services/tools/agent/tools.ts`（产物 `/services/tools/agent/tools.js`） | `globalThis.OwnChatTools = { buildRegistry, defineTools }` | 经典 `<script>`（由 `l0/emit.mjs` 发射；四档名单在服务里，schema 在 `l0/wiring/tools.js`） | ✅ 已接线 |
+| `agent/agent-reach.js` | `globalThis.AgentReach = { defineTools }` | 经典 `<script>` | ✅ 已接线（app.js 无条件追加其 7 个联网工具） |
+| `services/ui/agent-console.ts`（产物 `/services/ui/agent-console.js`） | `globalThis.mountAgentConsole(container, opts)` | 经典 `<script>`（事件→状态计划在服务里，DOM 在 `l0/wiring/agent-console.js`） | ✅ 已接线（右栏运行面板） |
+| `agent/env-context.js` | `globalThis.__envContext` | 经典 `<script>` | ✅ 已接线（self_diagnostics 工具 + 会话环境快照） |
+| `agent/skills.js` / `media/tts.js` / `js/image/core/image-channels.js` / `js/image/core/image-common.js` | `window.__skills / __omniTTS / __imageChannels / __imageCommon ...` | 经典 `<script>` | ✅ 主站各链使用（`image-channels.js` 须在 `image-common.js` 之前） |
+
+> 2026-11-25：`agent/agent-llm-adapter.js` 已退役，不再列入文件表。核心清洗在 `services/chat/context.ts`（`sanitizeToolProtocol`），唯一未覆盖的弃用别名告警归并到 `services/model-router/providers.ts` 的 `deprecationNotice()`（纯函数 + 注入端口、once-per-model，接线层接 console.warn）；别名与日期见 [docs/pending-wiring.md](../../docs/pending-wiring.md)。
 
 ## 工具注册表（createToolRegistry）
 
@@ -77,5 +83,5 @@ __dev.isAgentMode()
 
 ## 红线
 
-- 基座(src/prompts/bases/ 下的文本)一字未改；工具调用走独立通道，不碰 base。
+- 解限底座(src/prompts/bases/ 下的文本)与锁态准则一字未改；工具调用走独立通道，不碰 base。
 - 内核为独立模块，「魂」（内核层，本目录）与「壳」（Tauri 形态层 + 本地能力三件套）解耦推进。

@@ -1,0 +1,1522 @@
+{
+  "capturedAt": "2026-11-28",
+  "count": 61,
+  "defs": [
+    {
+      "description": "给用户发一张图。type='selfie' 发角色本人自拍（保持同一人）；type='scene' 发场景/物品图（画面不出现角色）。剧情需要展示外观、场景或道具时调用。",
+      "destructiveKind": "bool-false",
+      "name": "send_image",
+      "parameters": {
+        "properties": {
+          "character_id": {
+            "description": "可选，指定角色卡 id，默认当前激活角色",
+            "type": "string"
+          },
+          "scene_prompt": {
+            "description": "画面内容描述，例如『在海边的夜晚』『一杯冒热气的咖啡』",
+            "type": "string"
+          },
+          "type": {
+            "description": "selfie=角色自拍，scene=场景图",
+            "enum": [
+              "selfie",
+              "scene"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "scene_prompt"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "调整当前角色对用户的好感度（相对增减）。仅在剧情中发生明显拉近或破坏关系的事件时调用。",
+      "destructiveKind": "bool-true",
+      "name": "adjust_affinity",
+      "parameters": {
+        "properties": {
+          "delta": {
+            "description": "好感增减值，可为负，建议每次 -10 ~ +10",
+            "type": "number"
+          },
+          "reason": {
+            "description": "变化原因（一句话）",
+            "type": "string"
+          }
+        },
+        "required": [
+          "delta"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "派一个子 agent 独立完成某个子任务并返回结论。适合把可隔离的子任务(资料检索、分步推理、子方案起草)交给专职子 agent,你再汇总。子 agent 用同一套工具,靠深度上限防无限递归。",
+      "destructiveKind": "bool-true",
+      "name": "delegate_to_agent",
+      "parameters": {
+        "properties": {
+          "role": {
+            "description": "子 agent 的角色/专长,如『资料检索员』『方案起草人』",
+            "type": "string"
+          },
+          "task": {
+            "description": "交给子 agent 的具体子任务(含所需上下文)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "把若干角色**作为彼此独立的 agent** 叫到一起：每人一张自己的角色卡、各自独立的知识库，并行各调用一次模型，就议题各自给出结论/决策；结果回给你（不进聊天时间线）。\n默认 context=isolated：每位参与者**只看得到你写的议题/简报 + 自己的角色卡 + 自己知识库命中的段落**，看不到聊天记录、也看不到别人说了什么（第二轮才互评）。把议题写全：共用规则、局面、可选项。\ncontext=chat 才会把群聊历史（按本人视角投影）喂进去 —— 那是接着群聊说话，不是开会。\n**这是「让角色自己拿主意」的唯一正确通道。** 不要在一个上下文里替多个角色分别思考，那不是多智能体，是一个模型分饰多角（自导自演），角色卡等于白建。\n过程可见：右栏「多智能体讨论区」逐条显示每位 agent 的发言（stage_list 里能看到它；用 stage_open 打开 /tools/council/ 即可，讨论进行中会实时推进去）。",
+      "destructiveKind": "bool-true",
+      "name": "convene_meeting",
+      "parameters": {
+        "properties": {
+          "agenda": {
+            "description": "可选：多方多主题 —— 给每位参与者指定负责的方面",
+            "items": {
+              "properties": {
+                "aspect": {
+                  "description": "该参与者负责的方面，如 架构 / 成本 / 风险",
+                  "type": "string"
+                },
+                "who": {
+                  "description": "参与者名字（可省，按顺序对应）",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "aspect"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "context": {
+            "description": "默认 isolated：只喂议题+本人角色卡+本人知识库（真独立）。chat：投影群聊历史（接着聊天，不是开会）",
+            "enum": [
+              "isolated",
+              "chat"
+            ],
+            "type": "string"
+          },
+          "participants": {
+            "description": "参与者名字（已保存的角色卡名）。省略 = 场景成员；一个角色都没有时退回通用视角",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rounds": {
+            "description": "1（默认，各答各的、彼此不可见）或 2（第二轮能看到彼此答案、互相补充或反驳）",
+            "type": "number"
+          },
+          "topic": {
+            "description": "议题 / 要问的问题（写清背景与期望产出）",
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "把某个角色「叫上台」：它按自己的人设与自己的上下文，直接在聊天时间线里回答（用户会看到它的气泡）。适合把话题交给擅长它的角色，或先私开小会、再请它上台做总结。调用后你会收到它在时间线上说了什么。",
+      "destructiveKind": "bool-false",
+      "name": "invite_character",
+      "parameters": {
+        "properties": {
+          "brief": {
+            "description": "可选：给它的简短交代（当前讨论到哪、希望它回答什么；不写则按它自己的上下文接话）",
+            "type": "string"
+          },
+          "loop": {
+            "description": "可选：true=让这个角色以 agent 形态上台（能自己调工具查证，最多 3 轮）；false=单次调用。不传则跟随「Agent 模式」开关",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "角色名（已保存的角色卡）",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "管理角色卡(提示词编辑器·角色页，存统一存储 chars 表，与左栏角色卡同一数据源)。action: list 列出全部 / get 取单张 / create 新建 / update 改字段 / delete 删除 / activate 设为当前角色。create/update 用 card 对象(create 时 name 必填;update 与现有卡合并);get/update/delete/activate 需要 id。",
+      "destructiveKind": "fn",
+      "name": "manage_character_card",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "操作类型",
+            "enum": [
+              "list",
+              "get",
+              "create",
+              "update",
+              "delete",
+              "activate"
+            ],
+            "type": "string"
+          },
+          "card": {
+            "description": "create/update 的字段;update 时与现有卡按字段合并",
+            "properties": {
+              "age": {
+                "description": "年龄,影响立绘",
+                "type": "string"
+              },
+              "exampleQA": {
+                "description": "示例对话",
+                "items": {
+                  "properties": {
+                    "character": {
+                      "type": "string"
+                    },
+                    "user": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "gender": {
+                "description": "female/male/双性/无性别/自定义",
+                "type": "string"
+              },
+              "icon": {
+                "description": "头像 emoji",
+                "type": "string"
+              },
+              "identity": {
+                "description": "身份/背景",
+                "type": "string"
+              },
+              "name": {
+                "description": "角色名(create 必填)",
+                "type": "string"
+              },
+              "openingLine": {
+                "description": "开场白",
+                "type": "string"
+              },
+              "personality": {
+                "description": "性格关键词",
+                "type": "string"
+              },
+              "rules": {
+                "description": "行为铁则,最多 3 条",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "speakingStyle": {
+                "description": "说话方式",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "id": {
+            "description": "get/update/delete/activate 必填:角色卡 id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "按名加载一条技能的完整正文（Skill 系统 · 三级渐进披露的 level 2）。系统提示里的【可用技能目录】只列了名称与摘要——在按某个技能行事之前必须先调本工具取正文，不要凭摘要臆测内容。name 必须与目录里列出的名字完全一致。返回 { ok, name, description, content }；名字不存在或技能未列入目录时返回 { ok:false, error, available }（available = 当前可加载的名字）。只读，不改变任何启用状态。",
+      "destructiveKind": "bool-false",
+      "name": "load_skill",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "技能名（与【可用技能目录】里列出的完全一致）",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "用本地语音(TTS·GPT-SoVITS)把文字朗读出来。仅桌面 App 内、且已在「设置·本地语音」配好参考音频时真正发声;网页端 / 未配置时为占位空操作(返回 ready:false,不报错、不打断剧情)。剧情需要出声说话或用户要求朗读时调用。",
+      "destructiveKind": "bool-false",
+      "name": "speak",
+      "parameters": {
+        "properties": {
+          "text": {
+            "description": "要朗读的文字(括号/星号里的旁白动作会被自动过滤,只念说出来的话)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "在输入框上方弹出可点的选项芯片(分支/下拉),让用户点一下就把该选项当作下一条消息发出。剧情/对话出现 2-4 个明确走向、需要用户拍板方向时调用,通常作为本轮回复的收尾动作。这是 UI 工具提供者层,不抢驱动权,可与普通聊天/agent 共存。",
+      "destructiveKind": "bool-false",
+      "name": "offer_choices",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "include_meta": {
+            "description": "可选:是否附带「继续/换个走向/自己写」元操作芯片,默认 true",
+            "type": "boolean"
+          },
+          "options": {
+            "description": "2-6 个走向选项,每条一句话",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "options"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "列出当前会话工作区里的文件(路径 / 大小 / 最后修改时间)。工作区是本设备的 IndexedDB,跨会话隔离。",
+      "destructiveKind": "bool-false",
+      "name": "list_files",
+      "parameters": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "description": "读取工作区文件（**按行分页**）。默认返回前 400 行；文件更长时结果里带 totalLines 与 nextOffset，继续读就把 offset 传成 nextOffset。要找内容先用 search_file（先搜后读，比整读省得多，也不会被截断挖掉中段）。",
+      "destructiveKind": "bool-false",
+      "name": "read_file",
+      "parameters": {
+        "properties": {
+          "limit": {
+            "description": "最多返回多少行（默认 400，上限 2000）",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "起始行号（1 起，默认 1）",
+            "type": "integer"
+          },
+          "path": {
+            "description": "工作区内的文件路径,如 report.md / src/app.js",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "在工作区文件里检索（grep 语义）：返回命中**行号 + 上下文**。默认**字面**匹配（快、零误报）；regex:true 才按正则解释 pattern（带长度上限与嵌套量词拒绝，防回溯炸弹）。用法：大文件先 search 定位 → read_file(path, offset=命中行-15, limit=40) 读窗口；不要整读大文件。",
+      "destructiveKind": "bool-false",
+      "name": "search_file",
+      "parameters": {
+        "properties": {
+          "context": {
+            "description": "每个命中的上下文行数（默认 2，上限 10；0=不要上下文）",
+            "type": "integer"
+          },
+          "ignore_case": {
+            "description": "忽略大小写",
+            "type": "boolean"
+          },
+          "max_results": {
+            "description": "最多返回多少条命中（默认 30，上限 100）",
+            "type": "integer"
+          },
+          "path": {
+            "description": "可选：只搜某个文件（精确路径、glob 如 *.md / src/*，或路径片段）",
+            "type": "string"
+          },
+          "pattern": {
+            "description": "要找的内容（默认字面文本；regex:true 时为正则）",
+            "type": "string"
+          },
+          "regex": {
+            "description": "true=按正则解释 pattern（默认 false=字面）",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pattern"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "把内容写入当前会话工作区(IndexedDB,真持久化,可被 read_file 立刻读回)。适合产出报告/代码/数据,或作为多步任务的中间产物。要导出到真实磁盘用 export_file。",
+      "destructiveKind": "bool-true",
+      "name": "write_file",
+      "parameters": {
+        "properties": {
+          "content": {
+            "description": "文件内容(UTF-8 文本)",
+            "type": "string"
+          },
+          "path": {
+            "description": "工作区内的文件路径,如 report.md / src/app.js",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "在工作区文件里做精确替换(把 old_string 换成 new_string)。old_string 必须在文件里唯一出现,否则报错让你补足上下文。是最常用的「改文件」工具。",
+      "destructiveKind": "bool-true",
+      "name": "edit_file",
+      "parameters": {
+        "properties": {
+          "new_string": {
+            "description": "替换成的新内容",
+            "type": "string"
+          },
+          "old_string": {
+            "description": "要被替换的原文(需在文件中唯一)",
+            "type": "string"
+          },
+          "path": {
+            "description": "工作区内的文件路径",
+            "type": "string"
+          },
+          "replace_all": {
+            "description": "true = 替换全部出现(默认 false,要求唯一)",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "old_string",
+          "new_string"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "从工作区删除一个文件。",
+      "destructiveKind": "bool-true",
+      "name": "delete_file",
+      "parameters": {
+        "properties": {
+          "path": {
+            "description": "工作区内的文件路径",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "把工作区文件导出到**真实磁盘**(桌面端弹保存对话框,网页端触发下载)。要落盘给用户时才用;只是产出中间文件请用 write_file(写工作区,不需要用户干预)。",
+      "destructiveKind": "bool-true",
+      "name": "export_file",
+      "parameters": {
+        "properties": {
+          "filename": {
+            "description": "另存为的文件名(默认用 path 的文件名)",
+            "type": "string"
+          },
+          "path": {
+            "description": "工作区内要导出的文件路径",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "读取任意网页的文本内容。本站自己的地址（含 \"/\" 开头的相对路径，如 /js/text/engine/app.js）走**同源直读**（页面直接读，不经代理，读自己部署的前端源码就用这个）；其余地址桌面端优先 Rust 原生直连，网页端/失败时走 /api/fetch worker 代理（绕过 GFW 和 CORS）。适合：读文章、文档、GitHub README、B 站专栏、本站自己的源码文件等。均带超时，不会挂死。",
+      "destructiveKind": "bool-false",
+      "name": "fetch_page",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "max_chars": {
+            "description": "本次最多返回字符数，默认 8000",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "从第几个字符开始返回（默认 0）。大页面/大源码分次读：结果里的 nextOffset 直接传回来即可续读",
+            "type": "integer"
+          },
+          "url": {
+            "description": "要读取的网页 URL",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "全网搜索，返回标题 + 摘要 + 链接列表。默认走免费 DDG（够用、零成本）；仅当设 deep=true 时才升级到 Exa 语义搜索（付费约 $0.007/次≈0.05 元）。桌面端 DDG 无结果会自动降级原生直连。成本提示：先用默认免费搜索，只有结果不够准/不够全时再带 deep=true；已知具体 URL 时优先用免费的 fetch_page，勿对同一问题反复搜。适合：找最新资讯、学术资料、技术文档、产品信息等。",
+      "destructiveKind": "bool-false",
+      "name": "web_search",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "description": "返回结果数，默认 5，最多 10",
+            "type": "integer"
+          },
+          "deep": {
+            "description": "是否升级到 Exa 深度语义搜索（付费约 $0.007/次≈0.05 元）。默认 false 走免费 DDG；仅当普通搜索结果不够准/不够全时才设 true。",
+            "type": "boolean"
+          },
+          "query": {
+            "description": "搜索关键词或问题",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "搜索 B 站视频、专栏、UP 主等内容。无需登录，国内直连。适合：找教程视频、UP 主内容、B 站热门话题等。",
+      "destructiveKind": "bool-false",
+      "name": "search_bilibili",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "description": "返回数量，默认 5，最多 20",
+            "type": "integer"
+          },
+          "keyword": {
+            "description": "搜索关键词",
+            "type": "string"
+          },
+          "search_type": {
+            "description": "搜索类型：video=视频（默认），article=专栏，bili_user=UP 主",
+            "enum": [
+              "video",
+              "article",
+              "bili_user"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "keyword"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "搜索 GitHub 仓库，按 star 数排序。适合：找开源项目、工具、框架等。返回仓库名、描述、star 数、主要语言、URL。",
+      "destructiveKind": "bool-false",
+      "name": "search_github",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "description": "返回数量，默认 5，最多 10",
+            "type": "integer"
+          },
+          "query": {
+            "description": "搜索词，支持 GitHub 高级语法如 language:python」",
+            "type": "string"
+          },
+          "sort": {
+            "description": "排序方式，默认 stars",
+            "enum": [
+              "stars",
+              "updated",
+              "forks"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "解析 RSS/Atom 订阅源，返回最新文章列表（标题、链接、摘要、发布时间）。",
+      "destructiveKind": "bool-false",
+      "name": "read_rss",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "description": "返回条数，默认 5，最多 20",
+            "type": "integer"
+          },
+          "url": {
+            "description": "RSS/Atom 订阅链接",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "查询本设备累计的联网付费消耗：web_search 命中 Exa 的次数与估算花费（USD / 人民币）。fetch_page、search_bilibili、search_github、read_rss 均免费、不计入。只读、无副作用、不花钱。用户问『联网花了多少钱 / 还剩多少额度』时调用。注意：仅统计搜索 API 费用，不含模型对话 token 费。",
+      "destructiveKind": "bool-false",
+      "name": "reach_cost",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "description": "联网自检工具：依次探测【运行环境 / 同源 API 路由部署 / web_search(Exa/DDG) 通道 / fetch_page 代理通道 / 桌面原生直连 / 浏览器跨域直连】六个通道，多目标探针(任一成功即判网络可达，不被 B 站等单站反爬带偏)，逐步报告每一步是否成功及失败原因，用于定位『联网访问失败 / 从未成功』的确切故障点。只读、无副作用。当用户反馈联网工具用不了时，应优先调用本工具自检，再据结果说明问题。",
+      "destructiveKind": "bool-false",
+      "name": "reach_diagnose",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "test_url": {
+            "description": "用于探测的目标 URL，默认多目标(百度 / example.com / B 站)",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "description": "列出可检索的源码/文档文件清单（由本地 source-server 的 --root 决定范围；已排除 node_modules/.git/.venv 与密钥文件）。不知道某段代码在哪个文件时先看它；可用 prefix 收窄目录。",
+      "destructiveKind": "bool-false",
+      "name": "list_source",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "prefix": {
+            "description": "目录前缀（可选），如 public/js",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "description": "在可检索根内做字面/正则搜索，返回「文件:行号 + 行内容」。找某函数/字符串在哪、有几处就用它——比逐页 fetch 快且准。默认不区分大小写、字面匹配；regex=true 走正则；命中多时用 pathPrefix 收窄。",
+      "destructiveKind": "bool-false",
+      "name": "search_source",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "max": {
+            "description": "可选：命中上限，默认 60，最大 200",
+            "type": "number"
+          },
+          "pathPrefix": {
+            "description": "可选：只在某目录下搜",
+            "type": "string"
+          },
+          "query": {
+            "description": "要找的字符串或（regex=true 时的）正则",
+            "type": "string"
+          },
+          "regex": {
+            "description": "可选：true=按正则解释（默认字面匹配）",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "按行读可检索根内的文件（带行号、字符预算，超出给 nextStart 续读）。先 search_source 定位再读窗口，别整文件读。",
+      "destructiveKind": "bool-false",
+      "name": "read_source",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "lines": {
+            "description": "读取行数，默认 200，最大 400",
+            "type": "number"
+          },
+          "path": {
+            "description": "相对根路径（正斜杠）",
+            "type": "string"
+          },
+          "start": {
+            "description": "起始行，默认 1",
+            "type": "number"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "列出产物目录（需 source-server 启动时配 --artifacts）里的文件，含大小/时间；用于找 agent 生成的图片、文档、数据。",
+      "destructiveKind": "bool-false",
+      "name": "list_artifacts",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "prefix": {
+            "description": "路径前缀（可选）",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "description": "读产物内容（TEXT 白名单、≤2MiB；二进制/超限会返回可打开的 URL）。路径可写 artifacts/x、x 或完整 URL。",
+      "destructiveKind": "bool-false",
+      "name": "read_artifact",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "lines": {
+            "description": "读取行数，默认 200",
+            "type": "number"
+          },
+          "ref": {
+            "description": "产物路径或 URL",
+            "type": "string"
+          },
+          "start": {
+            "description": "起始行，默认 1",
+            "type": "number"
+          }
+        },
+        "required": [
+          "ref"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "列出右栏画布**能打开什么**：站内工具（沙盘地图等）+ 当前正在显示的内容。\n规则：用户说\"打开地图 / 看看沙盘 / 打开那个页面\"时，**先调这个**，不要自己去搜源码、也不要手写 HTML 重画。",
+      "destructiveKind": "bool-false",
+      "name": "stage_list",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "description": "把内容挂到右栏画布上，用户可以直接看到（可拖宽、可拉出独立窗口）。三种用法，按优先级选：\n① {url} 打开一个现成网页——**站内已有**沙盘地图（/tools/sandbox/index.html）、以及 agent 之前挂过的页面。**优先用这个**。\n② {html} 打开一段自包含 HTML——只用于\"没有现成页面的一次性可视化\"：图表、表格、流程图、小演示。\n③ {text} 纯文本（日志、纯文本产物）。\n纪律：\n· 用户要\"地图 / 沙盘\"时先 stage_list 看有哪些站内工具，**不要搜源码、也不要手写 HTML 重画地图**。\n· html 在隔离沙箱里执行（origin 为 null）：可以跑脚本、画 canvas，但**读不到父页**（parent/localStorage 会抛 SecurityError），不要把页面状态塞进 html 里传。\n· 打开后画布保持收起状态（只在顶栏 ⊞ 上点一个小圆点），用户自己决定什么时候看。",
+      "destructiveKind": "bool-false",
+      "name": "stage_open",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "html": {
+            "description": "自包含 HTML 片段（仅当没有现成页面时用）",
+            "type": "string"
+          },
+          "mode": {
+            "description": "安全档（一般不用传）：trusted=自家页 / host-html=隔离沙箱 / external=外链。不传时按内容自动推断（html→host-html，url→trusted）。",
+            "type": "string"
+          },
+          "text": {
+            "description": "纯文本内容",
+            "type": "string"
+          },
+          "title": {
+            "description": "画布标题（简短，用于窗口标题与无障碍名）",
+            "type": "string"
+          },
+          "url": {
+            "description": "要打开的网页地址（http/https/相对路径）",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "description": "清空右栏画布（内容看完就收，别让它一直占着用户的屏幕）。画布本身保持展开状态，用户点顶栏按钮可收起整个面板。",
+      "destructiveKind": "bool-false",
+      "name": "stage_close",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "description": "切换右栏画布的视图：canvas=内容画布（默认）/ activity=活动（多智能体交互时间线）/ status=状态（上下文、计费、系统）。一般不需要调用——用户自己会点。只有一种情况用得上：你想让用户\"先看过程\"（activity）再回来看结果。",
+      "destructiveKind": "bool-false",
+      "name": "stage_view",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "canvas | activity | status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "调用右栏画布当前页面自己注册的函数（页面用 window.__stage = { 函数名: (参数) => 结果 } 声明），用来驱动它：改地图、推战线、换数据、重算。\n什么时候用：用户要「让页面动起来 / 更新它 / 按你说的改」时。**只打开不驱动 = 页面停在初始那一帧。**\n参数形状：args 是**按位置的参数列表**，等价于 fn(...args)。\n  · 无参：省略 args 或写 []\n  · 单参数且该参数是个数组：要再包一层，例 setOwners 传 args=[网格数组]\n  · 例：{fn:\"setOwner\", args:[48,10,1]} → setOwner(48,10,1)\n函数名不对会返回该页面实际可用的函数清单，照着清单再调一次即可。\n沙盘（/tools/sandbox）注册的函数以页面实际注册（__stage）为准——调错名会返回实时清单，以它为准。\n常用：state（看局面）/ editCell（改地形，走 overlay 账本）/ act（通用改动命令）/ facility.place·remove（设施）/ preview（放置预览）/ terrainDataURL（确定性比对）。画布是空的时候先 stage_open 再调。",
+      "destructiveKind": "bool-false",
+      "name": "stage_call",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "description": "传给该函数的入参（任意 JSON）。不需要参数可省略。"
+          },
+          "fn": {
+            "description": "函数名（页面 window.__stage 的键）",
+            "type": "string"
+          },
+          "timeoutMs": {
+            "description": "超时毫秒（默认 15000，上限 120000）",
+            "type": "number"
+          }
+        },
+        "required": [
+          "fn"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "把「多步、分钟级、需要沙箱执行」的活派给外部作业台异步跑，后台执行完把产物送进右栏画布。\n什么时候用：批量改文件、跑长分析脚本、生成多张图、需要工具链的多阶段任务。\n什么时候**不用**：单步秒级操作（用 local_run_command）；纯问答（直接答）。\n派完立刻返回 jobId，会话不阻塞；状态迁移会自己通知，产物到了会自动挂到画布上。\n未配置作业台时调用会返回配置指引。",
+      "destructiveKind": "bool-false",
+      "name": "submit_job",
+      "parameters": {
+        "additionalProperties": true,
+        "properties": {
+          "acceptance": {
+            "description": "验收标准（可选）",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "approved": {
+            "description": "危险动作闸门：shell 执行器必须为 true 才放行；改文件/删文件时更要显式确认。",
+            "type": "boolean"
+          },
+          "dataRefs": {
+            "description": "需要的数据引用（可选，路径或 URL）",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "goal": {
+            "description": "要达成什么（写给执行者看的完整说明）",
+            "type": "string"
+          },
+          "kind": {
+            "description": "任务类型，格式必须是「域名.动作」（小写字母开头，如 data.repro、geo.parse、meta.shell）。域名只能是 data / geo / sim / kb / meta 之一。**它不是执行器名**——别写 shell / probe / agent，那几个会直接报错。",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "description": "透传给执行器的参数。shell 执行器必须给 params.command（要跑的命令，PowerShell 语法）；probe 可省。",
+            "type": "object"
+          },
+          "title": {
+            "description": "一句话标题（用户会在产物标题里看到）",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "title",
+          "goal"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "查一个作业的当前状态与产物清单（jobId 来自 submit_job）。",
+      "destructiveKind": "bool-false",
+      "name": "job_status",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "jobId": {
+            "description": "作业 id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "把某个作业的产物重新挂到右栏画布（之前关掉了、想再看一次时用）。",
+      "destructiveKind": "bool-false",
+      "name": "job_open_artifacts",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "jobId": {
+            "description": "作业 id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "看「三方会商」留言板（ZCode 平台侧 / DSH 工作台 / 你 geo 三方共用；本机 8798）。不传 thread：列线程清单 + 你的未读数（先看这个，知道自己错过了什么）。传 thread：读该线程消息流（带序号，可 after 续读），读完自动把该线程标记为已读（peek=true 则只看不标）。发言用 council_post。讨论纪律（022 定的）：先摸底再发言；断言要挂 refs（台账行/源码行/artifacts）。",
+      "destructiveKind": "bool-false",
+      "name": "council_read",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "description": "可选：只取该序号之后的新帖（用于增量续读）",
+            "type": "number"
+          },
+          "peek": {
+            "description": "可选：true=读完不标记已读",
+            "type": "boolean"
+          },
+          "thread": {
+            "description": "线程名（可选），如 \"认识\"；不传=只看清单与未读",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "description": "往「三方会商」留言板发一帖（席位=geo，即你）。三方共用本机 8798，用户在演示台「会商」viewer 里实时围观。kind 枚举：招呼（首次见面）/ 摸底 / 感受（主观印象、置信度、顾虑）/ 意见 / 提案（须答：是什么/为什么卡/怎么验收）/ 取证（须挂 refs）/ 裁决。纪律：主观进\"感受\"，可引用进\"意见\"，断言必须挂 refs（如 \"geo-agent/改造记录/022-…md#L15\"）或标\"无据存疑\"；正文里不要出现任何密钥。",
+      "destructiveKind": "bool-false",
+      "name": "council_post",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "description": "正文（≤8000 字）",
+            "type": "string"
+          },
+          "kind": {
+            "description": "帖子类型：招呼|摸底|感受|意见|提案|取证|裁决",
+            "type": "string"
+          },
+          "refs": {
+            "description": "可选：可核验的引用（台账行号/源码文件:行/artifacts 路径）",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reply_to": {
+            "description": "可选：所回帖的 id（如 \"认识#1\"）",
+            "type": "string"
+          },
+          "thread": {
+            "description": "线程名；不传=发到最近活跃的线程",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "body"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "列本机某个目录（相对工作区根或绝对路径，越界会被拒）。用于确认数据/文件在不在。",
+      "destructiveKind": "bool-false",
+      "name": "local_list_dir",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "description": "目录路径，默认工作区根",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "description": "读本机文件（相对工作区根或绝对路径，越界会被拒）。二进制文件返回 base64。",
+      "destructiveKind": "bool-false",
+      "name": "local_read_file",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "description": "文件路径",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "写本机文件（父目录自动创建，路径必须在工作区内）。\n**写完要展示给人看（图/网页/CSV）时**：不要用 /xxx 这种站内相对路径（wrangler 的资产清单是启动时的快照，\n新文件会 404，必须重启才可见）。改用本地服务的静态通道：\n  写 <相对工作区的路径> → 用 URL http://127.0.0.1:8801/static/<同一个相对路径> 打开\n  （例：写 OwnChat/public/_art/a.png → stage_open({url:'http://127.0.0.1:8801/static/OwnChat/public/_art/a.png'})）",
+      "destructiveKind": "bool-false",
+      "name": "local_write_file",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "description": "文本内容",
+            "type": "string"
+          },
+          "path": {
+            "description": "文件路径",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "在本机执行一个程序（不经 shell：command 是程序路径，args 是参数数组；不能写管道/重定向）。\n适合：跑单步脚本、查环境、生成文件。长任务（>2 分钟）请改用 submit_job 派给作业台。\n工作目录默认工作区根；越界路径会被拒。",
+      "destructiveKind": "bool-false",
+      "name": "local_run_command",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "description": "参数数组",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "command": {
+            "description": "程序路径或命令名，如 C:/.../python.exe 或 python",
+            "type": "string"
+          },
+          "cwd": {
+            "description": "工作目录（可选，默认工作区根）",
+            "type": "string"
+          },
+          "timeoutMs": {
+            "description": "超时毫秒（默认 120000，上限 600000）",
+            "type": "number"
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "看远程电脑状态：是否锁屏、屏幕分辨率/缩放、前台窗口。连电脑后先调它，再决定截图还是读控件。",
+      "destructiveKind": "bool-false",
+      "name": "pc_status",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "description": "截一张远程电脑的屏幕，图会显示给用户看。默认缩到 1280 宽。\n当前模型支持视觉时（如 deepseek-flash），这张图也会随下一轮请求发给你；不支持时只给用户看。\n要精确操作请优先用 pc_ui 读控件树，不要靠截图猜坐标。\n如果必须从截图估坐标：pc_ui/pc_click 用物理像素，截图被缩过，先把图上坐标乘 sourceWidth/width（工具结果里有这两个数）。",
+      "destructiveKind": "bool-false",
+      "name": "pc_shot",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "max": {
+            "description": "最大宽度，320–2560，默认 1280",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "description": "读前台窗口的可操作控件树（UIA）：控件类型/名字/坐标/大小/是否可用。\n这是操作电脑的首选“眼睛”，纯文本，任何模型都能读。\n坐标是物理像素，可直接传给 pc_click；中文控件名已修正，优先用 pc_click_control 按名字点。\ntruncated=true 时：先用 pc_focus 聚焦目标窗口，或把 limit 调小；不要凭截图猜。",
+      "destructiveKind": "bool-false",
+      "name": "pc_ui",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "description": "最多返回多少个控件，10–120，默认 40",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "description": "列出远程电脑的顶层窗口（标题/进程/hwnd/位置，坐标是物理像素）。要切到别的应用时，先用它拿 hwnd 或标题，再 pc_focus。",
+      "destructiveKind": "bool-false",
+      "name": "pc_windows",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "description": "把某个窗口切到前台。参数给 hwnd 或标题片段二选一。切完再 pc_ui 看控件。",
+      "destructiveKind": "bool-true",
+      "name": "pc_focus",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "hwnd": {
+            "description": "窗口句柄（pc_windows 返回的 hwnd）",
+            "type": "number"
+          },
+          "title": {
+            "description": "窗口标题片段，如 Chrome",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "description": "按控件名点击（UIA）。**优先用这个**，比坐标可靠。先 pc_ui 看名字。中文控件名已修正。\n多个同名控件时返回 candidates，换更精确的名字或加 type；只有 UIA 找不到时才用 pc_click 坐标。",
+      "destructiveKind": "bool-true",
+      "name": "pc_click_control",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "exact": {
+            "description": "默认 true=精确匹配；false=包含匹配",
+            "type": "boolean"
+          },
+          "index": {
+            "description": "多个匹配时选第几个（0 起）",
+            "type": "number"
+          },
+          "name": {
+            "description": "控件名字（pc_ui 里的 name）",
+            "type": "string"
+          },
+          "type": {
+            "description": "控件类型，如 Button / Edit / MenuItem",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "按坐标点击（物理像素，和 pc_ui 返回的坐标同一套）。仅在 pc_click_control 找不到控件时用。\npc_ui 的坐标可直接用；如果从 pc_shot 的图估坐标，先把图上坐标乘 sourceWidth/width。点之前最好先 pc_focus 目标窗口。",
+      "destructiveKind": "bool-true",
+      "name": "pc_click",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "button": {
+            "description": "left | right | middle，默认 left",
+            "type": "string"
+          },
+          "count": {
+            "description": "1 或 2，默认 1",
+            "type": "number"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "向当前焦点输入文本（中文可用，走 Unicode SendInput）。\n输入前先用 pc_click_control 点一下输入框，或 pc_focus 切窗口；不要在没聚焦时盲打。",
+      "destructiveKind": "bool-true",
+      "name": "pc_type",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "description": "要输入的文本，最多 2000 字",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "按一个键或组合键。例：Enter / Tab / Esc / Backspace / Ctrl+C / Ctrl+V / Alt+Tab / Ctrl+Shift+Esc / F5。",
+      "destructiveKind": "bool-true",
+      "name": "pc_key",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "description": "键名或组合，如 Ctrl+C",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "在指定坐标滚动滚轮。dy 正数向上、负数向下；dx 正数向右、负数向左。先用 pc_ui 找目标区域坐标。",
+      "destructiveKind": "bool-true",
+      "name": "pc_scroll",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "dx": {
+            "description": "水平，默认 0",
+            "type": "number"
+          },
+          "dy": {
+            "description": "垂直，默认 0",
+            "type": "number"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "读/写远程电脑的剪贴板文本。action=get 读取；action=set 需要 text。适合跨设备搬一段文字。",
+      "destructiveKind": "fn",
+      "name": "pc_clipboard",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "get | set",
+            "type": "string"
+          },
+          "text": {
+            "description": "action=set 时的文本，最多 8000 字",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "看最近的远程操作审计（谁在什么时候点了什么/输入了多长）。排查误操作时用。",
+      "destructiveKind": "bool-false",
+      "name": "pc_audit",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "description": "最多几条，1–100，默认 20",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "description": "列出远程电脑工作区目录（只读，白名单=OwnChat-Workspace 之内）。看目录结构/找文件用。\npath 传工作区相对路径（如 remote-desk/pc-bridge）或空=根目录。返回 name/dir/size/mtime。\n例：path 传 OwnChat/src 看主站源码目录。",
+      "destructiveKind": "bool-false",
+      "name": "pc_ls",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "description": "最多返回几条，1–2000，默认 500",
+            "type": "number"
+          },
+          "path": {
+            "description": "目录路径，空=工作区根",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "description": "读远程电脑工作区里的文本文件（只读，单次 ≤200KB；二进制文件不回传内容）。读源码/配置/文档用。\n大文件会返回 nextOffset —— 把它传给 offset 续读下一段。先 pc_ls / pc_grep 定位；密钥类文件（.pc-token/.dev.vars/*.key 等）在黑名单里读不了。\n例：path 传 OwnChat/src/worker.js 读主站 Worker 源码。",
+      "destructiveKind": "bool-false",
+      "name": "pc_read",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "offset": {
+            "description": "字节偏移，续读上一段时传上一次返回的 nextOffset",
+            "type": "number"
+          },
+          "path": {
+            "description": "文件路径（工作区相对或绝对）",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "在工作区里搜文件内容（只读；正则或字面量，glob 过滤如 *.js）。找「某个函数在哪/配置在哪」的首选。\n带 context=2~3 可直接看到命中处上下文，常能省一次 pc_read。 \n例：pattern 传 handlePcProxy、glob 传 *.js、context 传 2。\n默认忽略大小写；跳过 .git/node_modules 与密钥文件；单文件 ≤1MB；最多返回 max 条（默认 60）。",
+      "destructiveKind": "bool-false",
+      "name": "pc_grep",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "context": {
+            "description": "每条命中附前后 N 行上下文（0–5，默认 0）",
+            "type": "number"
+          },
+          "glob": {
+            "description": "文件名过滤，如 *.js 或 *.js,*.mjs",
+            "type": "string"
+          },
+          "ignoreCase": {
+            "description": "默认 true",
+            "type": "boolean"
+          },
+          "max": {
+            "description": "最多几条，1–120，默认 60",
+            "type": "number"
+          },
+          "path": {
+            "description": "搜索范围（目录或单文件），空=工作区根",
+            "type": "string"
+          },
+          "pattern": {
+            "description": "要搜的内容（字面量或正则）",
+            "type": "string"
+          },
+          "regex": {
+            "description": "true=按正则解析，默认按字面量",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pattern"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "急停：立刻关闭远程电脑的鼠标键盘输入，之后必须在电脑上重启 pc-bridge 才能恢复。只在用户明确说「急停 / panic」时调用；用户说「停 / 别点了」时不要用它 —— 正常停止由用户点停止键或发插话处理。",
+      "destructiveKind": "bool-false",
+      "name": "pc_panic",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "description": "指挥氛围音:环境声(amb)/背景音乐(mus)两条独立音轨可同时播放,voice 是气息垫(轻息,并入环境轨)。id 用系统提示「氛围音·导演」清单里的轨道 id;id 传 \"off\" 关闭该轨;volume 0-100 可选。聊天正文里写 [[amb:id|音量]] 标签是等价写法。",
+      "destructiveKind": "bool-false",
+      "name": "set_ambient",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "deck": {
+            "description": "amb=环境声,mus=背景音乐,voice=气息垫",
+            "enum": [
+              "amb",
+              "mus",
+              "voice"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "description": "轨道 id(见氛围音·导演清单),或 \"off\" 关闭该轨",
+            "type": "string"
+          },
+          "volume": {
+            "description": "音量 0-100,省略则沿用上次",
+            "type": "number"
+          }
+        },
+        "required": [
+          "deck",
+          "id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "运行环境快照 + 加载完整性自检 + 联网逐环节自检。环境/加载部分只读零网络（时间/时区/网络/版本/已装工具/各模块是否加载/monkey-patch 链是否完整）；联网部分委托 AgentReach.diagnose() 逐环节探测（同源代理 /api/fetch、桌面原生直连、浏览器跨域直连），定位联网在哪一步失败。默认含联网探测；传 network:false 则只做零网络的环境+加载自检。当用户问“你状态怎么样/现在几点/联网了吗/访问失败/为什么不工作/是不是又崩了”时调用。",
+      "destructiveKind": "bool-false",
+      "name": "self_diagnostics",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "network": {
+            "description": "是否执行联网逐环节探测（默认 true）。false=仅零网络的环境+加载自检",
+            "type": "boolean"
+          },
+          "test_url": {
+            "description": "联网探测用的目标 URL（默认多目标探针：百度/example.com/B 站）",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "description": "检索当前会话的归档历史（被压缩替换掉的早期原文）。摘要有「原文 seq X-Y 在归档，可用 history_search 回捞」时，按关键词或原句片段回捞；只搜当前会话，不会串到别的对话。返回 { ok, hits:[{seq,role,speaker,ts,text}] }。没有命中不是失败（会话可能还没压缩过）。",
+      "destructiveKind": "bool-false",
+      "name": "history_search",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "description": "返回条数，默认 5，最多 20",
+            "type": "number"
+          },
+          "query": {
+            "description": "检索词 / 原句片段（中文子串可命中）",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      }
+    }
+  ],
+  "report": [
+    {
+      "name": "__agentWorkspace",
+      "ok": true
+    },
+    {
+      "name": "AgentReach",
+      "ok": true
+    },
+    {
+      "name": "AgentLocalTools",
+      "ok": true
+    },
+    {
+      "name": "__sourceTools",
+      "ok": true
+    },
+    {
+      "name": "__ioTools",
+      "ok": true
+    },
+    {
+      "name": "__stageTools",
+      "ok": true
+    },
+    {
+      "name": "__jobTools",
+      "ok": true
+    },
+    {
+      "name": "__councilTools",
+      "ok": true
+    },
+    {
+      "name": "__localExecTools",
+      "ok": true
+    },
+    {
+      "name": "__pcTools",
+      "ok": true
+    },
+    {
+      "name": "AmbientTools",
+      "ok": true
+    },
+    {
+      "name": "__envContext",
+      "ok": true
+    }
+  ],
+  "source": "__agentRegistry.build({}) @ 8812 真实运行时（PC/多智能体门控预置全开，清单需全量声明）；2026-11-28 T3-D 补录 history_search（真实运行时捕获待重跑）"
+}

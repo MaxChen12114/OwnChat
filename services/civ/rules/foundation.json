@@ -1,0 +1,230 @@
+{
+  "id": "civ-foundation",
+  "schemaVersion": 1,
+  "economy": {
+    "resources": ["gold", "food", "iron", "horses", "salt"],
+    "productionPerTurn": { "gold": 2, "food": 3, "iron": 1, "horses": 0.2, "salt": 0.1 },
+    "perPopulation": { "gold": 0.02, "food": 0.03 },
+    "perTerritory": { "gold": 0.2, "food": 0.1 },
+    "upkeepPerArmy": { "gold": 0.03, "food": 0.02 },
+    "maxMorale": 100,
+    "maxReputation": 100,
+    "maxWarExhaustion": 100,
+    "moraleRecovery": 2,
+    "starvationMoralePenalty": 5,
+    "populationGrowthPerTurn": 0.05,
+    "reputationAnchor": 50,
+    "reputationDecayRate": 0.01,
+    "warExhaustionDecay": 2,
+    "recruitCostPerSoldier": { "gold": 2, "food": 1 },
+    "maxRecruitPerTurn": 50
+  },
+  "diplomacy": {
+    "proposalTtlTicks": 4,
+    "ceasefireTicks": 6,
+    "grievanceTtlTicks": 24,
+    "trustMin": -100,
+    "trustMax": 100,
+    "trustOnAccept": 5,
+    "trustOnReject": -3,
+    "trustOnSign": 8,
+    "trustOnBreach": -25,
+    "breachPenalties": {
+      "betrayed_ally": 25,
+      "broke_non_aggression": 15,
+      "refused_defensive_call": 20,
+      "broke_peace": 30
+    },
+    "treatyKinds": [
+      {
+        "id": "alliance",
+        "label": "同盟",
+        "obligations": ["no_attack", "join_defense"],
+        "durationTicks": 24,
+        "trustOnSign": 8,
+        "breachOnAttack": "betrayed_ally",
+        "status": "alliance"
+      },
+      {
+        "id": "defensive_pact",
+        "label": "防御同盟",
+        "obligations": ["no_attack", "join_defense"],
+        "durationTicks": 18,
+        "trustOnSign": 5,
+        "breachOnAttack": "betrayed_ally",
+        "status": "treaty"
+      },
+      {
+        "id": "non_aggression",
+        "label": "互不侵犯",
+        "obligations": ["no_attack"],
+        "durationTicks": 12,
+        "trustOnSign": 3,
+        "breachOnAttack": "broke_non_aggression",
+        "status": "treaty"
+      },
+      {
+        "id": "peace",
+        "label": "和约",
+        "obligations": ["no_attack"],
+        "durationTicks": 40,
+        "trustOnSign": 2,
+        "breachOnAttack": "broke_peace",
+        "status": "peace"
+      }
+    ],
+    "proposalKinds": [
+      {
+        "id": "alliance",
+        "label": "同盟",
+        "mode": "treaty",
+        "createsTreaty": "alliance",
+        "requiresWar": false,
+        "allowedStatus": ["contact", "negotiating", "treaty", "peace"],
+        "requiresTerms": false
+      },
+      {
+        "id": "defensive_pact",
+        "label": "防御同盟",
+        "mode": "treaty",
+        "createsTreaty": "defensive_pact",
+        "requiresWar": false,
+        "allowedStatus": ["contact", "negotiating", "treaty", "peace"],
+        "requiresTerms": false
+      },
+      {
+        "id": "non_aggression",
+        "label": "互不侵犯条约",
+        "mode": "treaty",
+        "createsTreaty": "non_aggression",
+        "requiresWar": false,
+        "allowedStatus": ["contact", "negotiating", "treaty", "peace"],
+        "requiresTerms": false
+      },
+      {
+        "id": "ceasefire",
+        "label": "停火",
+        "mode": "ceasefire",
+        "createsTreaty": null,
+        "requiresWar": true,
+        "allowedStatus": ["war", "ceasefire"],
+        "requiresTerms": false
+      },
+      {
+        "id": "peace",
+        "label": "和约",
+        "mode": "peace",
+        "createsTreaty": null,
+        "requiresWar": true,
+        "allowedStatus": ["war", "ceasefire"],
+        "requiresTerms": true
+      }
+    ]
+  },
+  "war": {
+    "combat": {
+      "attackFactor": 1,
+      "defenseFactor": 0.9,
+      "moraleFactor": 0.5,
+      "randomSwing": 0.12,
+      "casualtyFraction": 0.15,
+      "warScorePerWin": 12,
+      "warScorePerLoss": 8,
+      "moraleGain": 2,
+      "moraleLoss": 4,
+      "exhaustionPerBattle": 6,
+      "exhaustionPerTurn": 1.5,
+      "forcedCeasefireAt": 40,
+      "maxWarScore": 100,
+      "minArmyToAttack": 1
+    },
+    "casusBelli": [
+      {
+        "id": "resource_grab",
+        "label": "资源匮乏",
+        "condition": {
+          "resourceDeficit": { "resource": "iron", "actorBelow": 15, "targetAtLeast": 20 }
+        },
+        "reputationCost": 12,
+        "legitimacy": 10
+      },
+      {
+        "id": "border_dispute",
+        "label": "边境争端",
+        "condition": {
+          "grievance": { "types": ["border_incursion", "resource_dispute"], "min": 10 }
+        },
+        "reputationCost": 8,
+        "legitimacy": 15
+      },
+      {
+        "id": "punish_breaker",
+        "label": "讨伐毁约者",
+        "condition": {
+          "grievance": { "types": ["treaty_breach", "betrayal"], "min": 1 }
+        },
+        "reputationCost": 0,
+        "legitimacy": 20
+      },
+      {
+        "id": "surprise_attack",
+        "label": "不宣而战",
+        "condition": {},
+        "reputationCost": 40,
+        "legitimacy": -10
+      }
+    ],
+    "peaceTerms": [
+      {
+        "id": "white_peace",
+        "label": "白和",
+        "minWarScore": -100,
+        "maxWarScore": null,
+        "effects": []
+      },
+      {
+        "id": "reparations",
+        "label": "赔款",
+        "minWarScore": 10,
+        "maxWarScore": null,
+        "effects": [
+          { "type": "reparations", "payer": "loser", "beneficiary": "winner", "resource": "gold", "fraction": 0.2 }
+        ]
+      },
+      {
+        "id": "demilitarize",
+        "label": "去军事化",
+        "minWarScore": 20,
+        "maxWarScore": null,
+        "effects": [
+          { "type": "demilitarize", "faction": "loser", "fraction": 0.25 }
+        ]
+      },
+      {
+        "id": "cede_province",
+        "label": "割让省份",
+        "minWarScore": 30,
+        "maxWarScore": null,
+        "effects": [
+          { "type": "transfer_territory", "from": "loser", "to": "winner", "amount": 1 }
+        ]
+      },
+      {
+        "id": "break_alliance",
+        "label": "解除同盟",
+        "minWarScore": 15,
+        "maxWarScore": null,
+        "effects": [
+          { "type": "release_alliance", "faction": "loser" }
+        ]
+      }
+    ]
+  },
+  "channels": {
+    "maxTextLength": 2000,
+    "maxRefs": 8,
+    "maxRefLength": 160,
+    "requireRefsFor": ["proposal", "response", "notice"],
+    "maxBlocMembers": 4
+  }
+}

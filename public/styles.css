@@ -35,7 +35,7 @@
   --composer-gap: 18px;
   --spacer-extra: 28px;
   --content-max: 760px;
-
+  /* 2026-11-11 (B4)：空态统一尺度 —— 三套实现（右栏/设置/费用）字号与透明度对齐 */
   --empty-fs: 12.5px;
   --empty-lh: 1.6;
   --empty-op: .6;
@@ -44,6 +44,110 @@
      原本无默认值 → var() 解析失败 → 整站回退浏览器默认衬线体(桌面看着杂乱不优雅)。
      用户在「显示设置」选自定义字体时, 仍由 html 行内样式覆盖本默认; 选「系统默认」则回落到这套栈。 */
   --chat-font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+/* ════════════════════════════════════════════════════════════
+   2026-11-12 主题与文字：字体预览 + 三档文字特效
+   作用域：聊天正文气泡 + 设置里的字体预览；不碰按钮/表单。
+   默认极简暗色用轻微亮光；亮色/玻璃用轻微暗影；烛光用暖光。
+   ════════════════════════════════════════════════════════════ */
+.font-preview {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-soft, var(--border, #333));
+  border-radius: 10px;
+  background: var(--bubble-ai, rgba(127,127,127,.06));
+}
+.font-preview-label {
+  font-size: 10.5px;
+  letter-spacing: .08em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.font-preview-line {
+  font-family: var(--chat-font-family);
+  font-size: var(--chat-font-size, 14px);
+  line-height: 1.75;
+  letter-spacing: .02em;
+}
+.font-preview-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+.font-preview-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.font-preview-replay {
+  flex: none;
+  background: none;
+  border: 0;
+  padding: 2px 6px;
+  color: var(--ac, #2f6fed);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.font-preview-replay:hover { text-decoration: underline; }
+/* 换字体/换效果时的「出字」重放：无=轻微淡入，轻=上浮淡入，强=墨晕散开后聚拢 */
+.font-preview-line.is-replay { animation: ca-fx-off .36s ease-out both; }
+html[data-text-fx="soft"] .font-preview-line.is-replay { animation: ca-fx-soft 1.15s ease-out both; }
+html[data-text-fx="strong"] .font-preview-line.is-replay { animation: ca-fx-strong 1.25s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes ca-fx-off { from { opacity: .25; } to { opacity: 1; } }
+@keyframes ca-fx-soft { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+@keyframes ca-fx-strong {
+  from { opacity: 0; filter: blur(7px); letter-spacing: .14em; }
+  to { opacity: 1; filter: blur(0); letter-spacing: .02em; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .font-preview-line.is-replay,
+  html[data-text-fx="soft"] .font-preview-line.is-replay,
+  html[data-text-fx="strong"] .font-preview-line.is-replay { animation: none; }
+}
+html[data-text-fx="soft"] #chat .bubble,
+html[data-text-fx="soft"] .font-preview-line,
+html[data-text-fx="soft"] .font-preview-text {
+  text-shadow: 0 0 10px rgba(255,255,255,.08);
+}
+html[data-text-fx="strong"] #chat .bubble,
+html[data-text-fx="strong"] .font-preview-line,
+html[data-text-fx="strong"] .font-preview-text {
+  text-shadow: 0 1px 0 rgba(0,0,0,.35), 0 0 12px rgba(255,255,255,.10);
+}
+html[data-scheme="light"]:not([data-theme])[data-text-fx="soft"] #chat .bubble,
+html[data-scheme="light"]:not([data-theme])[data-text-fx="soft"] .font-preview-line,
+html[data-scheme="light"]:not([data-theme])[data-text-fx="soft"] .font-preview-text {
+  text-shadow: 0 1px 0 rgba(0,0,0,.10);
+}
+html[data-scheme="light"]:not([data-theme])[data-text-fx="strong"] #chat .bubble,
+html[data-scheme="light"]:not([data-theme])[data-text-fx="strong"] .font-preview-line,
+html[data-scheme="light"]:not([data-theme])[data-text-fx="strong"] .font-preview-text {
+  text-shadow: 0 1px 0 rgba(0,0,0,.18), 0 0 6px rgba(0,0,0,.05);
+}
+html[data-theme="glass"][data-text-fx="soft"] #chat .bubble,
+html[data-theme="glass"][data-text-fx="soft"] .font-preview-line,
+html[data-theme="glass"][data-text-fx="soft"] .font-preview-text {
+  text-shadow: 0 1px 0 rgba(0,0,0,.10);
+}
+html[data-theme="glass"][data-text-fx="strong"] #chat .bubble,
+html[data-theme="glass"][data-text-fx="strong"] .font-preview-line,
+html[data-theme="glass"][data-text-fx="strong"] .font-preview-text {
+  text-shadow: 0 1px 0 rgba(0,0,0,.18), 0 0 8px rgba(63,111,143,.12);
+}
+html[data-theme="candle"][data-text-fx="soft"] #chat .bubble,
+html[data-theme="candle"][data-text-fx="soft"] .font-preview-line,
+html[data-theme="candle"][data-text-fx="soft"] .font-preview-text {
+  text-shadow: 0 0 10px rgba(217,168,104,.16);
+}
+html[data-theme="candle"][data-text-fx="strong"] #chat .bubble,
+html[data-theme="candle"][data-text-fx="strong"] .font-preview-line,
+html[data-theme="candle"][data-text-fx="strong"] .font-preview-text {
+  text-shadow: 0 1px 0 rgba(0,0,0,.4), 0 0 14px rgba(217,168,104,.24);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -328,8 +432,14 @@ select option { background: #0f0f0f; color: #fff; }
   flex: 0 0 auto;
 }
 
-
-
+/* ════════════════════════════════════════════════════════════
+   2026-06-08 顶栏对齐参考稿 ownchat-ui-preview(逐项 review · 4 主题安全)
+   ① 统一控件高度 34px + 圆角 9px(纯尺寸,不动各主题配色)
+   ② 解限/模式键:透明 iconbtn → pill 框(对齐 .unlock-pill / .pill);base+light 显式补框,glass/蜜桃/禁忌的 .iconbtn 本就有框,各层 2-ID 特异性各管各的不串台
+   ③ 费用栏:免费占位 / 快速金额 两态等宽居中,切模式不跳动(框色仍跟随各主题既有 .topbar-cost-inline,此处只定尺寸)
+   解限/模式 emoji 早由 app.js setIcon 渲染成 图标+文字,无需动 JS
+   ════════════════════════════════════════════════════════════ */
+/* ① 高度 + 圆角(图标键排除解限/模式,避免把带文字的它们压成 34px 方块裁字) */
 #topbar .iconbtn:not(#personaToggle):not(#modeToggle) { width: 34px; height: 34px; flex-basis: 34px; border-radius: 9px; }
 #topbar .pill { height: 34px; border-radius: 9px; padding: 0 12px; }
 #topbar #personaToggle,
@@ -341,7 +451,7 @@ select option { background: #0f0f0f; color: #fff; }
 #topbar #syncStatusIndicator { height: 34px; border-radius: 9px; }
 /* 批 F：演示台开态视觉（原按钮无任何开态反馈）——用主题化中性 token，四主题自动随行 */
 #topbar #stageToggle[aria-pressed="true"] { background: var(--accent-soft, rgba(127,127,127,.14)); border-color: var(--accent-border, rgba(127,127,127,.4)); color: var(--accent-2, #fff); }
-
+/* ② 解限/模式 pill 框 —— base(极简·暗) */
 #topbar #personaToggle,
 #topbar #modeToggle { background: #101010; border: 1px solid #2a2a2a; }
 #topbar #personaToggle:hover,
@@ -706,6 +816,7 @@ html[data-theme="glass"] .card {
 .smallbtn.danger:hover { background: var(--danger-soft-hover, #241010); }
 
 /* ════════════════════════════════════════════════════════════
+   4.76 设置面板补全 · .settings-tip / .settings-warn / .nsfw-options
    这些类此前在 styles.css 无规则 → 图标/文字松散、对齐飘; 且卡内说明常用
    写死灰(#999/#888…), 在亮色主题(极简亮/玻璃/少女)下对比不足。统一改走
    主题变量(--muted / --border), 一条基底规则四主题自动适配。
@@ -740,7 +851,9 @@ html[data-theme="glass"] .card {
   color: #c79320;
 }
 
-
+/* NSFW 等级单选: 横排自适应换行 + 胶囊式选项, 选中描边高亮 */
+.nsfw-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.nsfw-option {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -753,7 +866,10 @@ html[data-theme="glass"] .card {
   color: var(--muted);
   transition: border-color .15s ease, background-color .15s ease, color .15s ease;
 }
+.nsfw-option:hover { border-color: rgba(127, 127, 127, .5); }
+.nsfw-option input { margin: 0; flex: 0 0 auto; }
 /* 选中态用 :has() 让整颗胶囊高亮; 不支持的浏览器仅不高亮, 不影响功能 */
+.nsfw-option:has(input:checked) {
   border-color: currentColor;
   background: rgba(127, 127, 127, .14);
   color: inherit;
@@ -1533,7 +1649,7 @@ html[data-theme="glass"] .theme-swatch { border-color: rgba(15, 30, 60, .12); }
 .cost-details[open] summary::before { transform: rotate(90deg); }
 .cost-details summary:hover { color: #fff; }
 
-/* 4.82: 选择器由 .cost-daily-list 改名为 .cost-daily —— cost-log-ui.js 实际生成的是 .cost-daily,
+/* 4.82: 选择器由 .cost-daily-list 改名为 .cost-daily —— 费用日志卡实际生成的是 .cost-daily,
    旧选择器与 DOM 互相错过导致样式从未生效 */
 .cost-daily {
   padding: 4px 12px 10px;

@@ -9,6 +9,8 @@ use base64::Engine;
 mod http_stream;
 mod runtime;       // 4.70 测试扩展:Node 运行时定位(自包含优先 / 系统回退)
 mod agent_local;   // 4.70 本地能力:工作目录内的文件读写 + 通用命令执行
+mod services;      // 4.72 本地服务管家:随 App 启停/重启，替代计划任务与看护脚本
+mod db;            // 2026-11-28(统一存储):DbPort 桌面适配器 —— db_migrate / db_exec / db_tx
 
 #[tauri::command]
 fn ping() -> String {
@@ -20,6 +22,52 @@ fn ping() -> String {
 #[tauri::command]
 fn open_external(url: String) -> Result<(), String> {
     tauri_plugin_opener::open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
+/// 4.72: 内容面板「拉出为独立窗口」。
+/// Tauri 的 WebView 不实现浏览器 window.open（网页里调用会拿到 null → 前端只能报 popup-blocked），
+/// 所以桌面壳必须自己开原生窗口；网页版仍然走 window.open。
+/// 多窗口是桌面端能力：手机端没有第二窗口，给一个明确的错误即可。
+#[cfg(desktop)]
+#[tauri::command]
+async fn open_panel_window(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    let label = "panel";
+    if let Some(w) = app.get_webview_window(label) {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+        return Ok(());
+    }
+    let parsed = tauri::Url::parse(&url).map_err(|e| format!("地址无效：{e}"))?;
+    tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::External(parsed))
+        .title("OwnChat · 内容面板")
+        .inner_size(480.0, 780.0)
+        .min_inner_size(320.0, 400.0)
+        .build()
+        .map_err(|e| format!("打开面板窗口失败：{e}"))?;
+    Ok(())
+}
+
+#[cfg(mobile)]
+#[tauri::command]
+async fn open_panel_window(_app: tauri::AppHandle, _url: String) -> Result<(), String> {
+    Err("手机版不支持独立窗口".to_string())
+}
+
+/// 关闭「内容面板」独立窗口（网页里 window.close 对原生窗口无效）
+#[cfg(desktop)]
+#[tauri::command]
+fn close_panel_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(w) = app.get_webview_window("panel") {
+        w.close().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[cfg(mobile)]
+#[tauri::command]
+fn close_panel_window(_app: tauri::AppHandle) -> Result<(), String> {
+    Ok(())
 }
 
 // === 本地文件导入 / 导出 ===
@@ -100,14 +148,81 @@ async fn export_text_file(
         std::fs::write(&path, content).map_err(|e| e.to_string())?;
         Ok(Some(path.to_string_lossy().to_string()))
     }
-    // Android / iOS：写应用数据目录（resolve_storage_dir = 文档/OwnChat；Android 上是应用专属
-    // 外部目录），不弹对话框 —— 手机上没有可用的系统"另存为"，返回真实路径让 UI 能如实展示。
+    // Android / iOS：写「Android/media/<包名>/OwnChat/exports」——比 Android/data 好在文件管理器
+    // 能看见（4.72 改），并且不需要任何存储权限；建不出来再退回应用专属目录。
     #[cfg(mobile)]
     {
-        let dir = resolve_storage_dir(&app)?.join("exports");
+        let dir = mobile_export_dir(&app);
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let path = dir.join(&safe_name);
         std::fs::write(&path, content).map_err(|e| e.to_string())?;
+        Ok(Some(path.to_string_lossy().to_string()))
+    }
+}
+
+// 手机端导出目录：优先 Android/media/<包名>/OwnChat/exports（属主可写、文件管理器可见），
+// 失败才退回应用专属目录（Android/data/...，系统文件管理器默认看不到）。
+#[cfg(mobile)]
+fn mobile_export_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
+    let id = app.config().identifier.clone();
+    let media = std::path::Path::new("/storage/emulated/0/Android/media")
+        .join(id)
+        .join("OwnChat")
+        .join("exports");
+    if std::fs::create_dir_all(&media).is_ok() {
+        return media;
+    }
+    resolve_storage_dir(app)
+        .map(|d| d.join("exports"))
+        .unwrap_or(media)
+}
+
+/// 4.72: 二进制导出（图片 / 附件）。桌面弹系统保存框；手机写 Android/media 下的 exports 目录，
+/// 返回真实路径。调用方传 base64（dataURL 去掉前缀即可）。
+#[tauri::command]
+async fn export_binary_file(
+    app: tauri::AppHandle,
+    suggested_name: String,
+    base64_data: String,
+) -> Result<Option<String>, String> {
+    let leaf = suggested_name
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let safe_name = if leaf.is_empty() {
+        "image.png".to_string()
+    } else {
+        leaf.replace([':', '*', '?', '"', '<', '>', '|'], "_")
+    };
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64_data.as_bytes())
+        .map_err(|e| format!("base64 解析失败：{e}"))?;
+    if bytes.is_empty() {
+        return Err("文件内容为空".to_string());
+    }
+
+    #[cfg(desktop)]
+    {
+        let picked = app
+            .dialog()
+            .file()
+            .set_file_name(&safe_name)
+            .blocking_save_file();
+        let Some(fp) = picked else {
+            return Ok(None);
+        };
+        let path = fp.into_path().map_err(|e| e.to_string())?;
+        std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
+        Ok(Some(path.to_string_lossy().to_string()))
+    }
+    #[cfg(mobile)]
+    {
+        let dir = mobile_export_dir(&app);
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let path = dir.join(&safe_name);
+        std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
         Ok(Some(path.to_string_lossy().to_string()))
     }
 }
@@ -256,12 +371,22 @@ struct KvEntry {
 }
 
 // 打开（不存在则创建）数据目录下的 ownchat.db，并确保 kv 表存在
-fn open_db(app: &tauri::AppHandle) -> Result<rusqlite::Connection, String> {
+// 2026-11-28：db.rs 的统一存储命令复用同一条连接路径（pub(crate)），不另开第二个库文件。
+// T4-B：本机宿主 sidecar 打开的是**同一个文件**（server/local.mjs 的 DB_FILE），所以这里只碰自己
+// 的那张表：`native_kv`（0002 迁移里为原生 KV 预留的表，形状与旧 kv 表一致）。旧的 `kv`
+// 表若还是设置库形状（有 namespace 列）就一次性搬进 native_kv 再删掉；若它是侧车 /sync 的
+// 三列形状（key/value/updated_at），一律不碰 —— 那是另一张表的历史包袱。
+const SETTINGS_TABLE: &str = "native_kv";
+
+pub(crate) fn open_db(app: &tauri::AppHandle) -> Result<rusqlite::Connection, String> {
     let dir = resolve_storage_dir(app)?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let conn = rusqlite::Connection::open(dir.join("ownchat.db")).map_err(|e| e.to_string())?;
+    // The host sidecar writes the same file from another process; without a busy timeout a concurrent
+    // WAL checkpoint surfaces as SQLITE_BUSY on an unrelated user action.
+    conn.busy_timeout(std::time::Duration::from_secs(5)).map_err(|e| e.to_string())?;
     conn.execute(
-        "CREATE TABLE IF NOT EXISTS kv (
+        "CREATE TABLE IF NOT EXISTS native_kv (
             namespace  TEXT NOT NULL,
             key        TEXT NOT NULL,
             value      TEXT NOT NULL,
@@ -271,14 +396,63 @@ fn open_db(app: &tauri::AppHandle) -> Result<rusqlite::Connection, String> {
         [],
     )
     .map_err(|e| e.to_string())?;
+    migrate_legacy_kv(&conn)?;
     Ok(conn)
+}
+
+/// One-time move of the 4.72 settings table (`kv`) into `native_kv`.
+///
+/// Fail-closed on ambiguity: only a table whose columns are exactly namespace/key/value/updated_at is
+/// treated as ours. A `kv` with three columns is the sidecar's old /sync blob and must survive
+/// untouched (server/local.mjs copies those rows into sync_kv on its own start).
+fn migrate_legacy_kv(conn: &rusqlite::Connection) -> Result<(), String> {
+    let exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'kv'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    if exists == 0 {
+        return Ok(());
+    }
+    let mut stmt = conn.prepare("PRAGMA table_info(kv)").map_err(|e| e.to_string())?;
+    let columns: Vec<String> = stmt
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+    let ours = columns.len() == 4
+        && columns[0] == "namespace"
+        && columns[1] == "key"
+        && columns[2] == "value"
+        && columns[3] == "updated_at";
+    if !ours {
+        return Ok(());
+    }
+    let moved = conn
+        .execute(
+            "INSERT OR IGNORE INTO native_kv (namespace, key, value, updated_at)
+             SELECT namespace, key, value, updated_at FROM kv",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+    if moved > 0 {
+        eprintln!("[lib] migrated {moved} settings row(s) from kv → native_kv");
+    }
+    // Best-effort: a concurrent host holding a read lock must not brick every kv_* command. The copy
+    // is idempotent, so the next open finishes the cleanup.
+    if let Err(e) = conn.execute("DROP TABLE kv", []) {
+        eprintln!("[lib] kept the legacy kv table this time: {e}");
+    }
+    Ok(())
 }
 
 // 内部读取一条 kv 值（rs 侧自用，如语音服务读取设置）；不存在返回 None
 fn kv_read(app: &tauri::AppHandle, namespace: &str, key: &str) -> Result<Option<String>, String> {
     let conn = open_db(app)?;
     match conn.query_row(
-        "SELECT value FROM kv WHERE namespace = ?1 AND key = ?2",
+        &format!("SELECT value FROM {SETTINGS_TABLE} WHERE namespace = ?1 AND key = ?2"),
         rusqlite::params![namespace, key],
         |row| row.get::<_, String>(0),
     ) {
@@ -292,9 +466,11 @@ fn kv_read(app: &tauri::AppHandle, namespace: &str, key: &str) -> Result<Option<
 fn kv_write(app: &tauri::AppHandle, namespace: &str, key: &str, value: &str) -> Result<(), String> {
     let conn = open_db(app)?;
     conn.execute(
-        "INSERT INTO kv (namespace, key, value, updated_at)
-         VALUES (?1, ?2, ?3, datetime('now'))
-         ON CONFLICT(namespace, key) DO UPDATE SET value = ?3, updated_at = datetime('now')",
+        &format!(
+            "INSERT INTO {SETTINGS_TABLE} (namespace, key, value, updated_at)
+             VALUES (?1, ?2, ?3, datetime('now'))
+             ON CONFLICT(namespace, key) DO UPDATE SET value = ?3, updated_at = datetime('now')"
+        ),
         rusqlite::params![namespace, key, value],
     )
     .map_err(|e| e.to_string())?;
@@ -309,15 +485,7 @@ fn kv_set(
     key: String,
     value: String,
 ) -> Result<(), String> {
-    let conn = open_db(&app)?;
-    conn.execute(
-        "INSERT INTO kv (namespace, key, value, updated_at)
-         VALUES (?1, ?2, ?3, datetime('now'))
-         ON CONFLICT(namespace, key) DO UPDATE SET value = ?3, updated_at = datetime('now')",
-        rusqlite::params![namespace, key, value],
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(())
+    kv_write(&app, &namespace, &key, &value)
 }
 
 // 读取一条记录；不存在返回 null
@@ -325,7 +493,7 @@ fn kv_set(
 fn kv_get(app: tauri::AppHandle, namespace: String, key: String) -> Result<Option<String>, String> {
     let conn = open_db(&app)?;
     match conn.query_row(
-        "SELECT value FROM kv WHERE namespace = ?1 AND key = ?2",
+        &format!("SELECT value FROM {SETTINGS_TABLE} WHERE namespace = ?1 AND key = ?2"),
         rusqlite::params![namespace, key],
         |row| row.get::<_, String>(0),
     ) {
@@ -340,9 +508,9 @@ fn kv_get(app: tauri::AppHandle, namespace: String, key: String) -> Result<Optio
 fn kv_list(app: tauri::AppHandle, namespace: String) -> Result<Vec<KvEntry>, String> {
     let conn = open_db(&app)?;
     let mut stmt = conn
-        .prepare(
-            "SELECT key, value, updated_at FROM kv WHERE namespace = ?1 ORDER BY updated_at DESC",
-        )
+        .prepare(&format!(
+            "SELECT key, value, updated_at FROM {SETTINGS_TABLE} WHERE namespace = ?1 ORDER BY updated_at DESC"
+        ))
         .map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map(rusqlite::params![namespace], |row| {
@@ -365,7 +533,7 @@ fn kv_list(app: tauri::AppHandle, namespace: String) -> Result<Vec<KvEntry>, Str
 fn kv_delete(app: tauri::AppHandle, namespace: String, key: String) -> Result<(), String> {
     let conn = open_db(&app)?;
     conn.execute(
-        "DELETE FROM kv WHERE namespace = ?1 AND key = ?2",
+        &format!("DELETE FROM {SETTINGS_TABLE} WHERE namespace = ?1 AND key = ?2"),
         rusqlite::params![namespace, key],
     )
     .map_err(|e| e.to_string())?;
@@ -731,62 +899,32 @@ fn tts_list_models(app: tauri::AppHandle) -> Result<TtsWeights, String> {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// 服务器地址（域中立壳）· 2026-10-07
-// 公开渠道不再硬编码站点域名：首启落在本地启动页（frontend/index.html），由用户填入
-// 自己的部署地址（或跟着页内「一键部署」向导 3 分钟部署一个）。地址存 kv(settings/server_url)，
-// 保存 / 启动时做两件事：
-//   · 给该源**动态授予** IPC 能力 —— 只授这一个域名，比通配符安全；动态授权是会话级的，
-//     重启后自然只剩当前配置的那个源（私有渠道的静态授权仍在 capabilities/remote.json）。
-//   · 把主窗导航到 <地址>/?shell=android（沿用既有约定：App 壳带该参数启用移动布局）。
-// 私有渠道行为不变：由 tauri.conf.json 的 url 直达（走静态授权，见 capabilities/remote.json），
-// 不经过启动页。
+// 宿主地址 · 2026-11-28（T4-B 固定 origin）
+//
+// 旧行为（2026-10-07 域中立壳）：把主窗导航到用户填的服务器地址，并给该源动态授予 IPC 能力。
+// 现在取消：**桌面端永远加载内置 `public/`（WebviewUrl::App）**，宿主地址只决定 API/fetch 的
+// 基址（页面里的 host provider 读它，把 /api/*、/sync、/img/* 转发过去）。
+//
+// 为什么收口（三条，按重要性）：
+//   1) 换宿主 = 换 provider，不换页面地址。页面一旦跟着服务器 origin 走，前端代码版本就由远端
+//      决定 —— 用户装的是 A 版壳、跑的是 B 版页面，桌面能力（db_exec、本地文件、原生 KV）与页面
+//      期望会对不上；离线时连界面都打不开。
+//   2) 安全面归零。`grant_remote_origin` 会把 ping / kv_* / local_* / tts_* 全套权限授给远端源
+//      （capabilities/remote.json 里那份）。那条路径一旦存在，任何一个被填进去的域名都拿到了
+//      本机文件与命令的能力；固定 origin 后这份授权连同 remote.json 一起删除。
+//   3) 数据面统一。内置页面 + 固定 origin 时，`/config.js` 来自随包文件，模型表与壳同版本；
+//      服务器只提供数据与聊天转发，不再承担"发页面"的职责。
 // ════════════════════════════════════════════════════════════════════════════
 const SERVER_NS: &str = "settings";
 const SERVER_URL_KEY: &str = "server_url";
-
-/// 远程源可得的权限清单 —— 与 capabilities/remote.json 保持**同一口径**（改一处必须改另一处）。
-/// 动态授权走 CapabilityBuilder，读不到 remote.json，只能在代码里显式列出。
-const REMOTE_PERMISSIONS: &[&str] = &[
-    "core:default",
-    "allow-ping",
-    "allow-open-external",
-    "allow-read-text-file",
-    "allow-import-text-file",
-    "allow-export-text-file",
-    "allow-get-storage-dir",
-    "allow-set-storage-dir",
-    "allow-pick-storage-dir",
-    "allow-open-storage-dir",
-    "allow-kv-set",
-    "allow-kv-get",
-    "allow-kv-list",
-    "allow-kv-delete",
-    "allow-http-request",
-    "allow-http-request-stream",
-    "allow-tts-get-config",
-    "allow-tts-set-config",
-    "allow-tts-start",
-    "allow-tts-stop",
-    "allow-tts-pick-dir",
-    "allow-tts-list-models",
-    "allow-tts-pick-file",
-    "allow-tts-pick-files",
-    "allow-agent-workdir-get",
-    "allow-agent-workdir-pick",
-    "allow-agent-workdir-set",
-    "allow-local-list-dir",
-    "allow-local-read-file",
-    "allow-local-write-file",
-    "allow-local-run-command",
-    "allow-local-env-info",
-    // 2026-10-07 新增：页面里显示/更换服务器地址（远程页的「更换服务器」入口与启动页共用）
-    "allow-set-server-url",
-    "allow-get-server-url",
-];
+/// The host wizard listens for this on the main window (tray menu entry).
+const HOST_SETTINGS_EVENT: &str = "ownchat:host-settings";
+/// Fired after set_server_url so the page can re-point its providers without a reload.
+const HOST_CHANGED_EVENT: &str = "ownchat:host-changed";
 
 /// 规范化用户填的地址：补 scheme、只留 scheme://host[:port][/path]（丢掉 query/hash）。
 /// 2026-10-09：本机地址（方案 C，源码跑在自己电脑上，wrangler dev 是明文 http）补 http:// 而不是 https://——
-/// 否则用户填 `127.0.0.1:8787` 会被补成 https，探测必失败。前端启动页的 normalize() 是同一条规则。
+/// 否则用户填 `127.0.0.1:8787` 会被补成 https，探测必失败。
 fn normalize_server_url(raw: &str) -> Result<tauri::Url, String> {
     let s = raw.trim();
     if s.is_empty() {
@@ -822,53 +960,43 @@ fn normalize_server_url(raw: &str) -> Result<tauri::Url, String> {
     Ok(url)
 }
 
-/// 主窗应加载的页面：<地址>/?shell=android
-fn server_page_url(base: &tauri::Url) -> tauri::Url {
-    let mut u = base.clone();
-    u.set_path(&format!("{}/", base.path().trim_end_matches('/')));
-    u.set_query(Some("shell=android"));
-    u
-}
-
-/// 只给配置的那一个源动态授权（能力标识按源生成；同源重复授予在会话内幂等，代价可忽略）
-fn grant_remote_origin(app: &tauri::AppHandle, origin: &str) -> Result<(), String> {
-    let mut id = String::from("remote-configured");
-    for c in origin.chars() {
-        id.push(if c.is_ascii_alphanumeric() { c } else { '-' });
-    }
-    let mut builder = tauri::ipc::CapabilityBuilder::new(id)
-        .window("main")
-        .remote(origin.to_string());
-    for p in REMOTE_PERMISSIONS {
-        builder = builder.permission(*p);
-    }
-    app.add_capability(builder).map_err(|e| e.to_string())
-}
-
-/// 授权 + 导航（保存地址与启动恢复共用的同一条路径）
-fn activate_server(app: &tauri::AppHandle, base: &tauri::Url) -> Result<(), String> {
-    grant_remote_origin(app, &base.origin().ascii_serialization())?;
-    let win = app
-        .get_webview_window("main")
-        .ok_or_else(|| "找不到主窗口".to_string())?;
-    win.navigate(server_page_url(base)).map_err(|e| e.to_string())
-}
-
-/// 当前配置的服务器地址（启动页用来回填输入框；无配置返回 null）
+/// 当前配置的宿主地址（首启向导回填；无配置返回 null = 用内置默认 127.0.0.1:8787）
 #[tauri::command]
 fn get_server_url(app: tauri::AppHandle) -> Result<Option<String>, String> {
     kv_read(&app, SERVER_NS, SERVER_URL_KEY)
 }
 
-/// 保存服务器地址并立即进入（启动页「连接」按钮）。
+/// 保存宿主地址（不导航）。页面收到 ownchat:host-changed 后重新探测 /config.js 与 /api/host。
 /// 校验放在边界：前端探针只是体验优化，Rust 侧照旧独立校验（页面永远当不可信）。
 #[tauri::command]
 fn set_server_url(app: tauri::AppHandle, url: String) -> Result<String, String> {
     let base = normalize_server_url(&url)?;
     let saved = base.as_str().trim_end_matches('/').to_string();
     kv_write(&app, SERVER_NS, SERVER_URL_KEY, &saved)?;
-    activate_server(&app, &base)?;
+    let _ = app.emit(HOST_CHANGED_EVENT, serde_json::json!({ "url": saved }));
     Ok(saved)
+}
+
+/// 本机宿主的管理员密码（首启向导「使用本机密码」用）。
+///
+/// 只读 sidecar 首跑时生成的那份文件，不读 .dev.vars、不回传任何路径。为什么允许网页读它：
+/// 固定 origin 后只有随包页面能调 IPC；这份密码本来就是这台机器上的同一个 App 生成的，
+/// 让用户去「文档/OwnChat」手抄一个 24 字符随机串没有任何安全收益。
+#[tauri::command]
+fn host_admin_password(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let dir = resolve_storage_dir(&app)?;
+    let path = dir.join("admin-password.txt");
+    match std::fs::read_to_string(&path) {
+        Ok(text) => {
+            let value = text.trim();
+            if value.is_empty() || value.len() > 512 {
+                return Ok(None);
+            }
+            Ok(Some(value.to_string()))
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("读取本机宿主密码失败：{e}")),
+    }
 }
 
 // 站内「新标签页」链接（target=_blank）在桌面 App 里：
@@ -876,17 +1004,64 @@ fn set_server_url(app: tauri::AppHandle, url: String) -> Result<String, String> 
 //   · 跨站外链 → 调用 open_external 用系统默认浏览器打开
 // 桌面 webview 没有标签页系统，默认会忽略 target=_blank，导致这些入口点了没反应。
 // 另提供 鼠标侧键「后退」/ Alt+← 返回聊天页。
-const NAV_PATCH_JS: &str = r#"
+const NAV_PATCH_JS: &str = r##"
 (function () {
   if (window.__ownchatNavPatch) return;
   window.__ownchatNavPatch = 1;
+  var MOBILE = __OWNCHAT_MOBILE__;
+  // 只有聊天主页面才接管站内 _blank；子页面（iframe 里的 /tools/*）保持自身导航。
+  var IS_CHAT_PAGE = (location.pathname === "/" || /\/index\.html$/.test(location.pathname));
+
+  // 2026-11-12 修「APP 里打开子页面再切回，AI 回复被切断 + 多一条空消息」：
+  // 旧逻辑在手机壳里对同源 _blank 做 location.assign → 聊天页整个卸载，
+  // 正在流式的轮次当场断掉；回来只能从 localStorage 重放半截回合。
+  // 手机没有第二窗口，所以改用应用内全屏 iframe 承载子页面：聊天页不卸载，轮次继续跑。
+  function closeSubpage() {
+    var w = document.getElementById("__ownchatSubpage");
+    if (w && w.parentNode) w.parentNode.removeChild(w);
+    window.__ownchatSubpageOpen = false;
+  }
+  function openSubpage(href, label) {
+    closeSubpage();
+    var wrap = document.createElement("div");
+    wrap.id = "__ownchatSubpage";
+    wrap.setAttribute("style", "position:fixed;inset:0;z-index:2147483000;background:#0b0b0e;display:flex;flex-direction:column;");
+    var bar = document.createElement("div");
+    bar.setAttribute("style", "flex:0 0 auto;display:flex;align-items:center;gap:10px;height:52px;padding:0 12px;background:#111;color:#eee;font:14px/1.2 system-ui,sans-serif;border-bottom:1px solid rgba(255,255,255,.12);");
+    var back = document.createElement("button");
+    back.type = "button";
+    back.textContent = "← 返回聊天";
+    back.setAttribute("style", "flex:0 0 auto;height:34px;padding:0 12px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#eee;font:13px system-ui,sans-serif;");
+    back.addEventListener("click", closeSubpage);
+    var t = document.createElement("span");
+    t.textContent = String(label || "子页面").split(/[:：(（]/)[0].slice(0, 24);
+    t.setAttribute("style", "flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.85;");
+    bar.appendChild(back);
+    bar.appendChild(t);
+    var f = document.createElement("iframe");
+    f.src = href;
+    f.setAttribute("style", "flex:1 1 auto;width:100%;height:100%;border:0;background:#fff;");
+    wrap.appendChild(bar);
+    wrap.appendChild(f);
+    document.body.appendChild(wrap);
+    window.__ownchatSubpageOpen = true;
+    try { history.pushState({ __ownchatSubpage: 1 }, ""); } catch (e) {}
+  }
+  window.__ownchatCloseSubpage = closeSubpage;
+  // 硬件返回键：pushState 进来的那条历史 → popstate 关掉覆盖层，而不是退出 App
+  window.addEventListener("popstate", function () {
+    if (window.__ownchatSubpageOpen) closeSubpage();
+  });
+
   document.addEventListener('click', function (e) {
     var a = (e.target && e.target.closest) ? e.target.closest('a[target="_blank"]') : null;
     if (!a || !a.href) return;
     var dest;
     try { dest = new URL(a.href, location.href); } catch (err) { return; }
     if (dest.origin === location.origin) {
+      if (!IS_CHAT_PAGE) return; // 子页面内部跳转：保持原生行为
       e.preventDefault();
+      if (MOBILE) { openSubpage(dest.href, a.getAttribute('title') || a.textContent); return; }
       window.location.assign(dest.href);
     } else {
       e.preventDefault();
@@ -902,7 +1077,7 @@ const NAV_PATCH_JS: &str = r#"
     if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); history.back(); }
   });
 })();
-"#;
+"##;
 
 // 自动更新：启动时检查 GitHub Releases 上的 latest.json，有新版本就询问用户并安装
 #[cfg(desktop)]
@@ -957,12 +1132,18 @@ pub fn run() {
 
     builder
         .manage(TtsProcess(std::sync::Mutex::new(None)))
+        .manage(services::ServiceManager::default())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![ping, open_external, get_server_url, set_server_url, read_text_file, import_text_file, export_text_file, get_storage_dir, set_storage_dir, pick_storage_dir, open_storage_dir, kv_set, kv_get, kv_list, kv_delete, http_request, http_stream::http_request_stream, tts_get_config, tts_set_config, tts_start, tts_stop, tts_pick_dir, tts_list_models, tts_pick_file, tts_pick_files, agent_local::agent_workdir_get, agent_local::agent_workdir_pick, agent_local::agent_workdir_set, agent_local::local_list_dir, agent_local::local_read_file, agent_local::local_write_file, agent_local::local_run_command, agent_local::local_env_info])
+        .invoke_handler(tauri::generate_handler![ping, open_external, open_panel_window, close_panel_window, get_server_url, set_server_url, host_admin_password, read_text_file, import_text_file, export_text_file, export_binary_file, get_storage_dir, set_storage_dir, pick_storage_dir, open_storage_dir, kv_set, kv_get, kv_list, kv_delete, http_request, http_stream::http_request_stream, tts_get_config, tts_set_config, tts_start, tts_stop, tts_pick_dir, tts_list_models, tts_pick_file, tts_pick_files, agent_local::agent_workdir_get, agent_local::agent_workdir_pick, agent_local::agent_workdir_set, agent_local::local_list_dir, agent_local::local_read_file, agent_local::local_write_file, agent_local::local_run_command, agent_local::local_env_info, services::svc_list, services::svc_set_enabled, services::svc_start, services::svc_stop, services::svc_restart, db::db_migrate, db::db_exec, db::db_tx])
         // 每次页面加载完成后注入导航补丁：站内 _blank 子页面同窗口打开 + 外链走系统浏览器
         .on_page_load(|webview, payload| {
             if let PageLoadEvent::Finished = payload.event() {
-                let _ = webview.eval(NAV_PATCH_JS);
+                // 手机壳：站内子页面走应用内 iframe（聊天页不卸载）；桌面：保持同窗口跳转。
+                let js = NAV_PATCH_JS.replace(
+                    "__OWNCHAT_MOBILE__",
+                    if cfg!(mobile) { "true" } else { "false" },
+                );
+                let _ = webview.eval(js.as_str());
             }
         })
         .setup(|app| {
@@ -983,7 +1164,7 @@ pub fn run() {
             let tts_auto_i =
                 MenuItem::with_id(app, "tts_autostart", "语音 · 开机自启动（开/关）", true, None::<&str>)?;
             let server_setup_i =
-                MenuItem::with_id(app, "server_setup", "更换服务器地址…", true, None::<&str>)?;
+                MenuItem::with_id(app, "server_setup", "宿主地址 / 首次设置…", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "退出 OwnChat", true, None::<&str>)?;
             let menu = Menu::with_items(
                 app,
@@ -1124,22 +1305,15 @@ pub fn run() {
                             }
                         }
                     }
-                    // 更换服务器地址：开一个本地启动页窗口（复用主窗同一条保存路径，改完会导航主窗）
+                    // 2026-11-28（T4-B）：不再开第二个窗口加载「服务器地址」页 —— 固定 origin 后
+                    // 页面就是应用本身，宿主地址与首启步骤都在应用内的向导里改。
                     "server_setup" => {
-                        if let Some(w) = app.get_webview_window("server-setup") {
-                            let _ = w.show();
-                            let _ = w.set_focus();
-                        } else if let Err(e) = tauri::WebviewWindowBuilder::new(
-                            app,
-                            "server-setup",
-                            tauri::WebviewUrl::App("index.html".into()),
-                        )
-                        .title("OwnChat · 更换服务器地址")
-                        .inner_size(580.0, 660.0)
-                        .build()
-                        {
-                            eprintln!("打开服务器设置窗口失败: {e}");
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
                         }
+                        let _ = app.emit(HOST_SETTINGS_EVENT, ());
                     }
                     "quit" => {
                         // 2026-10-07 退出前冲刷：聊天推送是 30s 防抖，直接 exit(0) 会丢掉最近半分钟的会话
@@ -1221,21 +1395,16 @@ pub fn run() {
                 }
             }
 
-            // 域中立壳：配置过服务器地址就为它动态授权并导航过去（没有配置则留在启动页等人填）
+            // 2026-11-28（T4-B 固定 origin）：这里**不再**读 server_url/navigate/grant_remote_origin。
+            // 主窗按 tauri.conf.json 的 url（WebviewUrl::App("index.html")）加载随包页面；宿主地址
+            // 只由页面里的 host provider 通过 get_server_url 读取，未配置时用 127.0.0.1:8787。
+            // 导航到远端的那条路径连同它的动态授权一起删除（理由见本文件「宿主地址」一节的注释）。
+
+            // 4.72: 拉起 autostart 的本地服务（spawn 立即返回，不阻塞启动；失败静默，设置页能看到状态）
+            // 2026-11-28: 放到后台线程 —— 宿主的启动探针（450ms）与 Node 版本探测不该卡住首帧。
             {
-                let handle = app.handle().clone();
-                match kv_read(&handle, SERVER_NS, SERVER_URL_KEY) {
-                    Ok(Some(saved)) if !saved.trim().is_empty() => match normalize_server_url(&saved) {
-                        Ok(base) => {
-                            if let Err(e) = activate_server(&handle, &base) {
-                                eprintln!("服务器地址激活失败（留在启动页）: {e}");
-                            }
-                        }
-                        Err(e) => eprintln!("已保存的服务器地址无效（{e}），留在启动页等用户修正：{saved}"),
-                    },
-                    Ok(_) => {}
-                    Err(e) => eprintln!("读取服务器地址失败: {e}"),
-                }
+                let h = app.handle().clone();
+                std::thread::spawn(move || services::autostart(&h));
             }
 
             Ok(())
@@ -1280,6 +1449,12 @@ pub fn run() {
             }
             _ => {}
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // 4.72: 真正退出时收掉本 App 拉起的本地服务（托盘「退出」/正常退出都走这里）
+            if matches!(event, tauri::RunEvent::Exit) {
+                services::shutdown_all(app);
+            }
+        });
 }

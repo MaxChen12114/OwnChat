@@ -1,0 +1,256 @@
+{
+  "id": "vps-docker",
+  "name": "VPS / Docker",
+  "version": 1,
+  "target": "vps",
+  "resultProfile": "selfhost",
+  "description": "用 SSH 把 OwnChat 部署到你的 VPS：拉仓库 → 写 .env/Caddyfile → docker compose up（含 Caddy TLS）。",
+  "inputs": [
+    {
+      "id": "host",
+      "label": "主机地址",
+      "kind": "text",
+      "required": true,
+      "placeholder": "203.0.113.10 或 vps.example.com"
+    },
+    {
+      "id": "user",
+      "label": "SSH 用户",
+      "kind": "text",
+      "required": true,
+      "default": "root"
+    },
+    {
+      "id": "sshKeyPath",
+      "label": "SSH 私钥路径（本机）",
+      "kind": "path",
+      "required": true,
+      "placeholder": "C:\\\\Users\\\\you\\\\.ssh\\\\id_ed25519",
+      "hint": "只作为 ssh/scp 的 -i 参数，内容不会被读取或上传。"
+    },
+    {
+      "id": "remoteDir",
+      "label": "远端目录",
+      "kind": "path",
+      "required": true,
+      "default": "/opt/ownchat"
+    },
+    {
+      "id": "repoUrl",
+      "label": "仓库地址",
+      "kind": "url",
+      "required": true,
+      "default": "https://github.com/MaxChen12114/OwnChat.git"
+    },
+    {
+      "id": "domain",
+      "label": "域名",
+      "kind": "text",
+      "required": true,
+      "placeholder": "chat.example.com",
+      "hint": "需要先把这个域名的 A/AAAA 记录指向主机，Caddy 才能自动签发证书。"
+    },
+    {
+      "id": "tlsEmail",
+      "label": "TLS 通知邮箱",
+      "kind": "text",
+      "required": true
+    },
+    {
+      "id": "chatPassword",
+      "label": "访问码 CHAT_PASSWORD（可选）",
+      "kind": "secret",
+      "required": false,
+      "hint": "写进远端 .env；留空 = 无访问码（只适合内网/试用）。同时用于部署后的 verify 请求。"
+    },
+    {
+      "id": "deepseekKey",
+      "label": "DEEPSEEK_API_KEY（可选）",
+      "kind": "secret",
+      "required": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "ssh-probe",
+      "title": "验证 SSH 连接",
+      "kind": "command",
+      "action": {
+        "kind": "command",
+        "command": "ssh",
+        "args": [
+          "-i",
+          "{{sshKeyPath}}",
+          "-o",
+          "BatchMode=yes",
+          "-o",
+          "StrictHostKeyChecking=accept-new",
+          "{{user}}@{{host}}",
+          "echo ownchat-ok"
+        ],
+        "timeoutMs": 60000
+      }
+    },
+    {
+      "id": "prepare",
+      "title": "创建远端目录",
+      "kind": "command",
+      "action": {
+        "kind": "command",
+        "command": "ssh",
+        "args": [
+          "-i",
+          "{{sshKeyPath}}",
+          "{{user}}@{{host}}",
+          "mkdir -p {{remoteDir}}"
+        ],
+        "timeoutMs": 60000
+      },
+      "inverse": {
+        "kind": "command",
+        "command": "ssh",
+        "args": [
+          "-i",
+          "{{sshKeyPath}}",
+          "{{user}}@{{host}}",
+          "rmdir {{remoteDir}} 2>/dev/null || true"
+        ]
+      }
+    },
+    {
+      "id": "clone",
+      "title": "拉取仓库",
+      "kind": "command",
+      "action": {
+        "kind": "command",
+        "command": "ssh",
+        "args": [
+          "-i",
+          "{{sshKeyPath}}",
+          "{{user}}@{{host}}",
+          "if [ -d {{remoteDir}}/.git ]; then git -C {{remoteDir}} pull --ff-only; else git clone --depth 1 {{repoUrl}} {{remoteDir}}; fi"
+        ],
+        "timeoutMs": 300000
+      },
+      "irreversible": true,
+      "note": "不删除远端已有仓库；回滚只停容器，不动代码与数据卷。"
+    },
+    {
+      "id": "env",
+      "title": "写入远端 .env",
+      "kind": "command",
+      "action": {
+        "kind": "command",
+        "command": "ssh",
+        "args": [
+          "-i",
+          "{{sshKeyPath}}",
+          "{{user}}@{{host}}",
+          "umask 077 && cat > {{remoteDir}}/deploy/vps/.env"
+        ],
+        "stdin": "CHAT_PASSWORD={{chatPassword}}\nDEEPSEEK_API_KEY={{deepseekKey}}\nOWNCHAT_DATA_DIR={{remoteDir}}/data\n",
+        "timeoutMs": 60000
+      },
+      "inverse": {
+        "kind": "command",
+        "command": "ssh",
+        "args": [
+          "-i",
+          "{{sshKeyPath}}",
+          "{{user}}@{{host}}",
+          "rm -f {{remoteDir}}/deploy/vps/.env"
+        ]
+      }
+    },
+    {
+      "id": "caddy",
+      "title": "写入 Caddyfile",
+      "kind": "command",
+      "action": {
+        "kind": "command",
+        "command": "ssh",
+        "args": [
+          "-i",
+          "{{sshKeyPath}}",
+          "{{user}}@{{host}}",
+          "umask 077 && cat > {{remoteDir}}/deploy/vps/Caddyfile"
+        ],
+        "stdin": "{{domain}} {\n  reverse_proxy ownchat:8787\n  tls {{tlsEmail}}\n}\n",
+        "timeoutMs": 60000
+      },
+      "inverse": {
+        "kind": "command",
+        "command": "ssh",
+        "args": [
+          "-i",
+          "{{sshKeyPath}}",
+          "{{user}}@{{host}}",
+          "rm -f {{remoteDir}}/deploy/vps/Caddyfile"
+        ]
+      }
+    },
+    {
+      "id": "compose-up",
+      "title": "启动 Docker Compose",
+      "kind": "command",
+      "action": {
+        "kind": "command",
+        "command": "ssh",
+        "args": [
+          "-i",
+          "{{sshKeyPath}}",
+          "{{user}}@{{host}}",
+          "cd {{remoteDir}} && docker compose -f deploy/vps/docker-compose.yml up -d --build"
+        ],
+        "timeoutMs": 900000
+      },
+      "inverse": {
+        "kind": "command",
+        "command": "ssh",
+        "args": [
+          "-i",
+          "{{sshKeyPath}}",
+          "{{user}}@{{host}}",
+          "cd {{remoteDir}} && docker compose -f deploy/vps/docker-compose.yml down"
+        ],
+        "timeoutMs": 300000
+      }
+    },
+    {
+      "id": "verify",
+      "title": "验证 /api/runtime",
+      "kind": "verify",
+      "action": {
+        "kind": "http",
+        "method": "GET",
+        "url": "https://{{domain}}/api/runtime",
+        "headers": {
+          "Authorization": "Bearer {{chatPassword}}"
+        },
+        "expect": [
+          200
+        ],
+        "expectJson": {
+          "capabilities": {
+            "chat": true
+          }
+        },
+        "timeoutMs": 30000
+      }
+    },
+    {
+      "id": "handoff",
+      "title": "回填宿主 profile",
+      "kind": "profile",
+      "action": {
+        "kind": "profile",
+        "profile": "selfhost",
+        "baseUrl": "https://{{domain}}"
+      }
+    }
+  ],
+  "notes": [
+    "需要主机已装 Docker（含 compose v2）、git、并能从本机 SSH 登录；Caddy 由 compose 内的 caddy 服务提供 TLS。",
+    "compose 文件随仓库发布：deploy/vps/docker-compose.yml；数据卷在 {{remoteDir}}/data，回滚 down 不删卷。"
+  ]
+}

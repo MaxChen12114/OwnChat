@@ -1,0 +1,16 @@
+{
+  "id": "council",
+  "label": "多智能体讨论区",
+  "icon": "users",
+  "href": "/tools/council/",
+  "order": 6,
+  "desc": "多智能体讨论区：小会与上台的过程可视化（只从右栏标签打开，左栏不列入；右键可开新浏览器页）",
+  "page": true,
+  "sidebar": false,
+  "embed": true,
+  "chrome": "",
+  "singleton": true,
+  "keepAlive": false,
+  "requires": [],
+  "capabilities": []
+}

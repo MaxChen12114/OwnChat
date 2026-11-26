@@ -4,9 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>写作台 · OwnChat</title>
-<script src="/shared/escape.js"></script>
+<script src="/shared/core/escape.js"></script>
 <script>
-  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/theme.css) */
+  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/core/theme.css) */
   (function(){try{
     var t=localStorage.getItem("cfw_theme_v1")||"minimal";
     if(t&&t!=="minimal")document.documentElement.setAttribute("data-theme",t);
@@ -14,10 +14,10 @@
     if(s==="light"||s==="dark")document.documentElement.setAttribute("data-scheme",s);
   }catch(e){}})();
 </script>
-<link rel="stylesheet" href="/shared/theme.css?v=2" />
-<script src="/shared/chat-stream.js"></script>
+<link rel="stylesheet" href="/shared/core/theme.css?v=2" />
+<script src="/services/data/chat-stream.js"></script>
 <style>
-/* 主题令牌统一来自 /shared/theme.css(跟随主站主题),本页不再自定义 :root */
+/* 主题令牌统一来自 /shared/core/theme.css(跟随主站主题),本页不再自定义 :root */
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--text);font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;flex-direction:column}
@@ -147,6 +147,7 @@ svg{vertical-align:middle}
           <button class="menu-item" data-ai="polishAll">全文润色</button>
         </div>
       </div>
+      <button class="btn" id="unlockBtn" type="button" title="解限模式：复用主站越狱底座（需先在主站连点版本号解锁），与写作指令共存；默认关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0"/></svg> <span id="unlockLbl">解限：关</span></button>
       <span class="tb-spacer"></span>
       <span class="stat" id="statBar"><b>0</b> 字</span>
       <span class="fsctl">
@@ -167,7 +168,7 @@ svg{vertical-align:middle}
 </div>
 <div class="toast" id="toast" hidden></div>
 <script src="/config.js"></script>
-<script src="/shared/i18n.js"></script>
+<script src="/shared/core/i18n.js"></script>
 <script>
 (function(){
 "use strict";
@@ -179,16 +180,18 @@ function toast(m){var t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(
 var FALLBACK_FREE=[{id:"deepseek-ai/deepseek-v4-pro",label:"deepseek-v4-pro"},{id:"z-ai/glm-5.1",label:"glm-5.1"},{id:"openai/gpt-oss-120b",label:"gpt-oss-120b"}];
 var FALLBACK_FAST=[{id:"deepseek-v4-flash",label:"DeepSeek V4-Flash"},{id:"deepseek-v4-pro",label:"DeepSeek V4-Pro"}];
 var LS_MODEL="cfw_write_model_v1";
+var LS_UNLOCK_ON="cfw_write_unlock_v1";
+var UNLOCK_ON=(function(){try{return localStorage.getItem(LS_UNLOCK_ON)==="1";}catch(e){return false;}})();
 function modelList(which){var g=(which==="free")?window.APP_MODELS_FREE:window.APP_MODELS_FAST;/*2026-09-14:过滤占位模型,否则下拉里会出现"请在设置里拉取"的假选项*/if(Array.isArray(g))g=g.filter(function(m){return m&&m.id&&m.id.indexOf("__")!==0;});if(g&&g.length)return g;return which==="free"?FALLBACK_FREE:FALLBACK_FAST;}
 function addGroup(sel,label,which){var og=document.createElement("optgroup");og.label=label;modelList(which).forEach(function(m){var o=document.createElement("option");o.value=which+"::"+m.id;o.textContent=m.label||m.id;o.setAttribute("data-mode",which);o.setAttribute("data-model",m.id);og.appendChild(o);});sel.appendChild(og);}
 function buildModels(){var sel=$("#model");if(!sel)return;sel.innerHTML="";addGroup(sel,"免费模式 · NVIDIA NIM","free");addGroup(sel,"高速模式 · DeepSeek 官方","fast");var saved=localStorage.getItem(LS_MODEL);if(saved){for(var i=0;i<sel.options.length;i++){if(sel.options[i].value===saved){sel.selectedIndex=i;break;}}}sel.addEventListener("change",function(){localStorage.setItem(LS_MODEL,sel.value);});}
 function selModel(){var sel=$("#model");var o=sel&&sel.options[sel.selectedIndex];if(o&&o.getAttribute("data-mode"))return{mode:o.getAttribute("data-mode"),model:o.getAttribute("data-model")};return{mode:"free",model:undefined};}
 
 async function callChat(opts){
-  // 2026-11-11 (B8)：统一走 shared/chat-stream.js；write 保留自己的开关 key
-  return window.__chatStream.call({
+  // 2026-11-11 (B8)：统一走 services/data/chat-stream.ts 的产物；write 保留自己的开关 key
+  return window.chatStreamSvc.call({
     profile: "rp",
-
+    unlockKey: "cfw_write_unlock_v1",
     mode: opts.mode,
     model: opts.model,
     system: opts.system,
@@ -299,6 +302,7 @@ titleEl.addEventListener("input",function(){clearTimeout(titleEl.__t);titleEl.__
 $("#continueBtn").addEventListener("click",function(){run("continue");});
 $("#genOutline").addEventListener("click",function(){run("outline");});
 $("#stopBtn").addEventListener("click",function(){if(aborter)aborter.abort();});
+(function(){var ub=$("#unlockBtn");if(!ub)return;function paint(){var l=$("#unlockLbl");if(l)l.textContent=UNLOCK_ON?"解限：开":"解限：关";ub.classList.toggle("primary",UNLOCK_ON);ub.title=UNLOCK_ON?"解限模式：已开启（复用主站越狱底座，需已在主站解锁才生效）":"解限模式：复用主站越狱底座（需先在主站连点版本号解锁），默认关闭";}ub.addEventListener("click",function(){UNLOCK_ON=!UNLOCK_ON;try{localStorage.setItem(LS_UNLOCK_ON,UNLOCK_ON?"1":"0");}catch(e){}paint();var tk="";try{tk=localStorage.getItem("cfw_unlock_token_v1")||"";}catch(e){}if(UNLOCK_ON)toast(tk?"已开启解限（复用主站越狱底座）":"已开启解限，但尚未在主站解锁——请先去主站连点版本号输入访问码，否则服务端会按锁定态忽略");else toast("已关闭解限");});paint();})();
 $("#outlineList").addEventListener("click",function(e){var it=e.target.closest&&e.target.closest(".ol-item");if(!it)return;var pos=parseInt(it.getAttribute("data-pos"),10)||0;doc.focus();doc.setSelectionRange(pos,pos);var ln=doc.value.slice(0,pos).split("\n").length-1;doc.scrollTop=Math.max(0,ln*30-60);});
 })();
 </script>

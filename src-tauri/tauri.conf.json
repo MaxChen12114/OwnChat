@@ -1,10 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "OwnChat",
-  "version": "4.71.0",
+  "version": "4.72.0",
   "identifier": "app.ownchat.desktop",
   "build": {
-    "frontendDist": "frontend"
+    "frontendDist": "host/runtime/public",
+    "beforeDevCommand": "node scripts/stage-host.mjs",
+    "beforeBuildCommand": "node scripts/stage-host.mjs"
   },
   "app": {
     "withGlobalTauri": true,
@@ -12,6 +14,7 @@
       {
         "label": "main",
         "title": "OwnChat",
+        "url": "index.html",
         "width": 1200,
         "height": 800,
         "minWidth": 360,
@@ -28,6 +31,11 @@
     "active": true,
     "targets": ["nsis"],
     "createUpdaterArtifacts": true,
+    "resources": [
+      "resources/services/**/*",
+      "runtime/**/*",
+      "host/runtime/**/*"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

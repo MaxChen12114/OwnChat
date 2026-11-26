@@ -1,0 +1,16 @@
+{
+  "id": "audio",
+  "label": "音频工作台",
+  "icon": "audio",
+  "href": "/tools/audio/",
+  "order": 5,
+  "desc": "文本朗读（粘贴/选文件 → GPT-SoVITS），后续含语音识别/导出/音色（右栏标签打开；需桌面 App + 本机语音服务）",
+  "page": true,
+  "sidebar": true,
+  "embed": true,
+  "chrome": "",
+  "singleton": true,
+  "keepAlive": false,
+  "requires": [],
+  "capabilities": []
+}

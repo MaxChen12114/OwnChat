@@ -1,0 +1,16 @@
+{
+  "id": "studio",
+  "label": "创作工坊",
+  "icon": "studio",
+  "href": "/tools/studio/",
+  "order": 1,
+  "desc": "写故事 → 一键抽成角色卡 + 设定集（右栏标签打开；右键可开新浏览器页）",
+  "page": true,
+  "sidebar": true,
+  "embed": true,
+  "chrome": "",
+  "singleton": true,
+  "keepAlive": false,
+  "requires": [],
+  "capabilities": []
+}

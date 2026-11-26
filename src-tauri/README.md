@@ -1,56 +1,41 @@
 # src-tauri · Tauri 2 桌面 / 移动打包工程
 
-把部署好的 OwnChat Web 端用 Tauri 2 打包成可安装的桌面 / 移动应用。
+桌面壳的设计（2026-11-28 起）：
 
-## 域中立壳：装好首次填地址即可
+- **固定 origin**：窗口永远加载随包页面（host/runtime/public），不导航到远端站点。
+- **本机宿主**：安装包内置 host/runtime（server/ + src/ + public/ + migrations/），首启在
+  127.0.0.1:8787 启动 Node 宿主；Windows 安装包同时内置 Node 24 运行时（runtime/node/node.exe），
+  用户不需要自己装 Node。源码构建若没有 runtime/node，会回退系统 PATH 里的 Node 24+。
+- **宿主地址只决定 API/fetch 去哪**（托盘「更换服务器地址」），页面地址不变；换宿主=换后端，
+  不用重新打包。
+- **安卓版是瘦客户端**：加载随包 UI，但需要连一个可访问的宿主（你自己部署的实例，或局域网里的
+  桌面宿主）；安卓跑不了本机 Node 宿主。
 
-公开版**不写死站点地址**：首次启动显示本地设置页（`frontend/index.html`，双语）。页内三条路：
-填地址连接；**在本机运行**（源码用 `npx wrangler dev` 起在 `http://127.0.0.1:8787`，不需要域名 ——
-仓库根的 `start-local.cmd` / `start-local.sh` 双击即起，国内访问不了 `*.workers.dev` 时走这条）；
-**一键部署向导**（约 3 分钟把 Worker 部署到你自己的 Cloudflare）。填入地址后，Rust 侧只为**这一个源**
-动态授予 IPC 能力（见 `src/lib.rs` 的「服务器地址」一节）再导航过去 —— 公开仓库不带静态能力清单
-（`capabilities/remote.json` 已被移除）。`http://127.0.0.1` 这类本机源同样支持（动态授权不看 scheme）。
+## 构建
 
-想让自己出的包直连某站、跳过设置页，改这两处：
-
-1. `tauri.conf.json` → `app.windows[0].url`：填你的域名（`https://你的域名/?shell=android`；
-   `shell=android` 参数启用移动端布局）。
-2. `identifier`：换成你自己的（它就是安卓的 `applicationId`，上线后再改等于换应用）。
-
-自己发布时若坚持要用静态授权（不用启动页），可以自行添加 `capabilities/remote.json` ——
-权限清单与 `src/lib.rs` 的 `REMOTE_PERMISSIONS` 必须保持同一口径（改一处要改两处）。
+- **云构建（推荐）**：.github/workflows/tauri-build.yml，推 tag 或手动 dispatch；Windows 出 NSIS，
+  安卓出 APK。构建前会把 Node 24 复制到 src-tauri/runtime/node/，再由 beforeBuildCommand 跑
+  node scripts/stage-host.mjs 生成 host/runtime/。
+- **本地构建**：需要 Rust 与 Node 24+；在 src-tauri 下运行 cargo tauri build。本地不会自动内置
+  Node 运行时，调试时走系统 PATH 的 node。
 
 ## 自动更新
 
-官方公开版发布由维护者签名：`plugins.updater.pubkey` 已内置对应公钥，私钥放在本仓库的 Secrets 里。
+官方公开版发布由维护者签名：plugins.updater.pubkey 已内置对应公钥，私钥放在仓库 Secrets 里。
 
-要发布**你自己的**版本，请换成你自己的密钥对：
+要发布你自己的版本，请换成你自己的密钥对：
 
-```bash
-npx tauri signer generate -w ownchat.key        # 生成自己的签名密钥
-```
+npx tauri signer generate -w ownchat.key
 
-- 私钥（`ownchat.key`）→ 仓库 Secrets：`TAURI_SIGNING_PRIVATE_KEY`（有密码再加 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`）；
-- 公钥 → `tauri.conf.json` → `plugins.updater.pubkey`；
-- `plugins.updater.endpoints` → 指向你自己仓库的 Releases。
-- **密钥永不入库**（`.gitignore` 已排除 `*.key`）。
-
-## 两种出包方式
-
-### A. 云构建（推荐）
-仓库自带 `.github/workflows/tauri-build.yml`：Actions → "Build Tauri App" → Run workflow；
-或推一个版本标签（`git tag app-v1.0.0 && git push origin app-v1.0.0`）触发。
-Windows 出 NSIS `.exe`，安卓出调试 APK（产物在 Actions Artifacts / Releases）。
-
-### B. 本地构建
-1. 安装 Rust：https://rustup.rs
-2. 安装 Tauri CLI：`cargo install tauri-cli --version "^2.0"`
-3. 生成图标（只需一次）：`cargo tauri icon ../public/assets/icon-512.png`
-4. 出包：`cargo tauri build`（Windows 产物在 `target/release/bundle/`）
+- 私钥（ownchat.key）→ 仓库 Secrets：TAURI_SIGNING_PRIVATE_KEY（有密码再加 TAURI_SIGNING_PRIVATE_KEY_PASSWORD）；
+- 公钥 → tauri.conf.json → plugins.updater.pubkey；
+- plugins.updater.endpoints → 指向你自己仓库的 Releases。
+- 密钥永不入库（.gitignore 已排除 *.key）。
 
 ## 安全模型
 
-远程页面**不是**按"普通网页"运行：`withGlobalTauri: true` + `capabilities/remote.json` 的授权
-让页面可以调用本机命令（本地文件读写、执行命令、TTS 代理等）。所有命令都在 `build.rs` 登记、
-未登记/未授权的命令远程页调不到；本地文件读写受工作目录门控，命令执行前有**系统原生确认框**。
-换域名时记得同步改 capabilities —— 授予了谁，就等于把本机能力交给了谁。
+页面是本机随包页，不是远端网页：withGlobalTauri + capabilities 让页面可以调用本机命令
+（本地文件读写、执行命令、TTS 代理等）。所有命令都在 build.rs 登记，未登记/未授权的命令
+调不到；本地文件读写受工作目录门控，命令执行前有系统原生确认框。默认 capabilities 只覆盖
+随包页面，没有远端域名的动态授权。
+

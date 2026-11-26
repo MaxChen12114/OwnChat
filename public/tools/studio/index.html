@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>创作工坊 · OwnChat</title>
 <script>
-  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/theme.css) */
+  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/core/theme.css) */
   (function(){try{
     var t=localStorage.getItem('cfw_theme_v1')||'minimal';
     if(t&&t!=='minimal')document.documentElement.setAttribute('data-theme',t);
@@ -14,7 +14,7 @@
     if(s==='light'||s==='dark')document.documentElement.setAttribute('data-scheme',s);
   }catch(e){}})();
 </script>
-<link rel="stylesheet" href="/shared/theme.css?v=2" />
+<link rel="stylesheet" href="/shared/core/theme.css?v=2" />
 <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -53,6 +53,8 @@
           <label class="field-label" for="model">模型</label>
           <select id="model" class="input narrow"></select>
         </div>
+        <label class="chk" title="勾选后允许生成成人向（露骨 / 黑暗 / 禁忌）内容；不勾则按常规向书写。"><input type="checkbox" id="nsfw" /> 成人向 <span class="chk-q" aria-hidden="true">?</span></label>
+        <label class="chk" title="解限：复用主站越狱底座（需先在主站连点版本号解锁），与你的创作提示词共存；默认关闭。"><input type="checkbox" id="unlockChk" /> 解限 <span class="chk-q" aria-hidden="true">?</span></label>
         <span class="spacer"></span>
         <button id="gen" class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9z"/><path d="M19 14l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"/></svg> 生成故事</button>
         <button id="stop" class="btn ghost" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> 停止</button>
@@ -60,7 +62,9 @@
       <details class="prompt-box">
         <summary><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg> 提示词设置（高级）</summary>
         <div class="prompt-inner">
+          <p class="hint">下面是发给 AI 的系统提示词，可自由编辑，自动存在本浏览器。<b>「成人向」</b>勾选后，会把「成人向附加段」拼到创作提示词末尾——这就是它的作用。</p>
           <div class="fld"><label>创作提示词（写故事用）</label><textarea id="sysStory" rows="4"></textarea></div>
+          <div class="fld"><label>成人向附加段（勾选成人向时追加）</label><textarea id="sysNsfw" rows="3"></textarea></div>
           <div class="fld"><label>解析提示词（抽角色 + 设定集用）</label><textarea id="sysExtract" rows="6"></textarea></div>
           <div class="row"><button id="promptReset" class="btn ghost small"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v3.5h-3.5"/></svg> 恢复默认</button><span id="promptHint" class="hint inline"></span></div>
         </div>
@@ -117,12 +121,15 @@
 <div id="toast" class="toast" hidden></div>
 <script src="/config.js"></script>
 <!-- 2026-09-14 UI第一轮:统一反馈组件(toast/confirm,自注入样式),须在 app.js 前 -->
-<script src="/shared/feedback.js"></script>
-<script src="/shared/i18n.js"></script>
+<script src="/services/ui/feedback.js"></script>
+<script src="/shared/core/i18n.js"></script>
+<!-- 访问码：统一存储（/api/data/*）与 /sync 同一套 Bearer，包装器给同源 /api/ 请求补 Authorization；
+     本页保存角色卡要写 D1，缺了它只能 401。产品来自 services/auth/token.ts，与主站同一份，不自建一套。 -->
+<script src="/services/auth/token.js"></script>
 <!-- 图像渠道与统一生图管线（与主站同源，共享 localStorage 里的当前渠道） -->
-<script src="/shared/chat-stream.js"></script>
-<script src="/shared/image-channels.js"></script>
-<script src="/shared/image-common.js"></script>
-<script src="./app.js?v=3"></script>
+<script src="/services/data/chat-stream.js"></script>
+<script src="/services/image/channels.js"></script>
+<script src="/services/image/common.js"></script>
+<script src="./app.js?v=4"></script>
 </body>
 </html>

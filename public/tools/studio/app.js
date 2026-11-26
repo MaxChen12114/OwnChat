@@ -1,5 +1,5 @@
 // public/studio/app.js — 创作工坊（写故事抽角色 + 角色卡一键配图）
-// 纯前端：① 写故事 → 一键解析为角色卡(IDB tavern_chars_v2) + 世界书(LS tavern_lorebook_v1)；② 角色卡一键配图（z-image 立绘 → 写入卡片 avatar 字段）。
+// 纯前端：① 写故事 → 一键解析为角色卡(统一存储 chars 表，经 /api/data/tx) + 世界书(LS tavern_lorebook_v1)；② 角色卡一键配图（z-image 立绘 → 写入卡片 avatar 字段）。
 // 复用 /api/chat（文本·服务端持密钥·流式）与 /img/v1/*（图像·需「图像工坊」标签内填入的 API Key）；模型下拉从 /config.js 下发的 window.APP_MODELS_* 动态生成，与聊天页一致。
 (function(){
 "use strict";
@@ -11,8 +11,8 @@ var SVG_GLOBE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 var SVG_IMG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.2"/><circle cx="8.5" cy="10" r="1.7"/><path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4"/></svg>';
 
 var toastT=null;
-// 2026-09-14 UI第一轮:统一反馈组件代理 —— __feedback 在则转发,缺失回退 #toast 原实现
-function toast(msg){if(window.__feedback&&window.__feedback.toast)return window.__feedback.toast(msg,{ms:2800});var t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(function(){t.hidden=true;},2800);}
+// 2026-09-14 UI第一轮:统一反馈组件代理 —— feedbackSvc 在则转发,缺失回退 #toast 原实现
+function toast(msg){if(window.feedbackSvc&&window.feedbackSvc.toast)return window.feedbackSvc.toast(msg,{ms:2800});var t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(function(){t.hidden=true;},2800);}
 
 // ====== 模型下拉（与聊天页一致，可任选） ======
 // /config.js 会下发 window.APP_MODELS_FREE / window.APP_MODELS_FAST；若未加载则用内置同步名单。
@@ -54,11 +54,15 @@ function selModel(){
   return {mode:"free",model:undefined};
 }
 
+// ---- 解限（双态）：复用主站越狱底座 use_builtin_persona + 自带 unlockToken；默认关。未解锁时服务端按锁定态走基础行为准则 ----
+var LS_UNLOCK_ON="cfw_studio_unlock_v1";
+function unlockOn(){return !!($("#unlockChk")&&$("#unlockChk").checked);}
+function unlockTok(){try{return localStorage.getItem("cfw_unlock_token_v1")||"";}catch(e){return "";}}
 
 // ---- /api/chat 流式调用 ----
 async function callChat(opts){
-  // 2026-11-11 (B8)：统一走 shared/chat-stream.js —— body/SSE/错误文案与 write/coding/flow 同源
-  return window.__chatStream.call({
+  // 2026-11-11 (B8)：统一走 services/data/chat-stream.ts 的产物 —— body/SSE/错误文案与 write/coding/flow 同源
+  return window.chatStreamSvc.call({
     profile: "rp",
     mode: opts.mode,
     model: opts.model,
@@ -70,6 +74,7 @@ async function callChat(opts){
 }
 // ====== 提示词（默认值 + 可编辑持久化） ======
 var DEF_STORY="你是一位擅长人物塑造的中文小说作者。根据用户给的种子设定，写一段完整、有画面感的故事或设定稿，重点把出场人物的性格、说话方式、彼此关系和所处世界观写清楚，方便后续抽取成可聊天的角色卡。800-1500 字，可包含对话。直接输出正文，不要标题、不要解释。";
+var DEF_NSFW="\n本故事为成人向虚构创作，登场角色均为成年人；可包含露骨、黑暗、禁忌等成人内容，按剧情需要自然书写，无需回避或加道德说教。";
 var DEF_EXTRACT=[
 "你是一个「角色卡 + 世界书」抽取器。读用户给的故事，抽取其中适合做成可聊天角色的人物，以及适合长期记忆的世界观设定。",
 "只输出一个 JSON 对象，禁止任何解释、前后缀或代码围栏。结构：",
@@ -80,17 +85,19 @@ var DEF_EXTRACT=[
 "- 每个角色 rules 给 2-3 条，exampleQA 给 1-2 组真实可用的对话；",
 "- 全部用中文（专有名词可保留原文）。只返回 JSON。"
 ].join("\n");
+var LS_STORY="cfw_studio_sys_story_v1",LS_NSFW="cfw_studio_sys_nsfw_v1",LS_EXTRACT="cfw_studio_sys_extract_v1";
 function loadPrompts(){
   if($("#sysStory"))$("#sysStory").value=localStorage.getItem(LS_STORY)||DEF_STORY;
+  if($("#sysNsfw"))$("#sysNsfw").value=localStorage.getItem(LS_NSFW)||DEF_NSFW;
   if($("#sysExtract"))$("#sysExtract").value=localStorage.getItem(LS_EXTRACT)||DEF_EXTRACT;
 }
 function wirePrompts(){
-  var map=[["#sysStory",LS_STORY],["#sysExtract",LS_EXTRACT]];
+  var map=[["#sysStory",LS_STORY],["#sysNsfw",LS_NSFW],["#sysExtract",LS_EXTRACT]];
   map.forEach(function(p){var e=$(p[0]);if(e)e.addEventListener("input",function(){localStorage.setItem(p[1],e.value);});});
   var rb=$("#promptReset");
-  if(rb)rb.addEventListener("click",function(){localStorage.removeItem(LS_STORY);localStorage.removeItem(LS_EXTRACT);loadPrompts();if($("#promptHint"))$("#promptHint").textContent="已恢复默认提示词";});
+  if(rb)rb.addEventListener("click",function(){localStorage.removeItem(LS_STORY);localStorage.removeItem(LS_NSFW);localStorage.removeItem(LS_EXTRACT);loadPrompts();if($("#promptHint"))$("#promptHint").textContent="已恢复默认提示词";});
 }
-function storySys(){return ($("#sysStory")&&$("#sysStory").value.trim())||DEF_STORY;}
+function storySys(){var base=($("#sysStory")&&$("#sysStory").value.trim())||DEF_STORY;var add=($("#sysNsfw")&&$("#sysNsfw").value)||DEF_NSFW;return base+($("#nsfw").checked?add:"");}
 function extractSys(){return ($("#sysExtract")&&$("#sysExtract").value.trim())||DEF_EXTRACT;}
 
 // ====== Step 1: 写故事 ======
@@ -189,8 +196,55 @@ function renderResult(){
 function readField(idx,key){var e=$('#result [data-k="'+key+'"][data-i="'+idx+'"]');return e?e.value.trim():"";}
 
 // ====== Step 3: 落地 ======
-function openDB(){return new Promise(function(res,rej){var q=indexedDB.open("tavern_chars_v2",2);q.onupgradeneeded=function(){var d=q.result;if(!d.objectStoreNames.contains("chars"))d.createObjectStore("chars",{keyPath:"id"});if(!d.objectStoreNames.contains("affections"))d.createObjectStore("affections",{keyPath:"cardId"});};q.onsuccess=function(){res(q.result);};q.onerror=function(){rej(q.error);};});}
-function putCard(card){return openDB().then(function(d){return new Promise(function(res,rej){var t=d.transaction("chars","readwrite");t.objectStore("chars").put(card);t.oncomplete=function(){res();};t.onerror=function(){rej(t.error);};});});}
+// 角色卡写进统一存储的 chars(id,name,data) 行（与主站同一张表、同一份数据）。
+// 本页是独立页面不加载 character.js，行契约必须与 character.ts 的 saveCard 白名单保持一致——
+// 改一处就得改两处。写入走 /api/data/tx（收集-提交；单条也走它，吃的是 tx 的请求体上限），
+// Bearer 由 /services/auth/token.js 的 fetch 包装器注入，本页不另建鉴权。
+var DATA_TX = "/api/data/tx";
+
+async function postTx(statements, retried) {
+  var res = await fetch(DATA_TX, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ statements: statements })
+  });
+  var body = null;
+  try { body = await res.json(); } catch (e) {}
+  if (res.status === 401) {
+    // 统一存储与 /sync 同一套访问码：没令牌就现场问一次，输对了重试一次——不静默失败。
+    if (!retried && window.authSvc && window.authSvc.promptForPassword) {
+      var pw;
+      try {
+        pw = await window.authSvc.promptForPassword({
+          title: "保存角色卡",
+          hint: "输入主站访问码（Cloudflare Secret <code>CHAT_PASSWORD</code> 的值）。输对后会自动重试保存。"
+        });
+      } catch (e) {
+        throw new Error("未输入访问码，角色卡没有保存");
+      }
+      window.authSvc.setToken(pw);
+      return postTx(statements, true);
+    }
+    throw new Error("需要访问码才能写入统一存储，请先输入主站访问码后重试");
+  }
+  if (res.status === 503) throw new Error("统一存储未启用（服务端未绑定数据库），请联系管理员");
+  if (!res.ok || !body || body.ok !== true) throw new Error((body && body.error) || ("写入失败（HTTP " + res.status + "）"));
+  return body;
+}
+
+// All checked cards in one transaction: either every row lands or none does, and one request
+// keeps a 4M-character card far below the body cap.
+async function saveCards(cards) {
+  if (!cards.length) return 0;
+  var statements = cards.map(function (card) {
+    return {
+      sql: "INSERT INTO chars (id, name, data) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, data = excluded.data",
+      params: [card.id, card.name || "", JSON.stringify(card)]
+    };
+  });
+  await postTx(statements, false);
+  return cards.length;
+}
 
 function iconFor(gender){var g=String(gender||"");if(/男|male|boy/i.test(g))return "\ud83e\uddd1";if(/女|female|girl/i.test(g))return "\ud83d\udc69";return "\ud83d\ude42";}
 
@@ -241,8 +295,7 @@ async function doSave(){
   if(!cards.length&&!lores.length){toast("没有勾选任何项");return;}
   $("#save").disabled=true;$("#savehint").textContent="保存中……";
   try{
-    var nC=0;
-    for(var i=0;i<cards.length;i++){await putCard(cards[i]);nC++;}
+    var nC=await saveCards(cards);
     saveLore(lores);
     var nW=lores.length;
     $("#savehint").textContent="已保存 "+nC+" 个角色、"+nW+" 条世界书 —— 回酒馆即可使用";
@@ -268,10 +321,10 @@ async function expandPortraitPrompt(idx){
   }catch(e){}
   return base+"，半身立绘，单人，看向镜头，干净背景，masterpiece, best quality";
 }
-function activeImageChannel(){try{return (window.__imageChannels&&window.__imageChannels.getActive)?window.__imageChannels.getActive():null;}catch(e){return null;}}
+function activeImageChannel(){try{return (window.imageChannelsSvc&&window.imageChannelsSvc.getActive)?window.imageChannelsSvc.getActive():null;}catch(e){return null;}}
 function blobToDataUrl(blob){return new Promise(function(res,rej){var fr=new FileReader();fr.onload=function(){res(fr.result);};fr.onerror=function(){rej(fr.error);};fr.readAsDataURL(blob);});}
 async function genViaChannel(prompt,size,maxPx){
-  var IC=window.__imageCommon;
+  var IC=window.imageCommonSvc;
   if(!IC||!IC.genImage)throw new Error("图像模块未加载，请刷新页面");
   var ch=activeImageChannel();
   if(ch&&ch.kind==="openai"&&ch.transport==="site"&&!IC.getKey())throw new Error("缺少图像 API Key：先到主站 设置 → 模型 API → 图像渠道 填写当前渠道 Key");
@@ -428,6 +481,7 @@ function injectFuseStyle(){
 buildModels();
 loadPrompts();
 wirePrompts();
+(function(){var u=$("#unlockChk");if(!u)return;try{u.checked=(localStorage.getItem(LS_UNLOCK_ON)==="1");}catch(e){}u.addEventListener("change",function(){try{localStorage.setItem(LS_UNLOCK_ON,u.checked?"1":"0");}catch(e){}if(u.checked)toast(unlockTok()?"已开启解限（复用主站越狱底座）":"已开启解限，但尚未在主站解锁——请先去主站解锁，否则服务端会按锁定态忽略");else toast("已关闭解限");});})();
 $("#gen").addEventListener("click",doGen);
 $("#stop").addEventListener("click",function(){if(genAbort)genAbort.abort();});
 $("#extract").addEventListener("click",doExtract);

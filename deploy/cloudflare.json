@@ -1,0 +1,239 @@
+{
+  "id": "cloudflare",
+  "name": "Cloudflare Worker",
+  "version": 1,
+  "target": "cloudflare",
+  "resultProfile": "account",
+  "description": "把 OwnChat 部署到你自己的 Cloudflare 账号：KV 同步桶 + D1 统一存储 + Worker。",
+  "inputs": [
+    {
+      "id": "apiToken",
+      "label": "Cloudflare API Token",
+      "kind": "secret",
+      "required": true,
+      "hint": "需要 Workers Scripts:Edit、D1:Edit、Workers KV Storage:Edit 三项权限；token 只进本次运行，不写日志。"
+    },
+    {
+      "id": "accountId",
+      "label": "Account ID",
+      "kind": "text",
+      "required": true,
+      "placeholder": "32 位十六进制"
+    },
+    {
+      "id": "workerName",
+      "label": "Worker 名称",
+      "kind": "text",
+      "required": true,
+      "default": "ownchat"
+    },
+    {
+      "id": "baseUrl",
+      "label": "部署后的站点地址",
+      "kind": "url",
+      "required": true,
+      "placeholder": "https://ownchat.example.workers.dev"
+    },
+    {
+      "id": "chatPassword",
+      "label": "访问码 CHAT_PASSWORD（可选）",
+      "kind": "secret",
+      "required": false,
+      "hint": "留空 = 不设访问码（只适合本机试用）；填了就同时用于部署后的 verify 请求。"
+    },
+    {
+      "id": "deepseekKey",
+      "label": "DEEPSEEK_API_KEY（可选）",
+      "kind": "secret",
+      "required": false,
+      "hint": "留空 = 部署后到 Cloudflare 控制台补；不会写进本机存储。"
+    }
+  ],
+  "steps": [
+    {
+      "id": "preflight",
+      "title": "校验 API Token",
+      "kind": "http",
+      "action": {
+        "kind": "http",
+        "method": "GET",
+        "url": "https://api.cloudflare.com/client/v4/user/tokens/verify",
+        "headers": { "Authorization": "Bearer {{apiToken}}" },
+        "expect": [200]
+      }
+    },
+    {
+      "id": "kv",
+      "title": "创建 KV 同步桶",
+      "kind": "http",
+      "action": {
+        "kind": "http",
+        "method": "POST",
+        "url": "https://api.cloudflare.com/client/v4/accounts/{{accountId}}/storage/kv/namespaces",
+        "headers": {
+          "Authorization": "Bearer {{apiToken}}",
+          "Content-Type": "application/json"
+        },
+        "body": { "title": "{{workerName}}-sync" },
+        "expect": [200, 201]
+      },
+      "capture": { "kvId": "result.id" },
+      "inverse": {
+        "kind": "http",
+        "method": "DELETE",
+        "url": "https://api.cloudflare.com/client/v4/accounts/{{accountId}}/storage/kv/namespaces/{{kvId}}",
+        "headers": { "Authorization": "Bearer {{apiToken}}" },
+        "expect": [200]
+      }
+    },
+    {
+      "id": "d1",
+      "title": "创建 D1 数据库",
+      "kind": "http",
+      "action": {
+        "kind": "http",
+        "method": "POST",
+        "url": "https://api.cloudflare.com/client/v4/accounts/{{accountId}}/d1/database",
+        "headers": {
+          "Authorization": "Bearer {{apiToken}}",
+          "Content-Type": "application/json"
+        },
+        "body": { "name": "{{workerName}}-events" },
+        "expect": [200, 201]
+      },
+      "capture": { "d1Id": "result.uuid", "d1Name": "result.name" },
+      "inverse": {
+        "kind": "http",
+        "method": "DELETE",
+        "url": "https://api.cloudflare.com/client/v4/accounts/{{accountId}}/d1/database/{{d1Id}}",
+        "headers": { "Authorization": "Bearer {{apiToken}}" },
+        "expect": [200]
+      }
+    },
+    {
+      "id": "migrate",
+      "title": "应用统一存储迁移",
+      "kind": "command",
+      "action": {
+        "kind": "command",
+        "command": "npx",
+        "args": ["wrangler", "d1", "migrations", "apply", "{{d1Name}}", "--remote"],
+        "env": {
+          "CLOUDFLARE_API_TOKEN": "{{apiToken}}",
+          "CLOUDFLARE_ACCOUNT_ID": "{{accountId}}"
+        },
+        "timeoutMs": 600000
+      },
+      "irreversible": true,
+      "note": "远端数据库已执行的迁移不回滚（回滚会删除库，但不会反向执行 SQL）。"
+    },
+    {
+      "id": "secret-chat",
+      "title": "写入访问码",
+      "kind": "command",
+      "when": "chatPassword",
+      "action": {
+        "kind": "command",
+        "command": "npx",
+        "args": ["wrangler", "secret", "put", "CHAT_PASSWORD"],
+        "env": {
+          "CLOUDFLARE_API_TOKEN": "{{apiToken}}",
+          "CLOUDFLARE_ACCOUNT_ID": "{{accountId}}"
+        },
+        "stdin": "{{chatPassword}}",
+        "timeoutMs": 120000
+      },
+      "inverse": {
+        "kind": "command",
+        "command": "npx",
+        "args": ["wrangler", "secret", "delete", "CHAT_PASSWORD"],
+        "env": {
+          "CLOUDFLARE_API_TOKEN": "{{apiToken}}",
+          "CLOUDFLARE_ACCOUNT_ID": "{{accountId}}"
+        },
+        "timeoutMs": 120000
+      }
+    },
+    {
+      "id": "secret-deepseek",
+      "title": "写入 DEEPSEEK_API_KEY",
+      "kind": "command",
+      "when": "deepseekKey",
+      "action": {
+        "kind": "command",
+        "command": "npx",
+        "args": ["wrangler", "secret", "put", "DEEPSEEK_API_KEY"],
+        "env": {
+          "CLOUDFLARE_API_TOKEN": "{{apiToken}}",
+          "CLOUDFLARE_ACCOUNT_ID": "{{accountId}}"
+        },
+        "stdin": "{{deepseekKey}}",
+        "timeoutMs": 120000
+      },
+      "inverse": {
+        "kind": "command",
+        "command": "npx",
+        "args": ["wrangler", "secret", "delete", "DEEPSEEK_API_KEY"],
+        "env": {
+          "CLOUDFLARE_API_TOKEN": "{{apiToken}}",
+          "CLOUDFLARE_ACCOUNT_ID": "{{accountId}}"
+        },
+        "timeoutMs": 120000
+      }
+    },
+    {
+      "id": "deploy",
+      "title": "发布 Worker",
+      "kind": "command",
+      "action": {
+        "kind": "command",
+        "command": "npx",
+        "args": ["wrangler", "deploy"],
+        "env": {
+          "CLOUDFLARE_API_TOKEN": "{{apiToken}}",
+          "CLOUDFLARE_ACCOUNT_ID": "{{accountId}}"
+        },
+        "timeoutMs": 600000
+      },
+      "inverse": {
+        "kind": "command",
+        "command": "npx",
+        "args": ["wrangler", "rollback", "--message", "ownchat deploy wizard rollback"],
+        "env": {
+          "CLOUDFLARE_API_TOKEN": "{{apiToken}}",
+          "CLOUDFLARE_ACCOUNT_ID": "{{accountId}}"
+        },
+        "timeoutMs": 300000
+      },
+      "note": "首次部署没有上一个版本，wrangler rollback 会失败；失败会如实报出，不会假装回滚成功。"
+    },
+    {
+      "id": "verify",
+      "title": "验证 /api/runtime",
+      "kind": "verify",
+      "action": {
+        "kind": "http",
+        "method": "GET",
+        "url": "{{baseUrl}}/api/runtime",
+        "headers": { "Authorization": "Bearer {{chatPassword}}" },
+        "expect": [200],
+        "expectJson": { "capabilities": { "chat": true } },
+        "timeoutMs": 30000
+      }
+    },
+    {
+      "id": "handoff",
+      "title": "回填宿主 profile",
+      "kind": "profile",
+      "action": {
+        "kind": "profile",
+        "profile": "account",
+        "baseUrl": "{{baseUrl}}"
+      }
+    }
+  ],
+  "notes": [
+    "migrate/deploy 需要本机 Node 与 wrangler；当前桌面命令通道（local_run_command）没有 env/stdin，真机跑通前需要 T4-B 扩展命令端口。",
+    "verify 走 /api/runtime：profile 为 account 的站点以「chat 能力为真」作为健康判据，不依赖具体模型 Key。"
+  ]
+}

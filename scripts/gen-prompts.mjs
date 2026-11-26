@@ -3,6 +3,8 @@
 // 由 wrangler.toml 的 [build] command 在每次 dev / deploy 前自动执行。
 // 2026-10-05: 从 gen-bases.mjs 泛化而来 —— 现在管两类 target:
 //   「文本型」(kind 缺省)：一个文件/目录 = 一段文本
+//     src/prompts/bases/unlocked/ → bases/unlocked/index.js (BASES + DEFAULT_BASE_ID)   解锁态的「解限底座」
+//     src/prompts/bases/locked/   → bases/locked/index.js   (NEUTRALS + DEFAULT_NEUTRAL_ID) 锁定态的「基础行为准则」
 //   「条目型」(kind: "entries", 2026-10-06 新增)：一个文件 = 一条带元数据的条目
 //     src/prompts/presets/   → presets/index.js  (PRESETS + LIBRARY_VERSION) 指令模块库（第一层子目录 = 分组）
 //     src/prompts/skills/    → skills/index.js   (SKILLS)                    技能库（平铺，不带分组）
@@ -48,11 +50,10 @@ const EXCLUDE_BASENAMES = ["readme", "shared"];
 const FOLDER_SEP = "\n\n---\n\n";
 
 const TARGETS = [
+  // 2026-10-06: 中性准则也是 base，所以 base 目录下分 unlocked（解锁态）/ locked（锁定态）两个子目录 ——
   // 目录名一律 ASCII（中文路径在构建机/压缩工具/编码假定上都是雷）。
-  { dir: "bases", table: "BASES", defaultConst: "DEFAULT_BASE_ID", withShared: true },
-  // 2026-10-09: 公开版第二套目录 —— 使用者自己的基座（顶栏按钮切到「自定义」时用它）。
-  // optional: 目录不存在 / 为空都生成空注册表（worker 是静态 import，缺 index.js 会直接编译失败）。
-  { dir: "custom", table: "CUSTOMS", defaultConst: "DEFAULT_CUSTOM_ID", withShared: false, optional: true },
+  { dir: "bases/unlocked", table: "BASES", defaultConst: "DEFAULT_BASE_ID", withShared: true },
+  { dir: "bases/locked", table: "NEUTRALS", defaultConst: "DEFAULT_NEUTRAL_ID", withShared: false },
   { dir: "presets", table: "PRESETS", kind: "entries", groupKey: "group" },
   { dir: "skills", table: "SKILLS", kind: "entries" },
 ];
@@ -81,7 +82,7 @@ function readText(p, bomSink, label) {
 }
 
 /** 生成物里的注册表标题（中性措辞：私有版生成物不进公开树，但公开版生成的同名字段要对得上）。 */
-const TABLE_TITLE = { BASES: "基座提示词", CUSTOMS: "自定义基座提示词" };
+const TABLE_TITLE = { BASES: "基座提示词", CUSTOMS: "自定义基座提示词", NEUTRALS: "基础行为准则" };
 
 /** optional target 的空注册表：0 条 + 默认档为空串（调用方必须自己兜底）。 */
 function writeEmptyRegistry({ dir, table, defaultConst, withShared }, why) {

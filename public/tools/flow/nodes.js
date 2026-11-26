@@ -1,9 +1,8 @@
 // 路径: public/flow/nodes.js
 /* 代码台 · 节点包 (nodes.js)
-   往 NodeEngine 注册具体节点类型。两个包:
+   往 NodeEngine 注册具体节点类型。节点按分组组织:
    - 「酒馆 · AI 工具」:文本输入 / 模板拼接 / AI 生成 / 抽取角色卡 / 输出
-   - 「洪都 · GIS(占位)」:GeoJSON 输入 / 缓冲区 / 质心 —— 演示节点包扩展点,
-     执行函数现为本地占位(标注待接 Turf.js),数据结构与端口已就位。
+   - 「代码 · 处理」:JS 变换 / 正则 / HTTP / 代码生成
    纯数据 + 纯 JS,框架中立。 */
 (function () {
   var E = window.NodeEngine;
@@ -13,7 +12,6 @@
   var G_AI = 'AI · 生成';
   var G_CODE = '代码 · 处理';
   var G_TAVERN = '酒馆 · 专用';
-  var G_GIS = '洪都 · GIS(占位)';
   var SLOT = '{' + '{in}' + '}';
 
   function asText(v) {
@@ -291,41 +289,6 @@
       var sys = '你是代码生成器。用 ' + lang + ' 实现用户需求。只输出代码本体,不要任何解释、注释说明或 Markdown 代码块围栏。';
       var out = await ctx.chat({ system: sys, user: spec, model: params.model || '' });
       return { code: out };
-    }
-  });
-
-  // ════ 洪都 GIS 占位包(演示节点包扩展点) ════
-  E.register({
-    type: 'gis-geojson', title: 'GeoJSON 输入', group: G_GIS,
-    desc: '粘贴一段 GeoJSON,作为空间分析起点。',
-    inputs: [], outputs: [{ name: 'geojson', label: 'GeoJSON' }],
-    params: [{ key: 'geojson', label: 'GeoJSON', type: 'textarea', placeholder: '{"type":"FeatureCollection","features":[]}' }],
-    run: function (inputs, params) {
-      var raw = params.geojson || '';
-      try { return { geojson: raw ? JSON.parse(raw) : { type: 'FeatureCollection', features: [] } }; }
-      catch (e) { throw new Error('GeoJSON 解析失败:' + e.message); }
-    }
-  });
-
-  E.register({
-    type: 'gis-buffer', title: '缓冲区分析', group: G_GIS,
-    desc: '(占位)对要素做缓冲。正式版接 Turf.js buffer。',
-    inputs: [{ name: 'geojson', label: 'GeoJSON' }], outputs: [{ name: 'geojson', label: 'GeoJSON' }],
-    params: [{ key: 'radius', label: '半径(米)', type: 'number', placeholder: '500' }],
-    run: function (inputs, params) {
-      var fc = inputs.geojson || { type: 'FeatureCollection', features: [] };
-      return { geojson: { __op: 'buffer', radius: Number(params.radius) || 0, source: fc } };
-    }
-  });
-
-  E.register({
-    type: 'gis-centroid', title: '质心', group: G_GIS,
-    desc: '(占位)求要素质心。正式版接 Turf.js centroid。',
-    inputs: [{ name: 'geojson', label: 'GeoJSON' }], outputs: [{ name: 'geojson', label: '质心点' }],
-    params: [],
-    run: function (inputs) {
-      var fc = inputs.geojson || { type: 'FeatureCollection', features: [] };
-      return { geojson: { __op: 'centroid', source: fc } };
     }
   });
 })();

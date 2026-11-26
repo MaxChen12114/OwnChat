@@ -623,7 +623,8 @@ html[data-theme="candle"] #syncStatusIndicator { background: rgba(40,28,18,.45);
  right: 240px;
  width: auto;
  }
-
+ /* 2026-05-30 / 4.25 修复「电脑端顶栏按钮被卡在页面后面」:
+ 桌面端取消 760px 限制,让顶栏用满中间栏宽度,所有按钮(模式/解限/同步/⚙️)平铺不溢出、不需横滑、不被裁切。 */
  .topbar-shell { max-width: none; }
 }
 
@@ -715,7 +716,14 @@ html[data-theme="candle"] #costDisplay.topbar-cost-inline {
  }
 }
 
-
+/* ════════════════════════════════════════════════════════════
+ Phase 4 阶段 4.4 · 视觉调优
+ - A 顶栏所有控件统一高度 34px(消除大小不一)
+ - B 4 主题侧栏按钮全部分主题配色(杜绝默认灰)
+ - C 私享主题加阴影 / 描边 / 装饰强化立体感
+ - D doll 主题文字对比度全线提升(persona / GitHub / disabled / placeholder)
+ - E 手机底部 4-tab 标签条(鱼缸 / 形象 / 场景 / 摘要)
+ ════════════════════════════════════════════════════════════ */
 
 /* ─── 4.4-A 顶栏统一高度 ─── */
 #topbar .iconbtn,
@@ -958,11 +966,11 @@ html[data-theme="candle"] .mobile-tab-panel.active {
  color: #a89a8a;
  border-color: rgba(217,168,104,.22);
 }/* ════════════════════════════════════════════════════════════
- Phase 4 阶段 4.5 · 顶栏二次修整 + 剪影避让 + 自定义按钮入顶栏
+ Phase 4 阶段 4.5 · 顶栏二次修整 + 剪影避让 + 解限按钮入顶栏
  用户反馈定位:
  - 剪影在 1024-1200px 之间挡住发送键(@1024 right:240px 不够避开 composer)
  - modeToggle 文字看不全(width:auto 但 4.4-A 的 #topbar .iconbtn { flex: 0 0 34px } 把宽度压回 34px)
- - 自定义模式开关从左侧栏拿到顶栏圆按钮(放 sync 左侧)
+ - 解限是项目灵魂,从左侧栏拿到顶栏圆按钮(放 sync 左侧)
  - cost / mode 文字对比度兜底提亮
  ════════════════════════════════════════════════════════════ */
 
@@ -978,7 +986,7 @@ html[data-theme="candle"] .mobile-tab-panel.active {
 #topbar #costDisplay.topbar-cost-inline { color: #eaeaea; }
 #topbar .model-label { color: #eaeaea; font-weight: 500; }
 
-
+/* 4.5-D 解限 personaToggle 入顶栏(圆按钮),从左侧栏搬出来,4 主题各自配色 */
 #topbar #personaToggle {
  width: auto;
  height: 34px;
@@ -1038,7 +1046,14 @@ html[data-theme="candle"] #topbar #personaToggle:hover {
  display: none !important;
 }
 
-
+/* ═══════════════════════════════════════════════
+ Phase 4 阶段 4.7 · 手机顶栏三分区(收敛横滑)
+ - 手机端(≤768)顶栏由「整条横滑」改为固定三分区铺满:
+ 左[☰ · 免费/快速] | 中[模型胶囊·居中·自适应] | 右[解限(门控) · 设置]
+ - Model 文字标签手机隐藏(选中模型名已在 select 内显示)
+ - 费用不进手机顶栏(含 4.6-A 空占位),费用看设置
+ - 放文件末尾:同等特异性下后定义胜出,覆盖 4.4-A/4.5/4.6 旧顶栏规则
+ ═══════════════════════════════════════════════ */
 @media (max-width: 768px) {
  /* 收掉横滑容器,三分区铺满整条 */
  #topbar #topbarScroll,
@@ -1463,7 +1478,15 @@ html[data-theme="candle"] .input-inner:focus-within {
 }/* —— 发送键发光按主题 accent（hover），minimal 走中性高光 —— */
 button#sendBtn:hover { box-shadow: 0 4px 16px rgba(0,0,0,.4); }
 
-
+/* ═══════════════════════════════
+ Phase 4 阶段 4.28 · 各主题“气质”分化（风格 > 配色）
+ - minimal = Notion 风：极致克制、平、锐、留白
+ - glass = 动态设计网页感：玻璃质感 + 背景缓动 + hover 浮起
+ - candle = 极致 NSFW 情欲（下一批）
+ - 
+ 注：minimal = 无 data-theme（theme.js removeAttribute），故用 html:not([data-theme]):not([data-scheme="dark"]) 精确命中。
+ 注：配色不再是主要区分点，差异主要由结构/形状/动效体现。
+ ════════════════════════════════ */
 
 /* ─── minimal = Notion 风（平 / 锐 / 克制） ─── */
 html:not([data-theme]):not([data-scheme="dark"]) .bubble {
@@ -1510,7 +1533,7 @@ html[data-theme="glass"] .sidebar-btn:hover:not([disabled]) {
 }
 /* ↑ 4.28 minimal+glass 气质 ↑ */
 
-
+/* ─── candle = 极致 NSFW 情欲（浓烈 / 慷懒 / 暗昧光晕） ─── */
 /* 注：不覆盖 .bubble box-shadow——保留 --pulse 心跳呼吸这个招牌效果 */
 html[data-theme="candle"] .bubble {
  transition-duration: .45s;
@@ -1781,7 +1804,7 @@ html:not([data-theme]):not([data-scheme="dark"]) #multiAgentToggle.active {
  .avatar {
  animation: avatarBreathe 4.6s ease-in-out infinite;
  }
-
+ /* 私享主题:呼吸加深并与音频心跳 --pulse 实时联动 */
  html[data-theme="candle"] .avatar {
  transform: scale(calc(1 + var(--pulse, 0) * 0.07));
  transition: transform .09s linear;
