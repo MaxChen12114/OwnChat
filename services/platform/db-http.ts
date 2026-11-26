@@ -22,7 +22,7 @@ import type { DbPort, DbResult, DbRow, DbTx, SearchScope, SearchSurface } from "
 // Separate emit products bridged on globalThis by the emitter; declared instead of imported because
 // the emit channel carries import-free sources only.
 declare const dbWire: Pick<typeof import("../../core/db"), "normalizeParams" | "decodeRow">;
-declare const dbSearchSql: Pick<typeof import("../../core/db-search"), "buildSearchQuery">;
+declare const dbSearchSql: Pick<typeof import("../../lib/db-search"), "buildSearchQuery">;
 
 /** Options: `base` is an origin ("" = same origin), `token` becomes a bearer header. */
 export interface HttpDbOptions {

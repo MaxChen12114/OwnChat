@@ -61,7 +61,7 @@ export interface BackupProgress {
 
 export type BackupProgressFn = (progress: BackupProgress) => void;
 
-/** One archive entry as auctioned by `core/zip-read`; only what this service reads is declared. */
+/** One archive entry as auctioned by `lib/zip-read`; only what this service reads is declared. */
 export interface BackupZipEntryLike {
   name: string;
   size: number;

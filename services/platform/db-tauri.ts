@@ -2,7 +2,7 @@
  * Tauri adapter: DbPort over the desktop shell's native commands (`db_exec`, `db_tx`, `db_migrate`).
  *
  * Why search is built locally: there is no HTTP server to ask, so the adapter hands rusqlite exactly
- * the statement the server would have run — `core/db-search.ts` owns that decision, and the port test
+ * the statement the server would have run — `lib/db-search.ts` owns that decision, and the port test
  * runs both paths against one SQLite database to prove they agree.
  *
  * Migration is lazy and exactly once: `db_migrate` is awaited before the first command, and the
@@ -18,7 +18,7 @@
 import type { DbPort, DbResult, DbRow, DbTx, SearchScope, SearchSurface } from "../../core/db";
 
 declare const dbWire: Pick<typeof import("../../core/db"), "normalizeParams" | "decodeRow">;
-declare const dbSearchSql: Pick<typeof import("../../core/db-search"), "buildSearchQuery">;
+declare const dbSearchSql: Pick<typeof import("../../lib/db-search"), "buildSearchQuery">;
 
 /** The one shell call shape this adapter needs. */
 export type TauriInvoke = (cmd: string, args?: unknown) => Promise<unknown>;

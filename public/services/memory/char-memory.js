@@ -43,7 +43,7 @@
 // surface SQL and the limit clamp; `queryTerms` is published by services/memory/core.ts (boot #54).
 // char-memory loads at boot #53, so both are resolved per call, never at load.
                                 
-                                        
+                                       
                                                                        
   
                                                                             

@@ -19,10 +19,14 @@
  *
  * Validation mirrors the server's 4xx answers as thrown errors: this module builds queries the
  * server would accept, and refuses locally what the server would refuse remotely.
- * @module core/db-search
+ *
+ * Layer: `lib/` — pure string building over two type names. The types themselves stay in `core/db.ts`
+ * because they are the wire/port contract; a value-free `import type` across the boundary is the only
+ * dependency this file has, and it disappears at emit.
+ * @module lib/db-search
  */
 
-import type { SearchScope, SearchSurface } from "./db";
+import type { SearchScope, SearchSurface } from "../core/db";
 
 /** Server caps, repeated here so a local build fails before the request is sent. */
 export const MAX_QUERY_CHARS = 200;

@@ -1,6 +1,5 @@
-(function () {
 /**
- * Zero-dependency ZIP writer — the mirror of `core/zip-read.ts` for the backup path.
+ * Zero-dependency ZIP writer — the mirror of `lib/zip-read.ts` for the backup path.
  *
  * Why this exists: the backup feature has to hand the user one file containing a dozen SQLite dumps.
  * A third-party zip library would be a new runtime dependency for something the platform already
@@ -21,32 +20,33 @@
  * reader would mis-parse.
  *
  * Boundary: pure bytes in, bytes out. No DOM, no filesystem, no clock beyond the optional timestamp
- * used for the DOS date/time fields.
+ * used for the DOS date/time fields. That is why this file lives in `lib/` and not `core/`: `core/`
+ * holds contracts and the runtime, `lib/` holds the algorithms those contracts call.
  *
- * Lock: `test/zip-write.test.mjs` (round-trips through `core/zip-read.ts`; Chinese names, empty and
+ * Lock: `test/zip-write.test.mjs` (round-trips through `lib/zip-read.ts`; Chinese names, empty and
  * multi-megabyte entries, CRC pinned against a known value).
- * @module core/zip-write
+ * @module lib/zip-write
  */
 
-                                 
-                     
-                    
-                   
- 
+export interface ZipWriteLimits {
+  maxEntries: number;
+  maxSingle: number;
+  maxTotal: number;
+}
 
-                                  
-                                                                                      
-                    
-                                                                     
-                
- 
+export interface ZipWriteOptions {
+  /** Compress with deflate-raw when it actually shrinks the payload. Default true. */
+  deflate?: boolean;
+  /** Epoch ms for the DOS date/time fields. Default `Date.now()`. */
+  date?: number;
+}
 
-                              
-                                                                  
-                          
- 
+export interface ZipWriteApi {
+  writeZip(entries: unknown, opts?: unknown): Promise<Uint8Array>;
+  _limits: ZipWriteLimits;
+}
 
-const ZIP_DEFAULTS                 = {
+const ZIP_DEFAULTS: ZipWriteLimits = {
   maxEntries: 65535,
   maxSingle: 0xffffffff,
   maxTotal: 0xffffffff,
@@ -63,28 +63,28 @@ const EOCD_SIG = 0x06054b50;
 const U32_MAX = 0xffffffff;
 
 /** Errors carry a stable `code`; callers branch on it, never on the message. */
-function zipError(code        , message         )        {
+function zipError(code: string, message?: string): Error {
   return Object.assign(new Error(message || code), { code: code });
 }
 
-function prop(value         , key        )          {
+function prop(value: unknown, key: string): unknown {
   if (!value || (typeof value !== "object" && typeof value !== "function")) return undefined;
   return Reflect.get(value, key);
 }
 
-function num(value         , fallback        )         {
+function num(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-function recOf(value         )                          {
-  const out                          = {};
+function recOf(value: unknown): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
   if (value === null || typeof value !== "object" || Array.isArray(value)) return out;
   const entries = Object.entries(value);
   for (let i = 0; i < entries.length; i++) out[entries[i][0]] = entries[i][1];
   return out;
 }
 
-function mergeLimits(opts         )                 {
+function mergeLimits(opts: unknown): ZipWriteLimits {
   const o = opts && typeof opts === "object" ? opts : {};
   return {
     maxEntries: num(prop(o, "maxEntries"), ZIP_DEFAULTS.maxEntries),
@@ -93,7 +93,7 @@ function mergeLimits(opts         )                 {
   };
 }
 
-function toBytes(value         )             {
+function toBytes(value: unknown): Uint8Array {
   const BAD = "writeZip 的条目数据需要 Uint8Array、ArrayBuffer 或字符串";
   if (typeof value === "string") return new TextEncoder().encode(value);
   if (value instanceof Uint8Array) return new Uint8Array(value.buffer, value.byteOffset || 0, value.byteLength);
@@ -110,7 +110,7 @@ function toBytes(value         )             {
 }
 
 /** Backslashes normalised, then the same refusals as the reader — the two halves must agree. */
-function zipSafeName(name         )         {
+function zipSafeName(name: unknown): string {
   const n = String(name == null ? "" : name).replace(/\\/g, "/");
   if (!n) throw zipError("BAD_PATH", "条目名为空");
   if (n.indexOf("\0") >= 0) throw zipError("BAD_PATH", "条目名含 NUL: " + n);
@@ -124,8 +124,8 @@ function zipSafeName(name         )         {
 /** CRC32 (IEEE 802.3), the checksum the ZIP format stores. Built once at first use.
  *  Deliberately module-private: the emitter bridges exports to bare globals, and `crc32` is far
  *  too generic a name to add to the page's global scope. */
-let crcTable                     = null;
-function crcTableOf()              {
+let crcTable: Uint32Array | null = null;
+function crcTableOf(): Uint32Array {
   if (crcTable !== null) return crcTable;
   const table = new Uint32Array(256);
   for (let i = 0; i < 256; i++) {
@@ -137,7 +137,7 @@ function crcTableOf()              {
   return table;
 }
 
-function crc32(bytes            )         {
+function crc32(bytes: Uint8Array): number {
   const table = crcTableOf();
   let c = 0xffffffff;
   for (let i = 0; i < bytes.length; i++) c = table[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
@@ -145,7 +145,7 @@ function crc32(bytes            )         {
 }
 
 /** MS-DOS date/time (local time, 2-second resolution). Years clamp to 1980–2107 as the format requires. */
-function dosDateTime(ms        )                                 {
+function dosDateTime(ms: number): { date: number; time: number } {
   const d = new Date(ms);
   let year = d.getFullYear();
   if (!Number.isFinite(year)) year = 1980;
@@ -156,7 +156,7 @@ function dosDateTime(ms        )                                 {
   return { date: date, time: time };
 }
 
-async function deflateRaw(bytes            )                      {
+async function deflateRaw(bytes: Uint8Array): Promise<Uint8Array> {
   if (
     typeof CompressionStream === "undefined" ||
     typeof Blob === "undefined" ||
@@ -171,12 +171,12 @@ async function deflateRaw(bytes            )                      {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-function u16(out            , offset        , value        )       {
+function u16(out: Uint8Array, offset: number, value: number): void {
   out[offset] = value & 0xff;
   out[offset + 1] = (value >>> 8) & 0xff;
 }
 
-function u32(out            , offset        , value        )       {
+function u32(out: Uint8Array, offset: number, value: number): void {
   out[offset] = value & 0xff;
   out[offset + 1] = (value >>> 8) & 0xff;
   out[offset + 2] = (value >>> 16) & 0xff;
@@ -184,14 +184,14 @@ function u32(out            , offset        , value        )       {
 }
 
 /** One prepared entry: enough to emit both headers and the payload. */
-                         
-                        
-              
-                 
-                   
-                     
-                 
- 
+interface PreparedEntry {
+  nameBytes: Uint8Array;
+  crc: number;
+  method: number;
+  data: Uint8Array;
+  uncompSize: number;
+  offset: number;
+}
 
 /**
  * Writes a ZIP from `{ name, data }` entries.
@@ -203,7 +203,7 @@ function u32(out            , offset        , value        )       {
  *         `TOO_MANY_ENTRIES` / `ENTRY_TOO_LARGE` / `TOTAL_TOO_LARGE` / `NO_COMPRESSION_STREAM`.
  * @returns the archive bytes.
  */
-async function writeZip(entries         , opts          )                      {
+async function writeZip(entries: unknown, opts?: unknown): Promise<Uint8Array> {
   if (!Array.isArray(entries)) throw zipError("BAD_INPUT", "writeZip 需要条目数组");
   const lim = mergeLimits(opts);
   const o = opts && typeof opts === "object" ? opts : {};
@@ -213,8 +213,8 @@ async function writeZip(entries         , opts          )                      {
 
   if (entries.length > lim.maxEntries) throw zipError("TOO_MANY_ENTRIES", "条目数超过上限 " + lim.maxEntries);
 
-  const prepared                  = [];
-  const seen                    = {};
+  const prepared: PreparedEntry[] = [];
+  const seen: Record<string, 1> = {};
   let localSize = 0;
   let totalUncomp = 0;
 
@@ -250,7 +250,7 @@ async function writeZip(entries         , opts          )                      {
     });
   }
 
-  const centralParts               = [];
+  const centralParts: Uint8Array[] = [];
   let centralSize = 0;
   for (let i = 0; i < prepared.length; i++) {
     const e = prepared[i];
@@ -318,19 +318,6 @@ async function writeZip(entries         , opts          )                      {
   return out;
 }
 
-function createZipWrite()              {
+export function createZipWrite(): ZipWriteApi {
   return { writeZip: writeZip, _limits: ZIP_DEFAULTS };
 }
-
-// ── Browser wiring (injected by l0/emit.mjs): binds the ZIP writer to a plain global ──
-// The implementation lives in core/zip-write.ts. No ports: the writer uses only platform globals
-// (TextEncoder / CompressionStream / Blob / Response), and a host missing the compressor fails with
-// `NO_COMPRESSION_STREAM` rather than writing an archive later readers cannot open. The global is
-// `ZipWrite`, mirroring `ZipRead` (both are loaded on demand by the backup card, not at boot).
-(function (global) {
-  if (global.ZipWrite) return;
-  global.ZipWrite = createZipWrite();
-})(typeof globalThis !== "undefined" ? globalThis : window);
-
-globalThis.createZipWrite = createZipWrite;
-})();

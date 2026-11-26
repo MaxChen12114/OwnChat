@@ -151,7 +151,7 @@
         zipBtn.disabled = true; setMsg("读取技能包…");
         try {
           const buf = new Uint8Array(await f.arrayBuffer());
-          if (!window.ZipRead) await loadScriptOnce("/services/core/zip-read.js");
+          if (!window.ZipRead) await loadScriptOnce("/shared/lib/zip-read.js");
           if (!window.__skillsImport) await loadScriptOnce("/services/agent/skills-import.js");
           if (!window.__skillsImport || typeof window.__skillsImport.importZipBytes !== "function") throw new Error("技能包模块未就绪");
           const r = await window.__skillsImport.importZipBytes(buf, { onConflict: "skip" });

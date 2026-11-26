@@ -120,10 +120,11 @@ try {
       // server/ is the Node-side spike (server/local.mjs). It is not on the wrangler import chain,
       // so without this root a break there would only surface when someone runs it by hand.
       walk(path.join(ROOT, "server")),
-      // services/ and core/ are the TS sources emit consumes, and used to sit outside the scan
+      // services/, core/ and lib/ are the TS sources emit consumes, and used to sit outside the scan
       // roots: a break only surfaced when someone ran emit, which no build runs on every change.
       walk(path.join(ROOT, "services")),
       walk(path.join(ROOT, "core")),
+      walk(path.join(ROOT, "lib")),
     )
     // public/models/ holds vendored third-party assets (transformers.min.js ships as ESM) and is
     // gitignored: not our scripts, so not our gate.

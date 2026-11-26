@@ -524,27 +524,16 @@ const WIRINGS = {
 /**
  * Core services (`core/*.ts`) write their browser product into `public/shared/core/`, not
  * `public/services/` — same emit path, different output root. The hand-written twins these
- * replace are why core upgrades used to need four manual syncs; the plan's §P1 (a) keeps the
- * products committed and lets `--check` skip on Node 20 without a strip API.
+ * replace are why core upgrades used to need four manual syncs; the products stay committed and
+ * `--check` skips on Node 20 without a strip API.
  */
 const CORE_WIRINGS = {
   "core/host-api.compat.ts": "l0/wiring/host-api-compat.js",
   "core/slot-registry.ts": "l0/wiring/slot-registry.js",
-  // Shared floor (2026-11-21): the escaper, the translation engine and the ZIP reader were the last
-  // hand-written twins under public/shared/core/. Emitting them from core/ keeps every boot path
-  // byte-identical — including the dictionary loader's /shared/core/i18n-dict.js, which stays a
-  // separate data file because it is loaded lazily and only for the English UI.
-  "core/escape.ts": "l0/wiring/escape.js",
-  "core/i18n.ts": "l0/wiring/i18n.js",
-  "core/zip-read.ts": "l0/wiring/zip-read.js",
-  // Backup writer (T3-E): the mirror of the reader — deflate-raw via CompressionStream plus a
-  // self-computed CRC32. Loaded on demand by the backup card, not at boot (same posture as the
-  // reader), so the pairing stays "writer ↔ reader, nothing else".
-  "core/zip-write.ts": "l0/wiring/zip-write.js",
-  // Unified storage port (T2): the DbPort contract + wire codec, the search SQL builder, and the
-  // runtime kernel's first boot consumer (the facade provides `db` into a root context).
+  // Unified storage port (T2): the DbPort contract + wire codec (the wire format belongs to this
+  // seam, which is why `db.ts` stays in core/ and not in lib/), plus the runtime kernel's first
+  // boot consumer (the facade provides `db` into a root context).
   "core/db.ts": "l0/wiring/db-core.js",
-  "core/db-search.ts": "l0/wiring/db-search.js",
   "core/runtime.ts": "l0/wiring/runtime.js",
   // Runtime manifest (T4-C 2026-11-28): profile/capabilities/limits parser, capability registry,
   // provider-starting kernel and first-connect planning; the facade + /api/runtime fetch are the
@@ -552,8 +541,45 @@ const CORE_WIRINGS = {
   "core/runtime-manifest.ts": "l0/wiring/runtime-manifest.js",
 };
 
-/** Services + core: one emit loop, two output roots. */
-const SERVICES = Object.keys(WIRINGS).concat(Object.keys(CORE_WIRINGS));
+/**
+ * `lib/` services (2026-11-28 boundary split): browser-safe pure algorithms and codecs, emitted into
+ * `public/shared/lib/`. They sit under `core/` no longer because they are not contracts — the rule
+ * table lives in `lib/README.md`, and the split is what makes "services may call lib, lib may not
+ * call services" checkable at a glance.
+ *
+ * `core/i18n.ts` is still registered above under CORE_WIRINGS because it has not moved yet; the i18n
+ * owner moves it to `lib/i18n.ts` and registers it here (see `lib/README.md`, "i18n 的迁移").
+ */
+const LIB_WIRINGS = {
+  // Shared floor: the escaper and the ZIP reader were the last hand-written twins under
+  // public/shared/core/. The ZIP pair is loaded on demand (backup card / DOCX extraction / skill-pack
+  // import), the escaper at boot (every renderer reads window.escapeSvc).
+  "lib/escape.ts": "l0/wiring/escape.js",
+  "lib/zip-read.ts": "l0/wiring/zip-read.js",
+  // Backup writer (T3-E): the mirror of the reader — deflate-raw via CompressionStream plus a
+  // self-computed CRC32. Loaded on demand by the backup card, not at boot (same posture as the
+  // reader), so the pairing stays "writer ↔ reader, nothing else".
+  "lib/zip-write.ts": "l0/wiring/zip-write.js",
+  // Search SQL builder: surface + scope + q → one statement, its bindings and the mode that picked
+  // it. Boot-critical (the HTTP/Tauri adapters read `window.dbSearchSql` to agree with the server).
+  "lib/db-search.ts": "l0/wiring/db-search.js",
+};
+
+/** Services + core + lib: one emit loop, three output roots. */
+const SERVICES = Object.keys(WIRINGS).concat(Object.keys(CORE_WIRINGS), Object.keys(LIB_WIRINGS));
+
+/** Per-layer artifact root; anything else keeps the flat `public/<ts path>.js` shape. */
+const SHARED_ROOTS = { core: "core", lib: "lib" };
+
+/** `core/x.ts` → public/shared/core/x.js; `lib/x.ts` → public/shared/lib/x.js; else public/x.js. */
+function artifactPathOf(tsPath) {
+  const slash = tsPath.indexOf("/");
+  const layer = slash < 0 ? "" : tsPath.slice(0, slash);
+  const shared = SHARED_ROOTS[layer];
+  if (!shared) return path.join(ROOT, "public", tsPath.replace(/\.ts$/, ".js"));
+  const rel = tsPath.slice(slash + 1).replace(/\.ts$/, ".js");
+  return path.join(ROOT, "public", "shared", shared, rel);
+}
 
 /** TS → classic：剥类型 → 去顶层 export 前缀 → 接线文件，整体包进一个 IIFE。 */
 function emitOne(tsPath) {
@@ -573,8 +599,12 @@ function emitOne(tsPath) {
   // `async function` 也是值导出：此前漏剥会在 classic 产物里留下 export 关键字
   // （装载即 SyntaxError——语法门抓得住，但先坏在测试装载）。
   const body = stripped.replace(/^export (?=(?:async\s+)?(?:const|let|var|function|class)\b)/gm, "");
-  // core 与 services 共用一条发射路径，接线表也合看：先 services 后 core，互不覆盖。
-  const wiringRel = Object.prototype.hasOwnProperty.call(WIRINGS, tsPath) ? WIRINGS[tsPath] : CORE_WIRINGS[tsPath];
+  // services / core / lib 共用一条发射路径，接线表也合看（每层都有唯一登记，互不覆盖）。
+  const wiringRel = Object.prototype.hasOwnProperty.call(WIRINGS, tsPath)
+    ? WIRINGS[tsPath]
+    : Object.prototype.hasOwnProperty.call(CORE_WIRINGS, tsPath)
+      ? CORE_WIRINGS[tsPath]
+      : LIB_WIRINGS[tsPath];
   if (wiringRel === undefined) throw new Error(`服务 ${tsPath} 没有登记接线文件`);
   const wiringPath = path.join(ROOT, wiringRel);
   if (!fs.existsSync(wiringPath)) throw new Error(`服务 ${tsPath} 的接线文件缺失：${wiringRel}`);
@@ -611,9 +641,7 @@ function main() {
   let drift = 0;
 
   for (const tsPath of SERVICES) {
-    const artifactPath = tsPath.startsWith("core/")
-      ? path.join(ROOT, "public", "shared", "core", tsPath.slice("core/".length).replace(/\.ts$/, ".js"))
-      : path.join(ROOT, "public", tsPath.replace(/\.ts$/, ".js"));
+    const artifactPath = artifactPathOf(tsPath);
     if (!stripTypeScriptTypes) {
       results.push({ tsPath, artifactPath, skipped: true });
       continue;

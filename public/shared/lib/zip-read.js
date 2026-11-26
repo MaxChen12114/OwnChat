@@ -1,3 +1,4 @@
+(function () {
 /**
  * Zero-dependency ZIP reader — the shared floor under DOCX/XLSX extraction and skill-pack import.
  *
@@ -14,48 +15,52 @@
  * Decompression uses the platform `DecompressionStream("deflate-raw")`; there is no bundled inflater.
  * A host without it fails the deflate entries with a named code instead of silently returning garbage.
  *
+ * Layer: `lib/` — pure bytes in, bytes out; no DOM, no IO, no domain meaning. The only platform calls
+ * are the standard globals (`TextDecoder` / `DecompressionStream` / `Blob` / `Response`), which is
+ * what keeps the same source valid in the page, a Tauri webview and a Node test realm.
+ *
  * Lock: `scripts/test-zip-read.mjs` (12 checks, self-built fixtures, no third-party ZIP writer).
- * @module core/zip-read
+ * @module lib/zip-read
  */
 
-export interface ZipLimits {
-  maxEntries: number;
-  maxTotal: number;
-  maxSingle: number;
-  maxRatio: number;
-}
+                            
+                     
+                   
+                    
+                   
+ 
 
-export interface ZipEntry {
-  name: string;
-  size: number;
-  compressedSize: number;
-  method: number;
-  /** `null` for directory entries, unsupported methods, and entries skipped by a warning. */
-  data: Uint8Array | null;
-  isDir: boolean;
-  externalAttrs: number;
-  flags: number;
-}
+                           
+               
+               
+                         
+                 
+                                                                                             
+                          
+                 
+                        
+                
+ 
 
-export interface ZipWarning {
-  code: string;
-  name?: string;
-  method?: number;
-  expected?: number;
-  actual?: number;
-}
+                             
+               
+                
+                  
+                    
+                  
+ 
 
-export interface ZipResult {
-  entries: ZipEntry[];
-  warnings: ZipWarning[];
-}
+                            
+                      
+                         
+ 
 
-export interface ZipReadApi {
-  readZip(input: unknown, opts?: unknown): Promise<ZipResult>;
-  _limits: ZipLimits;
-}
+                             
+                                                              
+                     
+ 
 
-const ZIP_DEFAULTS: ZipLimits = {
+const ZIP_DEFAULTS            = {
   maxEntries: 500,
   maxTotal: 50 * 1024 * 1024,
   maxSingle: 20 * 1024 * 1024,
@@ -63,21 +68,21 @@ const ZIP_DEFAULTS: ZipLimits = {
 };
 
 /** Errors carry a stable `code`; callers branch on it, never on the message. */
-function zipError(code: string, message?: string): Error {
+function zipError(code        , message         )        {
   return Object.assign(new Error(message || code), { code: code });
 }
 
 /** `obj[key]` without narrowing games — typed arrays are not plain records, so `recOf` is wrong here. */
-function prop(value: unknown, key: string): unknown {
+function prop(value         , key        )          {
   if (!value || (typeof value !== "object" && typeof value !== "function")) return undefined;
   return Reflect.get(value, key);
 }
 
-function num(value: unknown, fallback: number): number {
+function num(value         , fallback        )         {
   return typeof value === "number" ? value : fallback;
 }
 
-function mergeLimits(opts: unknown): ZipLimits {
+function mergeLimits(opts         )            {
   const o = opts && typeof opts === "object" ? opts : {};
   return {
     maxEntries: num(prop(o, "maxEntries"), ZIP_DEFAULTS.maxEntries),
@@ -87,7 +92,7 @@ function mergeLimits(opts: unknown): ZipLimits {
   };
 }
 
-function toBytes(input: unknown): Uint8Array {
+function toBytes(input         )             {
   const BAD = "readZip 需要 ArrayBuffer 或 Uint8Array";
   if (!input || typeof input === "string") throw zipError("BAD_INPUT", BAD);
   if (input instanceof Uint8Array) return new Uint8Array(input.buffer, input.byteOffset || 0, input.byteLength);
@@ -103,16 +108,16 @@ function toBytes(input: unknown): Uint8Array {
   throw zipError("BAD_INPUT", BAD);
 }
 
-function zipU16(b: Uint8Array, o: number): number {
+function zipU16(b            , o        )         {
   return b[o] | (b[o + 1] << 8);
 }
 
-function zipU32(b: Uint8Array, o: number): number {
+function zipU32(b            , o        )         {
   return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0;
 }
 
 /** The end-of-central-directory record sits within the last 65557 bytes; scan backwards. */
-function zipFindEOCD(bytes: Uint8Array): number {
+function zipFindEOCD(bytes            )         {
   const min = Math.max(0, bytes.length - 65557);
   for (let i = bytes.length - 22; i >= min; i--) {
     if (bytes[i] === 0x50 && bytes[i + 1] === 0x4b && bytes[i + 2] === 0x05 && bytes[i + 3] === 0x06) return i;
@@ -120,7 +125,7 @@ function zipFindEOCD(bytes: Uint8Array): number {
   return -1;
 }
 
-function zipSafeName(name: unknown): boolean {
+function zipSafeName(name         )          {
   const n = String(name == null ? "" : name).replace(/\\/g, "/");
   if (!n) return false;
   if (n.indexOf("\0") >= 0) return false;
@@ -131,7 +136,7 @@ function zipSafeName(name: unknown): boolean {
   return true;
 }
 
-function inflateRaw(raw: Uint8Array): Promise<Uint8Array> {
+function inflateRaw(raw            )                      {
   return Promise.resolve()
     .then(function () {
       if (
@@ -161,7 +166,7 @@ function inflateRaw(raw: Uint8Array): Promise<Uint8Array> {
  * `TOTAL_TOO_LARGE` / `ZIP_RATIO` / `BAD_LOCAL_HEADER` / `NO_DECOMPRESSION_STREAM`.
  * @returns entries plus non-fatal warnings (unsupported method, declared/actual size mismatch).
  */
-async function readZip(input: unknown, opts?: unknown): Promise<ZipResult> {
+async function readZip(input         , opts          )                     {
   const bytes = toBytes(input);
   const lim = mergeLimits(opts);
   const eocd = zipFindEOCD(bytes);
@@ -176,8 +181,8 @@ async function readZip(input: unknown, opts?: unknown): Promise<ZipResult> {
   if (total > lim.maxEntries) throw zipError("TOO_MANY_ENTRIES", "条目数超过上限 " + lim.maxEntries);
   if (cdOffset + cdSize > bytes.length) throw zipError("TRUNCATED", "中央目录越界（文件被截断）");
 
-  const entries: ZipEntry[] = [];
-  const warnings: ZipWarning[] = [];
+  const entries             = [];
+  const warnings               = [];
   let totalUncomp = 0;
   let off = cdOffset;
 
@@ -216,7 +221,7 @@ async function readZip(input: unknown, opts?: unknown): Promise<ZipResult> {
       }
     }
 
-    let data: Uint8Array | null = null;
+    let data                    = null;
     if (!isDir) {
       if (localOffset + 30 > bytes.length) throw zipError("BAD_LOCAL_HEADER", "本地头越界: " + name);
       if (zipU32(bytes, localOffset) !== 0x04034b50) throw zipError("BAD_LOCAL_HEADER", "本地头签名错误: " + name);
@@ -253,6 +258,20 @@ async function readZip(input: unknown, opts?: unknown): Promise<ZipResult> {
   return { entries: entries, warnings: warnings };
 }
 
-export function createZipRead(): ZipReadApi {
+function createZipRead()             {
   return { readZip: readZip, _limits: ZIP_DEFAULTS };
 }
+
+// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// The implementation lives in lib/zip-read.ts (pure bytes in, bytes out; moved out of core/ in the
+// 2026-11-28 boundary split). No ports: the reader uses only platform
+// globals (TextDecoder / DecompressionStream / Blob / Response), and a host missing the decompressor
+// fails with a named code rather than degrading silently. The global is `ZipRead`, not `__zipRead` —
+// both consumers (doc-extract, skills-import) already read that name and it is not a frozen contract.
+(function (global) {
+  if (global.ZipRead) return;
+  global.ZipRead = createZipRead();
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+globalThis.createZipRead = createZipRead;
+})();

@@ -42,7 +42,7 @@
 // it at #16, well before memory). Declared rather than imported because the emit channel carries
 // import-free sources only; the SQL text, scope validation and limit clamps stay in that one place.
                                 
-                                        
+                                       
                                                                        
   
 

@@ -83,9 +83,9 @@
       "w": "T2 DbPort 门面（window.dbSvc）：注册/选择/转发 + 根 context；首次 get() 时才选适配器（壳可用→tauri，否则 d1），因此必须先于三个 adapter 之后任何调用即可。"
     },
     {
-      "s": "/shared/core/db-search.js",
+      "s": "/shared/lib/db-search.js",
       "c": "classic",
-      "w": "T2 检索判定（core/db-search.ts）：surface+scope+q → FTS5 短语还是 LIKE 回退、SQL 与绑定参数。tauri adapter 靠它生成 SQL；HTTP 两条靠它归一 query string。"
+      "w": "T2 检索判定（lib/db-search.ts，2026-11-28 从 core/ 迁入 lib/）：surface+scope+q → FTS5 短语还是 LIKE 回退、SQL 与绑定参数。tauri adapter 靠它生成 SQL；HTTP 两条靠它归一 query string。"
     },
     {
       "s": "/services/platform/db-http.js",
@@ -128,8 +128,9 @@
       "w": "T4-C 部署执行器（services/platform/deployer.ts）：deploy pack 校验、dry-run 预览、日志续跑、verify 失败即停、按逆序回滚。只发布 window.deployerSvc；HTTP/命令/备份/回填全部由设置部署卡注入端口。"
     },
     {
-      "s": "/shared/core/escape.js",
-      "c": "classic"
+      "s": "/shared/lib/escape.js",
+      "c": "classic",
+      "w": "唯一 HTML 转义器（lib/escape.ts，2026-11-28 从 core/ 迁入 lib/）：window.escapeSvc.esc，全局只此一份；所有渲染方在它之后加载。"
     },
     {
       "s": "/services/auth/token.js",
@@ -426,7 +427,7 @@
     {
       "s": "/services/data/backup.js",
       "c": "classic",
-      "w": "T3-E 备份/恢复（backupSvc + backupCard）：全表 ZIP 导出；导入全量替换后用 sessionEventsSvc.replay 重建 messages/summaries 投影，失败整体回滚。ZIP 读写器按需加载（/shared/core/zip-*.js），不占 boot。必须晚于 session/events.js 与 platform/db.js；settings.js 的 MOUNTS 调 mountDataBackupCard 时已加载"
+      "w": "T3-E 备份/恢复（backupSvc + backupCard）：全表 ZIP 导出；导入全量替换后用 sessionEventsSvc.replay 重建 messages/summaries 投影，失败整体回滚。ZIP 读写器按需加载（/shared/lib/zip-*.js），不占 boot。必须晚于 session/events.js 与 platform/db.js；settings.js 的 MOUNTS 调 mountDataBackupCard 时已加载"
     },
     {
       "s": "/services/session/store.js",

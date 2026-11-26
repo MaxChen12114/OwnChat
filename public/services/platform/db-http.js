@@ -23,7 +23,7 @@
 // Separate emit products bridged on globalThis by the emitter; declared instead of imported because
 // the emit channel carries import-free sources only.
                                                                                             
-                                                                                           
+                                                                                          
 
 /** Options: `base` is an origin ("" = same origin), `token` becomes a bearer header. */
                                 

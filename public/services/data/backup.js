@@ -62,7 +62,7 @@ const BACKUP_VERSION = 1;
 
                                                                   
 
-/** One archive entry as auctioned by `core/zip-read`; only what this service reads is declared. */
+/** One archive entry as auctioned by `lib/zip-read`; only what this service reads is declared. */
                                      
                
                
@@ -1071,7 +1071,7 @@ function createBackupService(ports             )            {
 // backup gets a file on disk, not bytes it has to know how to persist. The service itself stays
 // DOM-free; the bytes come back on `archive`.
 //
-// ZIP cores are loaded on demand (`/shared/core/zip-read.js` / `zip-write.js`), same posture as the
+// ZIP cores are loaded on demand (`/shared/lib/zip-read.js` / `zip-write.js`), same posture as the
 // skill-pack importer: a user who never opens the backup card pays nothing at boot.
 (function (g) {
   "use strict";
@@ -1109,14 +1109,14 @@ function createBackupService(ports             )            {
   }
 
   function zipRead() {
-    return ensure("ZipRead", "/shared/core/zip-read.js").then(function (reader) {
+    return ensure("ZipRead", "/shared/lib/zip-read.js").then(function (reader) {
       if (!reader || typeof reader.readZip !== "function") throw new Error("ZIP 读取器未就绪");
       return reader;
     });
   }
 
   function zipWrite() {
-    return ensure("ZipWrite", "/shared/core/zip-write.js").then(function (writer) {
+    return ensure("ZipWrite", "/shared/lib/zip-write.js").then(function (writer) {
       if (!writer || typeof writer.writeZip !== "function") throw new Error("ZIP 写入器未就绪");
       return writer;
     });
