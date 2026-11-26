@@ -56,7 +56,7 @@
     fetchJson: fetchJson,
   });
 
-  var DICT_SRC = "/shared/core/i18n-dict.js?v=40"; // bump when the dictionary content changes
+  var DICT_SRC = "/shared/core/i18n-dict.js?v=41"; // bump when the dictionary content changes
   var ATTRS = ["title", "placeholder", "aria-label"];
   // Two skip tiers. The text tier only skips real content areas — it MUST NOT skip select:
   // the text of an <option> is a UI label, and skipping it is why the settings dropdowns stayed

@@ -1,9 +1,9 @@
 {
   "version": 2,
-  "generatedAt": "2026-11-26T11:10:42Z",
+  "generatedAt": "2026-11-26T12:05:03Z",
   "dictPath": "/shared/core/i18n-dict.js",
   "dictSha": "db066e4b630c67aa",
-  "dictCacheKey": "40",
+  "dictCacheKey": "41",
   "dictKeys": 2238,
   "patterns": 227,
   "coveredStrings": 1247,
