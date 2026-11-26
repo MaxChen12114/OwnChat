@@ -6,8 +6,12 @@
  * key (so a chat can actually leave the machine), and the cloud-sync switch (optional, and only
  * meaningful on a host others also reach). This module owns the *decisions* — should it show, which
  * steps are still blocking, what is a usable key, how a probe result reads — and the wiring owns the
- * DOM. Copy is Chinese because the i18n dictionary is keyed by the rendered string; translating
- * happens in the dictionary, not here.
+ * DOM.
+ *
+ * Copy is **addressed, not written**: every user-visible sentence here is a `Copy` descriptor
+ * (`{ key, params }`) whose text lives in `public/locales/<lang>.json`. The wiring renders it with
+ * `__i18n.tCopy`. That keeps this module free of both the DOM and the translation engine, and lets
+ * `test/i18n-catalog.test.mjs` prove that every key it can emit exists in both catalogs.
  *
  * Storage split, deliberately: the "already seen" flag lives in the native KV (`ownchat` namespace,
  * via the storage port), while the two values that existing code reads keep their old homes
@@ -19,6 +23,12 @@
  * who tried one and it failed.
  * @module services/platform/oobe
  */
+
+/** A message in the catalog: `key` plus interpolation params (params may nest descriptors). */
+                       
+                       
+                                            
+ 
 
 /** Host namespaces and legacy keys the wizard reads or writes. */
 const OOBE_NS = "host";
@@ -47,22 +57,25 @@ const DEFAULT_MODEL_ID = "deepseek-chat";
 /** One row in the dialog. `blocking` steps gate the 完成 button. */
                                
                                                 
-                         
+                       
                          
                              
-                          
+                        
  
 
 /** `POST /api/unlock` outcome, mirroring services/auth/token.ts (401 = wrong, 500 = store unbound). */
                                   
                        
-                           
+                                                                               
+                                
  
 
 /** A usable model-key submission, or the reason it is not usable. */
                                
                        
-                         
+                                                                          
+                              
+                                                                                         
                         
                             
                          
@@ -91,24 +104,24 @@ function buildSteps(state           )                 {
   return [
     {
       id: "password",
-      title: "管理员密码",
+      title: { key: "oobe.steps.password.title" },
       done: state.hasToken,
       blocking: true,
-      status: state.hasToken ? "已登录" : "需要管理员密码",
+      status: state.hasToken ? { key: "oobe.steps.password.done" } : { key: "oobe.steps.password.pending" },
     },
     {
       id: "modelKey",
-      title: "模型 Key",
+      title: { key: "oobe.steps.modelKey.title" },
       done: state.modelKeySaved,
       blocking: true,
-      status: state.modelKeySaved ? "已保存" : "未设置",
+      status: state.modelKeySaved ? { key: "oobe.steps.modelKey.done" } : { key: "oobe.steps.modelKey.pending" },
     },
     {
       id: "sync",
-      title: "同步",
+      title: { key: "oobe.steps.sync.title" },
       done: true,
       blocking: false,
-      status: state.syncOn ? "已开启" : "关闭",
+      status: state.syncOn ? { key: "oobe.steps.sync.on" } : { key: "oobe.steps.sync.off" },
     },
   ];
 }
@@ -126,9 +139,9 @@ function judgeHealth(status        , bodyHasMarker         )             {
 
 /** `POST /api/unlock` judgement. Kept in step with services/auth/token.ts. */
 function judgePassword(status        )                  {
-  if (status === 401) return { ok: false, message: "密码错误" };
-  if ((status >= 200 && status < 300) || status === 500) return { ok: true, message: "" };
-  return { ok: false, message: "网络异常（HTTP " + String(status) + "），请稍后重试" };
+  if (status === 401) return { ok: false, message: { key: "oobe.password.wrong" } };
+  if ((status >= 200 && status < 300) || status === 500) return { ok: true, message: null };
+  return { ok: false, message: { key: "oobe.password.network", params: { status: status } } };
 }
 
 /**
@@ -141,13 +154,13 @@ function planModelKey(input         )               {
   const endpoint = (typeof rec.endpoint === "string" && rec.endpoint.trim()) || DEFAULT_MODEL_ENDPOINT;
   const model = (typeof rec.model === "string" && rec.model.trim()) || DEFAULT_MODEL_ID;
   const apiKey = typeof rec.apiKey === "string" ? rec.apiKey.trim() : "";
-  const name = (typeof rec.name === "string" && rec.name.trim()) || "首次设置的模型";
-  const fail = (error        )               => ({ ok: false, error: error, name: name, endpoint: endpoint, model: model, apiKey: "" });
-  if (!/^https?:\/\//i.test(endpoint)) return fail("服务地址要以 http:// 或 https:// 开头");
-  if (!apiKey) return fail("请填写 API Key");
-  if (apiKey.length < 8) return fail("API Key 太短，请检查是否复制完整");
-  if (/\s/.test(apiKey)) return fail("API Key 里不能有空格");
-  return { ok: true, error: "", name: name, endpoint: endpoint.replace(/\/+$/, ""), model: model, apiKey: apiKey };
+  const name = typeof rec.name === "string" ? rec.name.trim() : "";
+  const fail = (error      )               => ({ ok: false, error: error, name: name, endpoint: endpoint, model: model, apiKey: "" });
+  if (!/^https?:\/\//i.test(endpoint)) return fail({ key: "oobe.modelKey.error.scheme" });
+  if (!apiKey) return fail({ key: "oobe.modelKey.error.empty" });
+  if (apiKey.length < 8) return fail({ key: "oobe.modelKey.error.short" });
+  if (/\s/.test(apiKey)) return fail({ key: "oobe.modelKey.error.space" });
+  return { ok: true, error: null, name: name, endpoint: endpoint.replace(/\/+$/, ""), model: model, apiKey: apiKey };
 }
 
 /** The localStorage value the sync engine reads (`=== "1"` is the only on-state). */
@@ -194,6 +207,22 @@ function readFlag(raw               )          {
   var dialog = null;
   var busy = false;
   var cached = null;
+
+  // Catalog access (see l0/wiring/i18n.js). The engine answers synchronously once the catalog has
+  // landed; `whenReady` defers the first paint in the rare case it has not. Copy keys and their text
+  // live in public/locales/<lang>.json — never inline Chinese here.
+  function T(key, params) {
+    try { return g.__i18n.t(key, params); } catch (e) { return key; }
+  }
+  function TC(copy) {
+    try { return g.__i18n.tCopy(copy); } catch (e) { return copy && copy.key ? copy.key : ""; }
+  }
+  function whenCopyReady(fn) {
+    try {
+      if (g.__i18n && typeof g.__i18n.whenReady === "function") { g.__i18n.whenReady(fn); return; }
+    } catch (e) { /* fall through: paint with whatever the engine has */ }
+    fn();
+  }
 
   function ls(key, fallback) {
     try {
@@ -312,16 +341,16 @@ function readFlag(raw               )          {
     healthEl.className = state.health === "ok" ? "ok" : state.health === "down" ? "down" : "";
     healthEl.textContent =
       state.health === "ok"
-        ? "宿主状态：已连接（" + hostBase() + "）"
+        ? T("oobe.health.ok", { base: hostBase() })
         : state.health === "down"
-          ? "宿主状态：未连接（" + hostBase() + "）—— 本机宿主可能还没启动"
-          : "宿主状态：检测中…";
+          ? T("oobe.health.down", { base: hostBase() })
+          : T("oobe.health.checking");
     for (var i = 0; i < steps.length; i++) {
       var row = dialog.querySelector('[data-step="' + steps[i].id + '"]');
       if (!row) continue;
       row.className = "oo-step" + (steps[i].done ? " done" : "");
       var tag = row.querySelector(".oo-tag");
-      if (tag) tag.textContent = steps[i].status;
+      if (tag) tag.textContent = TC(steps[i].status);
     }
     var doneBtn = dialog.querySelector("#oo-done");
     if (doneBtn) doneBtn.disabled = busy || !isComplete(state);
@@ -338,12 +367,12 @@ function readFlag(raw               )          {
   function verifyPassword(input, button) {
     var value = String(input.value || "").trim();
     if (!value) {
-      say("password", "请输入管理员密码", "err");
+      say("password", T("oobe.password.empty"), "err");
       return;
     }
     busy = true;
     button.disabled = true;
-    say("password", "正在验证…", "");
+    say("password", T("oobe.password.checking"), "");
     var base = hostBase().replace(/\/+$/, "");
     g.hostSvc
       .rawFetch(base + "/api/unlock", {
@@ -355,13 +384,13 @@ function readFlag(raw               )          {
         function (res) {
           var verdict = judgePassword(res.status);
           if (!verdict.ok) {
-            say("password", verdict.message, "err");
+            say("password", TC(verdict.message), "err");
             return;
           }
           try {
             g.authSvc.setToken(value);
           } catch (e) {}
-          say("password", "已登录", "ok");
+          say("password", T("oobe.password.signedIn"), "ok");
           return g.hostSvc.refresh().then(function () {
             return probe();
           }).then(function (health) {
@@ -369,7 +398,7 @@ function readFlag(raw               )          {
           });
         },
         function (e) {
-          say("password", "无法连接宿主：" + ((e && e.message) || e), "err");
+          say("password", T("oobe.password.connectFailed", { error: (e && e.message) || e }), "err");
         },
       )
       .then(function () {
@@ -380,7 +409,7 @@ function readFlag(raw               )          {
 
   function useLocalPassword(input, button) {
     if (!g.tauriSvc || typeof g.tauriSvc.invoke !== "function") {
-      say("password", "当前环境不支持读取本机密码", "err");
+      say("password", T("oobe.password.localUnsupported"), "err");
       return;
     }
     busy = true;
@@ -391,15 +420,15 @@ function readFlag(raw               )          {
         button.disabled = false;
         if (typeof value === "string" && value) {
           input.value = value;
-          say("password", "已填入本机密码，点「验证并保存」继续", "");
+          say("password", T("oobe.password.localFilled"), "");
         } else {
-          say("password", "还没找到本机密码文件：宿主首次启动后会自动生成", "err");
+          say("password", T("oobe.password.localMissing"), "err");
         }
       },
       function (e) {
         busy = false;
         button.disabled = false;
-        say("password", "读取本机密码失败：" + ((e && e.message) || e), "err");
+        say("password", T("oobe.password.localFailed", { error: (e && e.message) || e }), "err");
       },
     );
   }
@@ -411,18 +440,23 @@ function readFlag(raw               )          {
       apiKey: fields.key.input.value,
     });
     if (!plan.ok) {
-      say("modelKey", plan.error, "err");
+      say("modelKey", TC(plan.error), "err");
       return;
     }
     if (!g.providersSvc || typeof g.providersSvc.newCustom !== "function") {
-      say("modelKey", "模型渠道注册表不可用，无法保存", "err");
+      say("modelKey", T("oobe.modelKey.registryMissing"), "err");
       return;
     }
     busy = true;
     button.disabled = true;
     try {
-      var id = g.providersSvc.newCustom({ name: plan.name, endpoint: plan.endpoint, model: plan.model, apiKey: plan.apiKey });
-      if (!id) throw new Error("渠道创建失败");
+      var id = g.providersSvc.newCustom({
+        name: plan.name || T("oobe.modelKey.defaultName"),
+        endpoint: plan.endpoint,
+        model: plan.model,
+        apiKey: plan.apiKey,
+      });
+      if (!id) throw new Error(T("oobe.modelKey.channelFailed"));
       g.providersSvc.setActive("custom:" + id);
       try {
         if (typeof g.providersSvc.setSelectedModel === "function") g.providersSvc.setSelectedModel("custom:" + id, plan.model);
@@ -431,17 +465,24 @@ function readFlag(raw               )          {
         hostKv.set(OOBE_MODEL_KEY, "1");
         void hostKv.flush();
       }
-      say("modelKey", "已保存，下一条消息就会用这个渠道", "ok");
+      say("modelKey", T("oobe.modelKey.saved"), "ok");
       render(currentState(state ? state.health : cached ? cached.health : "unknown"));
     } catch (e) {
-      say("modelKey", "保存失败：" + ((e && e.message) || e), "err");
+      say("modelKey", T("oobe.modelKey.saveFailed", { error: (e && e.message) || e }), "err");
     } finally {
       busy = false;
       button.disabled = false;
     }
   }
 
+  // The first paint must not show catalog keys, and the catalog load is async (see i18n.js).
+  // `whenCopyReady` runs the builder synchronously once the catalog is in, so this is a no-op in
+  // practice: the wizard usually opens ~900 ms in, long after the two JSON files landed.
   function open() {
+    whenCopyReady(openNow);
+  }
+
+  function openNow() {
     if (dialog) {
       probe().then(function (health) {
         render(currentState(health));
@@ -455,30 +496,30 @@ function readFlag(raw               )          {
     box.id = "oo-box";
     box.setAttribute("role", "dialog");
     box.setAttribute("aria-modal", "true");
-    box.appendChild(el("h2", "", "首次设置"));
-    var health = el("p", "", "宿主状态：检测中…");
+    box.appendChild(el("h2", "", T("oobe.title")));
+    var health = el("p", "", T("oobe.health.checking"));
     health.id = "oo-health";
     box.appendChild(health);
 
     // ── step 1: admin password ──
     var step1 = el("div", "oo-step");
     step1.setAttribute("data-step", "password");
-    var h1 = el("h3", "", "管理员密码");
+    var h1 = el("h3", "", T("oobe.steps.password.title"));
     h1.appendChild(el("span", "oo-tag", ""));
     step1.appendChild(h1);
     var passRow = el("div", "oo-row");
     var passInput = document.createElement("input");
     passInput.type = "password";
-    passInput.placeholder = "宿主的管理员密码";
+    passInput.placeholder = T("oobe.password.placeholder");
     passRow.appendChild(passInput);
-    var localBtn = el("button", "oo-btn", "使用本机密码");
+    var localBtn = el("button", "oo-btn", T("oobe.password.useLocal"));
     localBtn.type = "button";
     passRow.appendChild(localBtn);
-    var verifyBtn = el("button", "oo-btn primary", "验证并保存");
+    var verifyBtn = el("button", "oo-btn primary", T("oobe.password.verify"));
     verifyBtn.type = "button";
     passRow.appendChild(verifyBtn);
     step1.appendChild(passRow);
-    step1.appendChild(el("p", "oo-hint", "宿主首次启动会自动生成密码，保存在数据目录的 admin-password.txt。"));
+    step1.appendChild(el("p", "oo-hint", T("oobe.password.hint")));
     var msg1 = el("p", "oo-msg", "");
     msg1.setAttribute("data-msg", "password");
     step1.appendChild(msg1);
@@ -487,19 +528,19 @@ function readFlag(raw               )          {
     // ── step 2: model key ──
     var step2 = el("div", "oo-step");
     step2.setAttribute("data-step", "modelKey");
-    var h2 = el("h3", "", "模型 Key");
+    var h2 = el("h3", "", T("oobe.steps.modelKey.title"));
     h2.appendChild(el("span", "oo-tag", ""));
     step2.appendChild(h2);
-    var endpoint = field("服务地址", "text", DEFAULT_MODEL_ENDPOINT, "服务地址（OpenAI 兼容端点）");
-    var model = field("模型", "text", DEFAULT_MODEL_ID, "模型 id");
-    var key = field("API Key", "password", "", "sk-…");
+    var endpoint = field(T("oobe.modelKey.endpointLabel"), "text", DEFAULT_MODEL_ENDPOINT, T("oobe.modelKey.endpointPlaceholder"));
+    var model = field(T("oobe.modelKey.modelLabel"), "text", DEFAULT_MODEL_ID, T("oobe.modelKey.modelPlaceholder"));
+    var key = field(T("oobe.modelKey.keyLabel"), "password", "", T("oobe.modelKey.keyPlaceholder"));
     step2.appendChild(endpoint.row);
     step2.appendChild(model.row);
     step2.appendChild(key.row);
-    var saveKeyBtn = el("button", "oo-btn primary", "保存模型 Key");
+    var saveKeyBtn = el("button", "oo-btn primary", T("oobe.modelKey.save"));
     saveKeyBtn.type = "button";
     step2.appendChild(saveKeyBtn);
-    step2.appendChild(el("p", "oo-hint", "Key 只保存在本机（渠道注册表），不会写进仓库文件。"));
+    step2.appendChild(el("p", "oo-hint", T("oobe.modelKey.hint")));
     var msg2 = el("p", "oo-msg", "");
     msg2.setAttribute("data-msg", "modelKey");
     step2.appendChild(msg2);
@@ -508,23 +549,23 @@ function readFlag(raw               )          {
     // ── step 3: sync ──
     var step3 = el("div", "oo-step");
     step3.setAttribute("data-step", "sync");
-    var h3 = el("h3", "", "同步");
+    var h3 = el("h3", "", T("oobe.steps.sync.title"));
     h3.appendChild(el("span", "oo-tag", ""));
     step3.appendChild(h3);
     var checkWrap = el("label", "oo-check");
     var syncBox = document.createElement("input");
     syncBox.type = "checkbox";
     checkWrap.appendChild(syncBox);
-    checkWrap.appendChild(el("span", "", "开启云同步（多设备）"));
+    checkWrap.appendChild(el("span", "", T("oobe.sync.label")));
     step3.appendChild(checkWrap);
-    step3.appendChild(el("p", "oo-hint", "只在本机用可以不开启；开启后设置与会话会推到宿主，下次启动生效。"));
+    step3.appendChild(el("p", "oo-hint", T("oobe.sync.hint")));
     box.appendChild(step3);
 
     // ── footer ──
     var foot = el("div", "oo-foot");
-    var later = el("button", "oo-btn", "稍后");
+    var later = el("button", "oo-btn", T("oobe.later"));
     later.type = "button";
-    var done = el("button", "oo-btn primary", "完成");
+    var done = el("button", "oo-btn primary", T("oobe.done"));
     done.id = "oo-done";
     done.type = "button";
     foot.appendChild(later);

@@ -1,0 +1,288 @@
+{
+  "$meta": {
+    "version": 1,
+    "updated": "2026-11-26",
+    "note": "zh 是源语言：新增 key 先写这里。占位符与复数规则见 docs/i18n/rules.md，术语见 docs/i18n/terminology.md。"
+  },
+  "common": {
+    "confirm": "确定？",
+    "unknownReason": "未知原因",
+    "unknownError": "未知错误"
+  },
+  "oobe": {
+    "title": "首次设置",
+    "health": {
+      "ok": "宿主状态：已连接（{base}）",
+      "down": "宿主状态：未连接（{base}）—— 本机宿主可能还没启动",
+      "checking": "宿主状态：检测中…"
+    },
+    "steps": {
+      "password": {
+        "title": "管理员密码",
+        "done": "已登录",
+        "pending": "需要管理员密码"
+      },
+      "modelKey": {
+        "title": "模型 Key",
+        "done": "已保存",
+        "pending": "未设置"
+      },
+      "sync": {
+        "title": "同步",
+        "on": "已开启",
+        "off": "关闭"
+      }
+    },
+    "password": {
+      "placeholder": "宿主的管理员密码",
+      "useLocal": "使用本机密码",
+      "verify": "验证并保存",
+      "hint": "宿主首次启动会自动生成密码，保存在数据目录的 admin-password.txt。",
+      "empty": "请输入管理员密码",
+      "checking": "正在验证…",
+      "signedIn": "已登录",
+      "connectFailed": "无法连接宿主：{error}",
+      "localUnsupported": "当前环境不支持读取本机密码",
+      "localFilled": "已填入本机密码，点「验证并保存」继续",
+      "localMissing": "还没找到本机密码文件：宿主首次启动后会自动生成",
+      "localFailed": "读取本机密码失败：{error}",
+      "wrong": "密码错误",
+      "network": "网络异常（HTTP {status}），请稍后重试"
+    },
+    "modelKey": {
+      "endpointLabel": "服务地址",
+      "endpointPlaceholder": "服务地址（OpenAI 兼容端点）",
+      "modelLabel": "模型",
+      "modelPlaceholder": "模型 id",
+      "keyLabel": "API Key",
+      "keyPlaceholder": "sk-…",
+      "save": "保存模型 Key",
+      "hint": "Key 只保存在本机（渠道注册表），不会写进仓库文件。",
+      "saved": "已保存，下一条消息就会用这个渠道",
+      "saveFailed": "保存失败：{error}",
+      "registryMissing": "模型渠道注册表不可用，无法保存",
+      "channelFailed": "渠道创建失败",
+      "defaultName": "首次设置的模型",
+      "error": {
+        "scheme": "服务地址要以 http:// 或 https:// 开头",
+        "empty": "请填写 API Key",
+        "short": "API Key 太短，请检查是否复制完整",
+        "space": "API Key 里不能有空格"
+      }
+    },
+    "sync": {
+      "label": "开启云同步（多设备）",
+      "hint": "只在本机用可以不开启；开启后设置与会话会推到宿主，下次启动生效。"
+    },
+    "later": "稍后",
+    "done": "完成"
+  },
+  "settings": {
+    "memory": {
+      "title": "角色记忆",
+      "intro": "角色会从对话里抽取长期记忆（L1 事件 / L2 结论）并按话题召回注入；知识库文档命中也会随请求带上。存在统一存储（本机 SQLite / 自托管 D1），<b>跟随宿主同步</b>。关掉总开关后不再抽取、不再注入。",
+      "enabled": "启用角色记忆",
+      "vecEnabled": "启用向量召回（首次加载本地向量模型；关掉只用关键词/实体）",
+      "recallK": "召回条数",
+      "recallKHint": "每次注入最多几条记忆",
+      "injectChunks": "注入块数",
+      "injectChunksHint": "知识库最多几段",
+      "injectChars": "注入字数",
+      "injectCharsHint": "知识库块总字数上限",
+      "autoWrite": "每轮对话后自动写入记忆（每轮会多一次记忆抽取调用，有成本）",
+      "tip": "自动写入默认关闭：开启后每个正常结束的对话回合都会多发一次抽取请求（计入你的模型费用）。向量腿只在首次启用时加载模型，失败会自动退回关键词检索。"
+    },
+    "compact": {
+      "title": "上下文压缩",
+      "intro": "长对话会触发自动压缩：早期消息压成剧情摘要，后续请求只带摘要与最近几条原文。两条通道取其一即触发 —— 条数达到阈值，或会话估算 token 达到上下文窗口的比例。<b>摘要按会话隔离保存</b>，不会串到别的对话。",
+      "enabled": "启用自动压缩",
+      "trigger": "触发条数",
+      "triggerHint": "达到即压缩（10-200）",
+      "keep": "保留条数",
+      "keepHint": "最近几条保留原文（2-50）",
+      "ratio": "水位比例",
+      "ratioHint": "占上下文窗口的比例（0.3-0.95，默认 0.7）",
+      "tip": "压缩成功会调用一次摘要模型（有成本）。比例越小越早压缩、上下文越省，但更早丢掉原文；会话不足 5 条时不会触发。"
+    },
+    "deploy": {
+      "card": {
+        "title": "部署",
+        "intro": "把 OwnChat 部署到你自己的 Cloudflare Worker 或 VPS（Docker + Caddy TLS），完成后回填宿主 profile。",
+        "target": "目标宿主",
+        "preview": "预览命令",
+        "run": "开始部署",
+        "runConfirm": "确认并开始部署",
+        "rollback": "回滚上次部署",
+        "gate": "当前 profile 不提供部署向导：需要已登录账号、桌面本机或自托管宿主。"
+      },
+      "capability": {
+        "line": "profile：{profile} · 能力：{caps}",
+        "none": "无"
+      },
+      "profile": {
+        "account": "account（已登录）",
+        "desktop": "desktop（桌面本机）",
+        "selfhost": "selfhost（自托管）",
+        "guest": "guest（访客）"
+      },
+      "manifestPending": "运行时 manifest 尚未加载",
+      "plan": {
+        "empty": "（没有可预览的步骤）",
+        "line": "{index}. {title} [{kind}]",
+        "skipped": "    （跳过：{reason}）",
+        "preview": "    {text}",
+        "inverse": "    回滚：{text}",
+        "note": "    注意：{text}"
+      },
+      "outcome": {
+        "none": "没有收到部署结果",
+        "done": "部署完成，宿主 profile 已回填。",
+        "dryRun": "预览完成（未执行任何步骤）。",
+        "verifyFailed": "verify 失败，已停止后续步骤",
+        "stepFailed": "步骤失败，已停止",
+        "aborted": "已取消",
+        "invalid": "部署包或输入不合法",
+        "other": "部署结束（{reason}）",
+        "otherUnknown": "部署结束（未知原因）",
+        "detail": "：{error}"
+      },
+      "status": {
+        "executorMissing": "部署执行器未加载（deployer.js）",
+        "invalidPack": "部署包或输入不合法",
+        "previewed": "预览完成：确认后才会执行（secret 值显示为 ***）。",
+        "running": "执行中…",
+        "exception": "部署异常：{error}",
+        "noRecord": "没有可回滚的部署记录。",
+        "packMissing": "回滚状态里的部署包不在目录中：{id}",
+        "rollingBack": "回滚中…",
+        "rollbackDone": "回滚完成（{ran} 步；跳过 {skipped} 步）。",
+        "rollbackFailed": "回滚失败：{error}",
+        "rollbackException": "回滚异常：{error}",
+        "packUnreadable": "部署包未发布或不可读：{file}（{error}）。"
+      },
+      "hint": {
+        "publish": "运行 node deploy/publish.mjs 生成 public/deploy/ 镜像后刷新页面。"
+      },
+      "confirm": {
+        "runTitle": "部署到 {pack}",
+        "runMessage": "将按预览顺序执行 {count, plural, other{# 个步骤}}，失败即停。\nverify 失败不会继续；成功后可回滚（标记为不可回滚的步骤会跳过）。\n\n确认开始？",
+        "runOk": "开始部署",
+        "rollbackTitle": "回滚 {pack}",
+        "rollbackMessage": "将按已完成步骤的倒序执行 inverse；标记为不可回滚的步骤会跳过并如实列出。\n\n需要重新填写 secret（访问码 / API Token），它们不会从本机存储里读取。确认回滚？",
+        "rollbackOk": "回滚"
+      },
+      "toast": {
+        "done": "部署完成",
+        "verifyStopped": "verify 失败，已停止",
+        "failed": "部署失败",
+        "rollbackDone": "回滚完成",
+        "rollbackFailed": "回滚失败",
+        "newHost": "检测到新宿主：到 设置 → 部署 选择以本机为准 / 宿主为准 / 合并"
+      },
+      "event": {
+        "runStart": "开始{message}",
+        "runEnd": "结束{message}",
+        "stepStart": "▶ {index}/{total} {title}{message}",
+        "stepStartBare": "▶ {title}{message}",
+        "stepEnd": "✓ {title}{message}",
+        "stepSkip": "· 跳过 {title}{message}",
+        "stepError": "✗ {title}：{error}",
+        "failed": "失败",
+        "verifyFail": "✗ verify 失败：{error}",
+        "journalError": "! 部署日志写入失败：{error}",
+        "rollbackStart": "开始回滚，{count, plural, other{# 个已完成步骤}}",
+        "rollbackSkip": "· 回滚跳过 {step}（{message}）",
+        "rollbackEnd": "回滚结束{message}",
+        "detail": "，{text}",
+        "detailColon": "：{text}",
+        "detailParen": "（{text}）",
+        "detailDash": " — {text}"
+      },
+      "firstConnect": {
+        "title": "检测到新宿主：先选哪边为准",
+        "warning": {
+          "backupMissing": "备份模块（backupSvc）未就绪：继续不会自动备份。建议先到「设置 → 云同步」导出备份。",
+          "hostUnknown": "无法识别当前宿主（缺少 origin），首连选择暂不可用。"
+        },
+        "localTitle": "本机为准",
+        "localDetail": "保留本机设置与热窗口，下一次同步以本机为准上传；不会删除宿主上的角色卡与记忆（它们本来就在宿主存储里）。",
+        "hostTitle": "宿主为准",
+        "hostDetail": "从宿主拉取设置与对话热窗口，覆盖本机这份；角色卡与记忆直接从宿主读取。",
+        "mergeTitle": "合并",
+        "mergeDetail": "按较新时间合并两边热窗口，冲突不静默覆盖；动手前先自动备份。",
+        "backupTitle": "先自动备份",
+        "backupMessage": "选择「{choice}」前先调用 window.backupSvc 备份一次。\n继续？",
+        "backupOk": "备份并继续",
+        "backupDone": "自动备份完成",
+        "backupFailed": "备份失败，已取消本次选择：{error}",
+        "noBackupTitle": "备份模块未就绪",
+        "noBackupMessage": "window.backupSvc 不存在或没有导出备份函数（T3-E 可能还没入库）。\n继续将不会自动备份；建议先到「设置 → 云同步」导出备份。仍要继续吗？",
+        "noBackupOk": "不备份，继续",
+        "localDone": "已按本机为准：本机设置将覆盖云端热窗口。",
+        "localUploadFailed": "已记录本机为准，但上传失败：{error}",
+        "localOffline": "已按本机为准（云同步未启用：只记录选择，未上传）。",
+        "mergeDone": "已按合并处理：从宿主拉取并合并热窗口。",
+        "hostDone": "已按宿主为准：正在从宿主拉取。",
+        "pullFailed": "已记录选择，但从宿主拉取失败：{error}",
+        "syncMissing": "已记录选择（云同步模块未就绪：没有执行拉取）。"
+      },
+      "progress": {
+        "handoff": "已记录宿主 profile：{profile}{base}",
+        "handoffBase": " · {base}"
+      },
+      "port": {
+        "timeout": "HTTP 请求超时",
+        "commandWebOnly": "命令步骤只在桌面端可用（Web 没有进程执行环境）",
+        "commandEnvUnsupported": "桌面命令通道暂不支持 env/stdin（需要 T4-B 扩展 local_run_command）"
+      }
+    },
+    "backup": {
+      "card": {
+        "title": "数据备份",
+        "intro": "把统一存储里的会话事件、消息、摘要、角色卡、记忆、知识库、工作区、附件与画廊打包成一个 ZIP。不含 API Key、界面设置与同步游标。导入会替换本机数据，并从事件日志重建消息索引。",
+        "includeKv": "一并导出本机热窗口（native_kv；自动跳过密钥、设置与同步游标命名空间）",
+        "export": "导出备份",
+        "import": "导入备份",
+        "reading": "正在读取本机数据量…",
+        "tip": "导入前请先导出一份当前备份。单表超过 50 万行或 200 MB 会直接拒绝（不做静默截断）；导入失败会回滚到导入前的数据。"
+      },
+      "progress": {
+        "counter": "（{done}/{total}）",
+        "count": "统计{table}{count}",
+        "dump": "导出中：{table}{count}",
+        "write": "打包 ZIP…",
+        "read": "读取备份…",
+        "validate": "校验{table}{count}",
+        "snapshot": "备份本机当前数据（回滚用）{table}{count}",
+        "clear": "清空本机表…",
+        "insert": "导入中{table}{count}",
+        "rebuild": "从事件日志重建消息索引{count}",
+        "rollback": "回滚中{table}{count}",
+        "done": "完成"
+      },
+      "status": {
+        "summary": "本机现有 {tables, plural, other{# 张表}} / {rows, plural, other{# 行数据}}。",
+        "summaryFailed": "读取本机数据量失败：{error}",
+        "exportFailed": "导出失败：{error}",
+        "exported": "已导出 {tables, plural, other{# 张表}} / {rows, plural, other{# 行}}（{size} MB）→ {target}",
+        "exportedWarnings": "已导出（有 {count, plural, other{# 条提示}}）：{warnings}",
+        "importing": "正在导入 {file} …",
+        "imported": "导入完成：{rows, plural, other{# 行}}，重建 {conversations, plural, other{# 个会话}} / {messages, plural, other{# 条消息}}。正在刷新页面…",
+        "importFailed": "导入失败：{error}",
+        "importIncomplete": "本机数据可能不完整，请重新导入同一份备份。",
+        "fileEmpty": "读取备份文件失败：内容为空",
+        "fileFailed": "读取备份文件失败：{error}",
+        "saveCancelled": "已取消保存（未写盘）",
+        "saveFailed": "写盘失败：{error}",
+        "importDone": "导入完成，正在刷新页面"
+      },
+      "confirm": {
+        "title": "导入备份",
+        "message": "导入会用备份内容替换本机全部数据（会话、角色卡、记忆、知识库、工作区、附件、画廊），随后从事件日志重建消息索引并刷新页面。建议先导出一份当前数据。确定继续？",
+        "ok": "导入并替换",
+        "cancel": "取消"
+      },
+      "dialogTitle": "数据备份"
+    }
+  }
+}

@@ -209,7 +209,7 @@
   }
 
   // ─── §外观. 界面语言（2026-10-07 新增，双语插件）───
-  // 双语是「插件脚本」实现：/shared/core/i18n.js 引擎 + /shared/core/i18n-dict.js 字典（启用英文才懒加载，
+  // 双语是「插件脚本」实现：/shared/lib/i18n.js 引擎 + /shared/core/i18n-dict.js 字典（启用英文才懒加载，
   // 中文用户零开销）。按已渲染文本整串替换，模型输出/用户内容不在翻译范围；覆盖主路径，
   // 未覆盖的仍显示中文（可增量补字典，`node scripts/check-i18n.mjs` 审计缺口）。切换会整页刷新。
   function mountI18nCard() {

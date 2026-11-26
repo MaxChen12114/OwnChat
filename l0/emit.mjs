@@ -547,8 +547,8 @@ const CORE_WIRINGS = {
  * table lives in `lib/README.md`, and the split is what makes "services may call lib, lib may not
  * call services" checkable at a glance.
  *
- * `core/i18n.ts` is still registered above under CORE_WIRINGS because it has not moved yet; the i18n
- * owner moves it to `lib/i18n.ts` and registers it here (see `lib/README.md`, "i18n 的迁移").
+ * i18n moved here with the split: `lib/i18n.ts` → `/shared/lib/i18n.js`; the dictionary stays a
+ * separate data file under `/shared/core/i18n-dict.js` (lazy-loaded only for the English UI).
  */
 const LIB_WIRINGS = {
   // Shared floor: the escaper and the ZIP reader were the last hand-written twins under
@@ -556,6 +556,8 @@ const LIB_WIRINGS = {
   // import), the escaper at boot (every renderer reads window.escapeSvc).
   "lib/escape.ts": "l0/wiring/escape.js",
   "lib/zip-read.ts": "l0/wiring/zip-read.js",
+  // Translation engine (i18n v2, 2026-11-26): catalog keys + legacy whole-string dictionary.
+  "lib/i18n.ts": "l0/wiring/i18n.js",
   // Backup writer (T3-E): the mirror of the reader — deflate-raw via CompressionStream plus a
   // self-computed CRC32. Loaded on demand by the backup card, not at boot (same posture as the
   // reader), so the pairing stays "writer ↔ reader, nothing else".

@@ -4,13 +4,24 @@
  *
  * Why the copy lives here instead of in `core/runtime-manifest.ts`: the core module decides
  * (whether a host is new, which choice is destructive, whether a backup is required); this module
- * turns ids and warning codes into Chinese sentences. That keeps the core free of UI strings and
- * leaves the dictionary as the only translation surface.
+ * turns ids and warning codes into **addressed copy** (`Copy = { key, params }`), and the wiring
+ * renders it through `__i18n.tCopy`. Keys and their text live in `public/locales/<lang>.json`, so
+ * this module never imports the engine and never contains a translatable sentence of its own.
+ *
+ * Params may nest descriptors (`{ profile: { key: "settings.deploy.profile.guest" } }`) — the renderer
+ * resolves them depth-first, which is how a composed line ("profile: X · capabilities: Y") stays two
+ * catalog messages instead of a sentence glued together in code.
  *
  * Boundary: pure functions over `unknown` JSON plus the pack catalogue. Fetching a pack, reading
  * localStorage, calling `backupSvc`/`syncSvc` and touching the DOM all stay in the wiring.
  * @module services/ui/settings-deploy
  */
+
+/** A message in the catalog: `key` plus interpolation params (params may nest descriptors). */
+export interface Copy {
+  readonly key: string;
+  readonly params?: Record<string, unknown>;
+}
 
 /** unknown JSON → plain-object view; null, arrays and scalars become an empty object. */
 function recOf(value: unknown): Record<string, unknown> {
@@ -34,7 +45,8 @@ export interface DeployPackRef {
 /**
  * Catalogue of packs shipped under `public/deploy/` (generated from `deploy/*.json` by
  * `deploy/publish.mjs`). Deliberately tiny: the card fetches the chosen pack for its inputs and
- * steps, so this table only needs what the selector renders before that fetch.
+ * steps, so this table only needs what the selector renders before that fetch. `label` is a product
+ * name (Cloudflare Worker / VPS · Docker), not UI prose, so it stays untranslated by design.
  */
 export const DEPLOY_PACK_CATALOG: readonly DeployPackRef[] = [
   { id: "cloudflare", label: "Cloudflare Worker", file: "/deploy/cloudflare.json", target: "cloudflare", profile: "account" },
@@ -51,95 +63,108 @@ export const DEPLOY_STORAGE_KEYS = {
   lastRun: "cfw_deploy_last_v1",
 };
 
-/** Profile labels used in the card header; the four ids come from the runtime manifest. */
-export function deployProfileLabel(profile: unknown): string {
-  if (profile === "account") return "account（已登录）";
-  if (profile === "desktop") return "desktop（桌面本机）";
-  if (profile === "selfhost") return "selfhost（自托管）";
-  return "guest（访客）";
+/** Profile label used inside the capability line; the four ids come from the runtime manifest. */
+export function deployProfileCopy(profile: unknown): Copy {
+  if (profile === "account") return { key: "settings.deploy.profile.account" };
+  if (profile === "desktop") return { key: "settings.deploy.profile.desktop" };
+  if (profile === "selfhost") return { key: "settings.deploy.profile.selfhost" };
+  return { key: "settings.deploy.profile.guest" };
 }
 
-/** "profile: guest · 能力: chat, search" — one line under the card title. */
-export function capabilityLine(manifest: unknown): string {
-  if (!manifest || typeof manifest !== "object") return "运行时 manifest 尚未加载";
+/** "profile: guest · capabilities: chat, search" — one line under the card title. */
+export function capabilityCopy(manifest: unknown): Copy {
+  if (!manifest || typeof manifest !== "object") return { key: "settings.deploy.manifestPending" };
   const record = recOf(manifest);
   const profile = typeof record.profile === "string" ? record.profile : "guest";
   const caps = recOf(record.capabilities);
   const on: string[] = [];
   for (const key of Object.keys(caps)) if (caps[key] === true) on.push(key);
-  return "profile：" + deployProfileLabel(profile) + " · 能力：" + (on.length ? on.join(", ") : "无");
+  return {
+    key: "settings.deploy.capability.line",
+    params: {
+      profile: deployProfileCopy(profile),
+      caps: on.length ? on.join(", ") : { key: "settings.deploy.capability.none" },
+    },
+  };
 }
 
-/** "1. title [kind]\n   preview\n   回滚：..." for the confirm preview. */
-export function formatPlan(entries: unknown): string {
-  if (!Array.isArray(entries) || !entries.length) return "（没有可预览的步骤）";
-  const lines: string[] = [];
+/** The confirm preview: one descriptor per line, rendered by the wiring and joined with "\n". */
+export function formatPlanLines(entries: unknown): Copy[] {
+  if (!Array.isArray(entries) || !entries.length) return [{ key: "settings.deploy.plan.empty" }];
+  const out: Copy[] = [];
   for (let i = 0; i < entries.length; i++) {
     const entry = recOf(entries[i]);
     const index = String(i + 1).padStart(2, " ");
     const title = typeof entry.title === "string" ? entry.title : String(entry.stepId || "");
     const kind = typeof entry.kind === "string" ? entry.kind : "";
+    out.push({ key: "settings.deploy.plan.line", params: { index: index, title: title, kind: kind } });
     if (typeof entry.skipped === "string" && entry.skipped) {
-      lines.push(index + ". " + title + " [" + kind + "]");
-      lines.push("    （跳过：" + entry.skipped + "）");
+      out.push({ key: "settings.deploy.plan.skipped", params: { reason: entry.skipped } });
       continue;
     }
-    lines.push(index + ". " + title + " [" + kind + "]");
-    if (typeof entry.preview === "string" && entry.preview) lines.push("    " + entry.preview);
-    if (typeof entry.inverse === "string" && entry.inverse) lines.push("    回滚：" + entry.inverse);
-    if (typeof entry.note === "string" && entry.note) lines.push("    注意：" + entry.note);
+    if (typeof entry.preview === "string" && entry.preview) out.push({ key: "settings.deploy.plan.preview", params: { text: entry.preview } });
+    if (typeof entry.inverse === "string" && entry.inverse) out.push({ key: "settings.deploy.plan.inverse", params: { text: entry.inverse } });
+    if (typeof entry.note === "string" && entry.note) out.push({ key: "settings.deploy.plan.note", params: { text: entry.note } });
   }
-  return lines.join("\n");
+  return out;
+}
+
+/** A run outcome: the sentence plus the raw error text the wiring appends with `outcome.detail`. */
+export interface OutcomeCopy {
+  readonly base: Copy;
+  /** "" when the outcome carries no error; otherwise the first error's message. */
+  readonly detail: string;
 }
 
 /** Human outcome for a run result; unknown shapes answer a neutral line. */
-export function deployOutcomeText(result: unknown): string {
-  if (!result || typeof result !== "object") return "没有收到部署结果";
+export function deployOutcomeCopy(result: unknown): OutcomeCopy {
+  if (!result || typeof result !== "object") return { base: { key: "settings.deploy.outcome.none" }, detail: "" };
   const record = recOf(result);
   const reason = typeof record.stopReason === "string" ? record.stopReason : "";
   const errors = Array.isArray(record.errors) ? record.errors : [];
   const firstError = errors.length ? String(recOf(errors[0]).message || "") : "";
-  const suffix = firstError ? "：" + firstError : "";
-  if (reason === "done") return "部署完成，宿主 profile 已回填。";
-  if (reason === "dry_run") return "预览完成（未执行任何步骤）。";
-  if (reason === "verify_failed") return "verify 失败，已停止后续步骤" + suffix;
-  if (reason === "step_failed") return "步骤失败，已停止" + suffix;
-  if (reason === "aborted") return "已取消";
-  if (reason === "invalid") return "部署包或输入不合法" + suffix;
-  return "部署结束（" + (reason || "未知原因") + "）" + suffix;
+  if (reason === "done") return { base: { key: "settings.deploy.outcome.done" }, detail: "" };
+  if (reason === "dry_run") return { base: { key: "settings.deploy.outcome.dryRun" }, detail: "" };
+  if (reason === "aborted") return { base: { key: "settings.deploy.outcome.aborted" }, detail: "" };
+  if (reason === "verify_failed") return { base: { key: "settings.deploy.outcome.verifyFailed" }, detail: firstError };
+  if (reason === "step_failed") return { base: { key: "settings.deploy.outcome.stepFailed" }, detail: firstError };
+  if (reason === "invalid") return { base: { key: "settings.deploy.outcome.invalid" }, detail: firstError };
+  if (reason) return { base: { key: "settings.deploy.outcome.other", params: { reason: reason } }, detail: firstError };
+  return { base: { key: "settings.deploy.outcome.otherUnknown" }, detail: firstError };
 }
 
 /** The three first-connect choices, in the order the requirement lists them. */
 export interface FirstConnectChoiceView {
   readonly id: "local" | "host" | "merge";
-  readonly title: string;
-  readonly detail: string;
+  readonly title: Copy;
+  readonly detail: Copy;
   readonly requiresBackup: boolean;
   readonly destructive: boolean;
 }
 
 export interface FirstConnectView {
   readonly show: boolean;
-  readonly title: string;
-  readonly warning: string;
+  readonly title: Copy;
+  /** null when there is nothing to warn about. */
+  readonly warning: Copy | null;
   readonly options: readonly FirstConnectChoiceView[];
 }
 
-const FIRST_CONNECT_COPY: readonly { id: "local" | "host" | "merge"; title: string; detail: string }[] = [
+const FIRST_CONNECT_COPY: readonly { id: "local" | "host" | "merge"; titleKey: string; detailKey: string }[] = [
   {
     id: "local",
-    title: "本机为准",
-    detail: "保留本机设置与热窗口，下一次同步以本机为准上传；不会删除宿主上的角色卡与记忆（它们本来就在宿主存储里）。",
+    titleKey: "settings.deploy.firstConnect.localTitle",
+    detailKey: "settings.deploy.firstConnect.localDetail",
   },
   {
     id: "host",
-    title: "宿主为准",
-    detail: "从宿主拉取设置与对话热窗口，覆盖本机这份；角色卡与记忆直接从宿主读取。",
+    titleKey: "settings.deploy.firstConnect.hostTitle",
+    detailKey: "settings.deploy.firstConnect.hostDetail",
   },
   {
     id: "merge",
-    title: "合并",
-    detail: "按较新时间合并两边热窗口，冲突不静默覆盖；动手前先自动备份。",
+    titleKey: "settings.deploy.firstConnect.mergeTitle",
+    detailKey: "settings.deploy.firstConnect.mergeDetail",
   },
 ];
 
@@ -150,35 +175,35 @@ const FIRST_CONNECT_COPY: readonly { id: "local" | "host" | "merge"; title: stri
 export function firstConnectView(plan: unknown): FirstConnectView {
   const record = recOf(plan);
   const warningCode = typeof record.warning === "string" ? record.warning : "";
-  const warning = warningCode === "backup_missing"
-    ? "备份模块（backupSvc）未就绪：继续不会自动备份。建议先到「设置 → 云同步」导出备份。"
-    : warningCode === "host_unknown"
-      ? "无法识别当前宿主（缺少 origin），首连选择暂不可用。"
-      : "";
+  let warning: Copy | null = null;
+  if (warningCode === "backup_missing") warning = { key: "settings.deploy.firstConnect.warning.backupMissing" };
+  else if (warningCode === "host_unknown") warning = { key: "settings.deploy.firstConnect.warning.hostUnknown" };
   const show = record.isNewHost === true;
   const options: FirstConnectChoiceView[] = [];
   for (let i = 0; i < FIRST_CONNECT_COPY.length; i++) {
     const copy = FIRST_CONNECT_COPY[i];
     options.push({
       id: copy.id,
-      title: copy.title,
-      detail: copy.detail,
+      title: { key: copy.titleKey },
+      detail: { key: copy.detailKey },
       requiresBackup: true,
       destructive: copy.id !== "merge",
     });
   }
   return {
     show: show,
-    title: "检测到新宿主：先选哪边为准",
+    title: { key: "settings.deploy.firstConnect.title" },
     warning: warning,
     options: options,
   };
 }
 
-/** One-line description of a first-connect choice for the toast/audit record. */
-export function firstConnectChoiceLabel(id: unknown): string {
-  for (let i = 0; i < FIRST_CONNECT_COPY.length; i++) if (FIRST_CONNECT_COPY[i].id === id) return FIRST_CONNECT_COPY[i].title;
-  return String(id || "");
+/** One of the first-connect choice titles, for the toast/audit record; null for an unknown id. */
+export function firstConnectChoiceCopy(id: unknown): Copy | null {
+  for (let i = 0; i < FIRST_CONNECT_COPY.length; i++) {
+    if (FIRST_CONNECT_COPY[i].id === id) return { key: FIRST_CONNECT_COPY[i].titleKey };
+  }
+  return null;
 }
 
 /** Does the current manifest allow the deploy card to run? */

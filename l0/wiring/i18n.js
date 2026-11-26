@@ -1,10 +1,17 @@
 /**
- * i18n — bilingual UI, DOM half (the engine is core/i18n.ts).
+ * i18n — bilingual UI, DOM half (the engine is lib/i18n.ts).
  *
- * Translation runs **after rendering**: the engine matches whole strings exactly, so a user
- * message, a model reply or a character name cannot equal a UI label and comes back untouched.
- * The worst case is a miss — which is why the dictionary can grow incrementally without touching
- * the ~2200 call sites.
+ * Two mechanisms, in the order a paint uses them:
+ *
+ *   1. **Catalog** (`__i18n.t("oobe.title")`) — the forward path. Catalogs live in
+ *      `/locales/zh.json` and `/locales/en.json`, are fetched at boot, and are addressed by stable
+ *      key. Both files are fetched for the English UI (en for the active language, zh as the
+ *      documented fallback); a Chinese user fetches only zh.
+ *   2. **Legacy dictionary** (`tr`) — explains the strings the catalog migration has not reached yet.
+ *      Translation runs **after rendering**: the engine matches whole strings exactly, so a user
+ *      message, a model reply or a character name cannot equal a UI label and comes back untouched.
+ *      The worst case is a miss — which is why the dictionary can grow incrementally without touching
+ *      the ~2200 call sites.
  *
  * Two things are easy to break here:
  *   · Concatenated labels never hit the exact dictionary; they need the pattern rules that ship
@@ -12,20 +19,43 @@
  *   · Switching back to Chinese reloads the page. The DOM has already been rewritten in place and
  *     reversing that swap is neither cheap nor safe.
  *
- * What stays in this file: the DOM walk, the skip lists, the observer, the dialog patch, the
- * pseudo-element override stylesheet and the coverage collector. The dictionary
+ * What stays in this file: the boot catalog load, the DOM walk, the skip lists, the observer, the
+ * dialog patch, the pseudo-element override stylesheet and the coverage collector. The dictionary
  * (/shared/core/i18n-dict.js) is fetched lazily and only for the English UI, so a Chinese user
- * pays nothing.
+ * pays nothing for it.
+ *
+ * Readiness: `loadCatalog` is async and a catalog failure must never hold up boot. Copy builders that
+ * must not paint a key register with `__i18n.whenReady(fn)`; `__i18n.t` itself stays synchronous and
+ * answers from whatever has landed.
  *
  * Switch: Settings -> Appearance -> "English UI (beta)"; localStorage key cfw_ui_lang_v1.
- * Export: window.__i18n = { lang, setLang, tr, applyAll, stats }.
+ * Export: window.__i18n = { lang, setLang, tr, t, hasCatalog, loadCatalog, whenReady, applyAll, stats,
+ *         catalogStats }.
  */
 ;(function (global) {
   "use strict";
 
-  var svc = createI18n({ storage: global.localStorage, langKey: LS_LANG });
-
+  // Declared before the engine reads it: `var` hoists, so a later `var LS_LANG` left `env.langKey`
+  // undefined (localStorage.getItem(undefined) → the key "undefined") and the English UI could never
+  // switch on. Kept at the top on purpose.
   var LS_LANG = "cfw_ui_lang_v1";
+  var CATALOG_BASE = "/locales/";
+
+  function fetchJson(url) {
+    if (typeof global.fetch !== "function") return Promise.reject(new Error("fetch unavailable"));
+    return global.fetch(url, { credentials: "same-origin" }).then(function (res) {
+      if (!res || res.ok === false) throw new Error("HTTP " + (res && res.status ? res.status : "?"));
+      return res.json();
+    });
+  }
+
+  var svc = createI18n({
+    storage: global.localStorage,
+    langKey: LS_LANG,
+    catalogBase: CATALOG_BASE,
+    fetchJson: fetchJson,
+  });
+
   var DICT_SRC = "/shared/core/i18n-dict.js?v=40"; // bump when the dictionary content changes
   var ATTRS = ["title", "placeholder", "aria-label"];
   // Two skip tiers. The text tier only skips real content areas — it MUST NOT skip select:
@@ -54,6 +84,9 @@
 
   // Lookup (implementation lives in the service).
   function tr(s) { return svc.tr(s); }
+  function t(key, params) { return svc.t(key, params); }
+  // Copy descriptors ({ key, params }) come back from services; rendering them is the wiring's job.
+  function tCopy(copy) { return svc.tCopy(copy); }
 
   function inSkipText(node) {
     var el = node.nodeType === 1 ? node : node.parentElement;
@@ -98,7 +131,10 @@
   // Observer: content rendered after the first pass is translated the same way.
   var pending = null;
   function schedule(nodes) {
-    if (!ready) return;
+    // `ready` was a free variable here for as long as the English UI was unreachable (the langKey
+    // hoisting bug above kept it off), so every late mutation threw a ReferenceError in the observer
+    // and late content silently stayed Chinese. Ask the engine — it is the only source of truth.
+    if (!svc.ready()) return;
     if (!pending) pending = [];
     for (var i = 0; i < nodes.length; i++) pending.push(nodes[i]);
     if (pending.__t) return;
@@ -177,8 +213,8 @@
       ['#composer #thinkToggle.active[data-mobile-effort="low"] .think-label::after', "低"],
       ['#composer #thinkToggle.active[data-mobile-effort="medium"] .think-label::after', "中"],
       ['#composer #thinkToggle.active[data-mobile-effort="high"] .think-label::after', "高"],
-      ['#composer #thinkToggle.active[data-mobile-effort="xhigh"] .think-label::after', "更高"],
       ['#composer #thinkToggle.active[data-mobile-effort="max"] .think-label::after', "最高"],
+      ['#composer #thinkToggle.active[data-mobile-effort="xhigh"] .think-label::after', "更高"],
     ];
     var css = "";
     for (var i = 0; i < rules.length; i++) {
@@ -237,12 +273,26 @@
     get lang() { return svc.lang(); },
     setLang: setLang,
     tr: tr,
+    t: t,
+    tCopy: tCopy,
+    hasCatalog: svc.hasCatalog,
+    loadCatalog: svc.loadCatalog,
+    whenReady: svc.whenReady,
+    get catalogReady() { return svc.catalogReady(); },
+    catalogStats: svc.catalogStats,
     applyAll: applyAll,
     collect: collect,
     get stats() { return svc.stats(); },
     get ready() { return svc.ready(); },
     _dictSize: function () { return svc.dictSize(); },
   };
+
+  // Catalog kick-off. Started here (not on DOMContentLoaded) so the two small files are in flight
+  // while the remaining ~170 boot scripts run; a failure is recorded, never thrown.
+  try {
+    svc.loadCatalog("zh");
+    if (svc.lang() === "en") svc.loadCatalog("en");
+  } catch (e) {}
 
   if (svc.lang() === "en") {
     try { document.documentElement.classList.add("i18n-en"); document.documentElement.lang = "en"; } catch (e) {}

@@ -5,8 +5,12 @@
  * key (so a chat can actually leave the machine), and the cloud-sync switch (optional, and only
  * meaningful on a host others also reach). This module owns the *decisions* — should it show, which
  * steps are still blocking, what is a usable key, how a probe result reads — and the wiring owns the
- * DOM. Copy is Chinese because the i18n dictionary is keyed by the rendered string; translating
- * happens in the dictionary, not here.
+ * DOM.
+ *
+ * Copy is **addressed, not written**: every user-visible sentence here is a `Copy` descriptor
+ * (`{ key, params }`) whose text lives in `public/locales/<lang>.json`. The wiring renders it with
+ * `__i18n.tCopy`. That keeps this module free of both the DOM and the translation engine, and lets
+ * `test/i18n-catalog.test.mjs` prove that every key it can emit exists in both catalogs.
  *
  * Storage split, deliberately: the "already seen" flag lives in the native KV (`ownchat` namespace,
  * via the storage port), while the two values that existing code reads keep their old homes
@@ -18,6 +22,12 @@
  * who tried one and it failed.
  * @module services/platform/oobe
  */
+
+/** A message in the catalog: `key` plus interpolation params (params may nest descriptors). */
+export interface Copy {
+  readonly key: string;
+  readonly params?: Record<string, unknown>;
+}
 
 /** Host namespaces and legacy keys the wizard reads or writes. */
 export const OOBE_NS = "host";
@@ -46,22 +56,25 @@ export interface OobeState {
 /** One row in the dialog. `blocking` steps gate the 完成 button. */
 export interface OobeStepView {
   readonly id: "password" | "modelKey" | "sync";
-  readonly title: string;
+  readonly title: Copy;
   readonly done: boolean;
   readonly blocking: boolean;
-  readonly status: string;
+  readonly status: Copy;
 }
 
 /** `POST /api/unlock` outcome, mirroring services/auth/token.ts (401 = wrong, 500 = store unbound). */
 export interface PasswordVerdict {
   readonly ok: boolean;
-  readonly message: string;
+  /** null when ok; otherwise the sentence to show under the password field. */
+  readonly message: Copy | null;
 }
 
 /** A usable model-key submission, or the reason it is not usable. */
 export interface ModelKeyPlan {
   readonly ok: boolean;
-  readonly error: string;
+  /** null when ok; otherwise the sentence to show under the key field. */
+  readonly error: Copy | null;
+  /** "" when the user left it blank — the wiring fills in the catalog's default name. */
   readonly name: string;
   readonly endpoint: string;
   readonly model: string;
@@ -90,24 +103,24 @@ export function buildSteps(state: OobeState): OobeStepView[] {
   return [
     {
       id: "password",
-      title: "管理员密码",
+      title: { key: "oobe.steps.password.title" },
       done: state.hasToken,
       blocking: true,
-      status: state.hasToken ? "已登录" : "需要管理员密码",
+      status: state.hasToken ? { key: "oobe.steps.password.done" } : { key: "oobe.steps.password.pending" },
     },
     {
       id: "modelKey",
-      title: "模型 Key",
+      title: { key: "oobe.steps.modelKey.title" },
       done: state.modelKeySaved,
       blocking: true,
-      status: state.modelKeySaved ? "已保存" : "未设置",
+      status: state.modelKeySaved ? { key: "oobe.steps.modelKey.done" } : { key: "oobe.steps.modelKey.pending" },
     },
     {
       id: "sync",
-      title: "同步",
+      title: { key: "oobe.steps.sync.title" },
       done: true,
       blocking: false,
-      status: state.syncOn ? "已开启" : "关闭",
+      status: state.syncOn ? { key: "oobe.steps.sync.on" } : { key: "oobe.steps.sync.off" },
     },
   ];
 }
@@ -125,9 +138,9 @@ export function judgeHealth(status: number, bodyHasMarker: boolean): HostHealth 
 
 /** `POST /api/unlock` judgement. Kept in step with services/auth/token.ts. */
 export function judgePassword(status: number): PasswordVerdict {
-  if (status === 401) return { ok: false, message: "密码错误" };
-  if ((status >= 200 && status < 300) || status === 500) return { ok: true, message: "" };
-  return { ok: false, message: "网络异常（HTTP " + String(status) + "），请稍后重试" };
+  if (status === 401) return { ok: false, message: { key: "oobe.password.wrong" } };
+  if ((status >= 200 && status < 300) || status === 500) return { ok: true, message: null };
+  return { ok: false, message: { key: "oobe.password.network", params: { status: status } } };
 }
 
 /**
@@ -140,13 +153,13 @@ export function planModelKey(input: unknown): ModelKeyPlan {
   const endpoint = (typeof rec.endpoint === "string" && rec.endpoint.trim()) || DEFAULT_MODEL_ENDPOINT;
   const model = (typeof rec.model === "string" && rec.model.trim()) || DEFAULT_MODEL_ID;
   const apiKey = typeof rec.apiKey === "string" ? rec.apiKey.trim() : "";
-  const name = (typeof rec.name === "string" && rec.name.trim()) || "首次设置的模型";
-  const fail = (error: string): ModelKeyPlan => ({ ok: false, error: error, name: name, endpoint: endpoint, model: model, apiKey: "" });
-  if (!/^https?:\/\//i.test(endpoint)) return fail("服务地址要以 http:// 或 https:// 开头");
-  if (!apiKey) return fail("请填写 API Key");
-  if (apiKey.length < 8) return fail("API Key 太短，请检查是否复制完整");
-  if (/\s/.test(apiKey)) return fail("API Key 里不能有空格");
-  return { ok: true, error: "", name: name, endpoint: endpoint.replace(/\/+$/, ""), model: model, apiKey: apiKey };
+  const name = typeof rec.name === "string" ? rec.name.trim() : "";
+  const fail = (error: Copy): ModelKeyPlan => ({ ok: false, error: error, name: name, endpoint: endpoint, model: model, apiKey: "" });
+  if (!/^https?:\/\//i.test(endpoint)) return fail({ key: "oobe.modelKey.error.scheme" });
+  if (!apiKey) return fail({ key: "oobe.modelKey.error.empty" });
+  if (apiKey.length < 8) return fail({ key: "oobe.modelKey.error.short" });
+  if (/\s/.test(apiKey)) return fail({ key: "oobe.modelKey.error.space" });
+  return { ok: true, error: null, name: name, endpoint: endpoint.replace(/\/+$/, ""), model: model, apiKey: apiKey };
 }
 
 /** The localStorage value the sync engine reads (`=== "1"` is the only on-state). */

@@ -28,7 +28,7 @@ import vm from "node:vm";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const PUB = path.join(ROOT, "public");
-const ENGINE_PATH = path.join(PUB, "shared", "core", "i18n.js");
+const ENGINE_PATH = path.join(PUB, "shared", "lib", "i18n.js");
 const CONTRACTS_PATH = path.join(ROOT, "tooling", "typecheck", "contracts.json");
 const CJK = /[\u3400-\u9fff]/;
 const problems = [];

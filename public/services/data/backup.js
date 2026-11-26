@@ -1077,6 +1077,18 @@ function createBackupService(ports             )            {
   "use strict";
   if (g.backupSvc) return;
 
+  // Catalog access (see l0/wiring/i18n.js). Card copy and statuses are addressed by key; the text
+  // lives in public/locales/<lang>.json so this file carries no translatable prose.
+  function T(key, params) {
+    try { return g.__i18n.t(key, params); } catch (e) { return key; }
+  }
+  function copyReady(fn) {
+    try {
+      if (g.__i18n && typeof g.__i18n.whenReady === "function") { g.__i18n.whenReady(fn); return; }
+    } catch (e) { /* paint with whatever the engine has */ }
+    fn();
+  }
+
   var loaders = {};
   function loadScriptOnce(src) {
     if (loaders[src]) return loaders[src];
@@ -1209,7 +1221,7 @@ function createBackupService(ports             )            {
       if (!result || result.ok !== true) return result;
       return saveBinary(result.filename, result.archive).then(function (saved) {
         if (saved.cancelled) {
-          return { ok: false, code: "SAVE_CANCELLED", error: "已取消保存（未写盘）", cancelled: true };
+          return { ok: false, code: "SAVE_CANCELLED", error: T("settings.backup.status.saveCancelled"), cancelled: true };
         }
         return {
           ok: true,
@@ -1224,7 +1236,7 @@ function createBackupService(ports             )            {
           warnings: result.warnings,
         };
       }, function (error) {
-        return { ok: false, code: "SAVE_FAILED", error: "写盘失败：" + errText(error) };
+        return { ok: false, code: "SAVE_FAILED", error: T("settings.backup.status.saveFailed", { error: errText(error) }) };
       });
     }, function (error) {
       return { ok: false, code: "EXPORT_FAILED", error: errText(error) };
@@ -1290,19 +1302,19 @@ function createBackupService(ports             )            {
   function progressText(p) {
     if (!p) return "";
     var table = p.table ? " " + p.table : "";
-    var count = (p.done == null) ? "" : "（" + p.done + (p.total == null ? "" : "/" + p.total) + "）";
+    var count = p.done == null ? "" : T("settings.backup.progress.counter", { done: p.done, total: p.total == null ? "" : p.total });
     switch (p.phase) {
-      case "count": return "统计" + table + count;
-      case "dump": return "导出中：" + table + count;
-      case "write": return "打包 ZIP…";
-      case "read": return "读取备份…";
-      case "validate": return "校验" + table + count;
-      case "snapshot": return "备份本机当前数据（回滚用）" + table + count;
-      case "clear": return "清空本机表…";
-      case "insert": return "导入中" + table + count;
-      case "rebuild": return "从事件日志重建消息索引" + count;
-      case "rollback": return "回滚中" + table + count;
-      default: return "完成";
+      case "count": return T("settings.backup.progress.count", { table: table, count: count });
+      case "dump": return T("settings.backup.progress.dump", { table: table, count: count });
+      case "write": return T("settings.backup.progress.write");
+      case "read": return T("settings.backup.progress.read");
+      case "validate": return T("settings.backup.progress.validate", { table: table, count: count });
+      case "snapshot": return T("settings.backup.progress.snapshot", { table: table, count: count });
+      case "clear": return T("settings.backup.progress.clear");
+      case "insert": return T("settings.backup.progress.insert", { table: table, count: count });
+      case "rebuild": return T("settings.backup.progress.rebuild", { count: count });
+      case "rollback": return T("settings.backup.progress.rollback", { table: table, count: count });
+      default: return T("settings.backup.progress.done");
     }
   }
 
@@ -1313,27 +1325,26 @@ function createBackupService(ports             )            {
   function refreshSummary() {
     return snapshot().then(function (s) {
       if (!s || s.ok !== true) {
-        setText("backupStatus", "读取本机数据量失败：" + (s && s.error ? s.error : "未知错误"));
+        setText("backupStatus", T("settings.backup.status.summaryFailed", { error: s && s.error ? s.error : T("common.unknownError") }));
         return;
       }
       var tables = 0;
       for (var k in s.tables) { if (Object.prototype.hasOwnProperty.call(s.tables, k)) tables++; }
-      setText("backupStatus", "本机现有 " + tables + " 张表 / " + s.rows + " 行数据。");
+      setText("backupStatus", T("settings.backup.status.summary", { tables: tables, rows: s.rows }));
     }, function (error) {
-      setText("backupStatus", "读取本机数据量失败：" + errText(error));
+      setText("backupStatus", T("settings.backup.status.summaryFailed", { error: errText(error) }));
     });
   }
 
   function confirmImport() {
-    var message = "导入会用备份内容替换本机全部数据（会话、角色卡、记忆、知识库、工作区、附件、画廊），"
-      + "随后从事件日志重建消息索引并刷新页面。建议先导出一份当前数据。确定继续？";
+    var message = T("settings.backup.confirm.message");
     try {
       if (g.feedbackSvc && typeof g.feedbackSvc.confirm === "function") {
         return g.feedbackSvc.confirm({
-          title: "导入备份",
+          title: T("settings.backup.confirm.title"),
           message: message,
-          okText: "导入并替换",
-          cancelText: "取消",
+          okText: T("settings.backup.confirm.ok"),
+          cancelText: T("settings.backup.confirm.cancel"),
           danger: true,
         });
       }
@@ -1348,7 +1359,7 @@ function createBackupService(ports             )            {
   function alertDialog(message) {
     try {
       if (g.feedbackSvc && typeof g.feedbackSvc.alert === "function") {
-        return g.feedbackSvc.alert({ title: "数据备份", message: message });
+        return g.feedbackSvc.alert({ title: T("settings.backup.dialogTitle"), message: message });
       }
     } catch (e) { /* fall through */ }
     try { if (g.alert) g.alert(message); } catch (e) {}
@@ -1365,21 +1376,28 @@ function createBackupService(ports             )            {
       setBusy(false);
       setText("backupProgress", "");
       if (!result || result.ok !== true) {
-        setText("backupStatus", "导出失败：" + (result && result.error ? result.error : "未知错误"));
+        setText("backupStatus", T("settings.backup.status.exportFailed", { error: result && result.error ? result.error : T("common.unknownError") }));
         return;
       }
       var tableCount = 0;
       for (var k in result.tables) { if (Object.prototype.hasOwnProperty.call(result.tables, k)) tableCount++; }
       var mb = (result.size / (1024 * 1024)).toFixed(2);
-      setText("backupStatus", "已导出 " + tableCount + " 张表 / " + result.rows + " 行（" + mb + " MB）→ "
-        + (result.mode === "tauri" ? result.path : result.filename));
+      setText("backupStatus", T("settings.backup.status.exported", {
+        tables: tableCount,
+        rows: result.rows,
+        size: mb,
+        target: result.mode === "tauri" ? result.path : result.filename,
+      }));
       if (result.warnings && result.warnings.length) {
-        setText("backupStatus", "已导出（有 " + result.warnings.length + " 条提示）：" + result.warnings.join("；"));
+        setText("backupStatus", T("settings.backup.status.exportedWarnings", {
+          count: result.warnings.length,
+          warnings: result.warnings.join("；"),
+        }));
       }
       refreshSummary();
     }, function (error) {
       setBusy(false);
-      setText("backupStatus", "导出失败：" + errText(error));
+      setText("backupStatus", T("settings.backup.status.exportFailed", { error: errText(error) }));
     });
   }
 
@@ -1388,33 +1406,40 @@ function createBackupService(ports             )            {
       if (!ok) return;
       if (busy) return;
       setBusy(true);
-      setText("backupStatus", "正在导入 " + filename + " …");
+      setText("backupStatus", T("settings.backup.status.importing", { file: filename }));
       importAll({ bytes: bytes, onProgress: onProgress }).then(function (result) {
         if (!result || result.ok !== true) {
           setBusy(false);
-          var message = (result && result.error) ? result.error : "未知错误";
+          var message = (result && result.error) ? result.error : T("common.unknownError");
           if (result && result.rolledBack === false && result.code === "ROLLBACK_FAILED") {
-            message += "\n\n本机数据可能不完整，请重新导入同一份备份。";
+            message += "\n\n" + T("settings.backup.status.importIncomplete");
           }
-          setText("backupStatus", "导入失败：" + message);
-          alertDialog("导入失败：" + message);
+          setText("backupStatus", T("settings.backup.status.importFailed", { error: message }));
+          alertDialog(T("settings.backup.status.importFailed", { error: message }));
           return;
         }
-        setText("backupStatus", "导入完成：" + result.rows + " 行，重建 " + result.rebuilt.conversations
-          + " 个会话 / " + result.rebuilt.messages + " 条消息。正在刷新页面…");
-        toast("导入完成，正在刷新页面", "ok");
+        setText("backupStatus", T("settings.backup.status.imported", {
+          rows: result.rows,
+          conversations: result.rebuilt.conversations,
+          messages: result.rebuilt.messages,
+        }));
+        toast(T("settings.backup.status.importDone"), "ok");
         g.setTimeout(function () {
           try { g.location.reload(); } catch (e) {}
         }, 900);
       }, function (error) {
         setBusy(false);
-        setText("backupStatus", "导入失败：" + errText(error));
-        alertDialog("导入失败：" + errText(error));
+        setText("backupStatus", T("settings.backup.status.importFailed", { error: errText(error) }));
+        alertDialog(T("settings.backup.status.importFailed", { error: errText(error) }));
       });
     });
   }
 
   function mountCard() {
+    copyReady(mountCardNow);
+  }
+
+  function mountCardNow() {
     var slot = null;
     try {
       slot = g.slotRegistry && typeof g.slotRegistry.pick === "function" ? g.slotRegistry.pick("setAccountSlot") : null;
@@ -1427,15 +1452,15 @@ function createBackupService(ports             )            {
     var card = g.document.createElement("div");
     card.className = "card";
     card.id = "dataBackupCard";
-    card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 7.5h15v12h-15z"/><path d="M8 7.5V5.5h8v2"/><path d="M12 10.5v5.5"/><path d="M9.5 13.5l2.5 2.5 2.5-2.5"/></svg>数据备份</h4>'
-      + '<p>把统一存储里的会话事件、消息、摘要、角色卡、记忆、知识库、工作区、附件与画廊打包成一个 ZIP。不含 API Key、界面设置与同步游标。导入会替换本机数据，并从事件日志重建消息索引。</p>'
-      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="backupNativeKv"><label for="backupNativeKv">一并导出本机热窗口（native_kv；自动跳过密钥、设置与同步游标命名空间）</label></div></div>'
-      + '<div class="btns"><button class="smallbtn" id="backupExportBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导出备份</button>'
-      + '<button class="smallbtn danger" id="backupImportBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导入备份</button>'
+    card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 7.5h15v12h-15z"/><path d="M8 7.5V5.5h8v2"/><path d="M12 10.5v5.5"/><path d="M9.5 13.5l2.5 2.5 2.5-2.5"/></svg>' + T('settings.backup.card.title') + '</h4>'
+      + '<p>' + T('settings.backup.card.intro') + '</p>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="backupNativeKv"><label for="backupNativeKv">' + T('settings.backup.card.includeKv') + '</label></div></div>'
+      + '<div class="btns"><button class="smallbtn" id="backupExportBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>' + T('settings.backup.card.export') + '</button>'
+      + '<button class="smallbtn danger" id="backupImportBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>' + T('settings.backup.card.import') + '</button>'
       + '<input type="file" id="backupImportFile" accept=".zip,application/zip" style="display:none"></div>'
-      + '<div id="backupStatus" style="font-size:11px;color:var(--muted);margin-top:8px;">正在读取本机数据量…</div>'
+      + '<div id="backupStatus" style="font-size:11px;color:var(--muted);margin-top:8px;">' + T('settings.backup.card.reading') + '</div>'
       + '<div id="backupProgress" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>'
-      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>导入前请先导出一份当前备份。单表超过 50 万行或 200 MB 会直接拒绝（不做静默截断）；导入失败会回滚到导入前的数据。</span></div>';
+      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>' + T('settings.backup.card.tip') + '</span></div>';
     slot.appendChild(card);
 
     var exportBtn = g.document.getElementById("backupExportBtn");
@@ -1455,13 +1480,13 @@ function createBackupService(ports             )            {
         reader.onload = function () {
           var buffer = reader.result;
           if (!buffer) {
-            setText("backupStatus", "读取备份文件失败：内容为空");
+            setText("backupStatus", T("settings.backup.status.fileEmpty"));
             return;
           }
           doImport(new Uint8Array(buffer), file.name || "backup.zip");
         };
         reader.onerror = function () {
-          setText("backupStatus", "读取备份文件失败：" + errText(reader.error));
+          setText("backupStatus", T("settings.backup.status.fileFailed", { error: errText(reader.error) }));
         };
         reader.readAsArrayBuffer(file);
       });

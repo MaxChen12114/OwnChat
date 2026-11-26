@@ -124,6 +124,7 @@ try {
       // roots: a break only surfaced when someone ran emit, which no build runs on every change.
       walk(path.join(ROOT, "services")),
       walk(path.join(ROOT, "core")),
+      // lib/ is the shell-side shared layer (i18n moved there 2026-11-26): same rule as core/.
       walk(path.join(ROOT, "lib")),
     )
     // public/models/ holds vendored third-party assets (transformers.min.js ships as ESM) and is

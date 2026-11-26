@@ -348,7 +348,7 @@ function syncedCheckboxChecked(raw         )          {
   }
 
   // ─── §外观. 界面语言（2026-10-07 新增，双语插件）───
-  // 双语是「插件脚本」实现：/shared/core/i18n.js 引擎 + /shared/core/i18n-dict.js 字典（启用英文才懒加载，
+  // 双语是「插件脚本」实现：/shared/lib/i18n.js 引擎 + /shared/core/i18n-dict.js 字典（启用英文才懒加载，
   // 中文用户零开销）。按已渲染文本整串替换，模型输出/用户内容不在翻译范围；覆盖主路径，
   // 未覆盖的仍显示中文（可增量补字典，`node scripts/check-i18n.mjs` 审计缺口）。切换会整页刷新。
   function mountI18nCard() {
@@ -908,10 +908,27 @@ function syncedCheckboxChecked(raw         )          {
     try { if (window.autopilotSvc && window.autopilotSvc.onTick) window.autopilotSvc.onTick(function (st) { setMsg('状态:' + st.state + '，第 ' + st.seg + ' 段'); }); } catch (e) {}
   }
 
+  // ─── 2026-11-26 i18n v2：记忆/压缩卡的文案全部走 catalog（public/locales/<lang>.json）。
+  // 卡片在 DOMContentLoaded 挂载，此时 catalog 通常已就位；copyReady 只是把「极端慢盘」这一种
+  // 情况变成延后挂载，而不是把 key 画到页面上。key 的语义见 docs/i18n/rules.md。
+  function copyReady(fn) {
+    try {
+      if (window.__i18n && typeof window.__i18n.whenReady === "function") { window.__i18n.whenReady(fn); return; }
+    } catch (e) { /* 引擎缺席时照旧直画（legacy 字典兜底） */ }
+    fn();
+  }
+  function T(key, params) {
+    try { return window.__i18n.t(key, params); } catch (e) { return key; }
+  }
+
   // ─── 2026-11-25：上下文压缩参数（触发条数 / 保留条数 / token 水位比例）───
   // 键、默认值、夹取范围都在 services/chat/context.ts 的 COMPACT_* 表；这里只画卡与写回。
   // 卡片取一个只用于配置的 context 实例（compactConfig 不读会话/DOM）。
   function mountContextCard() {
+    copyReady(mountContextCardNow);
+  }
+
+  function mountContextCardNow() {
     var slot = window.slotRegistry.pick('setChatSlot');
     if (slot) window.slotRegistry.claim({ cardId: 'contextCompactCard', slotId: 'setChatSlot' });
     if (!slot || document.getElementById('contextCompactCard')) return;
@@ -921,13 +938,13 @@ function syncedCheckboxChecked(raw         )          {
     var SS = 'width:96px;padding:6px 8px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;';
     var LB = 'font-size:12px;color:var(--muted);min-width:72px;';
     var card = document.createElement('div'); card.className = 'card'; card.id = 'contextCompactCard';
-    card.innerHTML = '<h4>上下文压缩</h4>'
-      + '<p>长对话会触发自动压缩：早期消息压成剧情摘要，后续请求只带摘要与最近几条原文。两条通道取其一即触发 —— 条数达到阈值，或会话估算 token 达到上下文窗口的比例。<b>摘要按会话隔离保存</b>，不会串到别的对话。</p>'
-      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="ctxCompactEnabled"><label for="ctxCompactEnabled">启用自动压缩</label></div></div>'
-      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">触发条数</label><input type="number" id="ctxTrigger" min="10" max="200" step="1" style="' + SS + '"><span style="font-size:11px;color:var(--muted);">达到即压缩（10-200）</span></div>'
-      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">保留条数</label><input type="number" id="ctxKeep" min="2" max="50" step="1" style="' + SS + '"><span style="font-size:11px;color:var(--muted);">最近几条保留原文（2-50）</span></div>'
-      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">水位比例</label><input type="number" id="ctxRatio" min="0.3" max="0.95" step="0.05" style="' + SS + '"><span style="font-size:11px;color:var(--muted);">占上下文窗口的比例（0.3-0.95，默认 0.7）</span></div>'
-      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>压缩成功会调用一次摘要模型（有成本）。比例越小越早压缩、上下文越省，但更早丢掉原文；会话不足 5 条时不会触发。</span></div>';
+    card.innerHTML = '<h4>' + T('settings.compact.title') + '</h4>'
+      + '<p>' + T('settings.compact.intro') + '</p>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="ctxCompactEnabled"><label for="ctxCompactEnabled">' + T('settings.compact.enabled') + '</label></div></div>'
+      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">' + T('settings.compact.trigger') + '</label><input type="number" id="ctxTrigger" min="10" max="200" step="1" style="' + SS + '"><span style="font-size:11px;color:var(--muted);">' + T('settings.compact.triggerHint') + '</span></div>'
+      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">' + T('settings.compact.keep') + '</label><input type="number" id="ctxKeep" min="2" max="50" step="1" style="' + SS + '"><span style="font-size:11px;color:var(--muted);">' + T('settings.compact.keepHint') + '</span></div>'
+      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">' + T('settings.compact.ratio') + '</label><input type="number" id="ctxRatio" min="0.3" max="0.95" step="0.05" style="' + SS + '"><span style="font-size:11px;color:var(--muted);">' + T('settings.compact.ratioHint') + '</span></div>'
+      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>' + T('settings.compact.tip') + '</span></div>';
     slot.appendChild(card);
     var enabled = card.querySelector('#ctxCompactEnabled');
     var trigger = card.querySelector('#ctxTrigger');
@@ -949,6 +966,10 @@ function syncedCheckboxChecked(raw         )          {
   // ─── 2026-11-25：角色记忆参数（总开关 / 向量腿 / 召回与注入上限 / 自动写入）───
   // 默认值与夹取在 services/memory/config.ts；卡片通过 __memCore.config 读写，读侧同一张表。
   function mountMemoryCard() {
+    copyReady(mountMemoryCardNow);
+  }
+
+  function mountMemoryCardNow() {
     var slot = window.slotRegistry.pick('setChatSlot');
     if (slot) window.slotRegistry.claim({ cardId: 'memorySettingsCard', slotId: 'setChatSlot' });
     if (!slot || document.getElementById('memorySettingsCard')) return;
@@ -960,15 +981,15 @@ function syncedCheckboxChecked(raw         )          {
     var SS = 'width:88px;padding:6px 8px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;';
     var LB = 'font-size:12px;color:var(--muted);min-width:72px;';
     var card = document.createElement('div'); card.className = 'card'; card.id = 'memorySettingsCard';
-    card.innerHTML = '<h4>角色记忆</h4>'
-      + '<p>角色会从对话里抽取长期记忆（L1 事件 / L2 结论）并按话题召回注入；知识库文档命中也会随请求带上。存在统一存储（本机 SQLite / 自托管 D1），<b>跟随宿主同步</b>。关掉总开关后不再抽取、不再注入。</p>'
-      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="memEnabledToggle"><label for="memEnabledToggle">启用角色记忆</label></div></div>'
-      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="memVecToggle"><label for="memVecToggle">启用向量召回（首次加载本地向量模型；关掉只用关键词/实体）</label></div></div>'
-      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">召回条数</label><input type="number" id="memRecallK" min="' + lim.recallK.min + '" max="' + lim.recallK.max + '" step="1" style="' + SS + '"><span style="font-size:11px;color:var(--muted);">每次注入最多几条记忆</span></div>'
-      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">注入块数</label><input type="number" id="memInjectChunks" min="' + lim.injectMaxChunks.min + '" max="' + lim.injectMaxChunks.max + '" step="1" style="' + SS + '"><span style="font-size:11px;color:var(--muted);">知识库最多几段</span></div>'
-      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">注入字数</label><input type="number" id="memInjectChars" min="' + lim.injectMaxChars.min + '" max="' + lim.injectMaxChars.max + '" step="50" style="' + SS + '"><span style="font-size:11px;color:var(--muted);">知识库块总字数上限</span></div>'
-      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="memAutoWrite"><label for="memAutoWrite">每轮对话后自动写入记忆（每轮会多一次记忆抽取调用，有成本）</label></div></div>'
-      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>自动写入默认关闭：开启后每个正常结束的对话回合都会多发一次抽取请求（计入你的模型费用）。向量腿只在首次启用时加载模型，失败会自动退回关键词检索。</span></div>';
+    card.innerHTML = '<h4>' + T('settings.memory.title') + '</h4>'
+      + '<p>' + T('settings.memory.intro') + '</p>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="memEnabledToggle"><label for="memEnabledToggle">' + T('settings.memory.enabled') + '</label></div></div>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="memVecToggle"><label for="memVecToggle">' + T('settings.memory.vecEnabled') + '</label></div></div>'
+      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">' + T('settings.memory.recallK') + '</label><input type="number" id="memRecallK" min="' + lim.recallK.min + '" max="' + lim.recallK.max + '" step="1" style="' + SS + '"><span style="font-size:11px;color:var(--muted);">' + T('settings.memory.recallKHint') + '</span></div>'
+      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">' + T('settings.memory.injectChunks') + '</label><input type="number" id="memInjectChunks" min="' + lim.injectMaxChunks.min + '" max="' + lim.injectMaxChunks.max + '" step="1" style="' + SS + '"><span style="font-size:11px;color:var(--muted);">' + T('settings.memory.injectChunksHint') + '</span></div>'
+      + '<div class="rowline" style="align-items:center;gap:10px;"><label style="' + LB + '">' + T('settings.memory.injectChars') + '</label><input type="number" id="memInjectChars" min="' + lim.injectMaxChars.min + '" max="' + lim.injectMaxChars.max + '" step="50" style="' + SS + '"><span style="font-size:11px;color:var(--muted);">' + T('settings.memory.injectCharsHint') + '</span></div>'
+      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="memAutoWrite"><label for="memAutoWrite">' + T('settings.memory.autoWrite') + '</label></div></div>'
+      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>' + T('settings.memory.tip') + '</span></div>';
     slot.appendChild(card);
     var enabled = card.querySelector('#memEnabledToggle');
     var vec = card.querySelector('#memVecToggle');
