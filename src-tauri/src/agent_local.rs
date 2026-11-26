@@ -30,7 +30,8 @@ use std::time::{Duration, Instant};
 // agent_workdir_pick 调 app.dialog(),那是 DialogExt 提供的方法。
 // lib.rs 里也有这条 import,但那是它自己的作用域 —— 子模块看不到,必须各自引入。
 // (CI 首轮编译报的是 "no method named `dialog` found",原因就是这个。)
-#[cfg(desktop)]
+// Manager 必须无条件引入：local_env_info 在所有平台都用 app.path().resource_dir()；
+// 早先它被 #[cfg(desktop)] 包着，桌面能编过、Android 直接报 "no method named path"。
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
