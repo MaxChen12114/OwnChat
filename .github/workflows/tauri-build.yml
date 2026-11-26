@@ -14,7 +14,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Free up disk space (只删与 Android/Rust 构建无关的大体积预装工具,绝不碰 Android SDK/NDK,避免重漏前一轮的 NDK not found)
         run: |
@@ -334,7 +334,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (workflow_dispatch 时用于读版本号)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download APK artifact
         uses: actions/download-artifact@v4
