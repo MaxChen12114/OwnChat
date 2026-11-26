@@ -322,7 +322,7 @@ jobs:
           echo "signed APK ready: $DIR/$OUTNAME"
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ownchat-android-release
           path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
