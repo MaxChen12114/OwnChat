@@ -164,7 +164,7 @@ function createHttpDbPort(options                )         {
   return { exec: exec, transaction: transaction, search: search };
 }
 
-// Browser wiring, appended by l0/emit.mjs. Engine: services/platform/db-http.ts (the one HTTP port
+// Browser wiring, appended by tooling/l0/emit.mjs. Engine: services/platform/db-http.ts (the one HTTP port
 // implementation D1 and the Node sidecar both build on).
 //
 // Public API: window.dbHttp = { v, createHttpDbPort }. The two adapters normally consume the factory

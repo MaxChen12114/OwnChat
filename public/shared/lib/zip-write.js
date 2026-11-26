@@ -323,7 +323,7 @@ function createZipWrite()              {
   return { writeZip: writeZip, _limits: ZIP_DEFAULTS };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the ZIP writer to a plain global ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the ZIP writer to a plain global ──
 // The implementation lives in lib/zip-write.ts (pure bytes in, bytes out; mirror of lib/zip-read.ts).
 // No ports: the writer uses only platform globals
 // (TextEncoder / CompressionStream / Blob / Response), and a host missing the compressor fails with

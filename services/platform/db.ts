@@ -24,7 +24,7 @@ import type { DbPort, DbResult, DbRow, DbTx, SearchScope, SearchSurface } from "
 import type { RuntimeContext } from "../../core/runtime";
 
 // The kernel is a separate emit product; declaring the bridge keeps this module import-free like
-// every other service source. `runtimeCore` is published by `l0/wiring/runtime.js`.
+// every other service source. `runtimeCore` is published by `tooling/l0/wiring/runtime.js`.
 declare const runtimeCore: {
   readonly createContext: typeof import("../../core/runtime").createContext;
 };

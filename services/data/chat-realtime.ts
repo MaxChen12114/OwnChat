@@ -5,7 +5,7 @@
  * Everything platform-shaped arrives through {@link RealtimePorts} — storage, fetch, timers, the
  * visibility flag, the DOM event bus, and the three sibling modules (`__chatEvents` for message
  * diffs, `syncSvc` for auth and the snapshot channel, `appSvc` for the active conversation). This file
- * touches no `window`, `document` or `fetch`; l0/wiring/chat-realtime.js is the adapter.
+ * touches no `window`, `document` or `fetch`; tooling/l0/wiring/chat-realtime.js is the adapter.
  *
  * Three behaviours are load-bearing and easy to break:
  *  - Events for a conversation with an active turn wait in `pending`. Applying them mid-stream

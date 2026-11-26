@@ -38,7 +38,7 @@
 
 import type { DbPort, DbRow } from "../../core/db";
 
-// Separate emit products bridged on window: `dbSearchSql` (l0/wiring/db-search.js, boot #16) owns the
+// Separate emit products bridged on window: `dbSearchSql` (tooling/l0/wiring/db-search.js, boot #16) owns the
 // surface SQL and the limit clamp; `queryTerms` is published by services/memory/core.ts (boot #54).
 // char-memory loads at boot #53, so both are resolved per call, never at load.
 declare const dbSearchSql: Pick<

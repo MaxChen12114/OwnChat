@@ -380,7 +380,7 @@ function sysHtml(s             , esc                        )         {
   return rows.map((row) => '<div class="sp-kv"><span class="k">' + row[0] + '</span><span class="v">' + row[1] + "</span></div>").join("");
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/status-panel.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/status-panel.ts; this file owns the
 // stylesheet, the skeleton markup, both hosts, the input wiring and the refresh loop.
 //
 // Dual mount by design: the desktop right-rail tab and the mobile bottom-sheet tab share one skeleton

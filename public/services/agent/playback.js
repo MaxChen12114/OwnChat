@@ -187,7 +187,7 @@ function createPlayback(ports                = {})              {
   return api;
 }
 
-// Browser wiring (injected by l0/emit.mjs): none yet.
+// Browser wiring (injected by tooling/l0/emit.mjs): none yet.
 //
 // services/agent/playback.ts is the pure time-ordered playback: due times,
 // catch-up, the unplayed set and stop. It owns no clock or timer; a host passes

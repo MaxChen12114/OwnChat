@@ -141,7 +141,7 @@ function composerMenuColors(light         )                     {
     : { background: "#1c1c22", border: "1px solid #3a3a44", color: "#eee", highlight: "#33333d" };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/composer.ts (send-button shape, `@`
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/composer.ts (send-button shape, `@`
 // query and insertion, candidate filtering and stepping, keyboard inset, popup placement).
 // This file owns the textarea, the popup node, the CSS variable, the rAF throttle and the listeners.
 //

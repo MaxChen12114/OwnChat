@@ -136,7 +136,7 @@ function downloadUrlOf(item             )         {
   return item.key ? item.url : "/img/dl?url=" + encodeURIComponent(item.src);
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/gallery.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/gallery.ts; this file owns the
 // localStorage list, the blob cache in IndexedDB, the workshop tab and the toast.
 //
 // The cloud gallery routes this module used to call are gone, so "favourite" is local-only. The

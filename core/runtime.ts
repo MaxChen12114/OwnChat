@@ -8,7 +8,7 @@
  *   · effects — every side effect returns its inverse; dispose unwinds LIFO, scoped per fork.
  *
  * Deliberately not included: Node's loader, HMR, config patches, React slots, or a plugin
- * marketplace. `l0/scripts.json` remains the boot-order source; this kernel only gives runtime
+ * marketplace. `tooling/l0/scripts.json` remains the boot-order source; this kernel only gives runtime
  * objects a lifecycle once their code is loaded.
  *
  * P0 is kernel-only: nothing wires it into the app yet. That is what makes the semantics testable

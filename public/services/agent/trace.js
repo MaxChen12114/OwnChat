@@ -11,7 +11,7 @@
  * after `begin()` would otherwise see nothing. And a host without IndexedDB (or with it blocked)
  * degrades to memory-only instead of throwing: losing replay history must never break the loop.
  *
- * Lock: `scripts/test-agent-trace.mjs` (18 assertions, vm + fake IndexedDB).
+ * Lock: `tooling/scripts/test-agent-trace.mjs` (18 assertions, vm + fake IndexedDB).
  * @module services/agent/trace
  */
 
@@ -553,7 +553,7 @@ function createAgentTrace(env          )                {
   };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // The implementation moved to services/agent/trace.ts; this file only binds the name and injects the
 // IndexedDB factory. The factory is looked up lazily, once, on the first open — never captured at
 // load time, because a host with IndexedDB blocked must still boot and fall back to the memory map.

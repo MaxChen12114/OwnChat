@@ -235,7 +235,7 @@ function createAvatar(ports             )         {
   };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/avatar.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/avatar.ts; this file owns the
 // frozen global name, the storage key, the avatar change event, the chat-image edit call and the
 // whole settings card (that UI has no other consumer, so it ships with the adapter).
 //

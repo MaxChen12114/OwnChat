@@ -464,7 +464,7 @@ function createContextFactory(env            ) {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the existing window contract.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the existing window contract.
 // The bridges are getters rather than snapshotted fields, so a module that loads after this one is
 // still reachable — the old file read them at call time for the same reason. Every bridge name is
 // spelled out in full with the `window.` prefix: an alias makes the contract scan count drop to

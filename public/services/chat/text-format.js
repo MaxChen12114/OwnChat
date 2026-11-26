@@ -4,7 +4,7 @@
  *
  * Every window bridge arrives as a port (storage for the strip switch, sceneNames for group name
  * tags, stripPhotoSignal / applyAmbientTags / extractPhotoSignal for the image and ambience signals);
- * the adapters and all their try/catch semantics live in l0/wiring/text-format.js, and each bridge is
+ * the adapters and all their try/catch semantics live in tooling/l0/wiring/text-format.js, and each bridge is
  * still looked up at call time rather than captured up front.
  *
  * Red line carried over from the old comment: never touch the unlock prompt. The model keeps emitting
@@ -419,7 +419,7 @@ function createTextFormat(ports                 ) {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 // The implementation lives in services/chat/text-format.ts; this file carries every window bridge
 // with the same try/catch shape as the old inline code. Bridges are resolved per call, never
 // captured, because the modules behind them load later.

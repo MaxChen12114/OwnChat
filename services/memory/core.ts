@@ -29,7 +29,7 @@
  *     wanted/ready/loading/failed state machine.
  *
  * Zero `as`, zero `any`: database rows are narrowed at the port boundary by {@link toMemRow}.
- * Equivalence locks: scripts/test-memory-core.mjs (isolation properties) and test/memory-sql.test.mjs
+ * Equivalence locks: tooling/scripts/test-memory-core.mjs (isolation properties) and test/memory-sql.test.mjs
  * (the storage base).
  * @module services/memory/core
  */
@@ -37,7 +37,7 @@
 import type { DbPort, DbRow } from "../../core/db";
 import type { MemoryConfig } from "./config";
 
-// Separate emit product, bridged on `window.dbSearchSql` by l0/wiring/db-search.js (boot order puts
+// Separate emit product, bridged on `window.dbSearchSql` by tooling/l0/wiring/db-search.js (boot order puts
 // it at #16, well before memory). Declared rather than imported because the emit channel carries
 // import-free sources only; the SQL text, scope validation and limit clamps stay in that one place.
 declare const dbSearchSql: Pick<

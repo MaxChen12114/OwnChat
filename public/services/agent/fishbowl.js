@@ -168,7 +168,7 @@ function sideFor(sceneIds         , id         )                {
   return idx >= 0 && idx % 2 === 1 ? "right" : null;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/agent/fishbowl.ts (tag parsing, name
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/agent/fishbowl.ts (tag parsing, name
 // matching, speaker selection, round limits, reaction delay); this file owns the run loop, the LS
 // accessors, the tick event and the hostApi calls.
 //

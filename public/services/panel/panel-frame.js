@@ -18,7 +18,7 @@
  * The original default (trusted) both handed generated content same-origin rights and, because the
  * trusted branch only sets `src`, silently rendered nothing at all.
  *
- * Mounting, timers, theme reading and the frame element itself stay in `l0/wiring/panel-frame.js`.
+ * Mounting, timers, theme reading and the frame element itself stay in `tooling/l0/wiring/panel-frame.js`.
  * One pane = one box element; the tab host owns those boxes, so `mount` never has to know how many
  * frames exist. Background panes stay mounted but are told to pause:
  * `{__panel:1,type:"visibility",data:{visible:false}}` is the freeze signal, and a page that ignores
@@ -148,7 +148,7 @@ function panelSrcDoc(html         )         {
   return "<script>" + PANEL_BOOTSTRAP + "</scr" + "ipt>" + text(html);
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // The security decisions moved to services/panel/panel-frame.ts (mode inference, sandbox attributes,
 // envelope, bootstrap). This file owns the frame element itself: creating it, the load/timeout
 // heuristics, injecting the bootstrap into a same-origin document, and the message subscription.

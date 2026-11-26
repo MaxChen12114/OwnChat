@@ -5,7 +5,7 @@
  * Everything the browser owns arrives through {@link CharacterPorts}: the card store, key-value
  * storage, the change event, the uid clock and the best-effort hooks into sibling domains. This
  * file touches no `window`, `localStorage` or `document`; the adapter and the whole card panel
- * live in l0/wiring/character.js.
+ * live in tooling/l0/wiring/character.js.
  *
  * Storage is the unified `chars(id, name, data)` table behind the DbPort facade. Cards used to live
  * in the IndexedDB stores `tavern_chars_v2/chars` + `/affections`; {@link createSqlCardStore} is the

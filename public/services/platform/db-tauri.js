@@ -115,7 +115,7 @@ function createTauriPort(options          )         {
   return { exec: exec, transaction: transaction, search: search };
 }
 
-// Browser wiring, appended by l0/emit.mjs. Engine: services/platform/db-tauri.ts.
+// Browser wiring, appended by tooling/l0/emit.mjs. Engine: services/platform/db-tauri.ts.
 //
 // The invocation is resolved per call, not captured: the shell may inject `__TAURI__` after this
 // script runs, and `tauriSvc.invoke` already rejects with a readable error when the shell is absent.

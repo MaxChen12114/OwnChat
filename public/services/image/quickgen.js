@@ -262,7 +262,7 @@ function createQuickgen(ports               )           {
   return { mode, setMode, lastImage, setLastImage, clearLastImage, buildPrompt, editInstruction, styled };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/quickgen.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/quickgen.ts; this file owns the
 // panels, the styles, the buttons, the streamed request and the alerts.
 //
 // The panel markup is duplicated into two hosts on purpose: the desktop right sidebar and the mobile

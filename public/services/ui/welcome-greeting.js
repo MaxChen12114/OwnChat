@@ -45,7 +45,7 @@ function wgrIsEmpty(count        )          {
   return count === 0;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/welcome-greeting.ts
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/welcome-greeting.ts
 // (desktop detection, greeting and empty-chat count); this file owns DOM classes,
 // the MutationObserver and the click handlers.
 (function(){

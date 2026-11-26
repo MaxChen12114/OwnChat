@@ -237,7 +237,7 @@ function createAutoname(ports               )                 {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 (function () {
   var G = (typeof window !== "undefined" ? window : globalThis);
   if (G.__convAutoname) return;

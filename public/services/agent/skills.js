@@ -14,10 +14,10 @@
  * box. That default is a security boundary, not a UX preference.
  *
  * Storage and network arrive through {@link SkillsEnv}: `localStorage` in the page, a stub in tests.
- * The settings card itself is not here — it is DOM, so it lives in `l0/wiring/skills.js` and reaches
+ * The settings card itself is not here — it is DOM, so it lives in `tooling/l0/wiring/skills.js` and reaches
  * back through `onChange`.
  *
- * Lock: `scripts/test-skills-import.mjs` (imports through the real store) and `test/slot-runtime.test.mjs`.
+ * Lock: `tooling/scripts/test-skills-import.mjs` (imports through the real store) and `test/slot-runtime.test.mjs`.
  * @module services/agent/skills
  */
 
@@ -401,7 +401,7 @@ function createSkills(env           )            {
   };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name,
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name,
 // and owns everything that is DOM — the settings card, its event wiring and the lazy script loader.
 // The store, the catalogue and the SKILL.md parser moved to services/agent/skills.ts; the card calls
 // back into it and re-renders through onChange().

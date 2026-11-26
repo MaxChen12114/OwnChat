@@ -141,7 +141,7 @@ function clRenameCommit(oldName         , input         )                {
   return null;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/conv-list.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/conv-list.ts; this file owns the
 // DOM: the sidebar mount, the stylesheet, row/menu/rename construction and the poll/event wiring.
 // Every decision lives in the engine — relative-time labels, the content signature, both redraw
 // gates, preview/title copy, menu placement geometry, and the rename commit rule.

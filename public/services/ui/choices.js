@@ -116,7 +116,7 @@ function chScanSkip(
   return !autoScan || streaming || ocDone || !chFindBlock(raw);
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/choices.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/choices.ts; this file owns the
 // DOM: the stylesheet, the panel/chip construction, the send fallback chain, the bubble
 // TreeWalker strip and the mutation-observer scanning loop.
 //

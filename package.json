@@ -3,7 +3,7 @@
   "private": true,
   "description": "Self-hosted AI creation platform (Cloudflare Workers + static assets). Zero runtime dependencies by design; this file exists so Cloudflare's one-click deploy can pre-fill the build and deploy commands.",
   "scripts": {
-    "build": "node scripts/gen-prompts.mjs && node l0/build.mjs --write && node scripts/check-syntax.mjs",
+    "build": "node tooling/scripts/gen-prompts.mjs && node tooling/l0/build.mjs --write && node tooling/scripts/check-syntax.mjs",
     "deploy": "npx wrangler d1 migrations apply TAVERN_EVENTS --remote && npx wrangler deploy",
     "db:migrate": "npx wrangler d1 migrations apply TAVERN_EVENTS --remote",
     "start": "node server/local.mjs",

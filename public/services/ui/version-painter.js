@@ -77,7 +77,7 @@ function createVersionPainter(ports              )             {
   return { run: run };
 }
 
-// Browser wiring (injected by l0/emit.mjs): shell access, text sinks and the environment version
+// Browser wiring (injected by tooling/l0/emit.mjs): shell access, text sinks and the environment version
 // mirror; no frozen contract of its own — the version goes to dataset.appVersion for env-context.
 (function () {
   var api = createVersionPainter({

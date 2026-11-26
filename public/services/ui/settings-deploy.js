@@ -237,7 +237,7 @@ function deployAllowed(manifest         )          {
   var running = false;
   var wiredManifest = false;
 
-  // Catalog access (see l0/wiring/i18n.js). The engine answers `{key, params}` descriptors from
+  // Catalog access (see tooling/l0/wiring/i18n.js). The engine answers `{key, params}` descriptors from
   // services/ui/settings-deploy.ts; rendering them belongs here.
   function T(key, params) {
     try { return g.__i18n.t(key, params); } catch (e) { return key; }

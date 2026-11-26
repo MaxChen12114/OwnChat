@@ -118,7 +118,7 @@ function cmFollowPlan(current         , want         )                {
   return want === current ? null : want;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/channel-mode.ts; this file keeps the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/channel-mode.ts; this file keeps the
 // frozen global surface plus every side effect — providers/auth reads, localStorage, DOM writes and
 // the deferred follow after a channel switch.
 //

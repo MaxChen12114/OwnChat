@@ -39,7 +39,7 @@
 
                                                    
 
-// Separate emit products bridged on window: `dbSearchSql` (l0/wiring/db-search.js, boot #16) owns the
+// Separate emit products bridged on window: `dbSearchSql` (tooling/l0/wiring/db-search.js, boot #16) owns the
 // surface SQL and the limit clamp; `queryTerms` is published by services/memory/core.ts (boot #54).
 // char-memory loads at boot #53, so both are resolved per call, never at load.
                                 
@@ -518,7 +518,7 @@ function createCharMemory(ports                 ) {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 //
 // Engine: services/memory/char-memory.ts. What lives here:
 //   1) the SQL port — the `db` service `window.dbSvc` provides (T2), resolved per call;

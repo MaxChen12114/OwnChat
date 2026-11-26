@@ -6,7 +6,7 @@
  * Everything the browser owns arrives through {@link CharacterPorts}: the card store, key-value
  * storage, the change event, the uid clock and the best-effort hooks into sibling domains. This
  * file touches no `window`, `localStorage` or `document`; the adapter and the whole card panel
- * live in l0/wiring/character.js.
+ * live in tooling/l0/wiring/character.js.
  *
  * Storage is the unified `chars(id, name, data)` table behind the DbPort facade. Cards used to live
  * in the IndexedDB stores `tavern_chars_v2/chars` + `/affections`; {@link createSqlCardStore} is the
@@ -972,7 +972,7 @@ function createCharacter(ports                )               {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 // The data layer lives in services/data/character.ts; every browser-side duty is here — the SQL
 // card store over window.dbSvc, the one-time copy of the legacy IndexedDB cards, the localStorage
 // trio, change-event dispatch, the uid clock, and the whole card panel. The panel ships with the

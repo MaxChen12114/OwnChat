@@ -1,5 +1,5 @@
-// ⚠ 生成物（l0/tools-manifest.mjs --write，勿手改）—— 运行时把全量清单赋进 hostApi.tools.manifest
-// 数据源：bundles/agent/manifest/tools.json（同一次发射）；捕获于 2026-11-28
+// ⚠ 生成物（tooling/l0/tools-manifest.mjs --write，勿手改）—— 运行时把全量清单赋进 hostApi.tools.manifest
+// 数据源：tooling/bundles/agent/manifest/tools.json（同一次发射）；捕获于 2026-11-28
 (function () {
   var G = (typeof window !== "undefined" ? window : globalThis);
   if (!G.hostApi || !G.hostApi.tools) return; // compat 未就绪则跳过（boot 清单保证 compat 先行）

@@ -8,7 +8,7 @@
  * database only as the one-time import source and as a fallback for hosts without those tables,
  * and the tests use a map. So do line slicing, text search, the clock and the disk export, because
  * each of them already has an owner elsewhere. This file touches no `window`, `document` or
- * `indexedDB`; the adapter lives in l0/wiring/agent-workspace.js.
+ * `indexedDB`; the adapter lives in tooling/l0/wiring/agent-workspace.js.
  *
  * Files are keyed by `convId::path` (the SQL row keeps that composite key in `path`, because the
  * table's primary key is `path` alone), so a task's intermediate products die with its
@@ -1000,7 +1000,7 @@ function createWorkspace(ports                ) {
   };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // Agent file workspace: the data layer lives in services/data/agent-workspace.ts, so this file owns
 // only the storage adapters and the browser-side pieces — the unified SQLite trio reached through
 // window.dbSvc (`workspace` for current files, `workspace_versions` for history, `workspace_blobs`

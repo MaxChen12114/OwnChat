@@ -155,7 +155,7 @@ function tapFires(state          )          {
   return state.count >= UNLOCK_TAPS;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/auth/unlock.ts; this file owns the modal,
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/auth/unlock.ts; this file owns the modal,
 // the version-tag trigger, the html class and the reload.
 //
 // Default state is locked: everything marked [data-nsfw] stays hidden until the passphrase is proven.

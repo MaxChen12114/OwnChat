@@ -8,7 +8,7 @@
  *
  * Dependencies arrive through {@link ChatStreamPorts}: storage (four LS keys), modelsFast (the
  * fast-tier list) and fetch (the network exit). No `window` here; the adapter and the try/catch
- * wrappers live in l0/wiring/chat-stream.js.
+ * wrappers live in tooling/l0/wiring/chat-stream.js.
  *
  * The SSE line-prefix rule has two tiers that must not be merged: the chat pages match `data: `
  * with the space, while the tools pages' call() has always used the loose tier; unifying either

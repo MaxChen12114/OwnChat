@@ -142,7 +142,7 @@ function createReasoning(ports                ) {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 // The implementation lives in services/chat/reasoning.ts; the display preference is read and
 // written through the storage port.
 (function () {

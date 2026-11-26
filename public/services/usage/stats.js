@@ -279,7 +279,7 @@ function build(log         , now                         )              {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): keeps both carriers — the CommonJS export that
+// Browser wiring (injected by tooling/l0/emit.mjs): keeps both carriers — the CommonJS export that
 // node:test loads directly, and the frozen window name the browser uses.
 (function () {
   var G = (typeof window !== "undefined" ? window : globalThis);

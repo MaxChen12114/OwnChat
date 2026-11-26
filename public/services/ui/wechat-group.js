@@ -118,7 +118,7 @@ function wgShouldStopFishbowl(state         )          {
   return state === "running" || state === "paused";
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/wechat-group.ts
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/wechat-group.ts
 // (membership diff, name rules, active predicate and every HTML fragment); this file owns
 // the stylesheet, DOM creation, event binding and the frozen global facade.
 //

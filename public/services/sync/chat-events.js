@@ -204,7 +204,7 @@ function isValidEventType(type         )          {
   return typeof type === "string" && VALID_TYPES[type] === 1;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/sync/chat-events.ts.
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/sync/chat-events.ts.
 //
 // The engine is pure and knows nothing about globals; this file only publishes it under the frozen
 // name that the realtime channel and the session tests read. Keep the object shape exact — callers

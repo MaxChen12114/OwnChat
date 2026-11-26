@@ -74,6 +74,19 @@ wrangler deploy
 
 > **Guest mode.** With no `CHAT_PASSWORD`, anyone who has the URL can use your deployment (and your server-side model quota, if you configured a key). Set the password before sharing the address; the same password is the in-app login.
 
+## Repository layout
+
+| Path | Role |
+|---|---|
+| `public/` | Frontend pages, tool pages and emitted runtime assets |
+| `src/` | Cloudflare Worker: chat, sync, data plane and deploy API |
+| `server/` | Local Node host (bundled with the desktop app / self-host entry) |
+| `src-tauri/` | Tauri 2 desktop shell and packaging config |
+| `core/ lib/ services/` | Architecture layers: contracts / pure algorithms / platform services |
+| `tooling/` | Build and checks: `l0/` generators, `scripts/` gates, `bundles/` tool manifest, `boot.ts` |
+| `deploy/ migrations/` | Cloudflare / VPS templates and the unified SQL schema |
+| `docs/` | Public docs, screenshots and brand assets |
+
 ## Features
 
 - **Everything in one local store** — chats, character cards, memory, knowledge bases, agent workspaces and attachments live in one SQLite database (D1 when deployed). Long conversations are compressed, but the original text stays archived and searchable (`history_search`).

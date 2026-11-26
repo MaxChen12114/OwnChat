@@ -6,7 +6,7 @@
  * The bug this removes: the tool used to write the key with a bare localStorage.setItem and never
  * nudged cloud sync, while the editor did markDirty + a delayed pushNow. An agent-created preset
  * could therefore stay only on the device. Both writers now go through the same `save`, whose
- * onSave port is implemented once in l0/wiring/presets.js as that touchSync nudge.
+ * onSave port is implemented once in tooling/l0/wiring/presets.js as that touchSync nudge.
  *
  * Normalization is absorbed from services/ui/prompt-editor.ts (pePresetsFrom): a non-array is empty,
  * unnamed rows are dropped, and missing fields take the row index / empty-string / false defaults.
@@ -143,7 +143,7 @@ function createPresetStore(ports             )              {
 // non-`__` name on purpose: the frozen window.__* contract surface must not grow). Both the agent
 // tool and the prompt-editor adapter consume this facade instead of keeping their own load/save/uid.
 //
-// touchSync used to live in l0/wiring/prompt-editor.js and only ran on the editor's save path. Moving
+// touchSync used to live in tooling/l0/wiring/prompt-editor.js and only ran on the editor's save path. Moving
 // it here makes the agent's save take the same markDirty + 1.2s pushNow path — that is the bug fix.
 (function () {
   if (window.presetStore) return;

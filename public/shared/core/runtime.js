@@ -9,7 +9,7 @@
  *   · effects — every side effect returns its inverse; dispose unwinds LIFO, scoped per fork.
  *
  * Deliberately not included: Node's loader, HMR, config patches, React slots, or a plugin
- * marketplace. `l0/scripts.json` remains the boot-order source; this kernel only gives runtime
+ * marketplace. `tooling/l0/scripts.json` remains the boot-order source; this kernel only gives runtime
  * objects a lifecycle once their code is loaded.
  *
  * P0 is kernel-only: nothing wires it into the app yet. That is what makes the semantics testable
@@ -418,7 +418,7 @@ function createContext(parent                        = null)                 {
   return new RuntimeContext(parent);
 }
 
-// Browser wiring, appended by l0/emit.mjs. Engine: core/runtime.ts (the Cordis subset: provide / get /
+// Browser wiring, appended by tooling/l0/emit.mjs. Engine: core/runtime.ts (the Cordis subset: provide / get /
 // inject / effect / fork).
 //
 // Public API: window.runtimeCore = { v, createContext, RuntimeContext, host }. The kernel used to be

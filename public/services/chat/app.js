@@ -52,12 +52,12 @@ function flushDue(last        , now        , windowMs         = 2000)          {
 
 /* l0-wiring-part: opens the shared IIFE; parsed as part of public/services/chat/app.js */
 /**
- * l0/wiring/app/00-core.js — 聊天引擎外壳：DOM 引用、服务门面、会话/turn 初始状态。
+ * tooling/l0/wiring/app/00-core.js — 聊天引擎外壳：DOM 引用、服务门面、会话/turn 初始状态。
  *
  * 2026-11-26 拆件：原 2786 行 app.js 按执行段拆成 7 个片段 + 宿主；片段按顺序拼接、
  * 共享同一个 IIFE 与词法状态。切点都在顶层空白行，不改变任何初始化顺序。
  */
-// l0/wiring/app.js — browser wiring for services/chat/app.ts
+// tooling/l0/wiring/app.js — browser wiring for services/chat/app.ts
 (() => {
   const historyWrap = document.getElementById("history");
   const chatEl = document.getElementById("chat");
@@ -2876,11 +2876,11 @@ function flushDue(last        , now        , windowMs         = 2000)          {
 
 /* l0-wiring-part: closes the shared IIFE; parsed as part of public/services/chat/app.js */
 /**
- * l0/wiring/app.js — browser wiring host for services/chat/app.ts
+ * tooling/l0/wiring/app.js — browser wiring host for services/chat/app.ts
  *
- * 2026-11-26 拆件：执行段在 l0/wiring/app/*.js（00-core / 10-turn / 20-ui / 30-agent /
+ * 2026-11-26 拆件：执行段在 tooling/l0/wiring/app/*.js（00-core / 10-turn / 20-ui / 30-agent /
  * 40-send / 50-relay / 60-input）；本文件只保留内存自愈、外部设置回读、init、会话数据入口
- * 与 window.appSvc 收口。片段由 l0/emit.mjs 按 WIRING_PARTS 顺序拼接，仍是同一个 IIFE。
+ * 与 window.appSvc 收口。片段由 tooling/l0/emit.mjs 按 WIRING_PARTS 顺序拼接，仍是同一个 IIFE。
  */
   // ─── 2026-10-08 内存自愈（设置→外观可关，壳内默认开）───
   // WebView2 壳长跑后 GPU/渲染进程会持住大量缓存内存（实测与特效档位关系不大 —— 大头是随会话、

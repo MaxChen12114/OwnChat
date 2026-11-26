@@ -18,20 +18,20 @@ src/prompts/bases/**/*.txt text eol=lf
 # 4.84: 氛围音 mp3 入库 —— 二进制,禁止任何行尾转换
 *.mp3 binary
 
-# 2026-11-15: services 源与 classic 产物必须 LF —— l0/emit.mjs 是**按字节**比对
+# 2026-11-15: services 源与 classic 产物必须 LF —— tooling/l0/emit.mjs 是**按字节**比对
 # 「TS 源剥离后的期望产物」与 public/services 下的入库产物；本仓库 core.autocrlf=true,
 # 检出时若转成 CRLF,期望值(LF)与磁盘(CRLF)永久不等 → `emit --check` 在 Windows 上假红。
 # 实测:data 域 lorebook/chat-stream 合并进 main 后即刻 2 个服务脱钩,emit --write 也修不回来
 #(源是 CRLF→产物仍是 CRLF)。与 *.sh / bases 同一类问题:行尾不锁死,门禁结论随平台漂移。
 services/**/*.ts text eol=lf
 public/services/**/*.js text eol=lf
-# 接线文件被 l0/emit.mjs 逐字节拼在产物尾部,同样必须 LF(否则产物尾部是 CRLF、头部是 LF 的混合体)
-# 通配用 ** 覆盖 l0/wiring/app/ 与 l0/wiring/settings/ 的拆件片段:它们同样是产物尾部,
+# 接线文件被 tooling/l0/emit.mjs 逐字节拼在产物尾部,同样必须 LF(否则产物尾部是 CRLF、头部是 LF 的混合体)
+# 通配用 ** 覆盖 tooling/l0/wiring/app/ 与 tooling/l0/wiring/settings/ 的拆件片段:它们同样是产物尾部,
 # 此前只锁一层,导致 app.js / settings.js / tools.js 在 Windows 上被 emit --write 反复重写。
-l0/wiring/**/*.js text eol=lf
+tooling/l0/wiring/**/*.js text eol=lf
 
 # 2026-11-28: core/ 与 lib/ 的 TS 源、以及 public/shared/{core,lib}/ 的产物同样按字节比对
-# （l0/emit.mjs 的 LIB_WIRINGS 让 lib/ 走同一条发射路径），不锁 LF 就是上面 services 那条
+# （tooling/l0/emit.mjs 的 LIB_WIRINGS 让 lib/ 走同一条发射路径），不锁 LF 就是上面 services 那条
 # 「假红」的翻版:Windows 检出 CRLF → 期望产物(LF)与磁盘(CRLF)永久不等。
 core/**/*.ts text eol=lf
 lib/**/*.ts text eol=lf

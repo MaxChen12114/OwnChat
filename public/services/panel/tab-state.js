@@ -18,7 +18,7 @@
  *     a closed inline page has no source to rebuild from.
  *
  * Lock: `test/tab-state.test.mjs` (open/close/activate, dedupe, persistence and migration, host
- * pages, the live-frame cap). The DOM half lives in `l0/wiring/panel-host.js`.
+ * pages, the live-frame cap). The DOM half lives in `tooling/l0/wiring/panel-host.js`.
  * @module services/panel/tab-state
  */
 

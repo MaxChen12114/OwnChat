@@ -7,7 +7,7 @@
  * diffs each step and catches failures so a broken stage cannot take the whole trace down.
  *
  * Dependencies arrive through {@link PipelinePorts}. The old code captured the two bridge objects
- * at load time, so l0/wiring/pipeline.js captures them once at the top of its IIFE and passes them
+ * at load time, so tooling/l0/wiring/pipeline.js captures them once at the top of its IIFE and passes them
  * in, instead of looking them up per call.
  *
  * Equivalence: test/chat-migration-equiv.test.mjs runs the old JS and this product side by side,
@@ -143,7 +143,7 @@ function createPipeline(ports               )           {
   return { stripFns, trace };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the existing window contract.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the existing window contract.
 // Line for line the old pipeline.js: the bridge functions are captured once at the top of the IIFE
 // and handed to the service, not re-read on every trace — so `stripFns` still holds the original
 // function references and reference equality survives.

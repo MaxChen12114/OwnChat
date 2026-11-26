@@ -13,7 +13,7 @@
  * document.
  *
  * Nothing here closes over the page: page-level state arrives through {@link PeerCaps} and browser
- * globals through {@link PeerEnv}, both supplied by `l0/wiring/agent-peer-calls.js`. The env handles
+ * globals through {@link PeerEnv}, both supplied by `tooling/l0/wiring/agent-peer-calls.js`. The env handles
  * are re-read on every call rather than captured at construction, because boot order is not fixed —
  * the agent kernel is an ESM module that lands after the classic scripts, and the memory core can be
  * attached later still. A handle captured at construction would be permanently null.

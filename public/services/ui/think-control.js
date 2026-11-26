@@ -269,7 +269,7 @@ function thinkMenuPosition(
   return { top, left };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/think-control.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/think-control.ts; this file owns the
 // toggle button, the popup menu and every localStorage / provider read.
 //
 // The DOM contract is narrow on purpose: `#thinkToggle`, an optional `.think-label` inside it, and a

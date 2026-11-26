@@ -13,7 +13,7 @@
  * active tab"), which is why the old single-canvas call pattern still works.
  *
  * This file touches no `window`, `document` or `localStorage`; the facade lookup and the
- * `__stageTools` bridge live in l0/wiring/stage-tools.js.
+ * `__stageTools` bridge live in tooling/l0/wiring/stage-tools.js.
  * @module services/ui/stage-tools
  */
 

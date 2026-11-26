@@ -173,7 +173,7 @@ function readFlag(raw               )          {
   return typeof raw === "string" && raw === "1";
 }
 
-// Browser wiring, appended by l0/emit.mjs. Engine: services/platform/oobe.ts (first-run decisions).
+// Browser wiring, appended by tooling/l0/emit.mjs. Engine: services/platform/oobe.ts (first-run decisions).
 //
 // Public API: window.oobeSvc = { v, open, close, state, refresh }. Non-`__` name; the dialog itself is
 // the contract (it owns its DOM), and the tray entry reaches it through the `ownchat:host-settings`
@@ -208,7 +208,7 @@ function readFlag(raw               )          {
   var busy = false;
   var cached = null;
 
-  // Catalog access (see l0/wiring/i18n.js). The engine answers synchronously once the catalog has
+  // Catalog access (see tooling/l0/wiring/i18n.js). The engine answers synchronously once the catalog has
   // landed; `whenReady` defers the first paint in the rare case it has not. Copy keys and their text
   // live in public/locales/<lang>.json — never inline Chinese here.
   function T(key, params) {

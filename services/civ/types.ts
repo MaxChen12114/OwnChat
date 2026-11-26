@@ -3,7 +3,7 @@
  *
  * This module is type-only on purpose: every runtime module imports it with `import type`, which
  * Node's type stripper erases before evaluation. That keeps `services/civ/*` loadable one file at a
- * time (tests use `l0/load-service.mjs`), while the dependency graph stays explicit in the types.
+ * time (tests use `tooling/l0/load-service.mjs`), while the dependency graph stays explicit in the types.
  *
  * Ownership:
  *   - `state` owns faction facts, the turn clock and deterministic RNG.

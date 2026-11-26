@@ -200,7 +200,7 @@ function createToolModeRuntime(input                       )                  {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): publishes the per-turn tool-mode runtime with the
+// Browser wiring (injected by tooling/l0/emit.mjs): publishes the per-turn tool-mode runtime with the
 // policy modules injected from the policy products' emit bridges. An absent module degrades to a
 // null dep — the runtime then behaves like full with no tool_search (the C-3 fallback lock), so a
 // half-installed policy domain can never take the turn down.

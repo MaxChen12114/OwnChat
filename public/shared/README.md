@@ -5,16 +5,16 @@
 ## 文件一览
 
 | 文件 | 导出 | 加载方式 | 状态 |
-> **加载路径的唯一真源是 `l0/scripts.json`，不是下表。** 2026-11-21 起，`agent/agent-kernel.js`、
+> **加载路径的唯一真源是 `tooling/l0/scripts.json`，不是下表。** 2026-11-21 起，`agent/agent-kernel.js`、
 > `agent/agent-reach.js`、`agent/env-context.js`、`agent/skills.js`、`media/tts.js` 等已迁到
-> `services/**`（TS 源，由 `l0/emit.mjs` 生成产物），另有 `agent/agent-local-tools.js` 等仍在原处。
+> `services/**`（TS 源，由 `tooling/l0/emit.mjs` 生成产物），另有 `agent/agent-local-tools.js` 等仍在原处。
 > 下表保留的是**出口与形态**（谁挂什么全局、是经典脚本还是 module），这部分仍然是契约；路径已经不准。
 
 | --- | --- | --- | --- |
 | `agent/agent-kernel.js` | `globalThis.AgentKernel = { createToolRegistry, runAgentLoop }` | **`<script type="module">`**（用了 ES `export`，经典脚本会抛 SyntaxError，全局永不挂载） | ✅ 已接线 |
-| `services/tools/agent/tools.ts`（产物 `/services/tools/agent/tools.js`） | `globalThis.OwnChatTools = { buildRegistry, defineTools }` | 经典 `<script>`（由 `l0/emit.mjs` 发射；四档名单在服务里，schema 在 `l0/wiring/tools.js`） | ✅ 已接线 |
+| `services/tools/agent/tools.ts`（产物 `/services/tools/agent/tools.js`） | `globalThis.OwnChatTools = { buildRegistry, defineTools }` | 经典 `<script>`（由 `tooling/l0/emit.mjs` 发射；四档名单在服务里，schema 在 `tooling/l0/wiring/tools.js`） | ✅ 已接线 |
 | `agent/agent-reach.js` | `globalThis.AgentReach = { defineTools }` | 经典 `<script>` | ✅ 已接线（app.js 无条件追加其 7 个联网工具） |
-| `services/ui/agent-console.ts`（产物 `/services/ui/agent-console.js`） | `globalThis.mountAgentConsole(container, opts)` | 经典 `<script>`（事件→状态计划在服务里，DOM 在 `l0/wiring/agent-console.js`） | ✅ 已接线（右栏运行面板） |
+| `services/ui/agent-console.ts`（产物 `/services/ui/agent-console.js`） | `globalThis.mountAgentConsole(container, opts)` | 经典 `<script>`（事件→状态计划在服务里，DOM 在 `tooling/l0/wiring/agent-console.js`） | ✅ 已接线（右栏运行面板） |
 | `agent/env-context.js` | `globalThis.__envContext` | 经典 `<script>` | ✅ 已接线（self_diagnostics 工具 + 会话环境快照） |
 | `agent/skills.js` / `media/tts.js` / `js/image/core/image-channels.js` / `js/image/core/image-common.js` | `window.__skills / __omniTTS / __imageChannels / __imageCommon ...` | 经典 `<script>` | ✅ 主站各链使用（`image-channels.js` 须在 `image-common.js` 之前） |
 

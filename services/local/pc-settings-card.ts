@@ -4,7 +4,7 @@
  * plans (allow the agent, skip the confirm card, store the bridge token).
  *
  * Everything decidable without a browser is here. localStorage reads, `fetch`, the shell probe and
- * every listener stay in `l0/wiring/pc-settings-card.js`, which also owns the card's outer element
+ * every listener stay in `tooling/l0/wiring/pc-settings-card.js`, which also owns the card's outer element
  * and its insertion.
  *
  * The status line is built from health *and* an optional status payload because the second call is

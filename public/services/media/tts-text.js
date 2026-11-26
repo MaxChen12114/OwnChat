@@ -88,7 +88,7 @@ function createTtsText()             {
   };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // Text preparation before speaking (voice tags, parentheticals, emphasis, sentence splitting) lives
 // in services/media/tts-text.ts; what stays here is config, probing, synthesis and playback.
 // OwnChat local speech — GPT-SoVITS through the desktop shell's http_request proxy.

@@ -141,7 +141,7 @@ export const SLOT_SPECS: readonly SlotSpec[] = [
     fallbacks: [],
     rootFallback: false,
     owner: "module",
-    evidence: "../l0/wiring/settings/30-chat.js:42",
+    evidence: "../tooling/l0/wiring/settings/30-chat.js:42",
   },
   {
     id: "setAppearanceTopSlot",
@@ -150,7 +150,7 @@ export const SLOT_SPECS: readonly SlotSpec[] = [
     fallbacks: [],
     rootFallback: false,
     owner: "module",
-    evidence: "../l0/wiring/settings/10-appearance.js:8",
+    evidence: "../tooling/l0/wiring/settings/10-appearance.js:8",
   },
   {
     // The two appearance slots are treated as one landing spot in 5 places: `Theme || Top`.
@@ -160,7 +160,7 @@ export const SLOT_SPECS: readonly SlotSpec[] = [
     fallbacks: ["setAppearanceTopSlot"],
     rootFallback: false,
     owner: "module",
-    evidence: "../l0/wiring/settings/10-appearance.js:25",
+    evidence: "../tooling/l0/wiring/settings/10-appearance.js:25",
   },
   {
     id: "setChatSlot",
@@ -169,7 +169,7 @@ export const SLOT_SPECS: readonly SlotSpec[] = [
     fallbacks: [],
     rootFallback: false,
     owner: "module",
-    evidence: "../l0/wiring/settings/30-chat.js:8",
+    evidence: "../tooling/l0/wiring/settings/30-chat.js:8",
   },
   {
     // Agent config became its own section (2026-09-14); pages without the slot fall back to chat.
@@ -179,7 +179,7 @@ export const SLOT_SPECS: readonly SlotSpec[] = [
     fallbacks: ["setChatSlot"],
     rootFallback: false,
     owner: "module",
-    evidence: "../l0/wiring/settings/40-agent.js:7",
+    evidence: "../tooling/l0/wiring/settings/40-agent.js:7",
   },
   {
     id: "setPersonalizeSlot",
@@ -188,7 +188,7 @@ export const SLOT_SPECS: readonly SlotSpec[] = [
     fallbacks: ["setAgentSlot"],
     rootFallback: false,
     owner: "module",
-    evidence: "../l0/wiring/settings/30-chat.js:98",
+    evidence: "../tooling/l0/wiring/settings/30-chat.js:98",
   },
   {
     id: "setSkillSlot",
@@ -206,7 +206,7 @@ export const SLOT_SPECS: readonly SlotSpec[] = [
     fallbacks: [],
     rootFallback: false,
     owner: "module",
-    evidence: "../l0/wiring/chat-image-text.js:257",
+    evidence: "../tooling/l0/wiring/chat-image-text.js:257",
   },
   {
     // Both image cards (avatar / expressions) mount settingsImageSlot; the page root is the
@@ -218,7 +218,7 @@ export const SLOT_SPECS: readonly SlotSpec[] = [
     fallbacks: [],
     rootFallback: true,
     owner: "module",
-    evidence: "../l0/wiring/image-avatar.js:13",
+    evidence: "../tooling/l0/wiring/image-avatar.js:13",
   },
   {
     // The model-key card also falls to the page root when its slot is missing.
@@ -228,7 +228,7 @@ export const SLOT_SPECS: readonly SlotSpec[] = [
     fallbacks: [],
     rootFallback: true,
     owner: "module",
-    evidence: "../l0/wiring/image-channels-ui.js:40",
+    evidence: "../tooling/l0/wiring/image-channels-ui.js:40",
   },
   {
     // The only slot that returns null instead of falling back when missing.
@@ -238,7 +238,7 @@ export const SLOT_SPECS: readonly SlotSpec[] = [
     fallbacks: [],
     rootFallback: false,
     owner: "module",
-    evidence: "../l0/wiring/settings/70-images.js:10",
+    evidence: "../tooling/l0/wiring/settings/70-images.js:10",
   },
   {
     id: "setDevSlot",
@@ -247,7 +247,7 @@ export const SLOT_SPECS: readonly SlotSpec[] = [
     fallbacks: [],
     rootFallback: false,
     owner: "module",
-    evidence: "../l0/wiring/dev.js:738",
+    evidence: "../tooling/l0/wiring/dev.js:738",
   },
   {
     id: "setCostSlot",
@@ -256,7 +256,7 @@ export const SLOT_SPECS: readonly SlotSpec[] = [
     fallbacks: [],
     rootFallback: false,
     owner: "module",
-    evidence: "../l0/wiring/cost-log.js:44",
+    evidence: "../tooling/l0/wiring/cost-log.js:44",
   },
   {
     // Mount logic lives in index.html's inline scripts; mobile falls back to #mobileTabPanel-agent.
@@ -369,7 +369,7 @@ export const INDEX_INLINE_SCRIPTS: readonly InlineScriptSpec[] = [
     observes: [],
     positionSensitive: false,
     externalizable: true, externalizedAs: "services/ui/version-painter.js",
-    note: "2026-11-17 服务层搬迁：源=services/ui/version-painter.ts，接线 l0/wiring；只读顶栏节点，均在 boot 之前",
+    note: "2026-11-17 服务层搬迁：源=services/ui/version-painter.ts，接线 tooling/l0/wiring；只读顶栏节点，均在 boot 之前",
   },
   {
     id: "inline-4",
@@ -380,7 +380,7 @@ export const INDEX_INLINE_SCRIPTS: readonly InlineScriptSpec[] = [
     observes: [],
     positionSensitive: false,
     externalizable: true, externalizedAs: "services/ui/settings-footer-keeper.js",
-    note: "2026-11-17 服务层搬迁：源=services/ui/settings-footer-keeper.ts，接线在 l0/wiring；触碰节点 settings/settingsFooter/settingsBtn 均在 boot 之前",
+    note: "2026-11-17 服务层搬迁：源=services/ui/settings-footer-keeper.ts，接线在 tooling/l0/wiring；触碰节点 settings/settingsFooter/settingsBtn 均在 boot 之前",
   },
   {
     id: "inline-5",
@@ -402,7 +402,7 @@ export const INDEX_INLINE_SCRIPTS: readonly InlineScriptSpec[] = [
     observes: [],
     positionSensitive: false,
     externalizable: true, externalizedAs: "services/ui/left-sidebar-toggle.js",
-    note: "2026-11-17 服务层搬迁：源=services/ui/left-sidebar-toggle.ts，接线 l0/wiring；触碰节点 962–1078，均在 boot 之前",
+    note: "2026-11-17 服务层搬迁：源=services/ui/left-sidebar-toggle.ts，接线 tooling/l0/wiring；触碰节点 962–1078，均在 boot 之前",
   },
   {
     id: "inline-7",
@@ -467,7 +467,7 @@ export const INDEX_INLINE_SCRIPTS: readonly InlineScriptSpec[] = [
     observes: [],
     positionSensitive: false,
     externalizable: true, externalizedAs: "services/ui/android-mark.js",
-    note: "2026-11-17 服务层搬迁：源=services/ui/android-mark.ts，接线 l0/wiring；只写 documentElement，位置无关",
+    note: "2026-11-17 服务层搬迁：源=services/ui/android-mark.ts，接线 tooling/l0/wiring；只写 documentElement，位置无关",
   },
   {
     id: "inline-14",
@@ -500,7 +500,7 @@ export const INDEX_INLINE_SCRIPTS: readonly InlineScriptSpec[] = [
     observes: ["settingsImageSlot"],
     positionSensitive: false,
     externalizable: true, externalizedAs: "services/ui/settings-orphan-observer.js",
-    note: "2026-11-17 服务层搬迁：源=services/ui/settings-orphan-observer.ts，接线 l0/wiring；观察器须在业务模块挂卡之前就位（boot 清单头部段不变）；SKIP_IDS 里的 settingsFooter 与 footer-keeper 的搬移目标相扣，两件锁互为护栏",
+    note: "2026-11-17 服务层搬迁：源=services/ui/settings-orphan-observer.ts，接线 tooling/l0/wiring；观察器须在业务模块挂卡之前就位（boot 清单头部段不变）；SKIP_IDS 里的 settingsFooter 与 footer-keeper 的搬移目标相扣，两件锁互为护栏",
   },
   {
     id: "inline-17",

@@ -12,8 +12,8 @@ WORKDIR /app
 # through the environment; nothing is written outside /data at runtime.
 COPY . .
 
-RUN node scripts/gen-prompts.mjs \
- && node l0/build.mjs --write \
+RUN node tooling/scripts/gen-prompts.mjs \
+ && node tooling/l0/build.mjs --write \
  && mkdir -p /data
 
 ENV NODE_ENV=production \

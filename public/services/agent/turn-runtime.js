@@ -225,7 +225,7 @@ function createTurnRuntime(host                              )                 {
   };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/agent/turn-runtime.ts; this file is
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/agent/turn-runtime.ts; this file is
 // the frozen global name and nothing else.
 //
 // The name and the `v === 1` guard are load-bearing: app.js calls create() at the top of its file, and

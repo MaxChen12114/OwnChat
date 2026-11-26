@@ -10,7 +10,7 @@
  * expansion re-fetches it on every send. This keeps the 2MB localStorage session slot from being
  * overflowed by a single paste, which used to evict the oldest messages (= real data loss).
  *
- * The wiring (browser adapter appended by l0/emit.mjs) owns the storage backends, DOM rendering,
+ * The wiring (browser adapter appended by tooling/l0/emit.mjs) owns the storage backends, DOM rendering,
  * the lightbox gestures and the frozen attach facade; everything here is pure and vm-testable.
  * @module services/ui/attachments
  */
@@ -472,7 +472,7 @@ function createAttachmentsCore(host                )             {
   };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/attachments.ts owns the pending
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/attachments.ts owns the pending
 // state machine, metadata shaping, token estimation and the request-assembly expansion; this file
 // owns the attachment storage adapters (the unified SQLite `attachments` table reached through
 // window.dbSvc, with the legacy IndexedDB database as the one-time import source and fallback), the

@@ -41,7 +41,7 @@ function createEscape()            {
   return { esc: esc };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // The implementation lives in lib/escape.ts (pure string work; moved out of core/ in the 2026-11-28
 // boundary split). No ports: the escaper is pure string work.
 (function (g) {

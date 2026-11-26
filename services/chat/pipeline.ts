@@ -6,7 +6,7 @@
  * diffs each step and catches failures so a broken stage cannot take the whole trace down.
  *
  * Dependencies arrive through {@link PipelinePorts}. The old code captured the two bridge objects
- * at load time, so l0/wiring/pipeline.js captures them once at the top of its IIFE and passes them
+ * at load time, so tooling/l0/wiring/pipeline.js captures them once at the top of its IIFE and passes them
  * in, instead of looking them up per call.
  *
  * Equivalence: test/chat-migration-equiv.test.mjs runs the old JS and this product side by side,

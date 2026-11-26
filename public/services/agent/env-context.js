@@ -284,7 +284,7 @@ function createEnvContext(env               )                {
   return { build: build, loadOrderCheck: loadOrderCheck, snapshotText: snapshotText, defineTools: defineTools };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // The implementation moved to services/agent/env-context.ts. Ports are the global reader plus the four
 // platform probes it inspects (navigator / screen / location / fetch) and Storage.prototype.setItem,
 // which the sync module is expected to have wrapped.

@@ -30,7 +30,7 @@
  *     wanted/ready/loading/failed state machine.
  *
  * Zero `as`, zero `any`: database rows are narrowed at the port boundary by {@link toMemRow}.
- * Equivalence locks: scripts/test-memory-core.mjs (isolation properties) and test/memory-sql.test.mjs
+ * Equivalence locks: tooling/scripts/test-memory-core.mjs (isolation properties) and test/memory-sql.test.mjs
  * (the storage base).
  * @module services/memory/core
  */
@@ -38,7 +38,7 @@
                                                    
                                              
 
-// Separate emit product, bridged on `window.dbSearchSql` by l0/wiring/db-search.js (boot order puts
+// Separate emit product, bridged on `window.dbSearchSql` by tooling/l0/wiring/db-search.js (boot order puts
 // it at #16, well before memory). Declared rather than imported because the emit channel carries
 // import-free sources only; the SQL text, scope validation and limit clamps stay in that one place.
                                 
@@ -710,7 +710,7 @@ function createMemCore(ports             )               {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 //
 // Engine: services/memory/core.ts. Three things cannot live in a service and live here:
 //   1) the SQL port — the `db` service `window.dbSvc` provides (T2), resolved per call so a host

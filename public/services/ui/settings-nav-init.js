@@ -36,7 +36,7 @@ function sniInitialCat(
   return sniShouldRestore(saved, cats) ? String(saved) : sniFirstVisible(items);
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/settings-nav-init.ts
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/settings-nav-init.ts
 // (category hit, visible default and restore decision); this file owns DOM toggling,
 // scroll reset and the listeners.
 (function(){

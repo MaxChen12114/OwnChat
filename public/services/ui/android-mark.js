@@ -60,7 +60,7 @@ function createAndroidMark(ports                  )                 {
   return { run: run, auto: auto };
 }
 
-// Browser wiring (injected by l0/emit.mjs): storage, classes and the three rebind events;
+// Browser wiring (injected by tooling/l0/emit.mjs): storage, classes and the three rebind events;
 // no frozen contract, the old inline script was an anonymous IIFE with no window surface.
 (function () {
   var api = createAndroidMark({

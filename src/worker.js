@@ -36,7 +36,7 @@ import { dataExec, dataTx, dataSearch } from "./data-api.js";
 //   · assemble.js 唯一装配入口: 层顺序 + 分隔符拼接
 //   身份铁则 / 尺度 / 开发者三层已于 2026-10-05 删除。
 //   两套提示词注册表: 解锁 → src/prompts/bases/(解限底座,红线一字不改),
-//                     锁定 → src/prompts/neutrals/(基础行为准则);均由 scripts/gen-prompts.mjs 生成。
+//                     锁定 → src/prompts/neutrals/(基础行为准则);均由 tooling/scripts/gen-prompts.mjs 生成。
 
 // ────────────────────────────
 // 鉴权 + 云同步

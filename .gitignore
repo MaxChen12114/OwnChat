@@ -21,7 +21,7 @@ build/
 .cache/
 
 # 两份提示词注册表：源 = src/prompts/bases/ 与 src/prompts/neutrals/ 下的 .md/.txt，
-# 由 scripts/gen-prompts.mjs 生成（wrangler dev/deploy 前自动跑）。
+# 由 tooling/scripts/gen-prompts.mjs 生成（wrangler dev/deploy 前自动跑）。
 # 不提交 —— 避免与文本源并存两份事实源而漂移。
 src/prompts/bases/unlocked/index.js
 src/prompts/bases/locked/index.js
@@ -49,7 +49,7 @@ ownchat.key
 *.key
 *.key.pub
 
-# 2026-11-09：向量模型（43MB 二进制）不进仓库 —— 用 scripts/fetch-model.mjs 拉到本地。
+# 2026-11-09：向量模型（43MB 二进制）不进仓库 —— 用 tooling/scripts/fetch-model.mjs 拉到本地。
 public/models/
 .tmp-fetch-model/
 

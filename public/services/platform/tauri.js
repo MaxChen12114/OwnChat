@@ -5,7 +5,7 @@
  * `__TAURI__` / `__TAURI_INTERNALS__` / `__TAURI_METADATA__` are injected by the desktop shell, not
  * by this repo: they cannot be renamed, and every direct dot-read spread across the wiring kept them
  * in the contract ledger forever. This module reads them through a parameterised window view, and
- * `l0/wiring/tauri.js` publishes one plain service global. Consumers never touch the shell names.
+ * `tooling/l0/wiring/tauri.js` publishes one plain service global. Consumers never touch the shell names.
  *
  * Boundary: shapes only over an `unknown` window; a hostile getter returns "no shell" instead of
  * throwing during boot (the old inline probes were individually try/catch'd for the same reason).
@@ -76,7 +76,7 @@ function shellListen(win         )                                              
   };
 }
 
-// Browser wiring, appended by l0/emit.mjs. Engine: services/platform/tauri.ts (presence bits,
+// Browser wiring, appended by tooling/l0/emit.mjs. Engine: services/platform/tauri.ts (presence bits,
 // bound invoke and event listener over an unknown window). This file is the only place allowed to
 // hold the shell global; consumers use `tauriSvc` and never name `__TAURI__` themselves.
 //

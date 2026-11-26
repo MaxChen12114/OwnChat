@@ -1058,7 +1058,7 @@ function createBackupService(ports             )            {
   return { v: 1, exportAll: exportAll, importAll: importAll, snapshot: snapshot };
 }
 
-// Browser wiring, appended by l0/emit.mjs. Engine: services/data/backup.ts (ZIP export/import over
+// Browser wiring, appended by tooling/l0/emit.mjs. Engine: services/data/backup.ts (ZIP export/import over
 // the unified SQLite store). This file owns the two platform exits, the settings card and the
 // frozen facade.
 //
@@ -1077,7 +1077,7 @@ function createBackupService(ports             )            {
   "use strict";
   if (g.backupSvc) return;
 
-  // Catalog access (see l0/wiring/i18n.js). Card copy and statuses are addressed by key; the text
+  // Catalog access (see tooling/l0/wiring/i18n.js). Card copy and statuses are addressed by key; the text
   // lives in public/locales/<lang>.json so this file carries no translatable prose.
   function T(key, params) {
     try { return g.__i18n.t(key, params); } catch (e) { return key; }

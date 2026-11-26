@@ -604,7 +604,7 @@ function createAgentTurn(ports                , args                     ) {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 // Every module bridge is resolved per call, never captured: the kernel, events, console and
 // character memory are globals assembled earlier in boot and can still be missing here. The
 // `__context` instance (which closes over the app) and the permission-card policy arrive through

@@ -113,7 +113,7 @@ function createSourceTools(env           )                 {
   function down(extra          )         {
     return (
       "源码服务不可达（" + base() + "）。\n" +
-      "启动：node scripts/dev/source-server.mjs [--root <目录>] [--artifacts <产物目录>]\n" +
+      "启动：node tooling/scripts/dev/source-server.mjs [--root <目录>] [--artifacts <产物目录>]\n" +
       '（地址可在 设置→高级→开发工具 或 localStorage["' + SOURCE_URL_KEY + '"] 修改）' +
       (extra ? "\n原始错误：" + text(extra) : "")
     );
@@ -343,7 +343,7 @@ function createSourceTools(env           )                 {
   };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // The implementation moved to services/agent/source-tools.ts. Ports are storage, the page hostname (for
 // the loopback default) and fetch. The frozen surface keeps the four members plus `_keys` that the
 // settings card reads.

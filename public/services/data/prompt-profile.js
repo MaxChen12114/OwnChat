@@ -358,7 +358,7 @@ function createPromptProfile(ports                    )                   {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract names
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract names
 // (both `__promptProfile` and `__charCaps`). The implementation lives in
 // services/data/prompt-profile.ts, so every window bridge, every `document` lookup and the
 // alert/prompt dialogs are here — the old code inlined them inside `create()`.

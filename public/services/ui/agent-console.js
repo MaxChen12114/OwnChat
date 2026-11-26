@@ -182,7 +182,7 @@ function eventPlan(ev         )                          {
 }
 
 /**
- * l0/wiring/agent-console.js — browser wiring for services/ui/agent-console.ts
+ * tooling/l0/wiring/agent-console.js — browser wiring for services/ui/agent-console.ts
  *
  * The console is a dev-only panel: a status header, a tool timeline and inline permission cards.
  * Event-to-status decisions, formatting, the compat permission signature and the write_file card

@@ -5,7 +5,7 @@
  *
  * Storage, change notification, clock and randomness arrive through {@link LorebookPorts};
  * this module touches no `window`, `localStorage` or `document`. The browser adapter and the
- * frozen `lorebookSvc` name live in l0/wiring/lorebook.js.
+ * frozen `lorebookSvc` name live in tooling/l0/wiring/lorebook.js.
  *
  * Entries live in localStorage rather than IndexedDB: the payload is small text, and LS is what
  * sync.js already dumps into the cloud KV, so "same lorebook on another device" comes for free
@@ -436,7 +436,7 @@ function createLorebook(ports               )              {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 // The implementation lives in services/data/lorebook.ts; every window bridge is here — the
 // localStorage trio, change-event dispatch, and the clock / random source for uid generation.
 // The old module reached for localStorage and dispatchEvent inline; the service now takes them as

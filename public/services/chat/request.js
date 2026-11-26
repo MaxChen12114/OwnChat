@@ -160,7 +160,7 @@ function agentBody(s                                      , ports              )
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 // The implementation lives in services/chat/request.ts. `replyStyle` used to read localStorage
 // inline with a try/catch falling back to "default"; that read now lives here as a port, still
 // resolved per call rather than captured.

@@ -354,7 +354,7 @@ function createChannels(ports               )           {
   };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/channels.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/channels.ts; this file owns the
 // frozen global name, the three localStorage keys and the wall clock.
 //
 // Must load before image-common: that module reads the active channel while it initialises, so a

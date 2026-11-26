@@ -167,7 +167,7 @@ function sbIsToggleKey(key        )          {
   return key === "Enter" || key === " ";
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/sidebar-groups.ts; this file owns
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/sidebar-groups.ts; this file owns
 // the DOM: the nav scan, the wrapper nodes, the stylesheet, the delegated listeners, the childList
 // observer and localStorage.
 //

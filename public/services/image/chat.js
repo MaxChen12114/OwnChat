@@ -281,7 +281,7 @@ function createChatImage(ports                )            {
   };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/chat.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/chat.ts; this file owns the
 // frozen global name and the one load-order dependency on the shared image pipeline.
 //
 // The pipeline module is captured once, exactly as the classic script did: everything below it in

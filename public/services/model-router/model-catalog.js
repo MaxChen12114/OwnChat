@@ -10,7 +10,7 @@
  *
  * `create(host)` keeps the historical host contract (`getMode` / `refreshModels` / `toast` /
  * `lsModelKey`) so call sites in app.js stay untouched; the browser adapter and the frozen global
- * live in l0/wiring/model-catalog.js.
+ * live in tooling/l0/wiring/model-catalog.js.
  * @module services/model-router/model-catalog
  */
 
@@ -301,7 +301,7 @@ function createModelCatalog(ports                   , host                      
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 // The implementation lives in services/model-router/model-catalog.ts. Every window bridge is
 // resolved per call (APP_* / providersSvc / authSvc / __openSettingsCat), exactly as the old code
 // read them.

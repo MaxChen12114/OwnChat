@@ -40,7 +40,7 @@ function createNodePort(options          )         {
   return createHttpDbPort({ base: base, token: token });
 }
 
-// Browser wiring, appended by l0/emit.mjs. Engine: services/platform/db-node.ts.
+// Browser wiring, appended by tooling/l0/emit.mjs. Engine: services/platform/db-node.ts.
 //
 // Registers the sidecar adapter. It is never boot-selected: a page cannot know whether a sidecar
 // exists without probing, and a failed probe must not read as "this deployment has no storage".

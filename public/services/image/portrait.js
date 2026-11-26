@@ -218,7 +218,7 @@ function createPortrait(ports               )           {
   };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/portrait.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/portrait.ts; this file owns the
 // frozen global name, the localStorage key, the style change event and the two image-module calls.
 //
 // The generation fallback (direct provider call when the workshop module is absent) lives here on

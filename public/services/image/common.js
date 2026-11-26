@@ -330,7 +330,7 @@ function preferSmaller(candidate        , original        )         {
   return candidate && candidate.length < original.length ? candidate : original;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/common.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/common.ts; this file owns the
 // frozen global name, every network call, the canvas/FileReader work and the base-image storage.
 //
 // Load order matters: this must run before image-chat / image-quickgen / image-embed, because all

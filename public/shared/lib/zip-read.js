@@ -19,7 +19,7 @@
  * are the standard globals (`TextDecoder` / `DecompressionStream` / `Blob` / `Response`), which is
  * what keeps the same source valid in the page, a Tauri webview and a Node test realm.
  *
- * Lock: `scripts/test-zip-read.mjs` (12 checks, self-built fixtures, no third-party ZIP writer).
+ * Lock: `tooling/scripts/test-zip-read.mjs` (12 checks, self-built fixtures, no third-party ZIP writer).
  * @module lib/zip-read
  */
 
@@ -262,7 +262,7 @@ function createZipRead()             {
   return { readZip: readZip, _limits: ZIP_DEFAULTS };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // The implementation lives in lib/zip-read.ts (pure bytes in, bytes out; moved out of core/ in the
 // 2026-11-28 boundary split). No ports: the reader uses only platform
 // globals (TextDecoder / DecompressionStream / Blob / Response), and a host missing the decompressor

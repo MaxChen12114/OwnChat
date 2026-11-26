@@ -202,7 +202,7 @@ function createAppMode(host                          ) {
   };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/conv/app-mode.ts; this file only carries
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/conv/app-mode.ts; this file only carries
 // the frozen global surface (create plus the two pure helpers the tests and callers import).
 (function (global) {
   "use strict";

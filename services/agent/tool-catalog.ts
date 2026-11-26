@@ -6,7 +6,7 @@
  * actually needs one, which is what keeps prompt cost flat as the tool set grows.
  *
  * Relation to the old `public/shared/agent/tool-catalog.js`: the same implementation, in another
- * language. That file was a classic script whose only consumers were `l0/tools-manifest.mjs` (which
+ * language. That file was a classic script whose only consumers were `tooling/l0/tools-manifest.mjs` (which
  * evaluated its source text at build time to get `build()` for the manifest's classification fields)
  * and two tests — nothing loaded it at runtime. Hence no wiring and no boot entry: a pure module read
  * at build time, and the `__toolCatalog` global is gone with it.

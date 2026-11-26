@@ -61,7 +61,7 @@ function mtTabPlan(
   return view;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/mobile-tabs.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/mobile-tabs.ts; this file owns the
 // DOM: the two querySelectorAll passes, the click listeners, and writing the plan back. Nothing
 // outside this file calls the engine, so it publishes no global — the strip's only contract is the
 // DOM it already owns.

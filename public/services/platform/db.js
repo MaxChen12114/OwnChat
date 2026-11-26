@@ -25,7 +25,7 @@
                                                          
 
 // The kernel is a separate emit product; declaring the bridge keeps this module import-free like
-// every other service source. `runtimeCore` is published by `l0/wiring/runtime.js`.
+// every other service source. `runtimeCore` is published by `tooling/l0/wiring/runtime.js`.
                             
                                                                             
   
@@ -161,7 +161,7 @@ function createDbFacade(options                 )           {
   return facade;
 }
 
-// Browser wiring, appended by l0/emit.mjs. Engine: services/platform/db.ts (the DbPort facade).
+// Browser wiring, appended by tooling/l0/emit.mjs. Engine: services/platform/db.ts (the DbPort facade).
 //
 // Public API: window.dbSvc = { v, context, register, use, get, adapter, exec, tx, search }.
 // `context` is the root runtime context that holds the `db` service — T4-A injects from it instead

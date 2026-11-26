@@ -14,7 +14,7 @@
  * active tab"), which is why the old single-canvas call pattern still works.
  *
  * This file touches no `window`, `document` or `localStorage`; the facade lookup and the
- * `__stageTools` bridge live in l0/wiring/stage-tools.js.
+ * `__stageTools` bridge live in tooling/l0/wiring/stage-tools.js.
  * @module services/ui/stage-tools
  */
 
@@ -326,7 +326,7 @@ function createStageTools(ports            ) {
   return { defineTools };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // Content-canvas tools: the five tool texts and every result wording live in
 // services/ui/stage-tools.ts, so this file owns only the facade lookup. The panel is probed on
 // every call rather than snapshotted at load, because it mounts after boot on desktop and never on

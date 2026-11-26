@@ -105,7 +105,7 @@ function rsToggleTarget(hasConsole         )                {
   return hasConsole ? RS_FISHBOWL_TAB : null;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/right-sidebar-tabs.ts; this file
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/right-sidebar-tabs.ts; this file
 // owns the DOM and the three automatic switches (boot pass, console mount, topbar button). No
 // global is published: the strip's contract is the DOM, and the old implicit `agentConsoleSlot`
 // global was never read (its apparent consumer resolves the slot itself).

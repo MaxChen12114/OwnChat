@@ -97,10 +97,10 @@ function maEnabled(profile        , modeRaw         , flagRaw         )         
 
 /* l0-wiring-part: opens the shared IIFE; parsed as part of public/services/tools/agent/tools.js */
 /**
- * l0/wiring/tools/00-core.js — tools 产品的外壳：IIFE、DOM 元素收窄助手。
+ * tooling/l0/wiring/tools/00-core.js — tools 产品的外壳：IIFE、DOM 元素收窄助手。
  *
  * 2026-11-26 拆件：原 682 行 tools.js 按工具域拆成 7 个 schema 片段 + 本外壳 + 宿主。
- * 所有片段仍由 l0/emit.mjs 按顺序拼进同一个产物，闭包共享，不新增任何全局。
+ * 所有片段仍由 tooling/l0/emit.mjs 按顺序拼进同一个产物，闭包共享，不新增任何全局。
  */
 (function (global) {
 	"use strict"
@@ -744,11 +744,11 @@ function defineVideoTools(ctx) {
 
 /* l0-wiring-part: closes the shared IIFE; parsed as part of public/services/tools/agent/tools.js */
 /**
- * l0/wiring/tools.js — browser wiring host for services/tools/agent/tools.ts
+ * tooling/l0/wiring/tools.js — browser wiring host for services/tools/agent/tools.ts
  *
- * 2026-11-26 拆件：schema 按域在 l0/wiring/tools/*.js（10-image / 20-character / 30-agent /
+ * 2026-11-26 拆件：schema 按域在 tooling/l0/wiring/tools/*.js（10-image / 20-character / 30-agent /
  * 40-data / 50-settings / 60-misc / 70-video）；本文件只保留实例装配、档位闸门、define()
- * 与调用顺序。所有片段由 l0/emit.mjs 按 WIRING_PARTS 顺序拼进同一产物，闭包共享，零新全局。
+ * 与调用顺序。所有片段由 tooling/l0/emit.mjs 按 WIRING_PARTS 顺序拼进同一产物，闭包共享，零新全局。
  */
 	function defineTools(registry, opts) {
 		opts = opts || {}

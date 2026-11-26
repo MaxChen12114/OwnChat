@@ -8,7 +8,7 @@
  *   4. end-of-turn bookkeeping (war exhaustion, burnout ceasefire, reputation decay).
  *
  * The parser (`intent`) and the per-action handlers (`actions`) are injected as values, not imported:
- * each service file stays independently loadable by `l0/load-service.mjs`, and the orchestrator keeps
+ * each service file stays independently loadable by `tooling/l0/load-service.mjs`, and the orchestrator keeps
  * only ordering, bookkeeping and the trace. Every random draw is inside a battle; the trace hash is a
  * canonical JSON digest of the whole engine state.
  *

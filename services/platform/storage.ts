@@ -22,7 +22,7 @@
  *
  * `createLocalStorageKv` is the web/no-shell sibling with the same interface and no queue (writes hit
  * localStorage immediately), so a call site can take one port type and run in both hosts. Neither
- * factory publishes a global: `l0/wiring/storage.js` owns the instance and the flush listeners.
+ * factory publishes a global: `tooling/l0/wiring/storage.js` owns the instance and the flush listeners.
  * @module services/platform/storage
  */
 

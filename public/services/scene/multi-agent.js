@@ -376,7 +376,7 @@ function clampRounds(raw         , fallback        )         {
   return Math.max(1, Math.min(1000, n));
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 // Scene membership, mode and name matching live in services/scene/multi-agent.ts. What stays here is
 // everything that needs the page: the topbar toggle, the console panel in the right-hand slot, the
 // peer roster in the agent panel, and the two events the rest of the app listens to.

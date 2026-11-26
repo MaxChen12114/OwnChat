@@ -15,7 +15,7 @@
 
 - **云构建（推荐）**：.github/workflows/tauri-build.yml，推 tag 或手动 dispatch；Windows 出 NSIS，
   安卓出 APK。构建前会把 Node 24 复制到 src-tauri/runtime/node/，再由 beforeBuildCommand 跑
-  node scripts/stage-host.mjs 生成 host/runtime/。
+  node tooling/scripts/stage-host.mjs 生成 host/runtime/。
 - **本地构建**：需要 Rust 与 Node 24+；在 src-tauri 下运行 cargo tauri build。本地不会自动内置
   Node 运行时，调试时走系统 PATH 的 node。
 

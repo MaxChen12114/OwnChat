@@ -161,7 +161,7 @@ function pacingReplyPlan                            (input
   return { cards: [first], speaker: first ?? input.activeCard, relay: true };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/pacing.ts (settings parsing, the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/pacing.ts (settings parsing, the
 // debounce timing, who answers in a group); this file owns the timers, the typing row and the host
 // ports.
 //

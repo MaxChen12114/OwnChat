@@ -175,7 +175,7 @@ function testRequest(ch         )                     {
   return { url: url, headers: headers };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/channels-ui.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/channels-ui.ts; this file owns the
 // card markup, the list/detail panes and the click wiring.
 //
 // Layout mirrors the chat channel card: channel list on the left, details on the right. The list is

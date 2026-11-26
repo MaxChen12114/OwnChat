@@ -14,7 +14,7 @@
  * document.
  *
  * Nothing here closes over the page: page-level state arrives through {@link PeerCaps} and browser
- * globals through {@link PeerEnv}, both supplied by `l0/wiring/agent-peer-calls.js`. The env handles
+ * globals through {@link PeerEnv}, both supplied by `tooling/l0/wiring/agent-peer-calls.js`. The env handles
  * are re-read on every call rather than captured at construction, because boot order is not fixed —
  * the agent kernel is an ESM module that lands after the classic scripts, and the memory core can be
  * attached later still. A handle captured at construction would be permanently null.
@@ -631,7 +631,7 @@ function createPeerCalls(caps          )               {
   };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // agent domain, seventh brick (2026-11-15): the implementation moved to services/agent/peer-calls.ts,
 // so every window access lives here — localStorage reads, the fetch exit, the AbortSignal
 // constructor, and the five page globals (card library, cards on stage, kernel, tool bundle, memory

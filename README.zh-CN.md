@@ -74,6 +74,19 @@ wrangler deploy
 
 > **访客模式**：不设 `CHAT_PASSWORD` 时，任何拿到网址的人都能使用你的部署（如果你配了服务端模型 Key，消耗的也是你的额度）。分享地址前请先设置密码；同一个密码也是应用内的登录密码。
 
+## 仓库结构
+
+| 目录 | 职责 |
+|---|---|
+| `public/` | 前端页面、工具页与运行时产物 |
+| `src/` | Cloudflare Worker：聊天、同步、数据面与部署 API |
+| `server/` | 本机 Node 宿主（桌面随包 / 自托管入口） |
+| `src-tauri/` | Tauri 2 桌面壳与打包配置 |
+| `core/ lib/ services/` | 架构分层：契约 / 纯算法 / 平台服务 |
+| `tooling/` | 构建与检查：`l0/` 生成器、`scripts/` 门禁、`bundles/` 工具清单、`boot.ts` |
+| `deploy/ migrations/` | Cloudflare / VPS 部署模板与统一 SQL schema |
+| `docs/` | 公开文档、截图与品牌素材 |
+
 ## 功能
 
 - **一个本地存储装下所有数据** —— 对话、角色卡、记忆、知识库、Agent 工作区、附件都在同一套 SQLite 里（部署后是 D1）。长对话会自动压缩，但原文仍在归档里，可随时用 `history_search` 回捞。

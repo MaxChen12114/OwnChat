@@ -385,7 +385,7 @@ function presence(story       , now         )                                {
   return out;
 }
 
-// Browser wiring (injected by l0/emit.mjs): none yet.
+// Browser wiring (injected by tooling/l0/emit.mjs): none yet.
 //
 // services/agent/story.ts is the pure Work/History model: trace records ->
 // agents, places and terminal lines. It is loaded from the boot manifest since

@@ -77,7 +77,7 @@ function siHtml(cls        , txt        )         {
   return '<span class="sync-dot ' + cls + '"></span><span class="sync-text">' + txt + '</span>';
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/sync-indicator.ts
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/sync-indicator.ts
 // (relative time, status classification and markup); this file owns the indicator
 // node, the status subscription, localStorage and the refresh schedule.
 (function(){

@@ -1,6 +1,6 @@
 {
   "date": "2026-11-26T01:32:34Z",
-  "scope": "public/** + scripts/** + src/** + test/** 下的 .js/.mjs/.cjs/.html",
+  "scope": "public/** + tooling/scripts/** + src/** + test/** 下的 .js/.mjs/.cjs/.html",
   "frozen": true,
   "total": 84,
   "names": {

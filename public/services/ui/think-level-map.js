@@ -51,7 +51,7 @@ function tlmShouldBadge(active         , effort        )          {
   return active && !!effort;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/think-level-map.ts
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/think-level-map.ts
 // (effort alias table, ordered fallbacks and the badge predicate); this file owns
 // the toggle attributes, localStorage and the MutationObserver.
 (function(){

@@ -120,7 +120,7 @@ function newestFirst(items             )              {
   return items.slice().sort((a, b) => b.ts - a.ts);
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/album.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/album.ts; this file owns the
 // IndexedDB store, the blob download, the fetch wrapper and the modal.
 //
 // Load order matters twice: this wrapper must be installed after image-cache (so a cache hit never

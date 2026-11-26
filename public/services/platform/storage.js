@@ -23,7 +23,7 @@
  *
  * `createLocalStorageKv` is the web/no-shell sibling with the same interface and no queue (writes hit
  * localStorage immediately), so a call site can take one port type and run in both hosts. Neither
- * factory publishes a global: `l0/wiring/storage.js` owns the instance and the flush listeners.
+ * factory publishes a global: `tooling/l0/wiring/storage.js` owns the instance and the flush listeners.
  * @module services/platform/storage
  */
 
@@ -382,7 +382,7 @@ function createLocalStorageKv(store                  , options            )     
   return api;
 }
 
-// Browser wiring, appended by l0/emit.mjs. Engine: services/platform/storage.ts (the hot-window KV).
+// Browser wiring, appended by tooling/l0/emit.mjs. Engine: services/platform/storage.ts (the hot-window KV).
 //
 // Public API: window.storageSvc = { v, adapter, kv, ready, status, flush, namespaces, flushAll,
 // dispose }. Non-`__` name on purpose: the frozen `window.__*` surface must not grow (check-contracts),

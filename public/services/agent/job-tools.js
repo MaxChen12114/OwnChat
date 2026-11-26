@@ -473,7 +473,7 @@ function createJobTools(env        )              {
   };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // The implementation moved to services/agent/job-tools.ts. Ports are storage (the config, which holds
 // the shared secret), fetch, the toast host, the `cfw:job` event and the content panel.
 (function (g) {

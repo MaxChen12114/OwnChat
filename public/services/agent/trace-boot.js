@@ -81,7 +81,7 @@ function createTraceBoot(ports                )               {
   return { install: install };
 }
 
-// Browser wiring (injected by l0/emit.mjs): window reads and the DOM-ready hand-off.
+// Browser wiring (injected by tooling/l0/emit.mjs): window reads and the DOM-ready hand-off.
 // Idempotence used to ride on a diagnostics global; the boot now relies on its own retry budget.
 (function () {
   "use strict";

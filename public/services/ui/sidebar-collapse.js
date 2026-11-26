@@ -38,7 +38,7 @@ function sbcButtonState(on         )                                      {
   };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/sidebar-collapse.ts
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/sidebar-collapse.ts
 // (stored flag, viewport override, toggle result and button state); this file owns
 // class toggling, animation and the event listeners.
 (function () {

@@ -190,7 +190,7 @@ function replayTurn(handle                     , rounds         )         {
   return played;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/agent/steps.ts (brief line, step and
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/agent/steps.ts (brief line, step and
 // panel states, the summary text, the replay dispatch); this file owns the CSS, the DOM builders, the
 // anchor placement and the live controller.
 //

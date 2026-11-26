@@ -5,8 +5,8 @@
   "identifier": "app.ownchat.desktop",
   "build": {
     "frontendDist": "host/runtime/public",
-    "beforeDevCommand": "node scripts/stage-host.mjs",
-    "beforeBuildCommand": "node scripts/stage-host.mjs"
+    "beforeDevCommand": "node -e \"const fs=require('fs'),cp=require('child_process');const p=fs.existsSync('src-tauri/tauri.conf.json')?'tooling/stage-host.mjs':'../tooling/stage-host.mjs';const r=cp.spawnSync(process.execPath,[p],{stdio:'inherit'});process.exit(r.status||0)\"",
+    "beforeBuildCommand": "node -e \"const fs=require('fs'),cp=require('child_process');const p=fs.existsSync('src-tauri/tauri.conf.json')?'tooling/stage-host.mjs':'../tooling/stage-host.mjs';const r=cp.spawnSync(process.execPath,[p],{stdio:'inherit'});process.exit(r.status||0)\""
   },
   "app": {
     "withGlobalTauri": true,

@@ -146,7 +146,7 @@ function createExpressions(ports                 )              {
   return { generate, generateAll, list: EXPRESSION_PRESETS };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/expressions.ts; this file owns
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/expressions.ts; this file owns
 // the chat-image edit call, the thumbnail strip and the settings card (that UI has no other
 // consumer, so it ships with the adapter). The frozen global is retired; the engine is a factory.
 (function () {

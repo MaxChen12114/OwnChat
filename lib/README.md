@@ -51,8 +51,8 @@ services/**  ──值──▶  lib/**  ──仅 import type──▶  core/**
 | `core/escape.ts` | `public/shared/core/escape.js` · `/shared/core/escape.js`（boot） | `public/shared/lib/escape.js` · `/shared/lib/escape.js`（boot） |
 | `core/db-search.ts` | `public/shared/core/db-search.js` · `/shared/core/db-search.js`（boot） | `public/shared/lib/db-search.js` · `/shared/lib/db-search.js`（boot） |
 
-接线文件不动位置：`l0/wiring/{zip-read,zip-write,escape,db-search}.js` 仍是这四件唯一的 browser
-接线，登记表从 `l0/emit.mjs` 的 `CORE_WIRINGS` 挪到 `LIB_WIRINGS`（同一个发射器、同一个 IIFE
+接线文件不动位置：`tooling/l0/wiring/{zip-read,zip-write,escape,db-search}.js` 仍是这四件唯一的 browser
+接线，登记表从 `tooling/l0/emit.mjs` 的 `CORE_WIRINGS` 挪到 `LIB_WIRINGS`（同一个发射器、同一个 IIFE
 包裹、同样的字节比对兜底），产物根从 `public/shared/core/` 换成 `public/shared/lib/`。
 
 ## 例外：`core/db.ts` 为什么留在这里
@@ -67,23 +67,23 @@ seam」这件事说反。同理，`runtime.ts` / `runtime-manifest.ts` / `slot-r
 
 `core/i18n.ts` 正在被另一个代理迁到 `lib/i18n.ts`，本次边界施工**没有动它**。它落地时要做的事：
 
-1. `l0/emit.mjs`：把 `"core/i18n.ts": "l0/wiring/i18n.js"` 从 `CORE_WIRINGS` 挪到 `LIB_WIRINGS`；
-2. `l0/scripts.json`：boot 路径 `/shared/core/i18n.js` → `/shared/lib/i18n.js`（`w` 注解同步）；
-3. `l0/wiring/i18n.js` + `l0/wiring/settings/10-appearance.js` 的注释；
-4. `scripts/check-structure.mjs` 第 3 段的字典路径检查读的是 `public/shared/core/i18n.js`，
+1. `tooling/l0/emit.mjs`：把 `"core/i18n.ts": "tooling/l0/wiring/i18n.js"` 从 `CORE_WIRINGS` 挪到 `LIB_WIRINGS`；
+2. `tooling/l0/scripts.json`：boot 路径 `/shared/core/i18n.js` → `/shared/lib/i18n.js`（`w` 注解同步）；
+3. `tooling/l0/wiring/i18n.js` + `tooling/l0/wiring/settings/10-appearance.js` 的注释；
+4. `tooling/scripts/check-structure.mjs` 第 3 段的字典路径检查读的是 `public/shared/core/i18n.js`，
    要改指 `public/shared/lib/i18n.js`；字典本体 `/shared/core/i18n-dict.js` 是懒加载的数据文件，
    **不随引擎迁移**，`check-i18n.mjs` / `.i18n-baseline.json` 的 `dictPath` 保持不动；
-5. 改了引擎内容后跑 `node l0/emit.mjs --write` 与 `node l0/build.mjs --write`。
+5. 改了引擎内容后跑 `node tooling/l0/emit.mjs --write` 与 `node tooling/l0/build.mjs --write`。
 
-`lib/README.md` 与 `l0/emit.mjs` 的 `LIB_WIRINGS` 注释都按「i18n 会进来」写好，但**没有**提前登记
+`lib/README.md` 与 `tooling/l0/emit.mjs` 的 `LIB_WIRINGS` 注释都按「i18n 会进来」写好，但**没有**提前登记
 不存在的源 —— 登记表必须指向真实文件，否则 `--check` 直接红。
 
 ## 新增一个 `lib/` 文件的工序
 
 1. 写 `lib/<name>.ts`：纯算法，零 IO，文件头写清输入输出与「为什么不是 core / services」；
-2. 写 `l0/wiring/<name>.js`（浏览器接线，挂既有名字或明确的非 `__` 名字）；
-3. `l0/emit.mjs` 的 `LIB_WIRINGS` 加一行（产物自动落 `public/shared/lib/`）；
-4. 要在 boot 加载就进 `l0/scripts.json`，按需加载就不进（ZIP 两件就是按需）；
-5. 门禁：`scripts/check-syntax.mjs` / `scripts/check-contracts.mjs` / `tooling/typecheck/tsconfig.json`
+2. 写 `tooling/l0/wiring/<name>.js`（浏览器接线，挂既有名字或明确的非 `__` 名字）；
+3. `tooling/l0/emit.mjs` 的 `LIB_WIRINGS` 加一行（产物自动落 `public/shared/lib/`）；
+4. 要在 boot 加载就进 `tooling/l0/scripts.json`，按需加载就不进（ZIP 两件就是按需）；
+5. 门禁：`tooling/scripts/check-syntax.mjs` / `tooling/scripts/check-contracts.mjs` / `tooling/typecheck/tsconfig.json`
    都已包含 `lib/`；测试锚点指产物 `public/shared/lib/<name>.js`；
-6. `node l0/emit.mjs --write && node l0/build.mjs --write`，再跑全量 `run-regression`。
+6. `node tooling/l0/emit.mjs --write && node tooling/l0/build.mjs --write`，再跑全量 `run-regression`。

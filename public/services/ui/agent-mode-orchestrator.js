@@ -69,7 +69,7 @@ function amStartupPlan(isOn         )                                           
   return { syncClass: isOn, delayedMount: isOn };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/agent-mode-orchestrator.ts
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/agent-mode-orchestrator.ts
 // (mode flag, button state, console health, target container, external settings and startup
 // decisions); this file owns DOM lookup, mounting, events and the console global.
 //

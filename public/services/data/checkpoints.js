@@ -372,7 +372,7 @@ async function applyRoleplay(payload         , host              )              
   }
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the checkpoint store to `window.__checkpoints` ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the checkpoint store to `window.__checkpoints` ──
 // Generic checkpoint storage in its own IndexedDB (`cfw_checkpoints_v1`: checkpoints + blobs), the
 // SHA-256 digest, and the live roleplay host. `work` and `sandbox` adapters land separately; they
 // share the same store and blob table, not their domain tables.

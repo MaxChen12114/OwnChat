@@ -9,7 +9,7 @@
  * @module services/ui/tools-pages
  */
 
-/** One catalog record, as emitted by `l0/build.mjs` from `public/tools/<id>/tool.json`. */
+/** One catalog record, as emitted by `tooling/l0/build.mjs` from `public/tools/<id>/tool.json`. */
                                  
                
                   

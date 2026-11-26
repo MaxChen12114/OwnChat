@@ -7,7 +7,7 @@
  * random, IndexedDB, the DOM event bus, page reload, file save and the seven sibling modules this
  * engine reads or nudges (provider merge, provider registry, cost UI, the realtime channel, the
  * character-card merge, the character store and the desktop shell). This file touches no `window`,
- * `document`, `fetch` or `indexedDB`; l0/wiring/sync.js is the adapter.
+ * `document`, `fetch` or `indexedDB`; tooling/l0/wiring/sync.js is the adapter.
  *
  * Why five channels instead of one blob is the architecture decision worth knowing: a single
  * last-writer-wins blob over the whole database loses data whenever two devices write in the same

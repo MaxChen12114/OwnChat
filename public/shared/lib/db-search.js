@@ -153,7 +153,7 @@ function buildSearchQuery(
   };
 }
 
-// Browser wiring, appended by l0/emit.mjs. Engine: lib/db-search.ts (surface + scope + q → SQL; pure
+// Browser wiring, appended by tooling/l0/emit.mjs. Engine: lib/db-search.ts (surface + scope + q → SQL; pure
 // string building, moved out of core/ in the 2026-11-28 boundary split).
 //
 // Public API: window.dbSearchSql = { v, SEARCH_SURFACES, limits, buildSearchQuery, likePattern,

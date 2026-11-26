@@ -5,7 +5,7 @@
  * Fixed mode is a symmetric 240 px column with two text tabs (activity / status). Expanded mode is a
  * resizable 240–1200 px column whose body is the tabbed content canvas; activity and status are
  * temporary overlays you step back out of. Nothing here draws anything: which section is visible, how
- * the bar lays itself out and where the panes live are all `l0/wiring/panel-host.js`.
+ * the bar lays itself out and where the panes live are all `tooling/l0/wiring/panel-host.js`.
  *
  * Two rules that are easy to get wrong and are therefore pure functions here:
  *   · `view` is **not** persisted. The expanded panel always comes back to the canvas; restoring the
@@ -153,7 +153,7 @@ function callTimeoutMs(raw         )         {
   return Math.max(1000, Math.min(120000, parseInt(text(raw), 10) || 15000));
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // The right-column tab host. Every decision about *which* tabs exist, what they mount and what
 // survives a reload lives in services/panel/tab-state.ts; the mode/view machine lives in
 // services/panel/panel-host.ts. This file owns only the DOM: the bar, the tab strip, the "+" menu,

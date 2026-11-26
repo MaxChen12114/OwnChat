@@ -158,7 +158,7 @@ function apWrapReason(reason        , aborted         )         {
   return reason || (aborted ? "aborted" : "");
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/agent/autopilot.ts
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/agent/autopilot.ts
 // (mode gate, director prompt, exclusivity snapshot, caps and pacing); this file owns
 // localStorage, the send loop, TTS gating, choice chips and the frozen global facade.
 //

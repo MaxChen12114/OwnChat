@@ -79,10 +79,10 @@ function syncedCheckboxChecked(raw         )          {
 
 /* l0-wiring-part: opens the shared IIFE; parsed as part of public/services/ui/settings.js */
 /**
- * l0/wiring/settings/00-core.js — settings 产品的共享外壳。
+ * tooling/l0/wiring/settings/00-core.js — settings 产品的共享外壳。
  *
  * 2026-11-26 拆件：原 2553 行 settings.js 按域拆成 7 个函数片段 + 本外壳 + 宿主。
- * 所有片段由 l0/emit.mjs 按 WIRING_PARTS 顺序拼进同一个 IIFE；函数声明整体提升，
+ * 所有片段由 tooling/l0/emit.mjs 按 WIRING_PARTS 顺序拼进同一个 IIFE；函数声明整体提升，
  * 片段顺序不参与运行语义，宿主只负责 init 与收口。
  */
 (() => {
@@ -350,7 +350,7 @@ function syncedCheckboxChecked(raw         )          {
   // ─── §外观. 界面语言（2026-10-07 新增，双语插件）───
   // 双语是「插件脚本」实现：/shared/lib/i18n.js 引擎 + /shared/core/i18n-dict.js 字典（启用英文才懒加载，
   // 中文用户零开销）。按已渲染文本整串替换，模型输出/用户内容不在翻译范围；覆盖主路径，
-  // 未覆盖的仍显示中文（可增量补字典，`node scripts/check-i18n.mjs` 审计缺口）。切换会整页刷新。
+  // 未覆盖的仍显示中文（可增量补字典，`node tooling/scripts/check-i18n.mjs` 审计缺口）。切换会整页刷新。
   function mountI18nCard() {
     var slot = window.slotRegistry.pick('setAppearanceThemeSlot');
     if (slot) window.slotRegistry.claim({ cardId: 'i18nCard', slotId: 'setAppearanceThemeSlot' });
@@ -771,7 +771,7 @@ function syncedCheckboxChecked(raw         )          {
   }
 
   // ─── 部署卡（T4-C）：宿主级操作，排在云同步/费用之后 ───
-  // 卡体、部署包执行与首连三选一在 services/ui/settings-deploy.ts + l0/wiring/settings-deploy.js；
+  // 卡体、部署包执行与首连三选一在 services/ui/settings-deploy.ts + tooling/l0/wiring/settings-deploy.js；
   // 这里只提供 mountXxx 入口，让它进 MOUNTS 与挂载顺序表。
   function mountDeployCard() {
     if (!window.settingsDeploy || typeof window.settingsDeploy.mountCard !== "function") return;
@@ -794,7 +794,7 @@ function syncedCheckboxChecked(raw         )          {
   }
 
   // ─── 数据备份卡（T3-E）：全量 ZIP 导出 / 导入 ───
-  // 卡体与两个平台出口在 l0/wiring/backup.js（window.backupCard / window.backupSvc）；
+  // 卡体与两个平台出口在 tooling/l0/wiring/backup.js（window.backupCard / window.backupSvc）；
   // 这里只提供 mountXxx 入口，让它进 MOUNTS 与挂载顺序表（与 T4-C 的部署卡同一种接法）。
   function mountDataBackupCard() {
     if (!window.backupCard || typeof window.backupCard.mount !== 'function') return;
@@ -1084,7 +1084,7 @@ function syncedCheckboxChecked(raw         )          {
     var SS = 'flex:1;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;';
     var card = document.createElement('div'); card.className = 'card'; card.id = 'sourceToolsCard';
     card.innerHTML = '<h4>开发工具 · 源码/产物检索</h4>'
-      + '<p>给 agent 的 <code>list_source / search_source / read_source / list_artifacts / read_artifact</code> 提供本地只读服务。先在本机运行：<code>node scripts/dev/source-server.mjs --root .</code>（可选 <code>--artifacts 目录</code>）。服务只绑 127.0.0.1，不上传数据。</p>'
+      + '<p>给 agent 的 <code>list_source / search_source / read_source / list_artifacts / read_artifact</code> 提供本地只读服务。先在本机运行：<code>node tooling/scripts/dev/source-server.mjs --root .</code>（可选 <code>--artifacts 目录</code>）。服务只绑 127.0.0.1，不上传数据。</p>'
       + '<div class="rowline" style="align-items:center;gap:10px;"><label style="font-size:12px;color:var(--muted);min-width:72px;">源码服务</label><input id="devSrcUrl" type="text" placeholder="http://127.0.0.1:8797" style="' + SS + '"></div>'
       + '<div class="rowline" style="align-items:center;gap:10px;margin-top:8px;"><label style="font-size:12px;color:var(--muted);min-width:72px;">产物 URL</label><input id="devArtUrl" type="text" placeholder="http://127.0.0.1:8796/artifacts" style="' + SS + '"></div>'
       + '<div class="rowline" style="margin-top:8px;"><div class="toggle"><input type="checkbox" id="devToolsOn"><label for="devToolsOn">启用（下次开 Agent 生效）</label></div></div>'
@@ -2578,11 +2578,11 @@ function syncedCheckboxChecked(raw         )          {
 
 /* l0-wiring-part: closes the shared IIFE; parsed as part of public/services/ui/settings.js */
 /**
- * l0/wiring/settings.js — browser wiring host for services/ui/settings.ts
+ * tooling/l0/wiring/settings.js — browser wiring host for services/ui/settings.ts
  *
- * 2026-11-26 拆件：卡片与规则函数在 l0/wiring/settings/*.js（10-appearance / 20-base / 30-chat /
+ * 2026-11-26 拆件：卡片与规则函数在 tooling/l0/wiring/settings/*.js（10-appearance / 20-base / 30-chat /
  * 40-agent / 50-models / 60-sync / 70-images）；本文件只保留分类导航、面板开关、开关接线、
- * init() 与收口。片段由 l0/emit.mjs 按 WIRING_PARTS 顺序拼接，仍是同一个 IIFE、零新全局。
+ * init() 与收口。片段由 tooling/l0/emit.mjs 按 WIRING_PARTS 顺序拼接，仍是同一个 IIFE、零新全局。
  */
   // ─── 1. 分类标签切换 ───
   function initCatNav() {

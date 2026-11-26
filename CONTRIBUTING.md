@@ -26,8 +26,8 @@ history.
 ## Before you open a PR
 
 ```bash
-node scripts/gen-prompts.mjs
-node scripts/check-syntax.mjs
+node tooling/scripts/gen-prompts.mjs
+node tooling/scripts/check-syntax.mjs
 ```
 
 `check-syntax.mjs` is the real syntax gate for this repository — plain `node --check` misses

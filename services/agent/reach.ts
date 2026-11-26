@@ -60,7 +60,7 @@ export interface ReachEnv {
 }
 
 export interface ReachApi {
-  /** Rough HTML → text. Strips scripts/styles, turns block ends into newlines, decodes the basics. */
+  /** Rough HTML → text. Strips tooling/scripts/styles, turns block ends into newlines, decodes the basics. */
   htmlToText(html: unknown): string;
   /** Cuts a `maxChars` window starting at `offset` and reports where the next window begins. */
   pageSlice(text: unknown, maxChars: number, offset: number): PageSlice;

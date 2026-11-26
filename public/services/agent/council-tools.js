@@ -335,7 +335,7 @@ function createCouncilTools(env            )                  {
   return { base: base, down: down, api: api, fmtMsg: fmtMsg, defineTools: defineTools };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // The implementation moved to services/agent/council-tools.ts. Ports are storage (the address override),
 // fetch, and the content panel (used to mirror a thread into the discussion view).
 (function (g) {

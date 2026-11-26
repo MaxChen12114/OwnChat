@@ -14,7 +14,7 @@
 // src/worker.js itself (one source of truth — a copied model table would drift silently).
 //
 // Runs as tauri.conf.json's beforeDevCommand/beforeBuildCommand (cwd = src-tauri). Safe to run by
-// hand: `node scripts/stage-host.mjs` from src-tauri, or `node src-tauri/scripts/stage-host.mjs`.
+// hand: `node tooling/scripts/stage-host.mjs` from src-tauri, or `node src-tauri/scripts/stage-host.mjs`.
 //
 // Node floor for this script: whatever the Tauri CI uses (20+). It never imports node:sqlite itself;
 // the worker import only needs Web-standard Request/Response, available since Node 18.
@@ -28,7 +28,7 @@ const TAURI_ROOT = path.resolve(HERE, "..");
 const ROOT = path.resolve(TAURI_ROOT, "..");
 const OUT = path.join(TAURI_ROOT, "host", "runtime");
 
-const COPY_DIRS = ["server", "src", "public", "migrations", "scripts"];
+const COPY_DIRS = ["server", "src", "public", "migrations"];
 
 function die(message) {
   console.error(`[stage-host] ✗ ${message}`);
@@ -43,13 +43,13 @@ function ensurePromptRegistries() {
     "src/prompts/skills/index.js",
   ];
   if (generated.every((rel) => fs.existsSync(path.join(ROOT, rel)))) return;
-  console.log("[stage-host] generated prompt registries missing; running scripts/gen-prompts.mjs");
-  const r = spawnSync(process.execPath, [path.join(ROOT, "scripts", "gen-prompts.mjs")], {
+  console.log("[stage-host] generated prompt registries missing; running tooling/scripts/gen-prompts.mjs");
+  const r = spawnSync(process.execPath, [path.join(ROOT, "tooling", "scripts", "gen-prompts.mjs")], {
     cwd: ROOT,
     stdio: "inherit",
     env: process.env,
   });
-  if (r.status !== 0) die("scripts/gen-prompts.mjs failed");
+  if (r.status !== 0) die("tooling/scripts/gen-prompts.mjs failed");
 }
 
 /** Copy one tree with a filter; never ship a developer's .dev.vars or a stale local data dir. */
@@ -98,6 +98,10 @@ async function main() {
   fs.rmSync(path.join(TAURI_ROOT, "host"), { recursive: true, force: true });
   fs.mkdirSync(OUT, { recursive: true });
   for (const rel of COPY_DIRS) copyTree(rel);
+  // The runtime fallback keeps its published path: host/runtime/scripts/gen-prompts.mjs.
+  fs.mkdirSync(path.join(OUT, "server"), { recursive: true });
+  fs.mkdirSync(path.join(OUT, "scripts"), { recursive: true });
+  fs.copyFileSync(path.join(ROOT, "tooling", "scripts", "gen-prompts.mjs"), path.join(OUT, "scripts", "gen-prompts.mjs"));
 
   // Node decides .js is ESM by syntax detection, but only for recent runtimes; a staged
   // package.json with "type":"module" makes the host independent of that heuristic.

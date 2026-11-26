@@ -172,14 +172,14 @@ function ensurePromptRegistries() {
   ];
   const missing = generated.filter((p) => !fs.existsSync(p));
   if (!missing.length) return;
-  console.log(`[local] generated prompt registries missing (${missing.length}); running scripts/gen-prompts.mjs`);
-  const r = spawnSync(process.execPath, [path.join(APP_ROOT, "scripts/gen-prompts.mjs")], {
+  console.log(`[local] generated prompt registries missing (${missing.length}); running tooling/scripts/gen-prompts.mjs`);
+  const r = spawnSync(process.execPath, [path.join(APP_ROOT, "tooling/scripts/gen-prompts.mjs")], {
     cwd: APP_ROOT,
     stdio: "inherit",
     env: process.env,
   });
   if (r.status !== 0) {
-    console.error("[local] scripts/gen-prompts.mjs failed; cannot start");
+    console.error("[local] tooling/scripts/gen-prompts.mjs failed; cannot start");
     process.exit(r.status || 1);
   }
 }

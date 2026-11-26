@@ -153,7 +153,7 @@ function chatUxIsTouchActive(touchUntil        , now        )          {
   return now < touchUntil;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/chat-ux.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/chat-ux.ts; this file owns the
 // DOM: row action buttons (copy / retry / delete / stop), the mutation observers and the scroll
 // listeners. Every decision lives in the engine — turn spans, sidx parsing, resend give-up rules,
 // follow distances and the gesture-suppression window.

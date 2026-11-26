@@ -306,7 +306,7 @@ function timeoutFor(kind           , hasBase         )         {
   return hasBase ? 180000 : 300000;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/chat-text.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/chat-text.ts; this file owns the
 // settings storage, the photo bubble, the settings card and the call into the image module.
 //
 // The red line from the original stands: this never touches the image side's own files, and it

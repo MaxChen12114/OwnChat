@@ -18,7 +18,7 @@
  * are the standard globals (`TextDecoder` / `DecompressionStream` / `Blob` / `Response`), which is
  * what keeps the same source valid in the page, a Tauri webview and a Node test realm.
  *
- * Lock: `scripts/test-zip-read.mjs` (12 checks, self-built fixtures, no third-party ZIP writer).
+ * Lock: `tooling/scripts/test-zip-read.mjs` (12 checks, self-built fixtures, no third-party ZIP writer).
  * @module lib/zip-read
  */
 

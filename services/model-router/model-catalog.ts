@@ -9,7 +9,7 @@
  *
  * `create(host)` keeps the historical host contract (`getMode` / `refreshModels` / `toast` /
  * `lsModelKey`) so call sites in app.js stay untouched; the browser adapter and the frozen global
- * live in l0/wiring/model-catalog.js.
+ * live in tooling/l0/wiring/model-catalog.js.
  * @module services/model-router/model-catalog
  */
 

@@ -6,7 +6,7 @@
  * sidecar on `127.0.0.1:8787`. That makes "which host am I on" a runtime question, answered here once
  * and shared as runtime services instead of being re-derived by every module:
  *   · `transport` (core/ports) — the request exit. Business code will inject it; until T4-A rewires
- *     the hand-rolled fetch sites, `l0/wiring/host.js` also installs a URL router so the existing
+ *     the hand-rolled fetch sites, `tooling/l0/wiring/host.js` also installs a URL router so the existing
  *     relative `/api/*`, `/sync*` and `/img/*` calls reach the host without touching those call sites.
  *   · `key` (core/ports) — read-only token access. The access token lives in localStorage today
  *     (`services/auth/token.ts`); this port reads through a closure so the value is never copied.
@@ -527,7 +527,7 @@ function createHostRegistry(options                     )               {
   };
 }
 
-// Browser wiring, appended by l0/emit.mjs. Engine: services/platform/host.ts (the host provider
+// Browser wiring, appended by tooling/l0/emit.mjs. Engine: services/platform/host.ts (the host provider
 // registry: transport/key seams through the runtime context, the db adapter through the DbPort facade).
 //
 // Public API: window.hostSvc = { v, ready, status, explain, refresh, setBase, route, transport, key,

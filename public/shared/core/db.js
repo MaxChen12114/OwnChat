@@ -150,7 +150,7 @@ function normalizeParams(params            )            {
   return out;
 }
 
-// Browser wiring, appended by l0/emit.mjs. Engine: core/db.ts (DbPort types + the {__b64} wire codec).
+// Browser wiring, appended by tooling/l0/emit.mjs. Engine: core/db.ts (DbPort types + the {__b64} wire codec).
 //
 // Public API: window.dbWire = { v, B64_KEY, bytesToBase64, base64ToBytes, encodeWireValue,
 // decodeWireValue, encodeRow, decodeRow, normalizeParams }. Adapters and T3 services read the codec

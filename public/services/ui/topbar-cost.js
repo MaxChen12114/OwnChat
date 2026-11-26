@@ -130,7 +130,7 @@ function topbarCostPopPlace(input
   return { left: Math.round(left), top: Math.round(input.anchorBottom + TOPBAR_COST_POP_GAP) };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/topbar-cost.ts; this file owns the two
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/topbar-cost.ts; this file owns the two
 // elements, the listeners, the body re-parenting and every host read (localStorage, the cost facade,
 // the viewport). All text, rounding and placement arithmetic live in the engine.
 //

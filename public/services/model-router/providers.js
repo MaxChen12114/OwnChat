@@ -6,7 +6,7 @@
  * Ports: storage (the two registry keys, the legacy migration keys, the model key and the old
  * candidate pools), auth (resolved per call, for guest detection and the Authorization header),
  * notify (the change event) and onStorage (cross-tab). The service never touches window;
- * l0/wiring/providers.js is the adapter and keeps the frozen name, including the four startup
+ * tooling/l0/wiring/providers.js is the adapter and keeps the frozen name, including the four startup
  * side effects it orchestrates in order.
  *
  * One rule explains the shape of v3: a custom channel takes over chat only when it was activated.
@@ -760,7 +760,7 @@ function createProvidersRegistry(ports                ) {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 // The implementation lives in services/model-router/providers.ts; this file owns three things:/n//   1) the four window ports (storage / auth / notify / onStorage), each with the same try/catch
 //      shape as the old inline code;
 //   2) the member list, verbatim: twenty-eight members plus `keys`, in the original order;

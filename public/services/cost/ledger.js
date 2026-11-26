@@ -444,7 +444,7 @@ function createLedger(ports             , host             )             {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 //
 // T4-A: mounted as a runtime plugin (`ctx.plugin`) so the ledger's provider has a lifecycle. The
 // plugin injects `db` — the ledger writes through localStorage today, but the cost aggregates are

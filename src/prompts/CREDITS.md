@@ -4,7 +4,7 @@
 每条 entry 的 front-matter 里也写了 `source` / `license`（编辑器里能看到）。
 
 - 库的**源文件**：`src/prompts/presets/{functional,behavioral}/<名字>.md`（指令模块；显示分组名走 front-matter 的 `group`）与 `src/prompts/skills/<名字>.md`（技能；显示名走 `name`）。**路径一律 ASCII**，中文只出现在 front-matter 的显示名里。
-- 生成物 `index.js` 不进版本库（`.gitignore`），由 `scripts/gen-prompts.mjs` 在 dev/deploy 前生成。
+- 生成物 `index.js` 不进版本库（`.gitignore`），由 `tooling/scripts/gen-prompts.mjs` 在 dev/deploy 前生成。
 - 下发走 `POST /api/presets`（**解锁门禁**）：锁定态 403，一个字符都不给。
 - 想加/删/改条目：往对应目录放文件或改文件 —— **别改本文件之外的第三方正文措辞**（要改就在 front-matter 的 `note` 里写明，或直接换成自己的条目）。
 

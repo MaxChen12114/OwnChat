@@ -372,7 +372,7 @@ function buildWorkspaceHistory(input                )               {
   return { nodes, branches, order, mainHead: prev };
 }
 
-// Browser wiring (injected by l0/emit.mjs): none yet.
+// Browser wiring (injected by tooling/l0/emit.mjs): none yet.
 //
 // services/ui/history-tree.ts is the pure History layout: lane assignment,
 // node positions and a deterministic SVG string. It touches no DOM and no

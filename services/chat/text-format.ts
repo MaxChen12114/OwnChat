@@ -3,7 +3,7 @@
  *
  * Every window bridge arrives as a port (storage for the strip switch, sceneNames for group name
  * tags, stripPhotoSignal / applyAmbientTags / extractPhotoSignal for the image and ambience signals);
- * the adapters and all their try/catch semantics live in l0/wiring/text-format.js, and each bridge is
+ * the adapters and all their try/catch semantics live in tooling/l0/wiring/text-format.js, and each bridge is
  * still looked up at call time rather than captured up front.
  *
  * Red line carried over from the old comment: never touch the unlock prompt. The model keeps emitting

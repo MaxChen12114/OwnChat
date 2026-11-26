@@ -46,7 +46,7 @@ function passwordOutcome(status        )                  {
   return { ok: false, message: "网络异常 (HTTP " + status + ")，请稍后重试" };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/auth/token.ts; this file owns the token
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/auth/token.ts; this file owns the token
 // store, the global fetch wrapper and the password dialog.
 //
 // Loaded before everything else: any module that talks to /sync or /api/* relies on the header this

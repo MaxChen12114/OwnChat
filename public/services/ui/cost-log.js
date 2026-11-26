@@ -301,7 +301,7 @@ function costLogJson(log         )         {
   return JSON.stringify(log, null, 2);
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/cost-log.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/cost-log.ts; this file owns the
 // slot mount, the card insertion, the three buttons, the clipboard/confirm dialogs and every host
 // read (the cost facade, the sync facade, localStorage). All folding and markup live in the engine.
 //

@@ -162,7 +162,7 @@ function clampVolume(v         )                {
   return n >= 0 && n <= 1 ? n : null;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/theme.ts (style/scheme derivation,
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/theme.ts (style/scheme derivation,
 // track tables, deck persistence); this file owns the DOM apply, the ambient mixer (Web Audio), the
 // background layer and the settings wiring.
 //

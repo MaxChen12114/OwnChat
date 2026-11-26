@@ -3,7 +3,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * 键 = 界面上**最终渲染出来的整串文本**（不是源码里的 innerHTML 片段）——引擎按文本节点整串匹配。
  * 因为整串精确命中，用户内容/模型输出不会误翻；不够的走 i18nPatterns 的插值规则。
- * 增量补翻译 = 只往这里加条目，不用改任何调用点。覆盖度用 `node scripts/check-i18n.mjs` 审计。
+ * 增量补翻译 = 只往这里加条目，不用改任何调用点。覆盖度用 `node tooling/scripts/check-i18n.mjs` 审计。
  * 术语表（与英文 README 对齐）：基座=base / 设定集=lorebook / 角色卡=character card /
  * 好感度=affinity / 多智能体=multi-agent / 氛围音=ambient audio / 指令模块=instruction module /
  * 云同步=cloud sync / 图像工坊=image studio / 提示词编辑器=prompt editor。
@@ -2415,7 +2415,7 @@
     "渠道创建失败": "Could not create the channel",
     "宿主状态：检测中…": "Host status: checking…",
 
-    // —— T4-C 部署卡 / 首连三选一（services/ui/settings-deploy.ts + l0/wiring/settings-deploy.js）
+    // —— T4-C 部署卡 / 首连三选一（services/ui/settings-deploy.ts + tooling/l0/wiring/settings-deploy.js）
     "部署": "Deploy",
     "把 OwnChat 部署到你自己的 Cloudflare Worker 或 VPS（Docker + Caddy TLS），完成后回填宿主 profile。": "Deploy OwnChat to your own Cloudflare Worker or VPS (Docker + Caddy TLS), then write the host profile back.",
     "目标宿主": "Target host",

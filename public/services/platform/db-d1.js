@@ -19,7 +19,7 @@ function createD1Port()         {
   return createHttpDbPort({ base: "" });
 }
 
-// Browser wiring, appended by l0/emit.mjs. Engine: services/platform/db-d1.ts.
+// Browser wiring, appended by tooling/l0/emit.mjs. Engine: services/platform/db-d1.ts.
 //
 // Registers, does not activate: the facade decides at first use. A missing facade is a load-order
 // bug (this file must follow /services/platform/db.js), and throwing here is the only way it stays

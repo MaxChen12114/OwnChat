@@ -5,7 +5,7 @@
  * plans (allow the agent, skip the confirm card, store the bridge token).
  *
  * Everything decidable without a browser is here. localStorage reads, `fetch`, the shell probe and
- * every listener stay in `l0/wiring/pc-settings-card.js`, which also owns the card's outer element
+ * every listener stay in `tooling/l0/wiring/pc-settings-card.js`, which also owns the card's outer element
  * and its insertion.
  *
  * The status line is built from health *and* an optional status payload because the second call is
@@ -264,7 +264,7 @@ function pcBridgePlan(raw         )               {
     : { value: "", remove: true, status: { text: "已清空（走 Worker 通道）", tone: "" } };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/local/pc-settings-card.ts (card markup,
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/local/pc-settings-card.ts (card markup,
 // placement, health line, failure copy, the three toggle plans); this file owns localStorage, the
 // fetch call, the shell probe and every listener.
 (function (g) {

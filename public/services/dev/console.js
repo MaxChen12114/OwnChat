@@ -477,7 +477,7 @@ function estCostCNY(model         , usage         , pricing         )           
   return (cached * numOr(p.cache_hit, 0) + normal * numOr(p.input, 0) + comp * numOr(p.output, 0)) / 1e6;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/dev/console.ts; this file owns every
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/dev/console.ts; this file owns every
 // side effect around it: the fetch interception that feeds the capture ring, IndexedDB persistence,
 // the Dev Panel / HUD rendering, the settings card, and the long-press entry points.
 //

@@ -243,7 +243,7 @@ function createCache(ports            )             {
   };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/cache.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/cache.ts; this file owns the
 // frozen global name, localStorage, the fetch interception and the change event.
 //
 // The wrapper has to sit between image-quota and image-album (album is the outermost), so a hit

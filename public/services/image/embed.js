@@ -301,7 +301,7 @@ function editNoFile()              {
   return { status: "改图 无 file_url", badge: "err", title: "成功但无 file_url" };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/embed.ts; this file owns the modal
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/embed.ts; this file owns the modal
 // shell, both forms, the output list and every click.
 //
 // Self-mounting, like the prompt editor: it injects its own markup and theme-agnostic CSS
