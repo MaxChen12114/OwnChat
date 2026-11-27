@@ -110,7 +110,7 @@ function rsToggleTarget(hasConsole         )                {
 // global is published: the strip's contract is the DOM, and the old implicit `agentConsoleSlot`
 // global was never read (its apparent consumer resolves the slot itself).
 //
-// The tab buttons are rendered at runtime by l0/wiring/panel-host.js from `PANEL_VIEWS` (index.html
+// The tab buttons are rendered at runtime by tooling/l0/wiring/panel-host.js from `PANEL_VIEWS` (index.html
 // ships an empty `#rsTabs`), and that file parses ~170 manifest rows after this one. A parse-time
 // `querySelectorAll(".rs-tab")` snapshot is therefore always empty and silently kills all three
 // switches below — so the strip is read on every use (`readTabs` / `readTabNames`) and clicks are
