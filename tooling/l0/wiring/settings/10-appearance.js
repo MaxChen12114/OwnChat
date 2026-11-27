@@ -16,43 +16,6 @@
     slot.appendChild(card);
   }
 
-  // 2026-09-12 修复:M1 重构把「顶栏组件」卡迁进 mountTopbarCostCard(),但外观 tab 第二个槙
-  // #setAppearanceThemeSlot(主题切换)从未被迁移/重新挂载 —— 导致外观页只剩顶栏组件一张卡,
-  // 主题切换彻底消失。theme.js 的 wireSettings() 只负责「找到已存在的 input[name=cfwTheme]接线」,
-  // 它不负责创建 DOM,原 DOM 在 index.html 里,M1 迁移时漏了这一个。这里补回卡片 DOM + 自带读写逻辑
-  // (不依赖 theme.js 的 load 时机,自己订阅 themeSvc,双重保险)。
-  function mountMobileAppLayoutCard() {
-    var slot = window.slotRegistry.pick('setAppearanceThemeSlot');
-    if (slot) window.slotRegistry.claim({ cardId: 'mobileAppLayoutCard', slotId: 'setAppearanceThemeSlot' });
-    if (!slot || document.getElementById('mobileAppLayoutCard')) return;
-    var sa = window.settingsAppearance; // services/ui/settings-appearance.ts（默认值与极性单一来源）
-    var K = sa.MOBILE_TABS_KEY;
-    var card = document.createElement('div'); card.className = 'card'; card.id = 'mobileAppLayoutCard';
-    card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.4"/><path d="M9.5 18.5h5"/></svg>手机 App 布局</h4>'
-      + '<p>Android App 专用适配。输入框已按同类聊天 App 放大为更易点按的通栏布局;底部功能栏默认折叠,需要时可在这里打开。<b>仅本设备生效</b>。</p>'
-      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="mobileBottomTabsToggle"><label for="mobileBottomTabsToggle">显示底部功能栏(鱼缸 / 状态 / Agent)</label></div><div class="btns"><button class="smallbtn" id="mobileAppRefreshBtn" type="button">刷新页面</button></div></div>'
-      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>底栏关闭后输入框会贴近底部安全区;需要时回到这里重新打开。</span></div>';
-    slot.appendChild(card);
-    var t = card.querySelector('#mobileBottomTabsToggle');
-    function isAndroidApp() {
-      try { return sa.isAndroidShell(document.documentElement.classList.contains('android-app'), localStorage.getItem('cfw_android_app_shell_v1')); } catch (e) { return false; }
-    }
-    function apply(on) {
-      document.documentElement.classList.toggle('hide-mobile-tabs', !on);
-      try { localStorage.setItem(K, sa.flagValue(on)); } catch (e) {}
-    }
-    var on = true;
-    try {
-      var saved = localStorage.getItem(K);
-      on = sa.mobileTabsOn(isAndroidApp(), saved);
-    } catch (e) {}
-    t.checked = on;
-    apply(on);
-    t.addEventListener('change', function () { apply(t.checked); });
-    var rb = card.querySelector('#mobileAppRefreshBtn');
-    if (rb) rb.addEventListener('click', function () { location.reload(); });
-  }
-
   // ─── §外观. 聊天背景图（2026-10-06 从编辑器「UI 配置」页搬来）───
   // 原「UI 配置」页里唯一还有人用的功能就是换背景图，其余（自定义颜色/圆角/背景音/原始变量）一并删掉：
   // 用户原话「其它的完全就是跟随主题就好了」。存储沿用原键，老用户已设的背景不会丢：

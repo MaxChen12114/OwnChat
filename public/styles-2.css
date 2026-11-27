@@ -185,68 +185,10 @@ html[data-theme="candle"] .fb-side-ended .fb-ended-line { color: #a89a8a; }
 html[data-theme="candle"] .fb-side-ended .fb-ended-line b { color: #fff; }
 html[data-theme="candle"] .fb-side-ended .fb-ended-reason { color: #8a606a; }
 
-/* ─── 移动端降级：<1024px 侧栏变底部条形 ─── */
-@media (max-width: 1023px) {
- .fishbowl-side-panel {
- position: fixed;
- right: 0;
- left: 0;
- top: auto;
- bottom: calc(var(--composer-gap) + 96px);
- width: auto;
- max-width: var(--content-max);
- max-height: none;
- margin: 0 auto;
- padding: 8px 12px;
- border-radius: 12px;
- flex-direction: row;
- flex-wrap: wrap;
- align-items: center;
- gap: 6px;
- font-size: 11px;
- }
- .fb-side-header {
- border-bottom: none;
- padding-bottom: 0;
- padding-right: 8px;
- font-size: 12px;
- }
- .fb-side-modes,
- .fb-side-actions {
- gap: 4px;
- }
- .fb-side-status,
- .fb-side-ended {
- flex: 1 1 100%;
- flex-direction: row;
- gap: 10px;
- padding: 6px 10px;
- flex-wrap: wrap;
- font-size: 11px;
- }
- .fb-side-status .fb-state-line {
- font-size: 11.5px;
- }
- .fb-side-ended .fb-ended-title { font-size: 12px; }
- .fb-side-ended .fb-ended-reason { flex: 1 1 100%; }
-}
+/* 手机端群聊面板与桌面共用 #fishbowlSlot（新壳控制台会搬整块右栏），旧的 body 底部条形样式已删除。 */
 
-/* ─── 超窄屏：<640px 多行紧凑 + 头像缩小 ─── */
+/* ─── 超窄屏：头像缩小 ─── */
 @media (max-width: 640px) {
- .fishbowl-side-panel {
- bottom: calc(var(--composer-gap) + 84px);
- padding: 6px 10px;
- }
- .fb-side-modes,
- .fb-side-actions {
- flex: 1 1 100%;
- justify-content: flex-start;
- }
- .fb-side-modes .chip-btn,
- .fb-side-actions .chip-btn {
- font-size: 10.5px;
- padding: 3px 8px;
- }
  .row.ai .avatar { width: 28px; height: 28px; flex-basis: 28px; font-size: 11px; }
  .row.ai .content { max-width: 90vw; }
 }
@@ -567,15 +509,11 @@ body.drawer-open .sidebar-backdrop {
  .desktop-only { display: none !important; }
 }
 
-/* ── 2026-06-07 手机端 UI 重构:滚动自动隐藏顶栏/底栏(配合 app.js setupScrollHide 切 body.nav-hidden)。只在手机生效,桌面不动 ── */
+/* ── 2026-06-07 手机端 UI 重构:滚动自动隐藏顶栏(配合 app.js setupScrollHide 切 body.nav-hidden)。只在手机生效,桌面不动 ── */
 @media (max-width: 1023px) {
  #topbar { transition: transform .25s ease; will-change: transform; }
- #mobileBottomTabs { transition: transform .25s ease; will-change: transform; }
  /* 4.78: 用户要求顶栏常驻不折叠(手机滚动时不再上滑隐藏,从根上消除收起后残留的空白占位条) */
  body.nav-hidden #topbar { transform: none; }
- /* 2026-11-10(所有者要求): 底栏不再随滚动收起 —— 直接固定常驻。
-    旧版 body.nav-hidden 时 translateY(110%) 把底栏滑出视口,滚动中要切 tab 得先往回滑。 */
- body.nav-hidden #mobileBottomTabs { transform: none; }
  /* 2026-11-10(所有者要求): 手机端顶栏不显示「内容面板/演示台」入口 —— 窄屏没有可用画布位置,
     留着只占顶栏宽度。桌面端不受影响。 */
  #topbar #panelToggle { display: none !important; }
@@ -834,138 +772,14 @@ html[data-theme="candle"] .right-sidebar {
 }
 /* 4.82: 删掉 4.4-C/4.5-A 的剪影装饰规则(功能已移除,见 styles.css 同名清理注释) */
 
-/* ─── 4.4-E 手机底部标签条 · 2026-09-14 UI第二轮重构:悬浮胶囊 dock ───
-   左右留边、圆角悬浮、脱离底边;当前项填充胶囊高亮 + 微光晕。
-   样式单一来源(原 index.html head 精致化层已收敛至此);滚动隐藏(body.nav-hidden)与
-   桌面硬隐藏(index.html head)机制不变。 */
-.mobile-bottom-tabs { display: none; }
-.mobile-tab-panel { display: none; }
-
+/* ─── 手机壳接管：旧底部标签条/弹层的视觉层已删除 ───
+   手机壳的 dock、页头、控制台样式在 public/shell/mobile-shell.css。这里只保留
+   message-list 计算 spacer 使用的 --composer-gap；输入框的最终位置由壳样式上移到 dock 之上。 */
 @media (max-width: 1023px) {
- /* 2026-09-14 UI第二轮:--composer-gap 是聊天区底部留白的计算输入(app.js updateSpacer: 输入框高 + gap + extra),
-   底栏改悬浮 dock 后输入框整体上移 18px(66→84),gap 同步 56→76 才能保持「最后一条消息」仍露出在输入框之上。
-   --dock-h/--dock-gap 供面板/鱼缸上抬定位复用。 */
- :root { --composer-gap: 76px; --dock-h: 58px; --dock-gap: 10px; }
-
- .mobile-bottom-tabs {
- display: flex;
- position: fixed;
- left: var(--dock-gap); right: var(--dock-gap);
- bottom: calc(var(--dock-gap) + env(safe-area-inset-bottom, 0px));
- height: var(--dock-h);
- align-items: stretch;
- background: var(--bubble-ai, rgba(20,20,20,.92));
- border: 1px solid var(--border, #26262a);
- border-radius: 18px;
- box-shadow: 0 10px 30px rgba(0,0,0,.38);
- backdrop-filter: saturate(150%) blur(14px);
- -webkit-backdrop-filter: saturate(150%) blur(14px);
- z-index: 9;
- padding: 5px;
- box-sizing: border-box;
- }
- .mobile-tab-btn {
- flex: 1;
- border: none;
- background: transparent;
- color: var(--muted, #9a9a9a);
- cursor: pointer;
- display: flex;
- flex-direction: column;
- align-items: center;
- justify-content: center;
- gap: 3px;
- padding: 4px 2px;
- margin: 0 2px;
- min-height: 44px;
- border-radius: 13px;
- transition: color .18s, background .18s, box-shadow .18s;
- font-family: inherit;
- }
- .mobile-tab-icon { line-height: 1; }
- .mobile-tab-icon svg { width: 20px; height: 20px; display: block; }
- .mobile-tab-label { font-size: 10.5px; line-height: 1; letter-spacing: .02em; }
- .mobile-tab-btn:hover:not(:disabled) { color: inherit; background: rgba(127,127,127,.10); }
- .mobile-tab-btn.active {
- /* 填充胶囊高亮 + 微光晕(inset ring 不占布局空间,切换无跳动) */
- color: inherit;
- background: rgba(127,127,127,.18);
- box-shadow: inset 0 0 0 1px rgba(127,127,127,.25), 0 0 16px rgba(127,127,127,.15);
- }
- .mobile-tab-btn:disabled { cursor: not-allowed; opacity: .35; }
-
- /* 面板弹出位置适配悬浮 dock(dock 高 + 上下间距) */
- .fishbowl-side-panel { bottom: calc(var(--dock-h) + var(--dock-gap) * 2 + var(--composer-gap) + 56px); }
- .mobile-tab-panel.active {
- display: block;
- position: fixed;
- left: var(--dock-gap); right: var(--dock-gap);
- bottom: calc(var(--dock-h) + var(--dock-gap) * 2 + env(safe-area-inset-bottom, 0px));
- max-height: min(62vh, 560px);
- overflow-y: auto;
- -webkit-overflow-scrolling: touch;
- padding: 14px;
- background: var(--bubble-ai, rgba(20,20,20,.96));
- border: 1px solid var(--border, #26262a);
- border-radius: 18px;
- box-shadow: 0 12px 36px rgba(0,0,0,.4);
- backdrop-filter: saturate(150%) blur(14px);
- -webkit-backdrop-filter: saturate(150%) blur(14px);
- z-index: 8;
- font-size: 13px;
- color: inherit;
- text-align: left;
- font-style: normal;
- }
+ :root { --composer-gap: 76px; }
 }
 
-html[data-theme="glass"] .mobile-bottom-tabs {
- background: rgba(255,255,255,.9);
- border-color: rgba(15,30,60,.10);
- box-shadow: 0 10px 30px rgba(15,30,60,.12);
-}
-html[data-theme="glass"] .mobile-tab-btn { color: #6a7280; }
-html[data-theme="glass"] .mobile-tab-btn.active {
- color: #345d7c;
- background: rgba(63,111,143,.16);
- box-shadow: inset 0 0 0 1px rgba(63,111,143,.4), 0 0 16px rgba(63,111,143,.18);
-}
-/* 2026-11-10（所有者：手机端 Agent 活动页没有内部滚动，消息一多挤爆）：面板本身定高、
-   内部 flex 列，时间线在 .ac-timeline 里自己滚 —— 头部/状态条固定，不被消息顶出屏幕。 */
-#mobileTabPanel-agent.active {
- display: flex;
- flex-direction: column;
- height: min(62vh, 560px);
- max-height: none;
- min-height: 0;
- overflow: hidden;
-}
-#mobileTabPanel-agent > div { flex: 1 1 auto; min-height: 0; }
-#mobileTabPanel-agent #__agentPeers { flex: 0 0 auto; min-height: 0; }
-#mobileTabPanel-agent .agent-console { flex: 1 1 auto; min-height: 0; }
-
-html[data-theme="glass"] .mobile-tab-panel.active {
- background: rgba(255,255,255,.97);
- color: #6a7280;
- border-color: rgba(15,30,60,.10);
-}
-
-html[data-theme="candle"] .mobile-bottom-tabs {
- background: rgba(20,13,8,.94);
- border-color: rgba(217,168,104,.28);
- box-shadow: 0 10px 30px rgba(217,168,104,.14);
-}
-html[data-theme="candle"] .mobile-tab-btn { color: #8a7a6a; }
-html[data-theme="candle"] .mobile-tab-btn.active {
- color: #f2e7d6;
- background: rgba(217,168,104,.24);
- box-shadow: inset 0 0 0 1px rgba(217,168,104,.55), 0 0 16px rgba(217,168,104,.2);
-}
-html[data-theme="candle"] .mobile-tab-panel.active {
- background: rgba(20,13,8,.97);
- color: #a89a8a;
- border-color: rgba(217,168,104,.22);
-}/* ════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════
  Phase 4 阶段 4.5 · 顶栏二次修整 + 剪影避让 + 解限按钮入顶栏
  用户反馈定位:
  - 剪影在 1024-1200px 之间挡住发送键(@1024 right:240px 不够避开 composer)
@@ -1085,7 +899,8 @@ html[data-theme="candle"] #topbar #personaToggle:hover {
 }
 /* 2026-10-04: 「💰 —」空态占位符已删除(空态改隐藏,见上方 4.6-A 注释;这是刷新闪 emoji 的根源) */
 
-/* 4.10 删除 4.6-B 鱼缸控制台折叠 CSS：折叠态让 panel 只显 header 「一条」遮思考按钮，与 4.8-A body.fishbowl-shown 整体 toggle 冲突。完全删掉 .collapsed 规则 + ▾ icon + cursor pointer。由 4.8-A display:none/flex 兜底（手机点鱼缸 tab 直接整面板隐藏，无任何残影）。 */
+/* 4.10 删除 4.6-B 鱼缸控制台折叠 CSS：折叠态让 panel 只显 header 遮住输入区；
+   现在 fishbowl 面板固定挂进 #fishbowlSlot，显示由新壳控制台的「群聊」栏控制。 */
 
 /* ═══════════════════════════════════════════════
  提示词编辑器（Prompt Editor）· 唯一 CSS 来源
@@ -1262,6 +1077,221 @@ html[data-theme="candle"] .ue-badge {
  border-color: rgba(217,168,104,.5);
 }
 
+/* lumen（流光）
+   2026-11-27: 弹层原先用 var(--bg)，而流光的 --bg 桥到 --dg-window-bg（#fde7df 的桃色窗口底）；
+   列表行/卡片又是 rgba(127,127,127,.07) 的半透明灰铺在同一层上，于是整窗一个颜色、层次全丢。
+   这里按 Daygo 的三级材质重铺：弹层 --dg-surface，行/工具条/底栏 --dg-card-fill，
+   输入框 --dg-input-fill；边线统一用 --dg-card-border / --ctl-field-border 的暖 hairline。
+   只作用于 lumen；亮暗共用这套变量，dark 只把面板底换成 popover 暗面，不会出现亮白块。 */
+html[data-theme="lumen"] #promptEditor {
+ --ue-accent: var(--dg-accent);
+ --ue-accent-soft: color-mix(in srgb, var(--dg-accent) 12%, transparent);
+ --ue-surface: var(--dg-surface);
+ --ue-card: var(--dg-card-fill);
+ --ue-hairline: var(--dg-card-border);
+ --ue-hover: color-mix(in srgb, var(--dg-accent) 12%, transparent);
+ background: var(--ue-surface);
+ color: var(--dg-text-primary);
+ border-color: var(--ue-hairline);
+ box-shadow: 0 30px 80px rgba(48, 34, 24, .28);
+}
+html[data-theme="lumen"][data-scheme="dark"] #promptEditor {
+ --ue-surface: var(--dg-popover-fill);
+ box-shadow: 0 30px 80px rgba(0, 0, 0, .58);
+}
+/* 头部只是极淡的 accent 余光，不再整片 accent-soft；底栏是独立的一条卡面。 */
+html[data-theme="lumen"] #promptEditor .ue-header {
+ background: linear-gradient(135deg, color-mix(in srgb, var(--dg-accent) 7%, transparent), transparent 64%);
+ border-bottom-color: var(--ue-hairline);
+}
+html[data-theme="lumen"] #promptEditor .ue-title { color: var(--dg-text-primary); }
+html[data-theme="lumen"] #promptEditor .ue-badge {
+ background: var(--ue-accent-soft);
+ border-color: color-mix(in srgb, var(--dg-accent) 42%, transparent);
+ color: var(--dg-accent-text);
+ opacity: 1;
+}
+html[data-theme="lumen"] #promptEditor .ue-close {
+ background: var(--ue-card);
+ border-color: var(--ue-hairline);
+ color: var(--dg-text-secondary);
+}
+html[data-theme="lumen"] #promptEditor .ue-close:hover {
+ background: var(--dg-danger-fill);
+ border-color: color-mix(in srgb, var(--dg-danger) 48%, transparent);
+ color: var(--dg-danger-text);
+}
+/* 页签：未选中是中性 chip；选中才吃 12% accent。 */
+html[data-theme="lumen"] #promptEditor .ue-tabs {
+ background: var(--ue-card);
+ border-bottom-color: var(--ue-hairline);
+}
+html[data-theme="lumen"] #promptEditor .ue-tab {
+ background: var(--dg-hover-fill);
+ border-color: transparent;
+ color: var(--dg-text-secondary);
+ opacity: 1;
+}
+html[data-theme="lumen"] #promptEditor .ue-tab:hover {
+ background: var(--ue-hover);
+ color: var(--dg-text-primary);
+ opacity: 1;
+}
+html[data-theme="lumen"] #promptEditor .ue-tab.active {
+ background: var(--ue-accent-soft);
+ border-color: color-mix(in srgb, var(--dg-accent) 52%, transparent);
+ color: var(--dg-accent-text);
+ opacity: 1;
+}
+/* 内容区与头部/底栏分层。 */
+html[data-theme="lumen"] #promptEditor .ue-body {
+ background: var(--ue-surface);
+ color: var(--dg-text-primary);
+}
+html[data-theme="lumen"] #promptEditor .ue-panel-head { border-bottom-color: var(--ue-hairline); }
+html[data-theme="lumen"] #promptEditor .ue-panel-name { color: var(--dg-text-primary); }
+html[data-theme="lumen"] #promptEditor .ue-panel-desc { color: var(--dg-text-muted); opacity: 1; }
+html[data-theme="lumen"] #promptEditor .ue-toolbar {
+ background: var(--ue-card);
+ border-color: var(--ue-hairline);
+}
+html[data-theme="lumen"] #promptEditor .ue-count { color: var(--dg-text-muted); opacity: 1; }
+/* 按钮：中性白面 + 暖 hairline；hover 才用 accent 12%。主按钮保持 accent（Daygo primary）。 */
+html[data-theme="lumen"] #promptEditor .ue-btn {
+ background: var(--dg-button-secondary-fill);
+ border-color: var(--dg-button-secondary-border);
+ color: var(--dg-button-secondary-text);
+ opacity: 1;
+}
+html[data-theme="lumen"] #promptEditor .ue-btn:hover {
+ background: var(--ue-hover);
+ border-color: color-mix(in srgb, var(--dg-accent) 34%, transparent);
+ color: var(--dg-text-primary);
+}
+html[data-theme="lumen"] #promptEditor .ue-btn-primary {
+ background: var(--dg-button-primary-fill);
+ border-color: var(--dg-button-primary-border);
+ color: var(--dg-button-primary-text);
+ box-shadow: var(--dg-button-primary-shadow);
+}
+html[data-theme="lumen"] #promptEditor .ue-btn-primary:hover {
+ background: var(--dg-button-primary-hover);
+ border-color: var(--dg-button-primary-border);
+ color: var(--dg-button-primary-text);
+}
+/* 指令 / 角色 / 设定集列表行与分组头：近白卡面 + hairline，hover/active 才带 accent。 */
+html[data-theme="lumen"] #promptEditor .ue-preset-row {
+ background: var(--ue-card);
+ border-color: var(--ue-hairline);
+ box-shadow: var(--dg-card-shadow);
+}
+html[data-theme="lumen"] #promptEditor .ue-preset-row:hover {
+ background: var(--ue-hover);
+ border-color: color-mix(in srgb, var(--dg-accent) 34%, var(--ue-hairline));
+}
+html[data-theme="lumen"] #promptEditor .ue-preset-row.enabled {
+ background: var(--ue-accent-soft);
+ border-color: var(--dg-accent);
+ box-shadow: inset 3px 0 0 var(--dg-accent), var(--dg-card-shadow);
+}
+html[data-theme="lumen"] #promptEditor .ue-preset-row.enabled:hover { border-color: var(--dg-accent); }
+html[data-theme="lumen"] #promptEditor .ue-preset-row.dragover {
+ border-color: var(--dg-accent);
+ box-shadow: inset 0 2px 0 var(--dg-accent);
+}
+html[data-theme="lumen"] #promptEditor .ue-pgroup-head {
+ background: var(--ue-card);
+ border: 1px solid var(--ue-hairline);
+}
+html[data-theme="lumen"] #promptEditor .ue-pgroup-head:hover { background: var(--ue-hover); }
+html[data-theme="lumen"] #promptEditor .ue-pgroup-name { color: var(--dg-text-primary); }
+html[data-theme="lumen"] #promptEditor .ue-pgroup-count {
+ background: var(--dg-hover-fill-strong);
+ color: var(--dg-text-secondary);
+ opacity: 1;
+}
+html[data-theme="lumen"] #promptEditor .ue-pgroup-arrow { color: var(--dg-text-muted); opacity: 1; }
+html[data-theme="lumen"] #promptEditor .ue-pgroup-body { border-left-color: color-mix(in srgb, var(--dg-text-muted) 24%, transparent); }
+html[data-theme="lumen"] #promptEditor .ue-preset-name { color: var(--dg-text-primary); }
+html[data-theme="lumen"] #promptEditor .ue-preset-preview { color: var(--dg-text-muted); opacity: 1; }
+html[data-theme="lumen"] #promptEditor .ue-preset-preview em { opacity: .85; }
+html[data-theme="lumen"] #promptEditor .ue-preset-file { color: var(--dg-text-muted); opacity: .85; }
+html[data-theme="lumen"] #promptEditor .ue-preset-drag { color: var(--dg-text-muted); opacity: .8; }
+html[data-theme="lumen"] #promptEditor input[type="checkbox"] { accent-color: var(--dg-accent); }
+html[data-theme="lumen"] #promptEditor .ue-mini {
+ background: var(--dg-button-secondary-fill);
+ border-color: var(--dg-button-secondary-border);
+ color: var(--dg-text-secondary);
+}
+html[data-theme="lumen"] #promptEditor .ue-mini:hover {
+ background: var(--ue-hover);
+ border-color: color-mix(in srgb, var(--dg-accent) 34%, transparent);
+ color: var(--dg-text-primary);
+}
+html[data-theme="lumen"] #promptEditor .ue-mini.danger:hover {
+ background: var(--dg-danger-fill);
+ border-color: color-mix(in srgb, var(--dg-danger) 48%, transparent);
+ color: var(--dg-danger-text);
+}
+/* 输入框 / 下拉 / 编辑卡：白面 + 暖 hairline，聚焦才上 accent 环。 */
+html[data-theme="lumen"] #promptEditor .ue-input,
+html[data-theme="lumen"] #promptEditor .ue-textarea {
+ background: var(--dg-input-fill);
+ border-color: var(--ctl-field-border);
+ color: var(--dg-text-primary);
+}
+html[data-theme="lumen"] #promptEditor .ue-input::placeholder,
+html[data-theme="lumen"] #promptEditor .ue-textarea::placeholder { color: var(--dg-text-muted); opacity: .8; }
+html[data-theme="lumen"] #promptEditor .ue-input:focus,
+html[data-theme="lumen"] #promptEditor .ue-textarea:focus {
+ border-color: var(--dg-accent);
+ box-shadow: 0 0 0 3px var(--ue-accent-soft);
+}
+html[data-theme="lumen"] #promptEditor .ue-field > span { color: var(--dg-text-muted); opacity: 1; }
+html[data-theme="lumen"] #promptEditor select {
+ background: var(--dg-input-fill);
+ border-color: var(--ctl-field-border);
+ color: var(--dg-text-primary);
+}
+html[data-theme="lumen"] #promptEditor select option {
+ background: var(--dg-popover-fill);
+ color: var(--dg-text-primary);
+}
+html[data-theme="lumen"] #promptEditor .ue-editor-card {
+ background: var(--ue-card);
+ border-color: var(--ue-hairline);
+ box-shadow: var(--dg-card-shadow);
+}
+html[data-theme="lumen"] #promptEditor .ue-editor-head { color: var(--dg-accent-text); }
+html[data-theme="lumen"] #promptEditor .ue-empty {
+ background: color-mix(in srgb, var(--ue-card) 50%, transparent);
+ border-color: color-mix(in srgb, var(--dg-text-muted) 30%, transparent);
+ color: var(--dg-text-muted);
+ opacity: 1;
+}
+html[data-theme="lumen"] #promptEditor .ue-char-cur {
+ background: var(--ue-accent-soft);
+ border-color: color-mix(in srgb, var(--dg-accent) 42%, transparent);
+ color: var(--dg-accent-text);
+ opacity: 1;
+}
+/* 底栏：浅灰卡面 + 上边 hairline，和内容区明确分层。 */
+html[data-theme="lumen"] #promptEditor .ue-footer {
+ background: var(--ue-card);
+ border-top-color: var(--ue-hairline);
+}
+html[data-theme="lumen"] #promptEditor .ue-footer-hint { color: var(--dg-text-muted); opacity: 1; }
+html[data-theme="lumen"] #promptEditor .ue-btn-ghost {
+ background: var(--dg-button-secondary-fill);
+ border-color: var(--dg-button-secondary-border);
+ color: var(--dg-button-secondary-text);
+}
+html[data-theme="lumen"] #promptEditor .ue-btn-ghost:hover {
+ background: var(--ue-hover);
+ border-color: color-mix(in srgb, var(--dg-accent) 34%, transparent);
+ color: var(--dg-text-primary);
+}
+
 /* 手机端 modal 适配 */
 @media (max-width: 768px) {
  #promptEditorMask { padding: 10px; }
@@ -1330,11 +1360,8 @@ html[data-theme="candle"] .img-close:hover { background: rgba(217,168,104,.25); 
  - C: 移动端 tab 54→46px / composer 瘦身 / 思考按钮缩
  ═══════════════════════════════ */
 
-/* 4.8-A 移动端鱼缸默认 hidden,toggle on 才显示 */
-@media (max-width: 1023px) {
- .fishbowl-side-panel { display: none !important; }
- body.fishbowl-shown .fishbowl-side-panel { display: flex !important; }
-}
+/* 4.8-A 旧移动端鱼缸底部抽屉已退役：fishbowl 面板现在固定挂进 #fishbowlSlot，
+   由新壳控制台的「群聊」栏显示。 */
 
 /* 4.8-B 顶栏 model 居中：left-spacer（mode后）+ 原 spacer（cost后）夹住 */
 .topbar-spacer-left {
@@ -1740,10 +1767,6 @@ html:not([data-theme]):not([data-scheme="dark"]) .sidebar-btn.active { backgroun
 html:not([data-theme]):not([data-scheme="dark"]) .sidebar-btn-disabled,
 html:not([data-theme]):not([data-scheme="dark"]) .sidebar-btn[disabled] { background:#fbfbfa; border-color:#ececea; color:#b0afab; }
 
-html:not([data-theme]):not([data-scheme="dark"]) .mobile-bottom-tabs { background: rgba(255,255,255,.92); border-color:#e3e2de; box-shadow: 0 10px 30px rgba(15,15,15,.10); }
-html:not([data-theme]):not([data-scheme="dark"]) .mobile-tab-btn { color:#787774; }
-html:not([data-theme]):not([data-scheme="dark"]) .mobile-tab-btn.active { color:#37352f; background: rgba(55,53,47,.08); box-shadow: inset 0 0 0 1px rgba(55,53,47,.35), 0 0 16px rgba(55,53,47,.10); }
-html:not([data-theme]):not([data-scheme="dark"]) .mobile-tab-panel.active { background: rgba(255,255,255,.97); color:#37352f; border-color:#e3e2de; }
 
 html:not([data-theme]):not([data-scheme="dark"]) .ue-header,
 html:not([data-theme]):not([data-scheme="dark"]) .ue-footer { background:#fbfbfa; border-color:#ececea; }

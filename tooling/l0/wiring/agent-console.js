@@ -207,41 +207,29 @@ function mountAgentConsole(container, opts = {}) {
 
 	// 2026-11-15 修（手机端「放行弹窗选完不消失」）：
 	//   放行卡以前是「决策后把按钮换成一行灰字、卡片永久留在时间线」，手机端又为了让人
-	//   看见卡片会自动顶起 Agent 面板（壳下是控制台抽屉），却没有任何收起逻辑 —— 于是
-	//   点完「放行/拒绝」后那个「弹窗」还杵在屏幕上。现在两件事一起收：
+	//   看见卡片会自动顶起控制台，却没有任何收起逻辑 —— 于是点完「放行/拒绝」后那个
+	//   「弹窗」还杵在屏幕上。现在两件事一起收：
 	//     ① 卡片给出短暂结果反馈后淡出移除（审计痕迹仍在状态条 + agent-steps 的步骤块）；
-	//     ② 只对「由待放行请求自动顶起」的面板/抽屉自动收起，用户自己打开的不动。
+	//     ② 只对「由待放行请求自动顶起」的视图自动收起，用户自己打开的不动。
 	//   ③ 手机壳不直接读壳的全局对象（会引入类型逃逸）：改用两个自定义事件，
 	//      「谁顶起面板谁收起」由壳自己记账，跨模块只走显式契约。
-	let autoSurface = null // { kind:'mobile'|'desktop', tab?, prev? } | null
+	let autoSurface = null // { kind:'desktop', prev? } | null
 
 	function inShell() {
 		try { return document.documentElement.classList.contains('shell-mobile') } catch (e) { return false }
 	}
 
-	// 2026-11-10: 权限卡只进右栏「活动」/手机底部 Agent 面板。手机端 Agent 模式默认不激活面板，
-	// 用户只看到聊天一直转圈，以为 agent "有眼没手"。有待放行请求时把面板顶上来。
+	// 权限卡只进右栏「活动」。手机壳把整块右栏搬进控制台，事件负责开抽屉；
+	// 桌面直接切到活动 tab。旧手机底部 Agent 面板已随旧手机 UI 一起删除。
 	function surfacePending() {
 		try {
 			if (inShell()) { window.dispatchEvent(new CustomEvent('cfw:perm-pending')); return }
-			const isMobile = window.matchMedia && window.matchMedia('(max-width: 1023px)').matches
-			if (isMobile) {
-				// ?shell=off / 旧四 tab：面板本来由 mobile-tabs.js 的 .active 控制
-				const tab = document.getElementById('mobileAgentTab')
-				const panel = document.getElementById('mobileTabPanel-agent')
-				if (tab && !tab.disabled) {
-					if (!autoSurface && panel && !panel.classList.contains('active')) autoSurface = { kind: 'mobile', tab }
-					if (!tab.classList.contains('active')) tab.click()
-					return
-				}
-			} else {
-				const act = document.querySelector('#rightSidebar .rs-tab.active')
-				const rsFound = document.querySelector('#rightSidebar .rs-tab[data-rs-tab="fishbowl"]')
-				const rsTab = rsFound instanceof HTMLElement ? rsFound : null
-				if (rsTab && !rsTab.classList.contains('active')) {
-					if (!autoSurface) autoSurface = { kind: 'desktop', prev: act }
-					rsTab.click()
-				}
+			const act = document.querySelector('#rightSidebar .rs-tab.active')
+			const rsFound = document.querySelector('#rightSidebar .rs-tab[data-rs-tab="fishbowl"]')
+			const rsTab = rsFound instanceof HTMLElement ? rsFound : null
+			if (rsTab && !rsTab.classList.contains('active')) {
+				if (!autoSurface) autoSurface = { kind: 'desktop', prev: act }
+				rsTab.click()
 			}
 		} catch (e) {}
 	}
@@ -254,11 +242,7 @@ function mountAgentConsole(container, opts = {}) {
 		autoSurface = null
 		if (!s) return
 		try {
-			if (s.kind === 'mobile') {
-				if (s.tab) s.tab.classList.remove('active')
-				const panel = document.getElementById('mobileTabPanel-agent')
-				if (panel) panel.classList.remove('active')
-			} else if (s.kind === 'desktop') {
+			if (s.kind === 'desktop') {
 				const act = document.querySelector('#rightSidebar .rs-tab.active')
 				// 只在我们仍停在「活动」栏时还原；用户中途手动切走就不打扰
 				if (s.prev && s.prev.isConnected && act && act.getAttribute('data-rs-tab') === 'fishbowl' && act !== s.prev) s.prev.click()

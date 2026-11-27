@@ -206,10 +206,13 @@
       return;
     }
 
-    // Desktop docks into the right-hand slot; phones fall back to body (V3 bottom sheet).
+    // The new mobile shell moves the whole right rail (and this slot) into its console, so desktop
+    // and mobile use the same host. No body-mounted bottom sheet: that was the old mobile UI.
     var slot = window.slotRegistry.pick("fishbowlSlot");
-    var isDesktop = window.matchMedia("(min-width: 1024px)").matches;
-    var target = isDesktop && slot ? slot : document.body;
+    if (!slot) {
+      if (panel) panel.style.display = "none";
+      return;
+    }
     // The agent console shares this slot when both run at once. The console sits above the timeline
     // so a long timeline cannot push the controls out of the viewport, and DOM order is
     // roster -> group-chat console -> agent console.
@@ -218,21 +221,16 @@
       panel.id = "fishbowlSidePanel";
       panel.className = "fishbowl-side-panel";
     }
-    if (target === slot) {
-      var anchor = slot.querySelector("#__agentConsoleRoot");
-      if (anchor && anchor.parentNode === slot) {
-        if (panel.parentNode !== slot || panel.nextElementSibling !== anchor) {
-          slot.insertBefore(panel, anchor);
-        }
-      } else if (panel.parentNode !== slot) {
-        if (panel.parentNode) panel.parentNode.removeChild(panel);
-        slot.appendChild(panel);
+    var anchor = slot.querySelector("#__agentConsoleRoot");
+    if (anchor && anchor.parentNode === slot) {
+      if (panel.parentNode !== slot || panel.nextElementSibling !== anchor) {
+        slot.insertBefore(panel, anchor);
       }
-    } else if (panel.parentNode !== target) {
+    } else if (panel.parentNode !== slot) {
       if (panel.parentNode) panel.parentNode.removeChild(panel);
-      target.appendChild(panel);
+      slot.appendChild(panel);
     }
-    panel.classList.toggle("in-slot", target === slot);
+    panel.classList.add("in-slot");
     panel.style.display = "";
 
     var s = fb.getState();

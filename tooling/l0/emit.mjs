@@ -195,9 +195,9 @@ const WIRINGS = {
   // Chat-background settings (2026-11-21): stored bg shape, asymmetric slider parsing, centre label,
   // upload ceiling and apply/clear key rules; DOM, file picker and status text stay in settings.js.
   "services/ui/settings-background.ts": "tooling/l0/wiring/settings-background.js",
-  // Appearance-tab polarities (2026-11-25): mobile-tabs default depends on the Android shell, rich
-  // effects are opt-in, idle memory is opt-out and language is en/zh. localStorage and the DOM stay
-  // in settings.js; the bridge is a non-`__` global.
+  // Appearance-tab polarities (2026-11-27): rich effects are opt-in, idle memory is opt-out and
+  // language is en/zh. The old mobile-tabs defaults were deleted with the legacy bottom bar;
+  // localStorage and the DOM stay in settings.js; the bridge is a non-`__` global.
   "services/ui/settings-appearance.ts": "tooling/l0/wiring/settings-appearance.js",
   // DeepSeek kit switches (2026-11-25): two keys and the literal-"1" rule here; localStorage and the
   // cards in settings.js. Shared with prompt-profile's deepseekKitPayload read side.
@@ -286,10 +286,9 @@ const WIRINGS = {
   // Sidebar fold groups (2026-11-16): the wrap plan, fold resolution and toggle rules here; the
   // nav scan, wrapper nodes, stylesheet, listeners and observer in the wiring.
   "services/ui/sidebar-groups.ts": "tooling/l0/wiring/sidebar-groups.js",
-  // Tab strips (2026-11-16): both strips answer "what should the whole strip look like after this
-  // tap", never "what to do to the clicked button"; the mobile strip also owns the body flag that
-  // CSS reads. Query passes, listeners and the three automatic switches stay in the wirings.
-  "services/ui/mobile-tabs.ts": "tooling/l0/wiring/mobile-tabs.js",
+  // Tab strips (2026-11-16): the right strip answers "what should the whole strip look like after
+  // this tap", never "what to do to the clicked button". Query passes, listeners and the three
+  // automatic switches stay in the wiring.
   "services/ui/right-sidebar-tabs.ts": "tooling/l0/wiring/right-sidebar-tabs.js",
   // Prompt editor (2026-11-16): preset ordering/grouping, library merge, JSON-source validation,
   // SillyTavern preset import, card mapping both ways, PNG chunks, world-row summaries and the import

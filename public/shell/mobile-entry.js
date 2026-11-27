@@ -1,10 +1,15 @@
 // @ts-check
 /* public/shell/mobile-entry.js
  * ─────────────────────────────────────────────────────────────────────
- * 手机壳 shell bundle v0.5.1
+ * 手机壳 shell bundle v0.6.0
  *
  * 目标：在**不改 index.html 结构、不改 app.js** 的前提下，加一层可拆卸的手机 UI，
  *      同时验证 core 架构计划里「slot registry + 节点搬家」这条路走不走通。
+ *
+ * v0.6.0（2026-11-27）· 唯一手机 UI：
+ *   旧四 tab 底栏、mobile-tabs 引擎与 ?shell=off 回退全部删除；手机端只存在这一套壳。
+ *   壳 CSS 由 index.html 在 <head> 静态加载并在首帧贴 shell-mobile 类，bundle 只补 DOM，
+ *   加载过程中不会再先画出旧手机 UI。
  *
  * v0.5.1（2026-11-26）· 职责与可读材质修正：
  *   ① 插槽解析认 window.slotRegistry，再退到 data-slot 与 id —— rightSidebar 不在
@@ -66,7 +71,6 @@
  *   3. 布局只搬节点、不写业务状态 —— core 不需要知道壳存在
  *
  * 开关：
- *   ?shell=off     完全停用（保留旧四 tab 底栏）
  *   ?shell=mobile  桌面窗口也强制启用（调试用）
  *   ?page=work     / ?page=sandbox   直达沙盘页（work 是 v0.2.0 旧参数，保留兼容）
  *   ?page=console  / ?page=stage     打开控制台面板（stage 是 v0.1.0 的旧参数，保留兼容）
@@ -78,9 +82,8 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.5.1';
+  var VERSION = '0.6.0';
   var params = new URLSearchParams(location.search);
-  if (params.get('shell') === 'off') return;
 
   var FORCE = params.get('shell') === 'mobile';
   var MQ = window.matchMedia('(max-width: 1023px)');
@@ -120,10 +123,10 @@
     return (host && host[name]) || /** @type {any} */ (window)['__' + name];
   }
 
-  /* ── 样式注入（bundle 自带资源，不写 index.html） ─────────────── */
+  /* ── 样式注入（index.html 已静态加载；单独分发 bundle 时兜底） ─── */
 
   function injectCss() {
-    if (document.querySelector('link[data-shell-css]')) return;
+    if (document.querySelector('link[data-shell-css], link[href*="/shell/mobile-shell.css"]')) return;
     var link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = CSS_HREF;

@@ -211,7 +211,6 @@
       mountThemeCard: mountThemeCard,
       mountAmbientCard: mountAmbientCard,
       mountBackgroundCard: mountBackgroundCard,
-      mountMobileAppLayoutCard: mountMobileAppLayoutCard,
       mountDisplayCard: mountDisplayCard,
       mountAppFxCard: mountAppFxCard,
       mountI18nCard: mountI18nCard,

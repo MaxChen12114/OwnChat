@@ -1,9 +1,10 @@
 // Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/status-panel.ts; this file owns the
-// stylesheet, the skeleton markup, both hosts, the input wiring and the refresh loop.
+// stylesheet, the skeleton markup, the host, the input wiring and the refresh loop.
 //
-// Dual mount by design: the desktop right-rail tab and the mobile bottom-sheet tab share one skeleton
-// and one snapshot per tick. The refresh strategy is the cost-widget pattern: a 2s interval that only
-// recomputes while a host is visible, plus immediate refresh on storage/focus/visibility/tab changes.
+// One host by design: #statusPanelDesktop lives in the right rail, and the mobile shell moves that
+// whole rail into its console. The refresh strategy is the cost-widget pattern: a 2s interval that
+// only recomputes while the host is visible, plus immediate refresh on storage/focus/visibility/tab
+// changes.
 //
 // The estimation note is honest by construction: the client only sees the payload blocks it assembles;
 // the worker's system base and compliance layers are invisible, and the card says so.
@@ -15,13 +16,10 @@
   const STYLE_ID = "statusPanelStyles";
 
   const CSS_TEXT = `
-/* The injected stylesheet sits at the end of head and would override styles-2.css's
-   .mobile-tab-panel{display:none} with equal specificity, so an inactive mobile panel used to
-   participate in layout and scroll into view (reported as "the status panel appears while scrolling").
-   Display is therefore declared per host: desktop always; mobile only when .active. */
+/* The injected stylesheet sits at the end of head, so the host declares its own display rather
+   than relying on the old mobile bottom-sheet rules. */
 .sp-host{padding:10px 12px calc(12px + env(safe-area-inset-bottom,0px));box-sizing:border-box;font-family:var(--chat-font-family,ui-sans-serif,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif);}
 #statusPanelDesktop{display:flex;flex-direction:column;gap:10px;}
-.mobile-tab-panel.sp-host.active{display:flex;flex-direction:column;gap:10px;}
 .sp-card{background:var(--bubble-ai,#141414);border:1px solid var(--border,#222);border-radius:14px;padding:12px 14px;box-sizing:border-box;}
 .sp-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .sp-title{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted,#9a9a9a);text-transform:uppercase;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis;}
@@ -233,11 +231,11 @@
     }
   }
 
-  // Mounting and the refresh loop.
+  // Mounting and the refresh loop. The mobile shell moves this host into its console.
   let hosts = [];
   function mountAll(){
     ensureCss();
-    hosts = [document.getElementById("statusPanelDesktop"), document.getElementById("mobileTabPanel-status")].filter(Boolean);
+    hosts = [document.getElementById("statusPanelDesktop")].filter(Boolean);
     hosts.forEach(h => {
       if (h.__spDone) return;
       h.__spDone = true;

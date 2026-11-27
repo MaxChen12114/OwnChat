@@ -4,7 +4,7 @@
   "bundles": [
     {
       "id": "mobile-shell",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "entry": "public/shell/mobile-entry.js",
       "outfile": "mobile-entry.js",
       "capabilities": [],

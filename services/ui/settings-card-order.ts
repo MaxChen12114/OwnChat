@@ -28,7 +28,6 @@ export const SETTINGS_CARDS: readonly SettingsCardStep[] = [
   { id: "mountThemeCard", why: "外观分类首卡" },
   { id: "mountAmbientCard", why: "氛围音，全主题可用、不随解锁门显隐" },
   { id: "mountBackgroundCard", why: "背景图（外观分类）" },
-  { id: "mountMobileAppLayoutCard", why: "壳内布局卡" },
   { id: "mountDisplayCard", why: "字号/字体属于外观" },
   { id: "mountAppFxCard", why: "壳内特效档位（仅壳内出现）" },
   { id: "mountI18nCard", why: "界面语言" },

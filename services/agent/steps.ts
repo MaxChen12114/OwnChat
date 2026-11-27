@@ -24,7 +24,7 @@ function recOf(v: unknown): Record<string, unknown> {
 }
 
 /** Argument keys worth showing in the brief line, in priority order. */
-export const STEP_BRIEF_KEYS = ["path", "file", "file_path", "filename", "url", "query", "q", "keyword", "name", "pattern", "id", "topic", "text", "content"];
+export const STEP_BRIEF_KEYS = ["path", "file", "file_path", "filename", "url", "command", "cmd", "query", "q", "keyword", "name", "pattern", "id", "topic", "text", "content"];
 
 /** One-line argument brief: the first known key wins, else the remaining pairs, truncated. */
 export function briefArgs(name: unknown, args: unknown): string {
@@ -43,6 +43,75 @@ export function briefArgs(name: unknown, args: unknown): string {
 
 export type StepState = "run" | "done" | "err";
 
+/** Semantic tool family used by the document-mode process rows. */
+export type ToolCategory = "read" | "commands" | "edit" | "web" | "subagents" | "tools";
+
+/**
+ * Classify a tool name into the row family shown by the document transcript. The match is
+ * deliberately prefix/substring based: tool names differ by host (local_read_file, read_source,
+ * bash, exec_command, ...), but the reader only needs the family.
+ */
+export function stepCategory(name: unknown): ToolCategory {
+  const n = String(name == null ? "" : name).toLowerCase();
+  if (/subagent|agent_team|delegate/.test(n)) return "subagents";
+  if (/web|fetch|http|browse_url|url_read/.test(n)) return "web";
+  if (/bash|shell|exec|terminal|command|run|pwsh|cmd|process/.test(n)) return "commands";
+  if (/edit|write|patch|create|update|delete|rename|move|mkdir|mkdirs/.test(n)) return "edit";
+  if (/read|grep|glob|search|list|browse|inspect|view|cat|head|tail|stat/.test(n)) return "read";
+  return "tools";
+}
+
+/**
+ * The document transcript's collapsed process summary: category counts, e.g. "已查阅 1 项，已执行
+ * 3 命令". Bubble mode keeps the existing "已完成 · N 步" capsule.
+ */
+export function panelDocTitle(steps: unknown, enLabels: boolean): string {
+  const list = Array.isArray(steps) ? steps : [];
+  const counts: Record<ToolCategory, number> = { read: 0, commands: 0, edit: 0, web: 0, subagents: 0, tools: 0 };
+  list.forEach((el) => {
+    counts[stepCategory(recOf(el).name)]++;
+  });
+  const labels = enLabels
+    ? {
+        read: (n: number) => `Read ${n} item${n === 1 ? "" : "s"}`,
+        commands: (n: number) => `Ran ${n} command${n === 1 ? "" : "s"}`,
+        edit: (n: number) => `Edited ${n} file${n === 1 ? "" : "s"}`,
+        web: (n: number) => `Browsed ${n} page${n === 1 ? "" : "s"}`,
+        subagents: (n: number) => `Used ${n} subagent${n === 1 ? "" : "s"}`,
+        tools: (n: number) => `Called ${n} tool${n === 1 ? "" : "s"}`,
+      }
+    : {
+        read: (n: number) => `已查阅 ${n} 项`,
+        commands: (n: number) => `已执行 ${n} 命令`,
+        edit: (n: number) => `已修改 ${n} 文件`,
+        web: (n: number) => `已联网 ${n} 次`,
+        subagents: (n: number) => `已调用 ${n} 个子智能体`,
+        tools: (n: number) => `已调用 ${n} 个工具`,
+      };
+  const order: ToolCategory[] = ["read", "commands", "edit", "web", "subagents", "tools"];
+  const parts: string[] = [];
+  for (const kind of order) if (counts[kind] > 0) parts.push(labels[kind](counts[kind]));
+  if (parts.length === 0) return enLabels ? "Thinking process" : "思考过程";
+  return parts.slice(0, 3).join(enLabels ? ", " : "，");
+}
+
+/** First line of a reasoning block, or the latest paragraph's first line while streaming. */
+export function reasoningSummary(text: unknown, running: boolean): string {
+  const value = String(text == null ? "" : text).replaceAll("**", "");
+  if (!running) {
+    const newline = value.indexOf("\n");
+    return (newline === -1 ? value : value.slice(0, newline)).trim();
+  }
+  const paragraphs = value.split(/\r?\n(?:[\t ]*\r?\n)+/);
+  for (let i = paragraphs.length - 1; i >= 0; i--) {
+    const line = paragraphs[i].trim();
+    if (!line) continue;
+    const newline = line.indexOf("\n");
+    return (newline === -1 ? line : line.slice(0, newline)).trim();
+  }
+  return "";
+}
+
 /** denied or ok===false is a failure; ok===true done; anything else still running. */
 export function stepState(info: unknown): StepState {
   const i = recOf(info);
@@ -53,6 +122,8 @@ export interface PanelDone {
   state: "aborted" | "err" | "done";
   /** The header line: 已中断 / 已结束 / 已完成 / 思考过程, with the step count when there are steps. */
   title: string;
+  /** Document-mode header: category counts, e.g. "已查阅 1 项，已执行 3 命令". */
+  docTitle: string;
   /** Tool names, deduplicated, capped at four; the suffix is " 等" or " +" by UI language. */
   names: string;
   errored: boolean;
@@ -80,6 +151,7 @@ export function panelDone(steps: unknown, ms: number | null, reason: unknown, en
       : hasSteps
         ? (err ? "已结束" : "已完成") + " · " + list.length + " 步"
         : "思考过程",
+    docTitle: panelDocTitle(list, enLabels),
     names: names.slice(0, 4).join(", ") + (names.length > 4 ? suffix : ""),
     errored: err > 0,
   };

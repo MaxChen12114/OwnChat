@@ -2,9 +2,8 @@
   // public/shell/mobile-entry.js
   (function() {
     "use strict";
-    var VERSION = "0.5.1";
+    var VERSION = "0.6.0";
     var params = new URLSearchParams(location.search);
-    if (params.get("shell") === "off") return;
     var FORCE = params.get("shell") === "mobile";
     var MQ = window.matchMedia("(max-width: 1023px)");
     var html = document.documentElement;
@@ -48,7 +47,7 @@
       window["__" + name];
     }
     function injectCss() {
-      if (document.querySelector("link[data-shell-css]")) return;
+      if (document.querySelector('link[data-shell-css], link[href*="/shell/mobile-shell.css"]')) return;
       var link = document.createElement("link");
       link.rel = "stylesheet";
       link.href = CSS_HREF;

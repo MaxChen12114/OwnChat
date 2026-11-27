@@ -1,5 +1,7 @@
 /* public/shell/mobile-shell.css
- * 手机壳 shell bundle v0.5.1。只在 html.shell-mobile 下生效，桌面零影响。
+ * 手机壳 shell bundle v0.6.0。只在 html.shell-mobile 下生效，桌面零影响。
+ * 由 index.html 在 <head> 静态加载，首帧即按壳排版；桌面由 html.shell-mobile 作用域隔离，
+ * 裸 #mobileShell 始终 display:none，手机→桌面旋转不会残留。
  *
  * ── 主题（2026-11-14 修复）────────────────────────────────────────────
  * v0.1.0 用的是 var(--panel) / var(--text)，这两个令牌只在
@@ -100,8 +102,6 @@ html.shell-mobile #mobileShell { display: flex; }
   padding-top: env(safe-area-inset-top);
 }
 
-/* 旧四 tab 底栏退役；壳自带 dock */
-html.shell-mobile #mobileBottomTabs { display: none !important; }
 html.shell-mobile .input-floating { bottom: calc(var(--shell-dock-h) + 10px) !important; }
 html.shell-mobile #chat { padding-bottom: var(--shell-chat-space); }
 

@@ -161,7 +161,7 @@ const SLOT_SPECS                      = [
     fallbacks: ["setAppearanceTopSlot"],
     rootFallback: false,
     owner: "module",
-    evidence: "../tooling/l0/wiring/settings/10-appearance.js:25",
+    evidence: "../tooling/l0/wiring/settings/10-appearance.js:26",
   },
   {
     id: "setChatSlot",
@@ -260,26 +260,26 @@ const SLOT_SPECS                      = [
     evidence: "../tooling/l0/wiring/cost-log.js:44",
   },
   {
-    // Mount logic lives in index.html's inline scripts; mobile falls back to #mobileTabPanel-agent.
+    // Mount logic lives in index.html's inline scripts; the mobile shell moves the whole right
+    // sidebar into its console, so the same slot is the mobile host too.
     id: "agentConsoleSlot",
     order: 14,
     area: "shell",
     fallbacks: [],
     rootFallback: false,
     owner: "index-inline",
-    mobileHost: "mobileTabPanel-agent",
-    evidence: "index.html:1277",
+    evidence: "index.html:1245",
   },
   {
-    // Mobile falls back to document.body.
+    // The mobile shell moves this slot (inside #rightSidebar) into the console; body is no longer
+    // a fallback host.
     id: "fishbowlSlot",
     order: 15,
     area: "shell",
     fallbacks: [],
     rootFallback: false,
     owner: "index-inline",
-    mobileHost: "body",
-    evidence: "index.html:1287",
+    evidence: "index.html:1255",
   },
 ];
 
@@ -290,7 +290,7 @@ const SLOT_IDS                    = SLOT_SPECS.map(function (s) {
 
 // Inventory of index.html's inline scripts (read line by line after the α2 pass, not guessed).
 //
-// Why it exists: after α2 the page still carried 18 inline scripts (17 business + the boot line).
+// Why it exists: after α2 the page still carried 17 business inline scripts plus the boot line.
 // The acceptance for the slot work is "all getElementById('*Slot') calls resolve through the
 // registry", and the mounts for agentConsoleSlot / fishbowlSlot are exactly in those inline
 // blocks — so before extracting them, there must be a table of which slots each one touches and
@@ -382,17 +382,6 @@ const INDEX_INLINE_SCRIPTS                              = [
     positionSensitive: false,
     externalizable: true, externalizedAs: "services/ui/settings-footer-keeper.js",
     note: "2026-11-17 服务层搬迁：源=services/ui/settings-footer-keeper.ts，接线在 tooling/l0/wiring；触碰节点 settings/settingsFooter/settingsBtn 均在 boot 之前",
-  },
-  {
-    id: "inline-5",
-    anchor: "querySelectorAll(\".mobile-tab-btn\")",
-    line: 1397,
-    role: "手机底部 tab 切换器（mobile-tab-btn / mobile-tab-panel）",
-    mounts: [],
-    observes: [],
-    positionSensitive: false,
-    externalizable: true, externalizedAs: "services/ui/mobile-tabs.js",
-    note: "触碰节点 1376/1380，在 boot 之前",
   },
   {
     id: "inline-6",
@@ -507,7 +496,7 @@ const INDEX_INLINE_SCRIPTS                              = [
     id: "inline-17",
     anchor: "function safeInit(){ if (_agentInited) return; _agentInited = true; init(); }",
     line: 1799,
-    role: "Agent 模式编排器：控制台挂载（桌面 agentConsoleSlot||fishbowlSlot / 手机 mobileTabPanel-agent）、断点自愈、外部设置同步",
+    role: "Agent 模式编排器：控制台挂载（agentConsoleSlot||fishbowlSlot）、断点自愈、外部设置同步",
     mounts: ["agentConsoleSlot"],
     observes: ["fishbowlSlot"],
     createsGlobal: "agentConsoleSlot",
