@@ -2,7 +2,7 @@
   // public/shell/mobile-entry.js
   (function() {
     "use strict";
-    var VERSION = "0.5.0";
+    var VERSION = "0.5.1";
     var params = new URLSearchParams(location.search);
     if (params.get("shell") === "off") return;
     var FORCE = params.get("shell") === "mobile";
@@ -19,14 +19,24 @@
     var bootCap = params.get("cap") === "1";
     var CSS_HREF = "/shell/mobile-shell.css?v=" + VERSION;
     function slot(name) {
-      var reg = (
+      var host = (
         /** @type {any} */
-        window.__slots
+        window
       );
+      var reg = host.slotRegistry;
       var el = reg && typeof reg.get === "function" ? reg.get(name) : null;
+      if (el) return (
+        /** @type {HTMLElement|null} */
+        el
+      );
+      var marked = document.querySelector('[data-slot="' + name + '"]');
+      if (marked) return (
+        /** @type {HTMLElement|null} */
+        marked
+      );
       return (
         /** @type {HTMLElement|null} */
-        el || document.querySelector('[data-slot="' + name + '"]')
+        document.getElementById(name)
       );
     }
     function api(name) {
@@ -74,21 +84,23 @@
       });
     }
     function placeStage() {
-      var aside = slot("rightSidebar") || document.getElementById("rightSidebar");
+      var aside = slot("rightSidebar");
       var host = document.getElementById("shConsoleBody");
-      if (!aside || !host) return;
-      if (aside.parentNode !== host) moveTo(
-        /** @type {HTMLElement} */
-        aside,
-        host
-      );
+      if (!host) return false;
+      var missing = host.querySelector("[data-sh-console-missing]");
+      if (!aside) {
+        if (!host.childElementCount) {
+          host.innerHTML = '<div class="sh-hint" data-sh-console-missing><b>\u684C\u9762\u53F3\u680F\u672A\u5C31\u7EEA</b>\u63A7\u5236\u53F0\u8BFB\u53D6\u7684\u662F\u684C\u9762\u53F3\u680F\u300C\u6D3B\u52A8 / \u7FA4\u804A / \u72B6\u6001\u300D\u3002\u53F3\u680F\u6302\u8F7D\u540E\u91CD\u65B0\u6253\u5F00\u63A7\u5236\u53F0\u5373\u53EF\u3002</div>';
+        }
+        return false;
+      }
+      if (missing) missing.remove();
+      if (aside.parentNode !== host) moveTo(aside, host);
+      return true;
     }
     function homeStage() {
-      var aside = document.getElementById("rightSidebar");
-      if (aside) moveHome(
-        /** @type {HTMLElement} */
-        aside
-      );
+      var aside = slot("rightSidebar");
+      if (aside) moveHome(aside);
     }
     function capsuleText() {
       var mode = document.getElementById("modeToggle");
@@ -204,7 +216,7 @@
       doc: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>'
     };
     var EMPTY = {
-      all: ["\u6C99\u76D8\u662F\u4EC0\u4E48", "agent \u6302\u4E0A\u6765\u7684\u5C55\u793A\u9875\u3001\u5730\u56FE\u3001\u8BA8\u8BBA\u533A\u4E0E\u6587\u6863\uFF0C\u90FD\u6446\u5728\u8FD9\u4E2A\u53F0\u9762\u4E0A\u3002\u70B9\u5361\u7247\u5728\u9875\u5185\u6253\u5F00\uFF0C\u4E0D\u8DF3\u8D70\u5BF9\u8BDD\u3002"],
+      all: ["\u6C99\u76D8\u662F\u4EC0\u4E48", "agent \u6302\u4E0A\u6765\u7684\u5C55\u793A\u9875\u3001\u5730\u56FE\u3001\u8BA8\u8BBA\u533A\u4E0E\u6587\u6863\uFF0C\u90FD\u6446\u5728\u8FD9\u4E2A\u5185\u5BB9\u53F0\u9762\u4E0A\uFF1B\u70B9\u5361\u7247\u5728\u9875\u5185\u6253\u5F00\uFF0C\u4E0D\u8DF3\u8D70\u5BF9\u8BDD\u3002\u63A7\u5236\u53F0\u662F\u53E6\u4E00\u5757\u9762\uFF1A\u5E95\u680F\u300C\u63A7\u5236\u53F0\u300D\u6253\u5F00\u684C\u9762\u53F3\u680F\u7684\u6D3B\u52A8 / \u7FA4\u804A / \u72B6\u6001\u3002"],
       mount: ["\u8FD8\u6CA1\u6709\u6302\u8F7D\u5185\u5BB9", "agent \u7528 stage_open \u6302\u4E0A\u6765\u7684\u5C55\u793A\u9875\u4F1A\u6536\u5728\u8FD9\u91CC\uFF1B\u684C\u9762\u53F3\u680F\u4E0E\u624B\u673A\u6C99\u76D8\u5171\u7528\u540C\u4E00\u4EFD\u6807\u7B7E\u72B6\u6001\u673A\u3002"],
       map: ["\u5730\u56FE\u5165\u53E3", "\u6C99\u76D8\u662F\u72EC\u7ACB\u4ED3\uFF0C\u5730\u5740\u5728\u300C\u8BBE\u7F6E \u2192 \u5185\u5BB9\u9762\u677F\u300D\u91CC\u586B\uFF1BGEO \u5730\u56FE\u53EA\u6709\u914D\u4E86\u5730\u5740\u624D\u51FA\u73B0\u3002"],
       image: ["\u56FE\u7247\u7D22\u5F15\u672A\u63A5", "\u5BF9\u8BDD\u91CC\u751F\u6210\u7684\u63D2\u56FE\u4E0E\u5F62\u8C61\u5361\u6682\u65F6\u4ECD\u56DE\u5BF9\u8BDD\u67E5\u770B\uFF1B\u8FD9\u91CC\u5148\u7559\u4F4D\uFF0C\u7B49\u4EA7\u7269\u7D22\u5F15\u843D\u5730\u518D\u586B\uFF0C\u4E0D\u9020\u7A7A\u6E05\u5355\u3002"],
@@ -496,7 +508,7 @@
     function dockItem(key, label, panel) {
       var cls = "sh-item" + (key === "chat" && !panel ? " on" : "");
       var attr = panel ? 'data-panel="console"' : 'data-page="' + key + '"';
-      var aria = panel ? 'role="button" aria-label="\u63A7\u5236\u53F0\uFF08\u8FC7\u7A0B \xB7 \u6D3B\u52A8 / \u7FA4\u804A / \u72B6\u6001\uFF0C\u8986\u76D6\u5728\u5F53\u524D\u9875\u4E4B\u4E0A\uFF09" aria-expanded="false" aria-controls="shConsole"' : 'aria-label="' + label + '"';
+      var aria = panel ? 'role="button" aria-label="\u63A7\u5236\u53F0\uFF08\u684C\u9762\u53F3\u680F \xB7 \u6D3B\u52A8 / \u7FA4\u804A / \u72B6\u6001\uFF0C\u8986\u76D6\u5728\u5F53\u524D\u9875\u4E4B\u4E0A\uFF09" aria-expanded="false" aria-controls="shConsole"' : 'aria-label="' + label + '"';
       return '<button class="' + cls + '" ' + attr + " " + aria + '><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[key] + "</svg><span>" + label + "</span></button>";
     }
     function head(title, sub) {
@@ -507,7 +519,7 @@
       injectCss();
       var wrap = document.createElement("div");
       wrap.id = "mobileShell";
-      wrap.innerHTML = '<div class="sh-body"><section class="sh-page on" data-page="chat" aria-label="\u5BF9\u8BDD"></section><section class="sh-page" data-page="work" aria-label="\u6C99\u76D8">' + head("\u6C99\u76D8", "\u5185\u5BB9\u53F0\u9762") + '<div class="sh-body-in" id="shWorkBody"><div class="sh-seg" id="shWorkSeg"><button data-seg="all" class="on">\u5168\u90E8</button><button data-seg="mount">\u6302\u8F7D</button><button data-seg="map">\u5730\u56FE</button><button data-seg="image">\u56FE\u7247</button><button data-seg="doc">\u6587\u6863</button></div><div class="sh-panes" id="shWorkPanes"></div></div><section class="sh-stage" id="shStage" hidden aria-label="\u6C99\u76D8\u5185\u5BB9"><div class="sh-stage-bar"><button class="sh-stage-btn" data-stage-back="1" aria-label="\u8FD4\u56DE\u6C99\u76D8">\u8FD4\u56DE</button><b id="shStageTitle">\u5185\u5BB9</b><button class="sh-stage-btn" data-stage-open="1" aria-label="\u5728\u65B0\u7A97\u53E3\u6253\u5F00">\u65B0\u7A97</button></div><div class="sh-stage-box" id="shStageBox"></div></section></section><div class="sh-scrim" data-close-console="1" aria-hidden="true"></div><section class="sh-console" id="shConsole" role="dialog" aria-label="\u63A7\u5236\u53F0" aria-hidden="true"><div class="sh-head"><h2>\u63A7\u5236\u53F0</h2><span class="sh-sub">\u6D3B\u52A8 \xB7 \u7FA4\u804A \xB7 \u72B6\u6001</span><button class="sh-close" data-close-console="1" aria-label="\u6536\u8D77\u63A7\u5236\u53F0">' + CLOSE_ICON + '</button></div><div class="sh-body-in" id="shConsoleBody"></div></section></div><div class="sh-cap-scrim" data-close-cap="1" aria-hidden="true"></div><section class="sh-cap-pop" id="shCapPop" role="dialog" aria-label="\u6A21\u5F0F\u4E0E\u6A21\u578B" aria-hidden="true"><div class="sh-head"><h2>\u6A21\u5F0F\u4E0E\u6A21\u578B</h2><span class="sh-sub">\u514D\u8D39 / \u5FEB\u901F \xB7 \u6A21\u578B</span><button class="sh-close" data-close-cap="1" aria-label="\u6536\u8D77">' + CLOSE_ICON + '</button></div><div class="sh-cap-body" id="shCapsuleBody"></div><div class="sh-cap-tip">\u9876\u680F\u653E\u4E0D\u4E0B\u7684\u63A7\u4EF6\u6536\u5728\u8FD9\u91CC\uFF0C\u6539\u5B8C\u76F4\u63A5\u751F\u6548\uFF1B\u684C\u9762\u7AEF\u4F1A\u81EA\u52A8\u642C\u56DE\u9876\u680F\u539F\u4F4D\u3002</div></section><nav class="sh-dock" aria-label="\u4E3B\u5BFC\u822A">' + dockItem("chat", "\u5BF9\u8BDD") + dockItem("work", "\u6C99\u76D8") + dockItem("console", "\u63A7\u5236\u53F0", true) + "</nav>";
+      wrap.innerHTML = '<div class="sh-body"><section class="sh-page on" data-page="chat" aria-label="\u5BF9\u8BDD"></section><section class="sh-page" data-page="work" aria-label="\u6C99\u76D8">' + head("\u6C99\u76D8", "\u5185\u5BB9\u53F0\u9762") + '<div class="sh-body-in" id="shWorkBody"><div class="sh-seg" id="shWorkSeg"><button data-seg="all" class="on">\u5168\u90E8</button><button data-seg="mount">\u6302\u8F7D</button><button data-seg="map">\u5730\u56FE</button><button data-seg="image">\u56FE\u7247</button><button data-seg="doc">\u6587\u6863</button></div><div class="sh-panes" id="shWorkPanes"></div></div><section class="sh-stage" id="shStage" hidden aria-label="\u6C99\u76D8\u5185\u5BB9"><div class="sh-stage-bar"><button class="sh-stage-btn" data-stage-back="1" aria-label="\u8FD4\u56DE\u6C99\u76D8">\u8FD4\u56DE</button><b id="shStageTitle">\u5185\u5BB9</b><button class="sh-stage-btn" data-stage-open="1" aria-label="\u5728\u65B0\u7A97\u53E3\u6253\u5F00">\u65B0\u7A97</button></div><div class="sh-stage-box" id="shStageBox"></div></section></section><div class="sh-scrim" data-close-console="1" aria-hidden="true"></div><section class="sh-console" id="shConsole" role="dialog" aria-label="\u63A7\u5236\u53F0\uFF08\u684C\u9762\u53F3\u680F\uFF1A\u6D3B\u52A8 / \u7FA4\u804A / \u72B6\u6001\uFF09" aria-hidden="true"><div class="sh-head"><h2>\u63A7\u5236\u53F0</h2><span class="sh-sub">\u6D3B\u52A8 / \u7FA4\u804A / \u72B6\u6001</span><button class="sh-close" data-close-console="1" aria-label="\u6536\u8D77\u63A7\u5236\u53F0">' + CLOSE_ICON + '</button></div><div class="sh-body-in" id="shConsoleBody"></div></section></div><div class="sh-cap-scrim" data-close-cap="1" aria-hidden="true"></div><section class="sh-cap-pop" id="shCapPop" role="dialog" aria-label="\u6A21\u5F0F\u4E0E\u6A21\u578B" aria-hidden="true"><div class="sh-head"><h2>\u6A21\u5F0F\u4E0E\u6A21\u578B</h2><span class="sh-sub">\u514D\u8D39 / \u5FEB\u901F \xB7 \u6A21\u578B</span><button class="sh-close" data-close-cap="1" aria-label="\u6536\u8D77">' + CLOSE_ICON + '</button></div><div class="sh-cap-body" id="shCapsuleBody"></div><div class="sh-cap-tip">\u9876\u680F\u653E\u4E0D\u4E0B\u7684\u63A7\u4EF6\u6536\u5728\u8FD9\u91CC\uFF0C\u6539\u5B8C\u76F4\u63A5\u751F\u6548\uFF1B\u684C\u9762\u7AEF\u4F1A\u81EA\u52A8\u642C\u56DE\u9876\u680F\u539F\u4F4D\u3002</div></section><nav class="sh-dock" aria-label="\u4E3B\u5BFC\u822A">' + dockItem("chat", "\u5BF9\u8BDD") + dockItem("work", "\u6C99\u76D8") + dockItem("console", "\u63A7\u5236\u53F0", true) + "</nav>";
       document.body.appendChild(wrap);
       wrap.addEventListener("click", function(e) {
         var t2 = (
@@ -650,6 +662,7 @@
       var on = FORCE || MQ.matches;
       if (!on) {
         html.classList.remove("shell-mobile", "shell-chat", "shell-console-open", "shell-cap-open");
+        if (built) setConsole(false);
         consoleOpen = false;
         unpatchPanel();
         homeCapsule();

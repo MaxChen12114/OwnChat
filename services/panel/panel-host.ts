@@ -19,6 +19,42 @@
 export type PanelView = "canvas" | "activity" | "chat" | "status";
 export type PanelTab = "fishbowl" | "chat" | "status";
 
+/** One row of the right column's view list. */
+export interface PanelViewDef {
+  /** `data-pv` / `data-menu-pv`, and the value the state machine stores in `view`. */
+  id: Exclude<PanelView, "canvas">;
+  /** The fixed-mode tab (`data-rs-tab`) this view belongs to. */
+  tab: PanelTab;
+  /** User-visible label; the i18n dictionary carries the three strings. */
+  label: string;
+  /** Key into `ICON_PATHS` (services/ui/tools-pages.ts) — never an inline path here. */
+  icon: string;
+}
+
+/**
+ * Every view of the right column, in fixed-tab order. This table is the only place a view is
+ * declared: the fixed strip (`#rsTabs`), the expanded bar's `data-pv` buttons and the "⋯" menu all
+ * render from it, and `panelKeyOf` / `viewState` derive their view→tab mapping from it too. Adding
+ * a view means one row here plus its `<section data-rs-panel>` in index.html.
+ *
+ * `chat` is the group-chat discussion area: multi-agent output mounts into `#fishbowlSlot` inside
+ * that panel. It is permanent — it must NOT become a closable dynamic tab, because the discussion
+ * content has nowhere else to render.
+ */
+export const PANEL_VIEWS: readonly PanelViewDef[] = [
+  { id: "activity", tab: "fishbowl", label: "活动", icon: "activity" },
+  { id: "chat", tab: "chat", label: "群聊", icon: "chat" },
+  { id: "status", tab: "status", label: "状态", icon: "status" },
+];
+
+/** The table row for a view name, or null for `canvas` / an unknown name. */
+function viewDefOf(view: unknown): PanelViewDef | null {
+  for (let i = 0; i < PANEL_VIEWS.length; i++) {
+    if (PANEL_VIEWS[i].id === view) return PANEL_VIEWS[i];
+  }
+  return null;
+}
+
 export interface PanelState {
   expanded: boolean;
   width: number;
@@ -80,7 +116,7 @@ export function loadPanelState(raw: unknown): PanelState {
 }
 
 export function isPanelView(name: unknown): name is PanelView {
-  return name === "canvas" || name === "activity" || name === "chat" || name === "status";
+  return name === "canvas" || viewDefOf(name) !== null;
 }
 
 /** Maps a tab's `data-rs-tab` to the stored tab, defaulting to the fishbowl (the historical name). */
@@ -91,12 +127,13 @@ export function tabFromName(name: unknown): PanelTab {
   return "fishbowl";
 }
 
-/** View name → the `data-rs-panel` key of the section that renders it. */
+/**
+ * View name → the `data-rs-panel` key of the section that renders it. The section keys are the tab
+ * names, so the mapping is the view's `tab`; `canvas` is its own section.
+ */
 export function panelKeyOf(view: unknown): string {
-  if (view === "activity") return "fishbowl";
-  if (view === "chat") return "chat";
-  if (view === "status") return "status";
-  return "canvas";
+  const def = viewDefOf(view);
+  return def ? def.tab : "canvas";
 }
 
 /** The section that should be visible, given the mode. */
@@ -121,8 +158,9 @@ export function expandedState(state: PanelState, on: unknown): PanelState {
  */
 export function viewState(state: PanelState, name: unknown): PanelState {
   if (!isPanelView(name)) return state;
+  const def = viewDefOf(name);
   const next: PanelState = { expanded: state.expanded, width: state.width, view: name, tab: state.tab };
-  if (!state.expanded) next.tab = name === "status" ? "status" : name === "chat" ? "chat" : "fishbowl";
+  if (!state.expanded) next.tab = def ? def.tab : state.tab;
   return next;
 }
 

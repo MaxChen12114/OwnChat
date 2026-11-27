@@ -17,7 +17,7 @@
  */
 
 /** Styles in radio order; adding one means adding the [data-theme] CSS, nothing else. */
-export const THEME_STYLES = ["minimal", "glass", "candle"];
+export const THEME_STYLES = ["minimal", "glass", "lumen", "candle"];
 /** Styles that belong to the private mode; gated on the unlock flag. */
 export const PRIVATE_STYLES = ["candle"];
 function recOf(v: unknown): Record<string, unknown> {
@@ -39,9 +39,35 @@ export const AUDIO_LS_AMB = "cfw_ambient_amb_v1";
 export const AUDIO_LS_MUS = "cfw_ambient_mus_v1";
 
 /** Each style's native light/dark, used when the user has not chosen a scheme. */
-export const NATIVE_SCHEME: Record<string, string> = { minimal: "dark", glass: "light", candle: "dark" };
+export const NATIVE_SCHEME: Record<string, string> = { minimal: "dark", glass: "light", lumen: "light", candle: "dark" };
 /** Styles that actually ship both schemes; the UI only shows the toggle for these. */
-export const SCHEME_READY = ["minimal"];
+export const SCHEME_READY = ["minimal", "lumen"];
+
+/**
+ * Chat presentation is a fourth, orthogonal axis: which bubbles the transcript uses is not the
+ * same decision as which palette the app wears. `auto` follows the style's native form; the
+ * settings card exposes auto / bubble / doc explicitly.
+ */
+export const THEME_LS_CHAT = "cfw_chat_present_v1";
+export const CHAT_PRESENTS = ["auto", "bubble", "doc"];
+export const CHAT_PRESENT_DEFAULT = "auto";
+/** Each style's native transcript. Lumen is the document-first theme; the rest are bubbles. */
+export const NATIVE_CHAT: Record<string, string> = {
+  minimal: "bubble",
+  glass: "bubble",
+  lumen: "doc",
+  candle: "bubble",
+};
+
+/**
+ * The transcript form that should actually apply. Explicit bubble/doc wins over the style's
+ * native form; an unknown or missing stored value means "follow the theme".
+ */
+export function resolveChatPresent(stored: unknown, style: string): "bubble" | "doc" {
+  const v = String(stored || "");
+  if (v === "bubble" || v === "doc") return v;
+  return NATIVE_CHAT[style] === "doc" ? "doc" : "bubble";
+}
 
 /** Ambient tracks, all CC0 (credits in /assets/ambient/CREDITS.txt): [id, label, file]. */
 export const AMB_TRACKS = [

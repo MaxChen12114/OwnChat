@@ -24,6 +24,42 @@
   --ctl-h: 34px;
   --ctl-r: 9px;
   --ctl-fs: 12.5px;
+  /* 2026-11-26 control material tokens (styles-controls.css): one source for icon buttons,
+     panel buttons, right-column segmented tabs, dynamic tabs and composer chips.
+     Minimal = air (transparent) with one neutral hover step; the focus ring reuses --focus-ring. */
+  --ctl-fill: transparent;
+  --ctl-fill-hover: rgba(255, 255, 255, .07);
+  --ctl-border: transparent;
+  --ctl-border-hover: transparent;
+  --ctl-fg: #cfcfcf;
+  --ctl-fg-strong: #ffffff;
+  --ctl-ring: var(--focus-ring);
+  --seg-track: rgba(127, 127, 127, .10);
+  --seg-track-shadow: none;
+  --seg-active-fill: var(--accent-soft);
+  --seg-active-fg: #eaeaea;
+  --seg-active-shadow: 0 1px 3px rgba(0, 0, 0, .20);
+  /* Chat-presentation (doc) aliases: the document transcript reads --dg-* in every theme.
+     Lumen overrides these with its real Daygo substrate in themes/lumen/tokens.css. */
+  --dg-accent: var(--accent);
+  --dg-accent-bg: var(--accent-soft);
+  --dg-accent-border: var(--accent-border);
+  --dg-accent-text: var(--accent-2);
+  --dg-text-primary: #eaeaea;
+  --dg-text-secondary: #cfcfcf;
+  --dg-text-tertiary: #9a9a9a;
+  --dg-text-muted: #9a9a9a;
+  --dg-card-fill: var(--surface-3);
+  --dg-card-border: var(--border-soft);
+  --dg-card-shadow: 0 2px 10px rgba(0, 0, 0, .06);
+  --dg-track-fill: var(--surface-2);
+  --dg-surface: var(--surface-2);
+  --dg-hover-fill: rgba(255, 255, 255, .07);
+  --dg-control-fill: var(--accent-soft);
+  --dg-capsule-fill: rgba(127, 127, 127, .10);
+  --dg-capsule-hover: rgba(127, 127, 127, .17);
+  --dg-font-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+  --dg-motion-base: 160ms;
   --bg: #0b0b0b;
   --muted: #9a9a9a;
   --bubble-ai: #141416;
@@ -168,6 +204,34 @@ html[data-scheme="light"]:not([data-theme]) {
   --danger-soft: #fdf0ee;
   --danger-border: #f3c9c2;
   --danger-soft-hover: #fbe3df;
+  /* 2026-11-26 control material tokens — light minimal. Hover = the same #efedea the .iconbtn
+     override already used; the active segment is the existing ink-gray accent, not a new color. */
+  --ctl-fill: transparent;
+  --ctl-fill-hover: #efedea;
+  --ctl-border: transparent;
+  --ctl-border-hover: transparent;
+  --ctl-fg: #5f5e5b;
+  --ctl-fg-strong: #37352f;
+  --ctl-ring: var(--focus-ring);
+  --seg-track: rgba(127, 127, 127, .10);
+  --seg-track-shadow: none;
+  --seg-active-fill: var(--accent-soft);
+  --seg-active-fg: #37352f;
+  --seg-active-shadow: 0 1px 3px rgba(15, 15, 15, .10);
+  /* Chat-presentation (doc) aliases — light minimal. */
+  --dg-text-primary: #37352f;
+  --dg-text-secondary: #5f5e5b;
+  --dg-text-tertiary: #787774;
+  --dg-text-muted: #787774;
+  --dg-card-fill: var(--surface-3);
+  --dg-card-border: var(--border-soft);
+  --dg-card-shadow: 0 2px 10px rgba(15, 15, 15, .06);
+  --dg-track-fill: var(--surface-2);
+  --dg-surface: var(--surface-2);
+  --dg-hover-fill: #efedea;
+  --dg-capsule-fill: rgba(127, 127, 127, .10);
+  --dg-capsule-hover: rgba(127, 127, 127, .17);
+  --dg-control-fill: var(--accent-soft);
   --bg: #ffffff;
   --muted: #787774;
   --bubble-ai: #f7f7f5;
@@ -187,8 +251,8 @@ html[data-scheme="light"]:not([data-theme]) #topbar {
   border-bottom: 1px solid #ececea;
 }
 html[data-scheme="light"]:not([data-theme]) .pill { background: #f7f7f5; border-color: #e6e6e3; }
-html[data-scheme="light"]:not([data-theme]) .iconbtn { background: transparent; border-color: transparent; color: #5f5e5b; }
-html[data-scheme="light"]:not([data-theme]) .iconbtn:hover { background: #efedea; color: #37352f; }
+html[data-scheme="light"]:not([data-theme]) .iconbtn { background: var(--ctl-fill); border-color: var(--ctl-border); color: var(--ctl-fg); }
+html[data-scheme="light"]:not([data-theme]) .iconbtn:hover { background: var(--ctl-fill-hover); color: var(--ctl-fg-strong); }
 html[data-scheme="light"]:not([data-theme]) .model-label { color: #37352f; }
 html[data-scheme="light"]:not([data-theme]) select { background: #ffffff; color: #37352f; border-color: #e0dfdc; }
 html[data-scheme="light"]:not([data-theme]) select option { background: #ffffff; color: #37352f; }
@@ -367,6 +431,14 @@ body { overflow-x: hidden; }
   justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
+}
+/* 2026-11-26: 右栏内容条展开后，中间列可被压到 ~430px。styles-2.css 的 `.topbar-inner`
+   （同为单类，加载更晚）把 flex-wrap 改回 nowrap，于是窄列下最后一个按钮被 #app 的
+   overflow:hidden 裁掉。桌面端在这里用 ID 级选择器钉死「允许换行」：元素宽度仍可收缩，
+   真挤不下时宁可第二行，也不把设置/面板键推出玻璃板。手机（<1024）仍走 styles-2 的
+   横向滚动策略，不被这条影响。 */
+@media (min-width: 1024px) {
+  #topbar .topbar-inner { flex-wrap: wrap; row-gap: 6px; }
 }
 
 .pill {
@@ -632,6 +704,10 @@ html:not(.is-desktop) #history:not(:has(#chat .row))::after {
 .input-inner {
   pointer-events: auto;
   width: 100%;
+  /* 2026-11-26: 面板展开把中间列压窄时，flex 项的 min-width:auto 会按「输入框最小内容宽」
+     顶住收缩，发送键随之被推出 .input-inner 的右边界（视觉上被裁掉）。显式归零，
+     让 textarea 先缩、按钮保持完整。 */
+  min-width: 0;
   max-width: var(--content-max);
   /* 2026-06-08 居中改走 margin:0 auto(留白由父级 .input-floating 的 padding 提供), 圆角 18px 接近 Notion 方圆感 */
   margin: 0 auto;
@@ -645,9 +721,16 @@ html:not(.is-desktop) #history:not(:has(#chat .row))::after {
   /* 2026-06-08 阴影力度对齐参考稿(极简明暗两态统一 0 8px 30px .16, 比原来 .45 更轻盈、更 Notion) */
   box-shadow: 0 8px 30px rgba(0,0,0,.16);
 }
+/* 回形针 / 思考 / 发送三颗按钮永远保持自身尺寸，收缩压力全部交给中间的 textarea。 */
+#composer #composerAttachBtn,
+#composer #thinkToggle,
+#composer #sendBtn { flex: 0 0 auto; }
 
 textarea#msg {
   flex: 1;
+  /* 与 .input-inner 同理：textarea 的默认 cols=20 会给出 ~180px 的最小内容宽，
+     窄列下这正是「发送键被挤出去」的直接原因。 */
+  min-width: 0;
   resize: none;
   border: none;
   outline: none;
@@ -681,6 +764,16 @@ button#sendBtn svg { width: 18px; height: 18px; transform: translateX(-1px); }
 button#sendBtn:hover { background: var(--btn-bg-hover); transform: translateY(-1px); }
 button#sendBtn:active { transform: scale(.93); }
 button#sendBtn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+/* 2026-11-26: 360 级窄屏再收一档间距与三颗按钮，给 textarea 留出可读宽度，发送键必须完整可见。
+   !important 是必要的：index.html 的手机内联块对同一批属性带 !important，这里靠更高的
+   选择器特异性（#composer #sendBtn 等）覆盖，而不是删除手机端原有尺寸。 */
+@media (max-width: 380px) {
+  #composer { gap: 6px !important; padding: 8px 8px 8px 10px !important; }
+  #composer #composerAttachBtn { width: 28px !important; height: 28px !important; border-radius: 8px !important; }
+  #composer #thinkToggle { height: 28px !important; min-height: 28px !important; padding: 0 8px !important; gap: 3px !important; border-radius: 8px !important; }
+  #composer #sendBtn { width: 34px !important; height: 34px !important; flex: 0 0 34px !important; }
+  #composer #sendBtn svg { width: 16px !important; height: 16px !important; }
+}
 /* 2026-11-11: Agent 运行中、输入框为空 → 发送键只把图标换成线性方块「停止」；
    底色/描边/阴影继续跟当前主题的发送键走，不另起颜色。 */
 button#sendBtn.is-stop svg { width: 18px; height: 18px; transform: none; }
@@ -1333,6 +1426,35 @@ html[data-theme="glass"] {
   --input-border: rgba(255, 255, 255, .70);
   --btn-bg: linear-gradient(135deg, #3a6485, #4a7f9f);
   --btn-bg-hover: linear-gradient(135deg, #315570, #3f6f8f);
+  /* 2026-11-26 control material tokens — glass. White .66/.92 + white hairline .30/.55 are the
+     values the existing .iconbtn override already used; the segmented active state is the same
+     white .6 pill (with dark ink) the right-column tabs had in index.html's inline block. */
+  --ctl-fill: rgba(255, 255, 255, .66);
+  --ctl-fill-hover: rgba(255, 255, 255, .92);
+  --ctl-border: rgba(255, 255, 255, .30);
+  --ctl-border-hover: rgba(255, 255, 255, .55);
+  --ctl-fg: #1e293b;
+  --ctl-fg-strong: #1a1f2e;
+  --ctl-ring: var(--focus-ring);
+  --seg-track: rgba(255, 255, 255, .22);
+  --seg-track-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25);
+  --seg-active-fill: rgba(255, 255, 255, .60);
+  --seg-active-fg: #1c2330;
+  --seg-active-shadow: 0 2px 8px rgba(31, 45, 80, .18);
+  /* Chat-presentation (doc) aliases — glass. */
+  --dg-text-primary: #1a1f2e;
+  --dg-text-secondary: #4a5160;
+  --dg-text-tertiary: #64748b;
+  --dg-text-muted: #64748b;
+  --dg-card-fill: var(--surface-3);
+  --dg-card-border: var(--border-soft);
+  --dg-card-shadow: 0 2px 10px rgba(60, 95, 120, .10);
+  --dg-track-fill: var(--surface-2);
+  --dg-surface: var(--surface-2);
+  --dg-hover-fill: rgba(15, 30, 60, .05);
+  --dg-capsule-fill: rgba(255, 255, 255, .66);
+  --dg-capsule-hover: rgba(255, 255, 255, .92);
+  --dg-control-fill: var(--accent-soft);
 }
 
 html[data-theme="glass"] body {
@@ -1366,16 +1488,19 @@ html[data-theme="glass"] #topbar {
 html[data-theme="glass"] .pill,
 html[data-theme="glass"] .iconbtn {
   /* 2026-11-10（所有者：毛玻璃下边框太显眼）：白描边 .62→.30、投影减半，
-     按钮融进顶栏而不是一枚枚白框 */
-  background: rgba(255, 255, 255, .66);
-  border: 1px solid rgba(255, 255, 255, .30);
-  color: #1e293b;
+     按钮融进顶栏而不是一枚枚白框。
+     2026-11-26: 底色/描边/文字改读 --ctl-*（与 .pbtn / chip / 分段 tab 同源），
+     投影与 backdrop 仍留在这里 —— 它们不属于颜色契约。 */
+  background: var(--ctl-fill);
+  border: 1px solid var(--ctl-border);
+  color: var(--ctl-fg);
   box-shadow: 0 1px 6px rgba(70, 110, 140, .06), inset 0 1px 0 rgba(255,255,255,.7);
   backdrop-filter: blur(12px) saturate(160%);
   -webkit-backdrop-filter: blur(12px) saturate(160%);
 }
 html[data-theme="glass"] .iconbtn:hover {
-  background: rgba(255,255,255,.92);
+  background: var(--ctl-fill-hover);
+  border-color: var(--ctl-border-hover);
   box-shadow: 0 6px 20px rgba(60,105,135,.18), inset 0 1px 0 rgba(255,255,255,.9);
   transform: translateY(-1px);
 }
@@ -1803,6 +1928,35 @@ html[data-theme="candle"] {
   --input-border: rgba(217, 168, 104, .34);
   --btn-bg: #d9a868;
   --btn-bg-hover: #e8bd7c;
+  /* 2026-11-26 control material tokens — candle. Warm translucent fill + gold hairline are the
+     existing .iconbtn values; the active segment is the gold/cream gradient the right-column tabs
+     used, now shared by panel buttons and dynamic tabs too. */
+  --ctl-fill: rgba(40, 28, 18, .45);
+  --ctl-fill-hover: rgba(217, 168, 104, .22);
+  --ctl-border: rgba(217, 168, 104, .22);
+  --ctl-border-hover: rgba(217, 168, 104, .42);
+  --ctl-fg: #f2e7d6;
+  --ctl-fg-strong: #f6eddc;
+  --ctl-ring: var(--focus-ring);
+  --seg-track: rgba(217, 168, 104, .12);
+  --seg-track-shadow: inset 0 0 0 1px rgba(217, 168, 104, .20);
+  --seg-active-fill: linear-gradient(135deg, rgba(217, 168, 104, .45), rgba(242, 231, 214, .30));
+  --seg-active-fg: #171009;
+  --seg-active-shadow: 0 2px 12px rgba(217, 168, 104, .35);
+  /* Chat-presentation (doc) aliases — candle. */
+  --dg-text-primary: #f2e7d6;
+  --dg-text-secondary: #a89a8a;
+  --dg-text-tertiary: #8a7a6a;
+  --dg-text-muted: #8a7a6a;
+  --dg-card-fill: var(--surface-3);
+  --dg-card-border: var(--border-soft);
+  --dg-card-shadow: 0 2px 12px rgba(0, 0, 0, .22);
+  --dg-track-fill: var(--surface-2);
+  --dg-surface: var(--surface-2);
+  --dg-hover-fill: rgba(217, 168, 104, .08);
+  --dg-capsule-fill: rgba(40, 28, 18, .45);
+  --dg-capsule-hover: rgba(217, 168, 104, .22);
+  --dg-control-fill: var(--accent-soft);
 }
 html[data-theme="candle"] body {
   background:
@@ -1823,14 +1977,15 @@ html[data-theme="candle"] #topbar {
 }
 html[data-theme="candle"] .pill,
 html[data-theme="candle"] .iconbtn {
-  background: rgba(40, 28, 18, .45);
-  border: 1px solid rgba(217, 168, 104, .22);
-  color: #f2e7d6;
+  /* 2026-11-26: 暖色底/金描边/文字改读 --ctl-*（与 .pbtn / chip / 分段 tab 同源）。 */
+  background: var(--ctl-fill);
+  border: 1px solid var(--ctl-border);
+  color: var(--ctl-fg);
   backdrop-filter: blur(6px);
 }
 html[data-theme="candle"] .iconbtn:hover {
-  background: rgba(217, 168, 104, .22);
-  border-color: rgba(217, 168, 104, .42);
+  background: var(--ctl-fill-hover);
+  border-color: var(--ctl-border-hover);
   box-shadow: 0 0 calc(8px + var(--pulse) * 16px) rgba(217, 168, 104, calc(.25 + var(--pulse) * .35));
 }
 html[data-theme="candle"] select {

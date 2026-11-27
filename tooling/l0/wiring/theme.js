@@ -28,6 +28,7 @@ const STYLES = THEME_STYLES;
 const LS_STYLE = THEME_LS_STYLE;
 const LS_SCHEME = THEME_LS_SCHEME;
 const LS_ACCENT = THEME_LS_ACCENT;
+const LS_CHAT = THEME_LS_CHAT;
 const LS_AUDIO_ON = AUDIO_LS_ENABLED;
 const LS_AUDIO_VOL = AUDIO_LS_LEGACY_VOL;
 const LS_AMB = AUDIO_LS_AMB;
@@ -93,8 +94,14 @@ const getStoredScheme = () => {
 };
 // Effective scheme = explicit choice > the style's native light/dark.
 const getScheme = () => resolveScheme(getStoredScheme(), getStyle());
+const getStoredChatPresent = () => {
+  const v = localStorage.getItem(LS_CHAT);
+  return v === "bubble" || v === "doc" ? v : null;
+};
+// Effective transcript = explicit choice > the style's native form (lumen = doc).
+const getChatPresent = () => resolveChatPresent(getStoredChatPresent(), getStyle());
 const getAccent = () => localStorage.getItem(LS_ACCENT) || "default";
-const getAll    = () => ({ style: getStyle(), scheme: getScheme(), accent: getAccent() });
+const getAll    = () => ({ style: getStyle(), scheme: getScheme(), chat: getChatPresent(), accent: getAccent() });
 
 const getAudioEnabled = () => audioEnabledFrom(localStorage.getItem(LS_AUDIO_ON));
 
@@ -105,12 +112,18 @@ function applyStyle(s) {
     document.documentElement.setAttribute("data-theme", s);
   }
   applyScheme();
+  applyChatPresent();
   if (document.body) document.body.dataset.audioDisabled = String(!getAudioEnabled());
 }
 
 // The scheme rides on top of data-theme as data-scheme; minimal is the first dual-mode style.
 function applyScheme() {
   document.documentElement.setAttribute("data-scheme", getScheme());
+}
+
+// data-chat-present is orthogonal to data-theme: it selects bubble vs document transcript.
+function applyChatPresent() {
+  document.documentElement.setAttribute("data-chat-present", getChatPresent());
 }
 
 // Dual-deck ambient mixer: ambience (amb) x music (mus). One <audio> + GainNode per deck — both can
@@ -449,6 +462,13 @@ function set(patch) {
     try { localStorage.removeItem(LS_SCHEME); } catch (e) {}
     applyScheme();
   }
+  if (patch.chatPresent === "bubble" || patch.chatPresent === "doc") {
+    try { localStorage.setItem(LS_CHAT, patch.chatPresent); } catch (e) {}
+    applyChatPresent();
+  } else if (patch.chatPresent === "auto" || patch.chatPresent === null) {
+    try { localStorage.removeItem(LS_CHAT); } catch (e) {}
+    applyChatPresent();
+  }
   if (patch.accent) {
     try { localStorage.setItem(LS_ACCENT, patch.accent); } catch (e) {}
   }
@@ -495,6 +515,7 @@ window.__ambient = Mixer;
  // for the editor's init).
 try { applyBg(); } catch (e) {}
 try { applyScheme(); } catch (e) {}
+try { applyChatPresent(); } catch (e) {}
 
 // ═══ wire Settings DOM ═══
  // The light/dark toggle, injected above the style list; shown only for dual-mode styles.
@@ -537,6 +558,49 @@ function ensureSchemeToggle() {
   refreshSchemeToggle();
 }
 
+// Transcript form: another orthogonal choice, shown for every style (doc mode works on all
+// palettes through the --dg-* compatibility aliases in styles.css).
+function refreshChatPresentToggle() {
+  const row = document.getElementById("cfwChatPresentRow");
+  if (!row) return;
+  const stored = getStoredChatPresent();
+  row.querySelectorAll("button[data-chat-present-val]").forEach((b) => {
+    const v = b.getAttribute("data-chat-present-val");
+    const on = (v === "auto" && !stored) || v === stored;
+    b.classList.toggle("active", on);
+  });
+}
+
+function ensureChatPresentToggle() {
+  if (document.getElementById("cfwChatPresentRow")) { refreshChatPresentToggle(); return; }
+  const firstRadio = document.querySelector('input[name="cfwTheme"]');
+  if (!firstRadio) return;
+  const opt = firstRadio.closest(".theme-option") || firstRadio.parentElement;
+  const list = opt ? opt.parentElement : null;
+  if (!list || !list.parentElement) return;
+  const row = document.createElement("div");
+  row.id = "cfwChatPresentRow";
+  row.className = "scheme-toggle-row";
+  row.innerHTML =
+    '<span class="stg-label">聊天呈现</span>' +
+    '<div class="scheme-seg">' +
+      '<button type="button" data-chat-present-val="auto">跟随主题</button>' +
+      '<button type="button" data-chat-present-val="bubble">气泡</button>' +
+      '<button type="button" data-chat-present-val="doc">文档</button>' +
+    '</div>';
+  const schemeRow = document.getElementById("cfwSchemeRow");
+  const host = list.parentElement;
+  if (schemeRow && schemeRow.parentElement === host) host.insertBefore(row, schemeRow.nextSibling);
+  else host.insertBefore(row, list);
+  row.querySelectorAll("button[data-chat-present-val]").forEach((b) => {
+    b.addEventListener("click", () => {
+      set({ chatPresent: b.getAttribute("data-chat-present-val") });
+      refreshChatPresentToggle();
+    });
+  });
+  refreshChatPresentToggle();
+}
+
 function wireSettings() {
   if (wireSettings._bound) return;
   wireSettings._bound = true;
@@ -549,7 +613,9 @@ function wireSettings() {
   });
 
   ensureSchemeToggle();
+  ensureChatPresentToggle();
   subscribe(refreshSchemeToggle);
+  subscribe(refreshChatPresentToggle);
   wireAmbientCard();
 }
 

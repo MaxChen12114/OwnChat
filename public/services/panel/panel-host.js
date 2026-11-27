@@ -20,6 +20,42 @@
                                                                   
                                                       
 
+/** One row of the right column's view list. */
+                               
+                                                                                      
+                                   
+                                                                 
+                
+                                                                           
+                
+                                                                                        
+               
+ 
+
+/**
+ * Every view of the right column, in fixed-tab order. This table is the only place a view is
+ * declared: the fixed strip (`#rsTabs`), the expanded bar's `data-pv` buttons and the "⋯" menu all
+ * render from it, and `panelKeyOf` / `viewState` derive their view→tab mapping from it too. Adding
+ * a view means one row here plus its `<section data-rs-panel>` in index.html.
+ *
+ * `chat` is the group-chat discussion area: multi-agent output mounts into `#fishbowlSlot` inside
+ * that panel. It is permanent — it must NOT become a closable dynamic tab, because the discussion
+ * content has nowhere else to render.
+ */
+const PANEL_VIEWS                          = [
+  { id: "activity", tab: "fishbowl", label: "活动", icon: "activity" },
+  { id: "chat", tab: "chat", label: "群聊", icon: "chat" },
+  { id: "status", tab: "status", label: "状态", icon: "status" },
+];
+
+/** The table row for a view name, or null for `canvas` / an unknown name. */
+function viewDefOf(view         )                      {
+  for (let i = 0; i < PANEL_VIEWS.length; i++) {
+    if (PANEL_VIEWS[i].id === view) return PANEL_VIEWS[i];
+  }
+  return null;
+}
+
                              
                     
                 
@@ -81,7 +117,7 @@ function loadPanelState(raw         )             {
 }
 
 function isPanelView(name         )                    {
-  return name === "canvas" || name === "activity" || name === "chat" || name === "status";
+  return name === "canvas" || viewDefOf(name) !== null;
 }
 
 /** Maps a tab's `data-rs-tab` to the stored tab, defaulting to the fishbowl (the historical name). */
@@ -92,12 +128,13 @@ function tabFromName(name         )           {
   return "fishbowl";
 }
 
-/** View name → the `data-rs-panel` key of the section that renders it. */
+/**
+ * View name → the `data-rs-panel` key of the section that renders it. The section keys are the tab
+ * names, so the mapping is the view's `tab`; `canvas` is its own section.
+ */
 function panelKeyOf(view         )         {
-  if (view === "activity") return "fishbowl";
-  if (view === "chat") return "chat";
-  if (view === "status") return "status";
-  return "canvas";
+  const def = viewDefOf(view);
+  return def ? def.tab : "canvas";
 }
 
 /** The section that should be visible, given the mode. */
@@ -122,8 +159,9 @@ function expandedState(state            , on         )             {
  */
 function viewState(state            , name         )             {
   if (!isPanelView(name)) return state;
+  const def = viewDefOf(name);
   const next             = { expanded: state.expanded, width: state.width, view: name, tab: state.tab };
-  if (!state.expanded) next.tab = name === "status" ? "status" : name === "chat" ? "chat" : "fishbowl";
+  if (!state.expanded) next.tab = def ? def.tab : state.tab;
   return next;
 }
 
@@ -306,33 +344,34 @@ function callTimeoutMs(raw         )         {
   }
 
   // ---------- DOM assembly ----------
+  // The expanded bar's view buttons. Generated from PANEL_VIEWS so the bar, the fixed strip and the
+  // "⋯" menu cannot disagree about which views exist (a hardcoded list here was one of the four
+  // copies that had to be edited to add a view).
+  function viewBarButtons() {
+    return PANEL_VIEWS.map(function (entry) {
+      return '<button class="pbtn" type="button" data-pv="' + esc(entry.id) + '" title="' +
+        esc(entry.label + "（再点一次回画布）") + '">' + iconSvg(entry.icon) + "</button>";
+    }).join("");
+  }
+
   function buildBar() {
     var header = $("#rightSidebar .rs-header");
     if (!header) return null;
     var bar = document.createElement("div");
-    // The bar keeps [views ⋯][page shortcuts][active title][views][pop out][close]. Page switching
-    // lives in the tab strip and its "+" menu; this bar is the panel-level chrome.
-    bar.className = "pbar pbar-plain-title";
+    // The tab strip owns content navigation, so the bar keeps only the panel-level switches:
+    // 活动 / 群聊 / 状态 + 拉出 + 收起. The old page-shortcut row, the "内容" title dropdown and
+    // the "..." menu were duplicates of the tab strip and are gone.
+    bar.className = "pbar";
     bar.id = "panelBar";
     bar.hidden = true;
     bar.innerHTML =
-      '<button class="pbtn" type="button" id="panelMoreBtn" title="视图">' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.35" fill="currentColor" stroke="none"/></svg></button>' +
-      '<span class="pbar-tools"></span>' +
-      '<span class="pbar-title" id="panelTitle"></span>' +
       '<span class="pbar-acts">' +
-        '<button class="pbtn" type="button" data-pv="chat" title="群聊（再点一次回画布）">' +
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8l-3.5 2.5V14.5H4A1.5 1.5 0 0 1 2.5 13V7A1.5 1.5 0 0 1 4 5.5z"/><path d="M17 8.5h3A1.5 1.5 0 0 1 21.5 10v5.5a1.5 1.5 0 0 1-1.5 1.5h-.5v2.5L16 17.5h-3"/></svg></button>' +
-        '<button class="pbtn" type="button" data-pv="activity" title="活动（再点一次回画布）">' +
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2.5-6 4 12 2.5-6h5"/></svg></button>' +
-        '<button class="pbtn" type="button" data-pv="status" title="状态（再点一次回画布）">' +
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5h16M7.5 19.5V14M12 19.5V6.5M16.5 19.5V11"/></svg></button>' +
+        viewBarButtons() +
         '<button class="pbtn" type="button" data-pa="pop" title="把当前标签拉出为独立窗口">' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8"/><path d="M19 14v5H5V5h5"/></svg></button>' +
         '<button class="pbtn pbtn-close" type="button" data-pa="close" title="收起面板">' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
-      '</span>' +
-      '<div class="pbar-menu" id="panelMoreMenu" hidden></div>';
+      '</span>';
     header.appendChild(bar);
     created.push(bar);
     return bar;
@@ -462,7 +501,6 @@ function callTimeoutMs(raw         )         {
     trimLive();
     updateEmptyState();
     updateChrome();
-    renderTitle();
   }
 
   function ensurePaneFor(tab) {
@@ -497,25 +535,6 @@ function callTimeoutMs(raw         )         {
     if (on && on.scrollIntoView) {
       try { on.scrollIntoView({ block: "nearest", inline: "nearest" }); } catch (e) {}
     }
-    renderTitle();
-  }
-
-  function renderTitle() {
-    var el = $("#panelTitle");
-    var tab = panelTabs.active(tset);
-    var txt = tab ? String(tab.title || "").trim() : "";
-    if (el) el.textContent = txt || "内容";
-    var bar = els.bar;
-    if (bar) bar.classList.toggle("pbar-plain-title", !txt);
-  }
-
-  function renderToolButtons() {
-    var inline = els.bar && els.bar.querySelector(".pbar-tools");
-    if (!inline) return;
-    inline.innerHTML = pages.slice(0, 5).map(function (p) {
-      return '<button class="pbtn pbtn-tool" type="button" data-page="' + esc(p.id) + '" title="' + esc(p.label || p.id) + '">' +
-        iconSvg(p.icon) + "</button>";
-    }).join("");
   }
 
   function renderTabMenu() {
@@ -671,38 +690,12 @@ function callTimeoutMs(raw         )         {
     else p.reject(new Error(String(data.error || ("画布页执行 " + p.fn + " 失败"))));
   }
 
-  // The bar has two states, wide and narrow. Wide puts view shortcuts on the bar; narrow tucks them
-  // into the "..." menu. The decision cannot ride on ResizeObserver alone — in a background tab
-  // neither it nor rAF fires (measured). The primary path is the call at the end of apply().
-  function updateBarFit() {
-    var bar = els.bar;
-    if (!bar) return;
-    var w = bar.getBoundingClientRect().width;
-    bar.classList.toggle("pbar-wide", w >= 400);
-  }
-
-  function wireBarFit(bar) {
-    if (!bar) return;
-    try {
-      if (typeof ResizeObserver === "function") {
-        var ro = new ResizeObserver(updateBarFit);
-        ro.observe(bar);
-        manual(function () { try { ro.disconnect(); } catch (e) {} });
-      }
-      on(global, "resize", updateBarFit);
-    } catch (e) {}
-    global.requestAnimationFrame ? global.requestAnimationFrame(updateBarFit) : updateBarFit();
-  }
-
+  // The bar keeps a fixed set of view switches; no width-dependent "..." collapsing is needed now
+  // that the page shortcuts and title dropdown are gone.
   function bindBar(bar) {
     on(bar, "click", function (e) {
       var t = e.target.closest ? e.target.closest("button") : null;
       if (!t) return;
-      if (t.id === "panelMoreBtn") { toggleMore(); return; }
-      var pageId = t.getAttribute("data-page");
-      if (pageId) { openPage(pageId); toggleMore(false); return; }
-      var mpv = t.getAttribute("data-menu-pv");
-      if (mpv) { setView(mpv); toggleMore(false); return; }
       var pv = t.getAttribute("data-pv");
       var pa = t.getAttribute("data-pa");
       if (pv) { setView(st.view === pv ? "canvas" : pv); return; }
@@ -820,7 +813,6 @@ function callTimeoutMs(raw         )         {
     }
 
     syncPanes();
-    updateBarFit();
     requestAnimationFrame(refitTopbar);
   }
 
@@ -898,29 +890,6 @@ function callTimeoutMs(raw         )         {
     menu.style.left = left + "px";
     menu.style.top = Math.round(b.bottom - p.top + 4) + "px";
     menu.style.width = w + "px";
-  }
-
-  function toggleMore(force) {
-    var menu = $("#panelMoreMenu");
-    if (!menu) return;
-    var show = force === undefined ? menu.hidden : !!force;
-    menu.hidden = !show;
-    if (show) {
-      renderMoreMenu();
-      placeMenu(menu, $("#panelMoreBtn"));
-    }
-  }
-
-  function renderMoreMenu() {
-    var box = $("#panelMoreMenu");
-    if (!box) return;
-    var views = [{ pv: "chat", t: "群聊" }, { pv: "activity", t: "活动" }, { pv: "status", t: "状态" }];
-    box.innerHTML = views.map(function (v) {
-      var on = st.view === v.pv;
-      return '<button class="pmenu-item' + (on ? " on" : "") + '" type="button" data-menu-pv="' + v.pv + '">' +
-        '<span class="pmenu-t">' + v.t + "</span>" +
-        '<span class="pmenu-time">' + (on ? "当前" : "") + "</span></button>";
-    }).join("");
   }
 
   function toggleTabMenu(force) {
@@ -1148,22 +1117,55 @@ function callTimeoutMs(raw         )         {
   }
 
   // ---------- Pinned tab switching (activity / chat / status) ----------
+  // The fixed strip is rendered from PANEL_VIEWS; index.html ships an empty `#rsTabs` container.
+  // It lives here (not in the page) so the three views are declared exactly once, in the service.
+  // Must run before bindTabs() and before boot()'s `st.tab` lookup below.
+  // services/ui/right-sidebar-tabs.js loads ~170 manifest rows earlier and resolves `.rs-tab` on
+  // every use (`readTabs`), so its three automatic switches (boot pass / console mount / topbar
+  // multi-agent) see this strip once it is rendered. They call `panelSvc.chooseTab` so the highlight
+  // and the visible panel move together; a tab click stays owned here, with its persisted state.
+  function renderFixedTabs() {
+    var box = document.getElementById("rsTabs") || $("#rightSidebar .rs-tabs");
+    if (!box) return;
+    box.innerHTML = PANEL_VIEWS.map(function (entry) {
+      var on = entry.tab === st.tab;
+      return '<button class="rs-tab' + (on ? " active" : "") + '" data-rs-tab="' + esc(entry.tab) + '"' +
+        ' role="tab" aria-selected="' + (on ? "true" : "false") + '" type="button">' +
+        iconSvg(entry.icon) + "<span>" + esc(entry.label) + "</span>" +
+        '<span class="rs-dot" aria-hidden="true"></span></button>';
+    }).join("");
+  }
+
+  // Fixed-mode selection: one body for a strip click and for the strip's own automatic moves
+  // (boot pass / console mount / topbar button, services/ui/right-sidebar-tabs.js). Keeping the
+  // state machine here is what makes the highlight and the visible panel agree — when the two
+  // modules each painted their own copy, the next apply() re-showed the old panel under a new tab.
+  // `persist:false` keeps an automatic move out of localStorage: a reload must land on the tab the
+  // user picked, not on the one the boot pass guessed.
+  function selectTab(name, opts) {
+    var persist = !(opts && opts.persist === false);
+    st = tabState(st, name);
+    if (persist) save();
+    apply();
+    var all = document.querySelectorAll("#rightSidebar .rs-tab");
+    for (var i = 0; i < all.length; i++) {
+      var on = all[i].getAttribute("data-rs-tab") === st.tab;
+      all[i].classList.toggle("active", on);
+      all[i].setAttribute("aria-selected", on ? "true" : "false");
+      // Looking at a tab clears its unread dot. The rule (`clearActivity`) is owned by
+      // services/ui/right-sidebar-tabs.ts; that module's own clear only reaches the buttons it
+      // snapshotted, which are none — this strip is rendered from PANEL_VIEWS.
+      if (on) all[i].classList.remove("has-activity");
+    }
+    if (persist) emit("tab", { tab: st.tab });
+  }
+
   function bindTabs() {
     var tabs = document.querySelectorAll("#rightSidebar .rs-tab");
     if (!tabs.length) return;
     for (var i = 0; i < tabs.length; i++) {
       on(tabs[i], "click", function () {
-        var name = this.getAttribute("data-rs-tab");
-        st = tabState(st, name);
-        save();
-        apply();
-        var all = document.querySelectorAll("#rightSidebar .rs-tab");
-        for (var j = 0; j < all.length; j++) {
-          var on = all[j] === this;
-          all[j].classList.toggle("active", on);
-          all[j].setAttribute("aria-selected", on ? "true" : "false");
-        }
-        emit("tab", { tab: st.tab });
+        selectTab(this.getAttribute("data-rs-tab"));
       });
     }
   }
@@ -1173,19 +1175,19 @@ function callTimeoutMs(raw         )         {
   function refreshPages() {
     pages = buildPages();
     if (tset.activeId) destroyPane(tset.activeId);
-    renderToolButtons();
     renderTabStrip();
     syncPanes();
   }
 
   function boot() {
     load();
+    // Before the mode gates: the strip markup belongs to the page, not to the desktop layout, and a
+    // narrow window that grows later must not find an empty column.
+    renderFixedTabs();
     if (isPanelWindow) { bootWindow(); return; }
     if (!isDesktop()) return;
     wireTopbarFit();
     els.bar = buildBar();
-    renderToolButtons();
-    wireBarFit(els.bar);
     els.canvas = buildCanvas();
     els.canvasBox = $("#panelCanvasBox");
     els.strip = $("#panelTabScroll");
@@ -1215,7 +1217,6 @@ function callTimeoutMs(raw         )         {
       }
     }
     renderTabStrip();
-    renderTitle();
     apply();
     requestAnimationFrame(function () { try { apply(); } catch (e) {} });
     later(function () { try { apply(); } catch (e) {} }, 250);
@@ -1230,6 +1231,14 @@ function callTimeoutMs(raw         )         {
     close: close,
     activate: activate,
     view: setView,
+    // Fixed-tab selection for the strip's automatic moves (services/ui/right-sidebar-tabs.js):
+    // adopts the tab in the same state machine a click uses, without persisting it. Ignored while
+    // expanded — the fixed strip is off screen there, and re-selecting a tab would swap the canvas
+    // for an overlay the user never asked for.
+    chooseTab: function (name) {
+      if (st.expanded) return;
+      selectTab(name, { persist: false });
+    },
     state: function () {
       var tab = panelTabs.active(tset);
       return {
@@ -1310,6 +1319,10 @@ function callTimeoutMs(raw         )         {
     };
   }
 
+  // Read-only bridge for the equivalence lock (and for debugging): the fixed view table is the
+  // single source, so the test reads the emitted artifact instead of re-declaring the list.
+  try { global.PANEL_VIEWS = PANEL_VIEWS; } catch (e) {}
+
   var mod = { name: "panel-host", inject: ["db", "transport"], apply: apply };
   if (HOST) {
     HOST.define("panel-host", mod);
@@ -1319,6 +1332,7 @@ function callTimeoutMs(raw         )         {
   apply({ get: function () { return null; } });
 })(window);
 
+globalThis.PANEL_VIEWS = PANEL_VIEWS;
 globalThis.PANEL_VERSION = PANEL_VERSION;
 globalThis.PANEL_LS_STATE = PANEL_LS_STATE;
 globalThis.PANEL_LS_CURRENT = PANEL_LS_CURRENT;

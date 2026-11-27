@@ -1,5 +1,5 @@
 /* public/shell/mobile-shell.css
- * 手机壳 shell bundle v0.2.0。只在 html.shell-mobile 下生效，桌面零影响。
+ * 手机壳 shell bundle v0.5.1。只在 html.shell-mobile 下生效，桌面零影响。
  *
  * ── 主题（2026-11-14 修复）────────────────────────────────────────────
  * v0.1.0 用的是 var(--panel) / var(--text)，这两个令牌只在
@@ -10,6 +10,13 @@
  * v0.2.0 全部改挂 styles.css 在四个主题下都真实覆盖的令牌：
  *   --bg / --surface-2 / --border / --border-soft / --muted / --accent 家族
  * 文字色不再自行声明，直接继承 body（各主题自己定 color）。
+ *
+ * ── 流光（lumen）手机材质（2026-11-26）────────────────────────────────
+ * 桌面流光把 #topbar / .left-sidebar 设成 transparent，让它们坐在 #app 的玻璃板上；
+ * 手机没有那块玻璃板，聊天正文会直接透到顶栏、抽屉和底栏文字后面。这里不改主题文件，
+ * 只在壳启用时把 --sh-* 换成 Daygo 的 popover / card 材质，并给顶栏、左抽屉、底栏、
+ * 控制台、模式胶囊补半透明玻璃 + 模糊；Android 低特效档（.android-app:not(.fx-rich)）
+ * 在文件末尾统一换成不透明 Daygo 表面，避免 WebView 逐帧采样毛玻璃。
  *
  * ── 视觉语言（与 #topbar 对齐）────────────────────────────────────────
  * 顶栏：全宽直角贴边、1px 实线边、面板色 + blur(8px)、控件 9px 圆角。
@@ -29,6 +36,55 @@ html.shell-mobile {
   --sh-r: var(--ctl-r, 9px);
   --shell-dock-h: 56px;
   --shell-chat-space: 96px;
+}
+
+/* 流光：桌面用透明侧栏坐玻璃板，手机必须自己带材质。Daygo 的 popover / card
+   比 --surface-2 的 0.58 玻璃更实，0.9+ 白底保证浅色聊天正文不会透到字后面。 */
+html.shell-mobile[data-theme="lumen"] {
+  --sh-bar: var(--dg-popover-fill, rgba(252, 248, 245, .94));
+  --sh-card: var(--dg-card-fill, rgba(255, 255, 255, .78));
+  --sh-line: var(--dg-input-border, #e1e1e1);
+  --sh-ink-dim: var(--dg-text-secondary, #5c5961);
+  /* 选中的底栏项是 10.5px 小字，用 accent-text（深橙）而不是 accent（浅橙），
+     在 accent-soft 底上才够 4.5:1；小圆点也一起变深。 */
+  --sh-hi: var(--dg-accent-text, #c85822);
+  /* 左抽屉是整块盖在聊天上的，必须比浮层再实一点，正文不能透出来 */
+  --sh-drawer: rgba(252, 248, 245, .97);
+}
+
+html.shell-mobile[data-theme="lumen"] #topbar {
+  background: var(--sh-bar);
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
+  backdrop-filter: blur(18px) saturate(165%);
+  border-bottom-color: var(--sh-line);
+}
+html.shell-mobile[data-theme="lumen"] .left-sidebar {
+  background: var(--sh-drawer);
+  -webkit-backdrop-filter: blur(22px) saturate(165%);
+  backdrop-filter: blur(22px) saturate(165%);
+  border-right-color: var(--sh-line);
+  box-shadow: 0 18px 48px rgba(48, 34, 24, .20);
+}
+html.shell-mobile[data-theme="lumen"] #mobileShell .sh-dock {
+  background: var(--sh-bar);
+  -webkit-backdrop-filter: blur(16px) saturate(165%);
+  backdrop-filter: blur(16px) saturate(165%);
+  border-top-color: var(--sh-line);
+  box-shadow: 0 -10px 28px rgba(48, 34, 24, .08);
+}
+html.shell-mobile[data-theme="lumen"] #mobileShell .sh-console,
+html.shell-mobile[data-theme="lumen"] #mobileShell .sh-cap-pop {
+  background: var(--sh-bar);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
+  backdrop-filter: blur(24px) saturate(170%);
+  border-color: var(--sh-line);
+}
+html.shell-mobile[data-theme="lumen"] #mobileShell .sh-console {
+  box-shadow: 0 -14px 40px rgba(48, 34, 24, .14);
+}
+html.shell-mobile[data-theme="lumen"] #mobileShell .sh-console .sh-head,
+html.shell-mobile[data-theme="lumen"] #mobileShell .sh-cap-pop .sh-head {
+  background: var(--sh-drawer);
 }
 
 html.shell-mobile #mobileShell { display: flex; }
@@ -211,7 +267,13 @@ html.shell-mobile #mobileShell #rightSidebar .rs-header { padding: 8px 10px 6px;
   border: 0; border-radius: var(--sh-r); background: transparent;
   color: var(--sh-ink-dim); font-size: 10.5px; cursor: pointer;
 }
-html.shell-mobile .sh-item.on { color: var(--sh-hi); background: var(--sh-hi-soft); }
+/* 注意带上 #mobileShell：基础项 #mobileShell .sh-item 是 id 级选择器，
+   旧写法 html.shell-mobile .sh-item.on 特异性更低，选中色/底色其实一直被压掉。 */
+html.shell-mobile #mobileShell .sh-item.on { color: var(--sh-hi); background: var(--sh-hi-soft); }
+/* 流光下选中的小字改用正文色，橙色只留给图标：10.5px 的 #c85822 压在
+   accent-soft 上只有约 3.6:1，加深文字比加深图标更直接。 */
+html.shell-mobile[data-theme="lumen"] #mobileShell .sh-item.on { color: var(--dg-text-primary, #2c2a2e); }
+html.shell-mobile[data-theme="lumen"] #mobileShell .sh-item.on svg { color: var(--dg-accent-text, #c85822); }
 html.shell-mobile .sh-item svg { display: block; }
 
 /* v0.4.0：三个按钮等宽同形。控制台仍是覆盖式抽屉（不切走当前页），
@@ -340,4 +402,27 @@ html.shell-mobile.shell-console-open #mobileShell .sh-console {
 }
 @media (prefers-reduced-motion: reduce) {
   #mobileShell .sh-console, #mobileShell .sh-scrim { transition: none; }
+}
+
+/* ── Android 低特效档（.android-app:not(.fx-rich)）────────────────────────
+ * WebView 对大面积 backdrop-filter 的逐帧重采样是拖动卡顿的主因；低特效档
+ * 直接用不透明的 Daygo 表面，观感仍是同一套材质，只是不再实时取样。
+ * 选择器带上 .shell-mobile + [data-theme="lumen"]，桌面与其它主题零影响。 */
+html.shell-mobile.android-app:not(.fx-rich)[data-theme="lumen"] {
+  --sh-bar: var(--dg-surface, #fbf6f4);
+  --sh-drawer: var(--dg-surface, #fbf6f4);
+}
+html.shell-mobile.android-app:not(.fx-rich)[data-theme="lumen"] #topbar,
+html.shell-mobile.android-app:not(.fx-rich)[data-theme="lumen"] .left-sidebar,
+html.shell-mobile.android-app:not(.fx-rich)[data-theme="lumen"] #mobileShell .sh-dock,
+html.shell-mobile.android-app:not(.fx-rich)[data-theme="lumen"] #mobileShell .sh-console,
+html.shell-mobile.android-app:not(.fx-rich)[data-theme="lumen"] #mobileShell .sh-cap-pop,
+html.shell-mobile.android-app:not(.fx-rich)[data-theme="lumen"] #mobileShell .sh-head {
+  background: var(--dg-surface, #fbf6f4) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+html.shell-mobile.android-app:not(.fx-rich)[data-theme="lumen"] #mobileShell .sh-console .sh-head,
+html.shell-mobile.android-app:not(.fx-rich)[data-theme="lumen"] #mobileShell .sh-cap-pop .sh-head {
+  background: var(--dg-surface, #fbf6f4);
 }

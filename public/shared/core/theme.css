@@ -1,7 +1,7 @@
 /* public/shared/core/theme.css — 卫星页(工作页)统一主题层 · 唯一真相来源
    ─────────────────────────────────────────────────────────────────
    作用: 让 studio / coding / write / flow / audio 五个工作页与主站主题跟随。
-   主题来源: localStorage `cfw_theme_v1`(minimal/glass/candle)
+   主题来源: localStorage `cfw_theme_v1`(minimal/glass/lumen/candle)
              + `my-theme`(light/dark), 由各页 <head> 内的主题引导脚本在首屏前
              写到 <html data-theme / data-scheme> 上 —— 与主站 theme.js 同一套键。
    令牌家族(三族并存,按页取用):
@@ -52,6 +52,30 @@
   --accent-soft:rgba(63,111,143,.10); --accent-border:rgba(63,111,143,.35);
   --input-bg:rgba(255,255,255,.8); --input-border:rgba(15,30,60,.14); --btn-bg:rgba(255,255,255,.9); --btn-bg-hover:#ffffff;
   --grad:linear-gradient(135deg,#3f6f8f,#6f9bb5);
+}
+
+/* ═══ lumen · 流光（Daygo 液态玻璃，明/暗双态） ═══ */
+/* 2026-11-26: 主站流光主题的卫星页映射。颜色逐字取自 Daygo tokens
+   （MIT © 2026 Jwz-git），这里只做三族 token 的落位，不引入新色板。 */
+[data-theme="lumen"]{
+  --bg:#fbf6f4; --panel:rgba(251,251,251,.78); --panel2:rgba(251,251,251,.58); --panel3:rgba(255,255,255,.45);
+  --border:rgba(96,64,44,.09); --text:#2c2a2e; --muted:#726e77;
+  --ac:#f3854b; --ac-soft:rgba(243,133,75,.14); --ac-strong:#d9642c; --danger:#d9432f; --ok:#2f7d57; --ac-contrast:#ffffff;
+  --card:rgba(255,255,255,.78); --card-2:#fbf6f4; --border-soft:rgba(96,64,44,.09); --line:rgba(96,64,44,.08);
+  --accent:#f3854b; --accent-2:#d9642c; --accent-3:#ff9466;
+  --accent-soft:rgba(243,133,75,.10); --accent-border:rgba(243,133,75,.35);
+  --input-bg:rgba(255,255,255,.9); --input-border:#e1e1e1; --btn-bg:rgba(255,255,255,.84); --btn-bg-hover:#ffffff;
+  --grad:linear-gradient(135deg,#f3854b,#d9642c);
+}
+[data-theme="lumen"][data-scheme="dark"]{
+  --bg:#272a3c; --panel:rgba(39,41,58,.82); --panel2:rgba(39,41,58,.65); --panel3:rgba(39,41,58,.45);
+  --border:rgba(255,255,255,.10); --text:#f5f5f7; --muted:#9d9ca8;
+  --ac:#f3854b; --ac-soft:rgba(243,133,75,.18); --ac-strong:#f77952; --danger:#ff7053; --ok:#46a758; --ac-contrast:#1c1c1e;
+  --card:rgba(255,255,255,.065); --card-2:#272a3c; --border-soft:rgba(255,255,255,.09); --line:rgba(255,255,255,.06);
+  --accent:#f3854b; --accent-2:#f77952; --accent-3:#ff9466;
+  --accent-soft:rgba(243,133,75,.16); --accent-border:rgba(243,133,75,.42);
+  --input-bg:rgba(255,255,255,.08); --input-border:rgba(255,255,255,.14); --btn-bg:rgba(255,255,255,.08); --btn-bg-hover:rgba(255,255,255,.13);
+  --grad:linear-gradient(135deg,#f3854b,#f77952);
 }
 
 /* ═══ candle · 烛夜私语(暗金) ═══ */

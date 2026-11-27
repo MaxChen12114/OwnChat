@@ -1,10 +1,19 @@
 // @ts-check
 /* public/shell/mobile-entry.js
  * ─────────────────────────────────────────────────────────────────────
- * 手机壳 shell bundle v0.4.0
+ * 手机壳 shell bundle v0.5.1
  *
  * 目标：在**不改 index.html 结构、不改 app.js** 的前提下，加一层可拆卸的手机 UI，
  *      同时验证 core 架构计划里「slot registry + 节点搬家」这条路走不走通。
+ *
+ * v0.5.1（2026-11-26）· 职责与可读材质修正：
+ *   ① 插槽解析认 window.slotRegistry，再退到 data-slot 与 id —— rightSidebar 不在
+ *      15 项 slot 表里（它是静态 id 容器），旧代码读错了全局名，等于永远走
+ *      属性兜底；现在 setConsole 首次打开必定把桌面右栏整块搬进 #shConsoleBody。
+ *   ② 两个面写死在页头：沙盘 = 内容台面（agent 挂载页/地图/图片/文档 + #shStage），
+ *      控制台 = 桌面右栏的 活动/群聊/状态；沙盘页不渲染控制台内容，两者不合并。
+ *   ③ 底栏「控制台」仍是覆盖式抽屉（不切当前页），点「沙盘」才切页。
+ *   ④ 控制台在未打开前保持空；打开时若右栏真的缺失，正文给可读提示而不是一块白板。
  *
  * v0.5.0（2026-11-26）· 与桌面共用标签状态机 + 独立沙盘：
  *   右栏标签（services/panel/tab-state.ts → window.panelTabs）成为桌面与手机共用的一份
@@ -69,7 +78,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.5.0';
+  var VERSION = '0.5.1';
   var params = new URLSearchParams(location.search);
   if (params.get('shell') === 'off') return;
 
@@ -94,11 +103,15 @@
 
   /** L1b：插槽解析。registry 不在就用属性兜底。 */
   function slot(name) {
-    var reg = /** @type {any} */ (window).__slots;
+    var host = /** @type {any} */ (window);
+    // L1b 的唯一注册表全局就是 slotRegistry，不再引入新的契约名。
+    var reg = host.slotRegistry;
     var el = reg && typeof reg.get === 'function' ? reg.get(name) : null;
-    return /** @type {HTMLElement|null} */ (
-      el || document.querySelector('[data-slot="' + name + '"]')
-    );
+    if (el) return /** @type {HTMLElement|null} */ (el);
+    var marked = document.querySelector('[data-slot="' + name + '"]');
+    if (marked) return /** @type {HTMLElement|null} */ (marked);
+    // 静态 id 容器（rightSidebar）不在 15 项 slot 表里，按 id 兜底。
+    return /** @type {HTMLElement|null} */ (document.getElementById(name));
   }
 
   /** L1a：全局对象代理。hostApi 不在就退回旧的 window 全局（__ 前缀）。 */
@@ -146,15 +159,26 @@
 
   /** 控制台 = 桌面右栏整块搬过来（活动 / 群聊 / 状态 三栏 tab 随之可用，不用重写内容） */
   function placeStage() {
-    var aside = slot('rightSidebar') || document.getElementById('rightSidebar');
+    var aside = slot('rightSidebar');
     var host = document.getElementById('shConsoleBody');
-    if (!aside || !host) return;
-    if (aside.parentNode !== host) moveTo(/** @type {HTMLElement} */ (aside), host);
+    if (!host) return false;
+    var missing = host.querySelector('[data-sh-console-missing]');
+    if (!aside) {
+      // 右栏是静态 #rightSidebar，正常不会缺；真缺时给一句可读提示，别让用户盯空抽屉。
+      if (!host.childElementCount) {
+        host.innerHTML = '<div class="sh-hint" data-sh-console-missing><b>桌面右栏未就绪</b>' +
+          '控制台读取的是桌面右栏「活动 / 群聊 / 状态」。右栏挂载后重新打开控制台即可。</div>';
+      }
+      return false;
+    }
+    if (missing) missing.remove();
+    if (aside.parentNode !== host) moveTo(aside, host);
+    return true;
   }
 
   function homeStage() {
-    var aside = document.getElementById('rightSidebar');
-    if (aside) moveHome(/** @type {HTMLElement} */ (aside));
+    var aside = slot('rightSidebar');
+    if (aside) moveHome(aside);
   }
 
   /* ── 顶栏状态胶囊（v0.3.0） ─────────────────────────────────────
@@ -300,7 +324,7 @@
     doc: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>'
   };
   var EMPTY = {
-    all: ['沙盘是什么', 'agent 挂上来的展示页、地图、讨论区与文档，都摆在这个台面上。点卡片在页内打开，不跳走对话。'],
+    all: ['沙盘是什么', 'agent 挂上来的展示页、地图、讨论区与文档，都摆在这个内容台面上；点卡片在页内打开，不跳走对话。控制台是另一块面：底栏「控制台」打开桌面右栏的活动 / 群聊 / 状态。'],
     mount: ['还没有挂载内容', 'agent 用 stage_open 挂上来的展示页会收在这里；桌面右栏与手机沙盘共用同一份标签状态机。'],
     map: ['地图入口', '沙盘是独立仓，地址在「设置 → 内容面板」里填；GEO 地图只有配了地址才出现。'],
     image: ['图片索引未接', '对话里生成的插图与形象卡暂时仍回对话查看；这里先留位，等产物索引落地再填，不造空清单。'],
@@ -600,7 +624,7 @@
     var cls = 'sh-item' + (key === 'chat' && !panel ? ' on' : '');
     var attr = panel ? 'data-panel="console"' : 'data-page="' + key + '"';
     var aria = panel
-      ? 'role="button" aria-label="控制台（过程 · 活动 / 群聊 / 状态，覆盖在当前页之上）" aria-expanded="false" aria-controls="shConsole"'
+      ? 'role="button" aria-label="控制台（桌面右栏 · 活动 / 群聊 / 状态，覆盖在当前页之上）" aria-expanded="false" aria-controls="shConsole"'
       : 'aria-label="' + label + '"';
     return '<button class="' + cls + '" ' + attr + ' ' + aria + '>' +
       '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" ' +
@@ -652,11 +676,12 @@
           '</section>' +
         '</section>' +
 
-        /* 控制台：覆盖式面板，从任何页面唤起，不切走当前页 */
+        /* 控制台：桌面右栏 活动/群聊/状态的覆盖式抽屉，从任何页面唤起，不切走当前页。
+           注意：它不是沙盘 —— 沙盘摆 agent 的内容，控制台看过程与状态。 */
         '<div class="sh-scrim" data-close-console="1" aria-hidden="true"></div>' +
-        '<section class="sh-console" id="shConsole" role="dialog" aria-label="控制台" aria-hidden="true">' +
+        '<section class="sh-console" id="shConsole" role="dialog" aria-label="控制台（桌面右栏：活动 / 群聊 / 状态）" aria-hidden="true">' +
           '<div class="sh-head">' +
-            '<h2>控制台</h2><span class="sh-sub">活动 · 群聊 · 状态</span>' +
+            '<h2>控制台</h2><span class="sh-sub">活动 / 群聊 / 状态</span>' +
             '<button class="sh-close" data-close-console="1" aria-label="收起控制台">' + CLOSE_ICON + '</button>' +
           '</div>' +
           '<div class="sh-body-in" id="shConsoleBody"></div>' +
@@ -773,6 +798,8 @@
     var on = FORCE || MQ.matches;
     if (!on) {
       html.classList.remove('shell-mobile', 'shell-chat', 'shell-console-open', 'shell-cap-open');
+      // 抽屉的 aria/高亮与 .on 状态跟着壳一起复位，免得回到手机态还留着「已展开」。
+      if (built) setConsole(false);
       consoleOpen = false;
       unpatchPanel();          // 桌面把 __panel 还给 panel-host，一个字节不改它的行为
       homeCapsule();

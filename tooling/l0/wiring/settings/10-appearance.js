@@ -129,13 +129,14 @@
     if (!slot || document.getElementById('appearanceThemeCard')) return;
     var card = document.createElement('div'); card.className = 'card'; card.id = 'appearanceThemeCard';
     card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>外观风格</h4>'
-      + '<p>切换整站配色与视觉氛围,三种风格随时切换。<b>仅本设备生效</b>(不进云同步)。</p>'
+      + '<p>切换整站配色与视觉氛围,四种风格随时切换。<b>仅本设备生效</b>(不进云同步)。</p>'
       + '<div class="theme-options">'
       + '<label class="theme-option"><input type="radio" name="cfwTheme" value="minimal"><div class="theme-swatch theme-swatch-minimal"></div><div class="theme-text"><div class="theme-title">极简</div><div class="theme-sub">Notion 风格，日/夜双态</div></div></label>'
       + '<label class="theme-option"><input type="radio" name="cfwTheme" value="glass"><div class="theme-swatch theme-swatch-glass"></div><div class="theme-text"><div class="theme-title">玻璃</div><div class="theme-sub">毛玻璃，晴空竹屋</div></div></label>'
+      + '<label class="theme-option"><input type="radio" name="cfwTheme" value="lumen"><div class="theme-swatch theme-swatch-lumen"></div><div class="theme-text"><div class="theme-title">流光</div><div class="theme-sub">液态玻璃 · 文档式聊天</div></div></label>'
       + '<label class="theme-option" data-nsfw><input type="radio" name="cfwTheme" value="candle"><div class="theme-swatch theme-swatch-candle"></div><div class="theme-text"><div class="theme-title">烛夜私语</div><div class="theme-sub">暗调 · 私享</div></div></label>'
       + '</div>'
-      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>烛夜私语需先解锁才可见,含呼吸光效;极简风格下方会出现日/夜切换。</span></div>';
+      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>烛夜私语需先解锁才可见,含呼吸光效;极简 / 流光下方会出现日/夜切换。聊天呈现可独立切换:跟随主题 / 气泡 / 文档;流光默认文档,其余主题默认气泡。</span></div>';
     slot.appendChild(card);
     function syncChecked() {
       var cur = (window.themeSvc && window.themeSvc.get && window.themeSvc.get().style) || 'minimal';

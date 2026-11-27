@@ -1,23 +1,23 @@
 {
   "version": 2,
-  "generatedAt": "2026-11-26T14:49:40Z",
+  "generatedAt": "2026-11-27T01:39:02Z",
   "dictPath": "/shared/core/i18n-dict.js",
   "dictSha": "ed2b59fb22352b77",
   "dictCacheKey": "42",
   "dictKeys": 2238,
   "patterns": 227,
   "coveredStrings": 1247,
-  "coveredOccurrences": 1792,
-  "totalStrings": 4033,
-  "totalOccurrences": 4788,
+  "coveredOccurrences": 1789,
+  "totalStrings": 4036,
+  "totalOccurrences": 4789,
   "ui": {
-    "strings": 2696,
-    "occurrences": 3237,
+    "strings": 2699,
+    "occurrences": 3238,
     "coveredStrings": 852,
-    "coveredOccurrences": 1233
+    "coveredOccurrences": 1230
   },
   "classes": {
-    "ui": 2696,
+    "ui": 2699,
     "error": 243,
     "prompt": 350,
     "outOfScope": 744

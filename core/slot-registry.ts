@@ -267,7 +267,7 @@ export const SLOT_SPECS: readonly SlotSpec[] = [
     rootFallback: false,
     owner: "index-inline",
     mobileHost: "mobileTabPanel-agent",
-    evidence: "index.html:1295",
+    evidence: "index.html:1277",
   },
   {
     // Mobile falls back to document.body.
@@ -278,7 +278,7 @@ export const SLOT_SPECS: readonly SlotSpec[] = [
     rootFallback: false,
     owner: "index-inline",
     mobileHost: "body",
-    evidence: "index.html:1305",
+    evidence: "index.html:1287",
   },
 ];
 
@@ -329,8 +329,8 @@ export interface InlineScriptSpec {
 export const INDEX_INLINE_SCRIPTS: readonly InlineScriptSpec[] = [
   {
     id: "inline-0",
-    anchor: 'var ALLOWED = unlocked ? { glass: 1, candle: 1 } : { glass: 1 };',
-    line: 496,
+    anchor: 'var ALLOWED = unlocked ? { glass: 1, lumen: 1, candle: 1 } : { glass: 1, lumen: 1 };',
+    line: 481,
     role: "头部守卫：URL 参数旗标（预览/调试形态）→ html 类",
     mounts: [],
     observes: [],

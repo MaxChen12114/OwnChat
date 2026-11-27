@@ -8,7 +8,7 @@
 (function(){
   const LS_AGENT = AM_LS_AGENT;
   const LS_MULTI = AM_LS_MULTI;
-  var btn = null, multiBtn = null, fishbowlTab = null, fishbowlSlot = null, emptyHint = null, agentConsoleSlot = null;
+  var btn = null, multiBtn = null, fishbowlSlot = null, emptyHint = null, agentConsoleSlot = null;
   var mobileAgentTabEl = null, mobileAgentPanel = null;
 
   function isAgentOn(){ return amIsAgentOn(localStorage.getItem(LS_AGENT)); }
@@ -62,7 +62,6 @@
       }
     } else {
       if (!fishbowlSlot) return;
-      if (fishbowlTab) { var sp = fishbowlTab.querySelector('span:not(.rs-dot)'); if (sp) sp.textContent = '活动'; }
       if (emptyHint) emptyHint.style.display = 'none';
       var wrapper = document.createElement('div');
       wrapper.id = '__agentConsoleRoot';
@@ -86,7 +85,6 @@
   }
 
   function unmountAgentPanel(){
-    if (fishbowlTab) { var sp = fishbowlTab.querySelector('span:not(.rs-dot)'); if (sp) sp.textContent = '活动'; }
     if (emptyHint) emptyHint.style.display = '';
     if (fishbowlSlot) {
       fishbowlSlot.innerHTML = '';
@@ -128,7 +126,6 @@
   function init(){
     btn = document.getElementById('agentModeBtn');
     multiBtn = document.getElementById('multiAgentToggle');
-    fishbowlTab = document.querySelector('.rs-tab[data-rs-tab="fishbowl"]');
     fishbowlSlot = document.getElementById('agentConsoleSlot') || document.getElementById('fishbowlSlot');
     agentConsoleSlot = document.getElementById('agentConsoleSlot');
     emptyHint = document.getElementById('agentEmptyHint') || document.getElementById('fishbowlEmptyHint');

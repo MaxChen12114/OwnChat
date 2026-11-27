@@ -268,7 +268,7 @@ const SLOT_SPECS                      = [
     rootFallback: false,
     owner: "index-inline",
     mobileHost: "mobileTabPanel-agent",
-    evidence: "index.html:1295",
+    evidence: "index.html:1277",
   },
   {
     // Mobile falls back to document.body.
@@ -279,7 +279,7 @@ const SLOT_SPECS                      = [
     rootFallback: false,
     owner: "index-inline",
     mobileHost: "body",
-    evidence: "index.html:1305",
+    evidence: "index.html:1287",
   },
 ];
 
@@ -330,8 +330,8 @@ const SLOT_IDS                    = SLOT_SPECS.map(function (s) {
 const INDEX_INLINE_SCRIPTS                              = [
   {
     id: "inline-0",
-    anchor: 'var ALLOWED = unlocked ? { glass: 1, candle: 1 } : { glass: 1 };',
-    line: 496,
+    anchor: 'var ALLOWED = unlocked ? { glass: 1, lumen: 1, candle: 1 } : { glass: 1, lumen: 1 };',
+    line: 481,
     role: "头部守卫：URL 参数旗标（预览/调试形态）→ html 类",
     mounts: [],
     observes: [],

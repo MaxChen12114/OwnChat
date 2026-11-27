@@ -18,7 +18,7 @@
  */
 
 /** Styles in radio order; adding one means adding the [data-theme] CSS, nothing else. */
-const THEME_STYLES = ["minimal", "glass", "candle"];
+const THEME_STYLES = ["minimal", "glass", "lumen", "candle"];
 /** Styles that belong to the private mode; gated on the unlock flag. */
 const PRIVATE_STYLES = ["candle"];
 function recOf(v         )                          {
@@ -40,9 +40,35 @@ const AUDIO_LS_AMB = "cfw_ambient_amb_v1";
 const AUDIO_LS_MUS = "cfw_ambient_mus_v1";
 
 /** Each style's native light/dark, used when the user has not chosen a scheme. */
-const NATIVE_SCHEME                         = { minimal: "dark", glass: "light", candle: "dark" };
+const NATIVE_SCHEME                         = { minimal: "dark", glass: "light", lumen: "light", candle: "dark" };
 /** Styles that actually ship both schemes; the UI only shows the toggle for these. */
-const SCHEME_READY = ["minimal"];
+const SCHEME_READY = ["minimal", "lumen"];
+
+/**
+ * Chat presentation is a fourth, orthogonal axis: which bubbles the transcript uses is not the
+ * same decision as which palette the app wears. `auto` follows the style's native form; the
+ * settings card exposes auto / bubble / doc explicitly.
+ */
+const THEME_LS_CHAT = "cfw_chat_present_v1";
+const CHAT_PRESENTS = ["auto", "bubble", "doc"];
+const CHAT_PRESENT_DEFAULT = "auto";
+/** Each style's native transcript. Lumen is the document-first theme; the rest are bubbles. */
+const NATIVE_CHAT                         = {
+  minimal: "bubble",
+  glass: "bubble",
+  lumen: "doc",
+  candle: "bubble",
+};
+
+/**
+ * The transcript form that should actually apply. Explicit bubble/doc wins over the style's
+ * native form; an unknown or missing stored value means "follow the theme".
+ */
+function resolveChatPresent(stored         , style        )                   {
+  const v = String(stored || "");
+  if (v === "bubble" || v === "doc") return v;
+  return NATIVE_CHAT[style] === "doc" ? "doc" : "bubble";
+}
 
 /** Ambient tracks, all CC0 (credits in /assets/ambient/CREDITS.txt): [id, label, file]. */
 const AMB_TRACKS = [
@@ -192,6 +218,7 @@ const STYLES = THEME_STYLES;
 const LS_STYLE = THEME_LS_STYLE;
 const LS_SCHEME = THEME_LS_SCHEME;
 const LS_ACCENT = THEME_LS_ACCENT;
+const LS_CHAT = THEME_LS_CHAT;
 const LS_AUDIO_ON = AUDIO_LS_ENABLED;
 const LS_AUDIO_VOL = AUDIO_LS_LEGACY_VOL;
 const LS_AMB = AUDIO_LS_AMB;
@@ -257,8 +284,14 @@ const getStoredScheme = () => {
 };
 // Effective scheme = explicit choice > the style's native light/dark.
 const getScheme = () => resolveScheme(getStoredScheme(), getStyle());
+const getStoredChatPresent = () => {
+  const v = localStorage.getItem(LS_CHAT);
+  return v === "bubble" || v === "doc" ? v : null;
+};
+// Effective transcript = explicit choice > the style's native form (lumen = doc).
+const getChatPresent = () => resolveChatPresent(getStoredChatPresent(), getStyle());
 const getAccent = () => localStorage.getItem(LS_ACCENT) || "default";
-const getAll    = () => ({ style: getStyle(), scheme: getScheme(), accent: getAccent() });
+const getAll    = () => ({ style: getStyle(), scheme: getScheme(), chat: getChatPresent(), accent: getAccent() });
 
 const getAudioEnabled = () => audioEnabledFrom(localStorage.getItem(LS_AUDIO_ON));
 
@@ -269,12 +302,18 @@ function applyStyle(s) {
     document.documentElement.setAttribute("data-theme", s);
   }
   applyScheme();
+  applyChatPresent();
   if (document.body) document.body.dataset.audioDisabled = String(!getAudioEnabled());
 }
 
 // The scheme rides on top of data-theme as data-scheme; minimal is the first dual-mode style.
 function applyScheme() {
   document.documentElement.setAttribute("data-scheme", getScheme());
+}
+
+// data-chat-present is orthogonal to data-theme: it selects bubble vs document transcript.
+function applyChatPresent() {
+  document.documentElement.setAttribute("data-chat-present", getChatPresent());
 }
 
 // Dual-deck ambient mixer: ambience (amb) x music (mus). One <audio> + GainNode per deck — both can
@@ -613,6 +652,13 @@ function set(patch) {
     try { localStorage.removeItem(LS_SCHEME); } catch (e) {}
     applyScheme();
   }
+  if (patch.chatPresent === "bubble" || patch.chatPresent === "doc") {
+    try { localStorage.setItem(LS_CHAT, patch.chatPresent); } catch (e) {}
+    applyChatPresent();
+  } else if (patch.chatPresent === "auto" || patch.chatPresent === null) {
+    try { localStorage.removeItem(LS_CHAT); } catch (e) {}
+    applyChatPresent();
+  }
   if (patch.accent) {
     try { localStorage.setItem(LS_ACCENT, patch.accent); } catch (e) {}
   }
@@ -659,6 +705,7 @@ window.__ambient = Mixer;
  // for the editor's init).
 try { applyBg(); } catch (e) {}
 try { applyScheme(); } catch (e) {}
+try { applyChatPresent(); } catch (e) {}
 
 // ═══ wire Settings DOM ═══
  // The light/dark toggle, injected above the style list; shown only for dual-mode styles.
@@ -701,6 +748,49 @@ function ensureSchemeToggle() {
   refreshSchemeToggle();
 }
 
+// Transcript form: another orthogonal choice, shown for every style (doc mode works on all
+// palettes through the --dg-* compatibility aliases in styles.css).
+function refreshChatPresentToggle() {
+  const row = document.getElementById("cfwChatPresentRow");
+  if (!row) return;
+  const stored = getStoredChatPresent();
+  row.querySelectorAll("button[data-chat-present-val]").forEach((b) => {
+    const v = b.getAttribute("data-chat-present-val");
+    const on = (v === "auto" && !stored) || v === stored;
+    b.classList.toggle("active", on);
+  });
+}
+
+function ensureChatPresentToggle() {
+  if (document.getElementById("cfwChatPresentRow")) { refreshChatPresentToggle(); return; }
+  const firstRadio = document.querySelector('input[name="cfwTheme"]');
+  if (!firstRadio) return;
+  const opt = firstRadio.closest(".theme-option") || firstRadio.parentElement;
+  const list = opt ? opt.parentElement : null;
+  if (!list || !list.parentElement) return;
+  const row = document.createElement("div");
+  row.id = "cfwChatPresentRow";
+  row.className = "scheme-toggle-row";
+  row.innerHTML =
+    '<span class="stg-label">聊天呈现</span>' +
+    '<div class="scheme-seg">' +
+      '<button type="button" data-chat-present-val="auto">跟随主题</button>' +
+      '<button type="button" data-chat-present-val="bubble">气泡</button>' +
+      '<button type="button" data-chat-present-val="doc">文档</button>' +
+    '</div>';
+  const schemeRow = document.getElementById("cfwSchemeRow");
+  const host = list.parentElement;
+  if (schemeRow && schemeRow.parentElement === host) host.insertBefore(row, schemeRow.nextSibling);
+  else host.insertBefore(row, list);
+  row.querySelectorAll("button[data-chat-present-val]").forEach((b) => {
+    b.addEventListener("click", () => {
+      set({ chatPresent: b.getAttribute("data-chat-present-val") });
+      refreshChatPresentToggle();
+    });
+  });
+  refreshChatPresentToggle();
+}
+
 function wireSettings() {
   if (wireSettings._bound) return;
   wireSettings._bound = true;
@@ -713,7 +803,9 @@ function wireSettings() {
   });
 
   ensureSchemeToggle();
+  ensureChatPresentToggle();
   subscribe(refreshSchemeToggle);
+  subscribe(refreshChatPresentToggle);
   wireAmbientCard();
 }
 
@@ -816,6 +908,11 @@ globalThis.AUDIO_LS_AMB = AUDIO_LS_AMB;
 globalThis.AUDIO_LS_MUS = AUDIO_LS_MUS;
 globalThis.NATIVE_SCHEME = NATIVE_SCHEME;
 globalThis.SCHEME_READY = SCHEME_READY;
+globalThis.THEME_LS_CHAT = THEME_LS_CHAT;
+globalThis.CHAT_PRESENTS = CHAT_PRESENTS;
+globalThis.CHAT_PRESENT_DEFAULT = CHAT_PRESENT_DEFAULT;
+globalThis.NATIVE_CHAT = NATIVE_CHAT;
+globalThis.resolveChatPresent = resolveChatPresent;
 globalThis.AMB_TRACKS = AMB_TRACKS;
 globalThis.MUS_TRACKS = MUS_TRACKS;
 globalThis.THEME_TRACKS = THEME_TRACKS;

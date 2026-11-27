@@ -1,0 +1,465 @@
+/* public/styles-controls.css — the control layer (tokens → primitives → component aliases)
+ *
+ * Why this file exists: the top bar, the panel bar, the right-column tabs, the dynamic content
+ * tabs and the composer chips grew five separate material sets. A theme change had to be repeated
+ * per family and the families drifted (34 / 38 / 28 px hit areas, three idle opacities, two focus
+ * stories). Geometry, interaction states and focus now live here once.
+ *
+ * Three layers, one owner each:
+ *   1. tokens — colors only. The theme blocks in styles.css own --ctl-* / --seg-*; this file owns
+ *      the geometry + motion fallbacks. No component may hard-code a theme color again.
+ *   2. primitives — .ui-iconbtn / .ui-seg / .ui-seg-item / .ui-tab / .ui-tab-x / .ui-chip.
+ *      New markup should use these names.
+ *   3. aliases — .iconbtn, .pbtn, .rs-tabs, .rs-tab, .ptab, .ptab-main, .ptab-x, .ptab-add,
+ *      .chip-btn. Classic JS binds to these legacy names (panel-host.js, right-sidebar-tabs.js),
+ *      so they join the primitive selector lists instead of being renamed in markup.
+ *
+ * Contract:
+ *   - material colors come from tokens; sizes may still differ per family (the --sm variant or a
+ *     local rule) because the top bar (34), the legacy icon button (38) and the tab "+" (28) are
+ *     intentionally different, not an accident;
+ *   - quiet hierarchies (panel buttons, right-column tabs) keep their opacity dimming; tokens only
+ *     decide the color being dimmed, so primary/secondary contrast does not change;
+ *   - focus ring / pressed scale / disabled opacity are shared and must not be re-declared per
+ *     component. Theme-scoped component selectors such as `html[data-theme=glass] .pbtn` are
+ *     forbidden — a theme that needs a different material changes its tokens instead.
+ *   - .ui-textbtn is intentionally absent: .smallbtn is the established text button across the
+ *     settings cards and already reads --ctl-h / --ctl-r / --ctl-fs. Re-materializing it here would
+ *     repaint every settings card for no functional gain; it joins the shared state lists below.
+ *
+ * Load order: last stylesheet in index.html, so equal-specificity rules here win over
+ * styles.css / styles-panel.css. Per-theme rules with higher specificity (html[data-theme] .iconbtn)
+ * still win on purpose — they carry the shadow/backdrop a theme needs and have no token yet.
+ */
+
+/* ── Layer 1 · geometry + motion fallbacks ──────────────────────────────────────────────── */
+:root {
+  --ctl-h: 34px;
+  --ctl-r: 9px;
+  --ctl-fs: 12.5px;
+  --ctl-motion-fast: 100ms;
+  --ctl-motion-base: 160ms;
+  --ctl-ease-out: cubic-bezier(.2, .7, .3, 1);
+  --ctl-ease-glide: cubic-bezier(.25, .8, .25, 1);
+  /* Neutral idle fill for chips and dynamic tabs. Same value in every theme on purpose: it is an
+     overlay, not a palette color, so it never needs a per-theme branch. */
+  --ctl-fill-quiet: rgba(127, 127, 127, .08);
+}
+
+/* ── Layer 2 · icon button ──────────────────────────────────────────────────────────────── */
+.ui-iconbtn,
+.iconbtn,
+.pbtn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--ctl-border);
+  border-radius: var(--ctl-r);
+  background: var(--ctl-fill);
+  color: var(--ctl-fg);
+  cursor: pointer;
+  transition:
+    background-color var(--ctl-motion-fast) var(--ctl-ease-out),
+    border-color var(--ctl-motion-fast) var(--ctl-ease-out),
+    color var(--ctl-motion-fast) var(--ctl-ease-out),
+    box-shadow var(--ctl-motion-base) var(--ctl-ease-out),
+    transform var(--ctl-motion-fast) var(--ctl-ease-glide);
+}
+
+.ui-iconbtn:hover,
+.iconbtn:hover,
+.pbtn:hover {
+  background: var(--ctl-fill-hover);
+  border-color: var(--ctl-border-hover);
+  color: var(--ctl-fg-strong);
+}
+
+/* The primitive is 34; the legacy .iconbtn keeps its 38 default (styles.css) so non-topbar
+   copies do not shrink. #topbar .iconbtn is already 34 via an ID rule. */
+.ui-iconbtn {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  font-size: 18px;
+}
+.ui-iconbtn svg { width: 18px; height: 18px; display: block; }
+.ui-iconbtn--sm {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+  border-radius: 8px;
+}
+.ui-iconbtn--sm svg { width: 15px; height: 15px; }
+
+/* Panel bar: same box as a top-bar icon, but secondary (quiet by default, full on hover/active).
+   flex:none is layout and stays in styles-panel.css. */
+.pbtn {
+  width: 34px;
+  height: 34px;
+  opacity: .62;
+}
+.pbtn:hover { opacity: .9; }
+.pbtn svg { width: 18px; height: 18px; flex: none; }
+.pbtn.active {
+  opacity: 1;
+  background: var(--seg-active-fill);
+  border-color: var(--border-soft);
+  color: var(--seg-active-fg);
+  box-shadow: var(--seg-active-shadow);
+}
+
+/* ── Layer 2 · segmented control (right-column tabs) ─────────────────────────────────────── */
+.ui-seg,
+.rs-tabs {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: var(--ctl-h);
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--seg-track);
+  box-shadow: var(--seg-track-shadow);
+}
+.rs-tabs { flex: 1 1 auto; min-width: 0; }
+.ui-seg[hidden],
+.rs-tabs[hidden] { display: none !important; }
+
+.ui-seg-item,
+.rs-tab {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ctl-fg);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: .58;
+  transition:
+    background-color var(--ctl-motion-fast) var(--ctl-ease-out),
+    color var(--ctl-motion-fast) var(--ctl-ease-out),
+    box-shadow var(--ctl-motion-base) var(--ctl-ease-out),
+    opacity var(--ctl-motion-fast) var(--ctl-ease-out),
+    transform var(--ctl-motion-fast) var(--ctl-ease-glide);
+}
+.ui-seg-item:hover,
+.rs-tab:hover {
+  color: var(--ctl-fg-strong);
+  opacity: .85;
+}
+.ui-seg-item.active,
+.ui-seg-item[aria-selected="true"],
+.rs-tab.active,
+.rs-tab[aria-selected="true"] {
+  opacity: 1;
+  background: var(--seg-active-fill);
+  color: var(--seg-active-fg);
+  box-shadow: var(--seg-active-shadow);
+}
+
+/* Right-column tab internals: label ellipsis, icon size, activity dot. */
+.rs-tab > span:not(.rs-dot),
+.ui-seg-item > span:not(.rs-dot) { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.rs-tab svg,
+.ui-seg-item svg { width: 15px; height: 15px; flex: none; }
+.ui-seg-item .rs-dot,
+.rs-tab .rs-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: none; }
+.ui-seg-item.has-activity .rs-dot,
+.rs-tab.has-activity .rs-dot { display: inline-block; }
+
+/* ── Layer 2 · dynamic content tab (panel tab strip) ────────────────────────────────────── */
+.ui-tab {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  max-width: 190px;
+}
+
+.ui-tab,
+.ptab {
+  height: 26px;
+  border-radius: 8px;
+  background: var(--ctl-fill-quiet);
+  color: var(--ctl-fg);
+  transition:
+    background-color var(--ctl-motion-fast) var(--ctl-ease-out),
+    color var(--ctl-motion-fast) var(--ctl-ease-out);
+}
+.ui-tab:hover,
+.ptab:hover {
+  background: var(--ctl-fill-hover);
+  color: var(--ctl-fg-strong);
+}
+.ui-tab.on,
+.ui-tab.active,
+.ptab.on {
+  background: var(--seg-active-fill);
+  color: var(--seg-active-fg);
+}
+
+.ui-tab-main,
+.ptab-main {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 100%;
+  min-width: 0;
+  padding: 0 2px 0 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  opacity: .72;
+  cursor: pointer;
+}
+.ui-tab:hover .ui-tab-main,
+.ptab:hover .ptab-main { opacity: .92; }
+.ui-tab.on .ui-tab-main,
+.ptab.on .ptab-main { opacity: 1; }
+.ui-tab-main svg,
+.ptab-main svg { width: 14px; height: 14px; flex: none; }
+.ui-tab-t,
+.ptab-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ui-tab-x,
+.ptab-x {
+  box-sizing: border-box;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-right: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: .45;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color var(--ctl-motion-fast) var(--ctl-ease-out),
+    opacity var(--ctl-motion-fast) var(--ctl-ease-out);
+}
+.ui-tab-x:hover,
+.ptab-x:hover { opacity: 1; background: rgba(0, 0, 0, .28); }
+
+/* "+" opens the page menu. 28px keeps it above the 26px tab without changing the strip rhythm.
+   border-soft is an existing theme token (not a second palette) and stays visible in all themes. */
+.ui-tab-add,
+.ptab-add {
+  box-sizing: border-box;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ctl-fg);
+  opacity: .75;
+  cursor: pointer;
+  transition:
+    background-color var(--ctl-motion-fast) var(--ctl-ease-out),
+    color var(--ctl-motion-fast) var(--ctl-ease-out),
+    opacity var(--ctl-motion-fast) var(--ctl-ease-out),
+    transform var(--ctl-motion-fast) var(--ctl-ease-glide);
+}
+.ui-tab-add:hover,
+.ptab-add:hover { opacity: 1; background: var(--ctl-fill-hover); color: var(--ctl-fg-strong); }
+.ui-tab-add svg,
+.ptab-add svg { width: 14px; height: 14px; }
+
+/* ── Layer 2 · composer chip ─────────────────────────────────────────────────────────────── */
+.ui-chip,
+.chip-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--ctl-border);
+  border-radius: 999px;
+  background: var(--ctl-fill-quiet);
+  color: var(--ctl-fg);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--ctl-motion-fast) var(--ctl-ease-out),
+    border-color var(--ctl-motion-fast) var(--ctl-ease-out),
+    color var(--ctl-motion-fast) var(--ctl-ease-out),
+    transform var(--ctl-motion-fast) var(--ctl-ease-glide);
+}
+.ui-chip:hover,
+.chip-btn:hover:not(:disabled) {
+  background: var(--ctl-fill-hover);
+  border-color: var(--ctl-border-hover);
+  color: var(--ctl-fg-strong);
+}
+.ui-chip.active,
+.chip-btn.active {
+  background: var(--seg-active-fill);
+  /* Keep the selected-chip outline the old .chip-btn.active had; it is a theme token, so glass
+     gold / candle amber follow automatically. */
+  border-color: var(--accent-border);
+  color: var(--seg-active-fg);
+}
+
+/* ── Layer 2 · composer voice input ─────────────────────────────────────────────────────── */
+/* The node is mounted by the composer wiring only when Web Speech exists and the layout is at
+   least 1024px wide, so this block carries geometry plus the one state the shared chip material
+   cannot express. Nothing here runs on a phone: there is no node to style.
+   The plain `.voice-btn` selectors carry the contract; the `#composer` twin is the specificity
+   guard against `.chip-btn:hover` (0,3,0), which would otherwise repaint the listening fill. */
+.voice-btn,
+#composer .voice-btn {
+  flex: 0 0 auto;
+  width: var(--ctl-h);
+  height: var(--ctl-h);
+  min-height: var(--ctl-h);
+  padding: 0;
+  border-radius: var(--ctl-r);
+  align-self: center;
+}
+.voice-btn svg,
+#composer .voice-btn svg { width: 16px; height: 16px; display: block; }
+
+/* Listening is the only "live" control in the composer, so it borrows the theme accent instead of
+   the neutral chip fill: accent-soft background, accent border/text and a soft ring. The breath
+   is deliberately slow (1.6s) — a fast blink reads as an error, a slow one as a recording light. */
+.voice-btn.listening,
+#composer .voice-btn.listening {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  animation: voice-btn-breathe 1.6s var(--ctl-ease-out) infinite;
+}
+@keyframes voice-btn-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.045); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-btn.listening,
+  #composer .voice-btn.listening { animation: none; }
+}
+
+/* ── Shared interaction states ─────────────────────────────────────────────────────────── */
+/* The `html` prefix buys specificity parity with theme rules such as
+   `html[data-theme="glass"] .iconbtn` (0,2,1). Without it those rules would swallow the ring's
+   box-shadow — the exact class of drifty focus behaviour this file exists to stop. */
+html .ui-iconbtn:focus-visible,
+html .iconbtn:focus-visible,
+html .pbtn:focus-visible,
+html .ui-seg-item:focus-visible,
+html .rs-tab:focus-visible,
+html .ui-tab-main:focus-visible,
+html .ptab-main:focus-visible,
+html .ui-tab-x:focus-visible,
+html .ptab-x:focus-visible,
+html .ui-tab-add:focus-visible,
+html .ptab-add:focus-visible,
+html .ui-chip:focus-visible,
+html .chip-btn:focus-visible,
+html .smallbtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ctl-ring);
+  opacity: 1;
+}
+
+.ui-iconbtn:focus:not(:focus-visible),
+.iconbtn:focus:not(:focus-visible),
+.pbtn:focus:not(:focus-visible),
+.ui-seg-item:focus:not(:focus-visible),
+.rs-tab:focus:not(:focus-visible),
+.ptab-main:focus:not(:focus-visible),
+.ptab-x:focus:not(:focus-visible),
+.ptab-add:focus:not(:focus-visible),
+.chip-btn:focus:not(:focus-visible),
+.smallbtn:focus:not(:focus-visible) { outline: none; }
+
+/* Pressed scale: icons/buttons 0.96, segmented items 0.97 (a 26px item needs a gentler dip). */
+.ui-iconbtn:active,
+.iconbtn:active,
+.pbtn:active,
+.ui-tab-x:active,
+.ptab-x:active,
+.ui-tab-add:active,
+.ptab-add:active,
+.ui-chip:active,
+.chip-btn:active,
+.smallbtn:active { transform: scale(.96); }
+.ui-seg-item:active,
+.rs-tab:active { transform: scale(.97); }
+
+.ui-iconbtn:disabled,
+.iconbtn:disabled,
+.pbtn:disabled,
+.ui-seg-item:disabled,
+.rs-tab:disabled,
+.ui-tab-add:disabled,
+.ptab-add:disabled,
+.ptab-x:disabled,
+.ui-chip:disabled,
+.chip-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-iconbtn,
+  .iconbtn,
+  .pbtn,
+  .ui-seg-item,
+  .rs-tab,
+  .ui-tab,
+  .ptab,
+  .ui-tab-main,
+  .ptab-main,
+  .ui-tab-x,
+  .ptab-x,
+  .ui-tab-add,
+  .ptab-add,
+  .ui-chip,
+  .chip-btn,
+  .smallbtn { transition: none !important; }
+  .ui-iconbtn:active,
+  .iconbtn:active,
+  .pbtn:active,
+  .ui-seg-item:active,
+  .rs-tab:active,
+  .ui-tab-x:active,
+  .ptab-x:active,
+  .ui-tab-add:active,
+  .ptab-add:active,
+  .ui-chip:active,
+  .chip-btn:active,
+  .smallbtn:active { transform: none; }
+}
+
+/* English labels are wider than two CJK characters; the right-column track must still fit three
+   tabs in a 240px column. Moved from index.html's inline block; the old 7px vertical padding is
+   gone because the item height is now fixed at 26px and the label is centred. */
+html.i18n-en .rs-tabs { gap: 2px; }
+html.i18n-en .rs-tab { font-size: 10.5px; gap: 2px; padding: 0 2px; }
