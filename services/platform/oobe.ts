@@ -86,16 +86,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Show the wizard when the desktop host is not actually usable yet.
+ * Show the wizard only on a true first run.
  *
- * A logged-in, key-bearing, healthy host with the flag set stays out of the way; anything else gets a
- * dialog. On the web this never shows: there is no local host to configure (the deployment is the
- * host), and a "paste your admin password" prompt would be the wrong shape there.
+ * A desktop installation that already has an access token or a wizard-saved model key predates this
+ * wizard (or finished it), so it must not be greeted again just because the new
+ * `oobe_done_v1` / `oobe_model_key_v1` flags are absent in the native KV. The same rule keeps a
+ * transient host-down probe from turning into a first-run dialog: host health has its own indicator,
+ * and the wizard is not a reconnect banner.
+ *
+ * On the web this never shows: there is no local host to configure (the deployment is the host), and
+ * a "paste your admin password" prompt would be the wrong shape there.
  */
 export function shouldShow(state: OobeState): boolean {
   if (!state.shell) return false;
-  if (!state.done) return true;
-  return !state.hasToken || !state.modelKeySaved || state.health === "down";
+  if (state.done) return false;
+  return !state.hasToken && !state.modelKeySaved;
 }
 
 /** The three rows, in the order the dialog renders them. */
