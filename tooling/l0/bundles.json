@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "note": "bundle 注册表（L0b 打包器真源）：一个 bundle = 一份可独立发布的功能层。源是 ESM/JS 模块（作用域封闭、跨模块走显式契约），esbuild 打成 IIFE —— classic 脚本禁止入内（模块作用域会吃掉裸全局，见 bundle.mjs 头注释）。capabilities/requires 是信任闸的准入声明（core/trust-gate.ts 消费）。",
+  "bundles": [
+    {
+      "id": "mobile-shell",
+      "version": "0.6.0",
+      "entry": "public/shell/mobile-entry.js",
+      "outfile": "mobile-entry.js",
+      "capabilities": [],
+      "requires": [],
+      "builtin": true,
+      "trust": "core"
+    }
+  ]
+}

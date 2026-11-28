@@ -55,7 +55,7 @@ function parseToolMode(raw               )               {
 }
 
 /**
- * Build the row model. `toolModePresent` means the policy runtime answered (window.__toolMode
+ * Build the row model. `toolModePresent` means the policy runtime answered (window.toolModeSvc
  * with v === 1, checked by the wiring at render time).
  * @param ports - storage access for the stored choice.
  * @param toolModePresent - whether the tool_search runtime is live this boot.
@@ -133,7 +133,7 @@ function createToolModeCard(ports                   )                  {
   var SEL_STYLE = "flex:1;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;";
 
   function runtimePresent() {
-    try { return !!(window.__toolMode && window.__toolMode.v === 1); } catch (e) { return false; }
+    try { return !!(window.toolModeSvc && window.toolModeSvc.v === 1); } catch (e) { return false; }
   }
 
   function render(sel, note) {

@@ -46,14 +46,14 @@ function passwordOutcome(status        )                  {
   return { ok: false, message: "网络异常 (HTTP " + status + ")，请稍后重试" };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/auth/token.ts; this file owns the token
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/auth/token.ts; this file owns the token
 // store, the global fetch wrapper and the password dialog.
 //
 // Loaded before everything else: any module that talks to /sync or /api/* relies on the header this
 // wrapper injects. The dialog is the shared themed one from feedback.js; the fallback is
 // window.prompt so a page without that bundle can still be unlocked.
 //
-// Public API: window.__auth = { getToken, setToken, clearToken, promptForPassword } — the name and the
+// Public API: window.authSvc = { getToken, setToken, clearToken, promptForPassword } — the name and the
 // four members are frozen, other modules read them directly.
 (function () {
   "use strict";
@@ -84,7 +84,7 @@ function passwordOutcome(status        )                  {
   function promptForPassword(opts) {
     opts = opts || {};
     var plainHint = String(opts.hint || "请输入与 Cloudflare Secret CHAT_PASSWORD 一致的密码").replace(/<[^>]+>/g, "");
-    var fb = window.__feedback;
+    var fb = window.feedbackSvc;
     if (!fb || !fb.dialog) {
       return new Promise(function (resolve, reject) {
         var v = window.prompt(plainHint, "");
@@ -114,7 +114,7 @@ function passwordOutcome(status        )                  {
     });
   }
 
-  window.__auth = {
+  window.authSvc = {
     getToken: getToken,
     setToken: setToken,
     clearToken: clearToken,

@@ -221,7 +221,7 @@ function createAgentRegistry(env             )                   {
   };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // The implementation moved to services/agent/registry.ts; this file only binds the name and injects
 // ports. Eleven optional capabilities are fetched by name (the old code did global[s.key]), hence
 // shell(key); coreTools returns the tools bundle directly — when it is missing the service call throws

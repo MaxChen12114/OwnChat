@@ -4,9 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>写作台 · OwnChat</title>
-<script src="/shared/core/escape.js"></script>
+<script src="/shared/lib/escape.js"></script>
 <script>
-  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/core/theme.css) */
+  /* 主题跟随:与主站同源(cfw_theme_v1 / my-theme),首屏前应用避免闪烁(令牌见 /shared/core/theme.css?v=4) */
   (function(){try{
     var t=localStorage.getItem("cfw_theme_v1")||"minimal";
     if(t&&t!=="minimal")document.documentElement.setAttribute("data-theme",t);
@@ -14,76 +14,85 @@
     if(s==="light"||s==="dark")document.documentElement.setAttribute("data-scheme",s);
   }catch(e){}})();
 </script>
-<link rel="stylesheet" href="/shared/core/theme.css?v=2" />
+<link rel="stylesheet" href="/shared/core/theme.css?v=4" />
 <script src="/services/data/chat-stream.js"></script>
 <style>
-/* 主题令牌统一来自 /shared/core/theme.css(跟随主站主题),本页不再自定义 :root */
+/* 主题令牌统一来自 /shared/core/theme.css?v=4(跟随主站主题),本页不再自定义 :root */
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--text);font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;flex-direction:column}
 svg{vertical-align:middle}
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--panel)}
-.brand{display:flex;align-items:center;gap:11px;min-width:0}
-.brand-mark{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--ac-soft);color:var(--ac);flex:none}
-.brand-mark svg{width:20px;height:20px}
-.brand .h1{font-size:16px;font-weight:700;line-height:1.2}
-.brand .sub{font-size:12px;color:var(--muted)}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;height:54px;padding:0 16px;border-bottom:1px solid var(--border);background:var(--panel)}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand-mark{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:var(--ac-soft);color:var(--ac);flex:none}
+.brand-mark svg{width:18px;height:18px}
+.brand .h1{font-size:15px;font-weight:700;line-height:1.3}
+.brand .sub{font-size:12px;line-height:1.3;color:var(--muted)}
 .top-actions{display:flex;align-items:center;gap:8px;flex:none}
-.top-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border-radius:9px;border:1px solid var(--border);background:rgba(127,127,127,.06);color:inherit;text-decoration:none;font-size:13px;cursor:pointer}
-.top-btn:hover{background:rgba(127,127,127,.13)}
-.top-btn svg{width:15px;height:15px}
+.top-btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--border);background:rgba(127,127,127,.08);color:var(--text);text-decoration:none;font-size:13px;font-weight:500;cursor:pointer;transition:background-color 100ms cubic-bezier(.2,.7,.3,1),border-color 100ms cubic-bezier(.2,.7,.3,1),color 100ms cubic-bezier(.2,.7,.3,1)}
+.top-btn:hover{background:rgba(127,127,127,.13);border-color:var(--border-hi)}
+.top-btn:active{transform:scale(.98)}
+.top-btn svg{width:16px;height:16px}
 .workspace{flex:1;min-height:0;display:flex}
 .outline{width:266px;flex:none;border-right:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column;min-height:0}
-.outline-h{padding:13px 15px 8px;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--muted)}
-.doc-title{margin:0 13px 10px;width:calc(100% - 26px);padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:inherit;font:inherit;font-weight:600}
+.outline-h{padding:12px 16px 8px;font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--muted)}
+.doc-title{margin:0 13px 10px;width:calc(100% - 26px);height:34px;padding:0 11px;border-radius:9px;border:1px solid var(--input-border,var(--border));background:var(--input-bg);color:inherit;font:inherit;font-size:13px;font-weight:600}
 .doc-title:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px var(--ac-soft)}
-.gen-outline{margin:0 13px 10px;width:calc(100% - 26px);display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:9px;border:1px solid var(--ac);background:var(--ac-soft);color:var(--ac);font:inherit;font-size:13px;cursor:pointer}
-.gen-outline:hover{background:var(--ac-soft)}
-.gen-outline:disabled{opacity:.5;cursor:default}
-.gen-outline svg{width:15px;height:15px}
+.gen-outline{margin:0 13px 10px;width:calc(100% - 26px);display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--border);background:rgba(127,127,127,.08);color:var(--text);font:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:background-color 100ms cubic-bezier(.2,.7,.3,1),border-color 100ms cubic-bezier(.2,.7,.3,1),color 100ms cubic-bezier(.2,.7,.3,1)}
+.gen-outline:hover{background:rgba(127,127,127,.13);border-color:var(--border-hi)}
+.gen-outline:active{transform:scale(.98)}
+.gen-outline:disabled{opacity:.45;cursor:default}
+.gen-outline svg{width:16px;height:16px}
 .outline-list{flex:1;min-height:0;overflow-y:auto;padding:4px 8px 16px}
-.ol-item{padding:6px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ol-item{padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ol-item:hover{background:rgba(127,127,127,.1);color:var(--text)}
 .ol-item.lv2{padding-left:22px;font-size:12.5px}
 .ol-empty{padding:14px 12px;font-size:12px;color:var(--muted);text-align:center;line-height:1.7}
 .editor{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
-.edtoolbar{display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.edtoolbar{display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:var(--panel)}
 .field{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
-.sel{padding:6px 9px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:inherit;font:inherit;font-size:13px}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:9px;border:1px solid var(--border);background:var(--btn-bg,rgba(127,127,127,.06));color:inherit;font:inherit;font-size:13px;cursor:pointer}
-.btn:hover{background:var(--ac-soft,rgba(127,127,127,.13))}
-.btn:disabled{opacity:.5;cursor:default}
-.btn svg{width:15px;height:15px}
-.btn.primary{border-color:var(--ac);background:var(--ac);color:var(--ac-contrast)}
-.btn.primary:hover{background:var(--ac-strong)}
+.sel{padding:0 10px;border-radius:9px;border:1px solid var(--input-border,var(--border));background:var(--input-bg);color:inherit;font:inherit;font-size:13px}
+.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--border);background:rgba(127,127,127,.08);color:var(--text);font:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:background-color 100ms cubic-bezier(.2,.7,.3,1),border-color 100ms cubic-bezier(.2,.7,.3,1),color 100ms cubic-bezier(.2,.7,.3,1)}
+.btn:hover{background:rgba(127,127,127,.13);border-color:var(--border-hi)}
+.btn:active{transform:scale(.98)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn svg{width:16px;height:16px}
+.btn.primary{border-color:var(--ac);background:var(--ac);color:var(--ac-contrast);font-weight:600}
+.btn.primary:hover{background:var(--ac-strong);border-color:var(--ac-strong)}
+/* 解限开关由 JS 切 .primary；它不是主操作，保持次按钮，确保本页只有一个实底 accent。 */
+#unlockBtn.primary{background:rgba(127,127,127,.08);border-color:var(--border);color:var(--text);font-weight:500}
+#unlockBtn.primary:hover{background:rgba(127,127,127,.13);border-color:var(--border-hi)}
 .tb-spacer{flex:1}
 .count{font-size:12px;color:var(--muted)}
-.docwrap{flex:1;min-height:0;display:flex;justify-content:center;overflow-y:auto;padding:24px}
-#doc{width:100%;max-width:780px;min-height:100%;border:none;outline:none;resize:none;background:transparent;color:var(--text);font:16px/1.9 "PingFang SC","Microsoft YaHei",system-ui,serif}
-.floatbar{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(16px);display:flex;gap:6px;padding:6px;border-radius:9px;background:var(--panel2);border:1px solid var(--border);box-shadow:0 8px 22px rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .16s,transform .16s;z-index:20}
+.docwrap{flex:1;min-height:0;display:flex;justify-content:center;align-items:flex-start;overflow-y:auto;padding:24px;background:var(--bg)}
+#doc{width:100%;max-width:780px;min-height:100%;border:1px solid var(--border);border-radius:10px;outline:none;resize:none;background:var(--panel);color:var(--text);padding:32px 40px;font:16px/1.9 "PingFang SC","Microsoft YaHei",system-ui,serif}
+.floatbar{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(16px);display:flex;gap:6px;padding:6px;border-radius:10px;background:var(--panel2);border:1px solid var(--border);box-shadow:0 8px 24px rgba(0,0,0,.12);opacity:0;pointer-events:none;transition:opacity 160ms cubic-bezier(.25,.8,.25,1),transform 160ms cubic-bezier(.25,.8,.25,1);z-index:20}
 .floatbar.show{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}
-.fb-btn{display:inline-flex;align-items:center;gap:5px;padding:8px 13px;border-radius:9px;border:1px solid transparent;background:rgba(127,127,127,.08);color:inherit;font:inherit;font-size:13px;cursor:pointer}
-.fb-btn:hover{background:var(--ac-soft);color:var(--ac);border-color:var(--ac)}
-.fb-btn:disabled{opacity:.5;cursor:default}
-.fb-btn svg{width:15px;height:15px}
-.toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:var(--panel);color:var(--text);padding:9px 16px;border-radius:8px;font-size:13px;z-index:60;border:1px solid var(--border)}
+.fb-btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--border);background:rgba(127,127,127,.08);color:var(--text);font:inherit;font-size:13px;cursor:pointer;transition:background-color 100ms cubic-bezier(.2,.7,.3,1),border-color 100ms cubic-bezier(.2,.7,.3,1)}
+.fb-btn:hover{background:rgba(127,127,127,.13);border-color:var(--border-hi)}
+.fb-btn:active{transform:scale(.98)}
+.fb-btn:disabled{opacity:.45;cursor:default}
+.fb-btn svg{width:16px;height:16px}
+.toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:var(--panel);color:var(--text);padding:9px 16px;border-radius:10px;font-size:13px;z-index:60;border:1px solid var(--border)}
 .toast[hidden]{display:none}
 .menu{position:relative;display:inline-flex}
-.menu-pop{position:absolute;right:0;top:calc(100% + 6px);min-width:172px;background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:6px;box-shadow:0 10px 26px rgba(0,0,0,.45);z-index:50;display:none}
+.menu-pop{position:absolute;right:0;top:calc(100% + 6px);min-width:172px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:50;display:none}
 .menu-pop.show{display:block}
-.menu-item{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:none;border-radius:8px;background:transparent;color:inherit;font:inherit;font-size:13px;text-align:left;cursor:pointer;white-space:nowrap}
-.menu-item:hover{background:var(--ac-soft);color:var(--ac)}
-.menu-sep{height:1px;background:var(--border);margin:5px 6px}
+.menu-item{display:flex;align-items:center;gap:8px;width:100%;height:34px;padding:0 10px;border:none;border-radius:8px;background:transparent;color:var(--text);font:inherit;font-size:13px;text-align:left;cursor:pointer;white-space:nowrap}
+.menu-item:hover{background:rgba(127,127,127,.13);color:var(--text)}
+.menu-item:active{transform:scale(.98)}
+.menu-sep{height:1px;background:var(--border);margin:8px 6px}
 .stat{font-size:12px;color:var(--muted);white-space:nowrap}
 .stat b{color:var(--text);font-weight:700}
 .fsctl{display:inline-flex;align-items:center;gap:4px}
-.icon-btn{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 7px;border-radius:8px;border:1px solid var(--border);background:rgba(127,127,127,.06);color:inherit;font:inherit;font-size:12.5px;cursor:pointer}
-.icon-btn:hover{background:rgba(127,127,127,.13)}
-.icon-btn svg{width:15px;height:15px}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:34px;padding:0 10px;border-radius:9px;border:1px solid var(--border);background:rgba(127,127,127,.08);color:var(--text);font:inherit;font-size:12.5px;cursor:pointer;transition:background-color 100ms cubic-bezier(.2,.7,.3,1),border-color 100ms cubic-bezier(.2,.7,.3,1)}
+.icon-btn:hover{background:rgba(127,127,127,.13);border-color:var(--border-hi)}
+.icon-btn:active{transform:scale(.98)}
+.icon-btn svg{width:16px;height:16px}
 #doc.wide{max-width:1100px}
 .bar-toggle{display:none}
 @media (max-width:760px){
-  .topbar{flex-wrap:nowrap;justify-content:flex-start;gap:8px;padding:9px 12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .topbar{flex-wrap:nowrap;justify-content:flex-start;gap:8px;padding:0 12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .topbar::-webkit-scrollbar{display:none}
   .topbar>*{flex:none}
   .brand{min-width:0}
@@ -92,17 +101,18 @@ svg{vertical-align:middle}
   .bar-toggle{display:inline-flex}
   body.bar-collapsed .edtoolbar{display:none}
   .outline{display:none}
-  .docwrap{padding:14px}
-  #doc{font-size:15px}
+  .docwrap{padding:12px}
+  #doc{padding:24px 20px;font-size:15px}
   .floatbar{left:8px;right:8px;transform:translateY(16px);flex-wrap:wrap;justify-content:center}
   .floatbar.show{transform:translateY(0)}
 }
 </style>
+<link rel="stylesheet" href="/shared/core/work-ui.css?v=4" />
 </head>
 <body class="bar-collapsed">
 <header class="topbar">
   <div class="brand">
-    <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1 9.6-9.6a2 2 0 0 0-2.8-2.8L5.4 16z"/><path d="M13.5 6.3l4.2 4.2"/></svg></span>
+    <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 256 256" width="18" height="18" fill="currentColor" stroke="currentColor" stroke-width="14" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M252 128a60 60 0 0 1-102.43 42.43l-.49-.53l-59.86-67.59a36 36 0 1 0 0 51.38l3.08-3.48a12 12 0 1 1 18 15.91l-3.35 3.78l-.49.53a60 60 0 1 1 0-84.86l.49.53l59.86 67.59a36 36 0 1 0 0-51.38l-3.08 3.48a12 12 0 1 1-18-15.91l3.35-3.78l.49-.53A60 60 0 0 1 252 128"/></svg></span>
     <div>
       <div class="h1">写作台</div>
       <div class="sub">左大纲右正文 · 选中文字浮起 AI 续写 / 扩写 / 润色</div>
@@ -138,7 +148,7 @@ svg{vertical-align:middle}
       <button class="btn primary" id="continueBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4l9 8-9 8z"/><path d="M19 4v16"/></svg> 续写</button>
       <button class="btn" id="stopBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> 停止</button>
       <div class="menu">
-        <button class="btn" id="moreBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v4M3 5h4M6 17v4M4 19h4"/><path d="M13 4l2.4 5.6L21 12l-5.6 2.4L13 20l-2.4-5.6L5 12l5.6-2.4z"/></svg> 更多</button>
+        <button class="btn" id="moreBtn"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg> 更多</button>
         <div class="menu-pop" id="moreMenu">
           <button class="menu-item" data-ai="title">AI 起标题</button>
           <button class="menu-item" data-ai="summary">AI 写摘要</button>
@@ -163,12 +173,12 @@ svg{vertical-align:middle}
 </div>
 <div class="floatbar" id="floatbar">
   <button class="fb-btn" data-act="expand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg> 扩写</button>
-  <button class="fb-btn" data-act="polish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9z"/><path d="M18 14l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></svg> 润色</button>
+  <button class="fb-btn" data-act="polish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg> 润色</button>
   <button class="fb-btn" data-act="condense"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5v3a1 1 0 0 1-1 1H5M15 5v3a1 1 0 0 0 1 1h3M9 19v-3a1 1 0 0 0-1-1H5M15 19v-3a1 1 0 0 1 1-1h3"/></svg> 缩写</button>
 </div>
 <div class="toast" id="toast" hidden></div>
 <script src="/config.js"></script>
-<script src="/shared/core/i18n.js"></script>
+<script src="/shared/lib/i18n.js"></script>
 <script>
 (function(){
 "use strict";
@@ -189,7 +199,7 @@ function selModel(){var sel=$("#model");var o=sel&&sel.options[sel.selectedIndex
 
 async function callChat(opts){
   // 2026-11-11 (B8)：统一走 services/data/chat-stream.ts 的产物；write 保留自己的开关 key
-  return window.__chatStream.call({
+  return window.chatStreamSvc.call({
     profile: "rp",
     unlockKey: "cfw_write_unlock_v1",
     mode: opts.mode,

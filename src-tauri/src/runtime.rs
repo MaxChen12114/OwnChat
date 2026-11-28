@@ -1,6 +1,6 @@
 // runtime.rs — Node 运行时定位（4.70）
 //
-// 定位一个可用的 Node，供设置页状态显示与将来的「下载自带运行时」用。
+// 定位一个可用的 Node，供设置页状态显示、本地服务（含本机宿主 sidecar）启动用。
 // **命令执行本身不依赖它** —— local_run_command 就是普通的进程启动，用户 PATH 里有 node 就能跑。
 // 这里存在的意义是那条免装路径:用户点一下就从镜像下载一份自包含 Node，
 // 让"下载即用"成立，而不是要求用户先自己装好运行时。
@@ -9,19 +9,22 @@
 //   ①装在移动盘上，盘不在时运行时凭空消失 ②版本可能太旧 ③无法校验完整性。
 // 所以状态里把 source(自带/系统)如实报出来，让用户知道自己在依赖什么。
 //
-// 三级查找(照 spawn_tts 的两级回退扩了一级):
-//   1. <数据目录>/runtime/node/node.exe   ← 自包含，由「下载运行时」放置
-//   2. 系统 PATH 里的 node                ← 回退，但必须报出路径与版本
-//   3. 都没有 → 返回带指引的错误，而不是静默失败
+// 四级查找（2026-11-28 公开版起）：
+//   1. <数据目录>/runtime/node/node.exe     ← 用户自行放置/旧版下载的运行时
+//   2. <安装包资源目录>/runtime/node/node.exe ← 安装包内置（Windows 安装包随包 Node 24）
+//   3. 系统 PATH 里的 node                   ← 回退，但必须报出路径与版本
+//   4. 都没有 → 汇总上面每一级的原因，返回带指引的错误，而不是静默失败
 //
 // 与 lib.rs 的 spawn_tts 保持一致:那里也是 prefer 自带 python.exe、fallback 系统 python。
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// 最低可用 Node 版本。--permission(权限模型)自 Node 20 起提供;
-/// 低于这个版本沙箱参数会被当成未知选项、进程直接启动失败。
-const MIN_MAJOR: u32 = 20;
+/// 最低可用 Node 版本 —— 2026-11-28（T4-B）从 20 提到 24。
+/// 本机宿主 sidecar（server/local.mjs）用 `node:sqlite`（22.5+ 才有）与 `import.meta.dirname`
+/// （20.11+），并要求内置 Web Streams/Request/Response 行为稳定；低于 24 的运行时会在启动期直接
+/// 抛错或静默降级成"数据库不可用"，所以这里 fail-closed 而不是"大概能跑"。
+const MIN_MAJOR: u32 = 24;
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -78,11 +81,23 @@ fn probe_version(program: &Path) -> Option<(String, u32)> {
 }
 
 /// 定位可用的 Node 运行时。
-/// 自包含优先;自包含存在但版本过低时**不静默回退**,而是明确报错 ——
-/// 因为那通常意味着下载不完整,静默换系统 Node 会让行为变得不可预测。
-pub fn locate(storage_dir: &Path) -> Result<NodeRuntime, String> {
-    let bundled_dir = node_dir(storage_dir);
-    if let Some(exe) = find_node_exe(&bundled_dir) {
+///
+/// 查找顺序（2026-11-28 公开版起）：
+///   1. `<数据目录>/runtime/node/`      —— 用户自己放置/旧版下载的自包含运行时；
+///   2. `<安装包资源目录>/runtime/node/` —— 安装包内置（Windows 安装包随包 Node 24，无需用户另装）；
+///   3. 系统 PATH 里的 `node`。
+///
+/// 任何一级「找到了但不可用」（版本过低 / 无法执行）都继续往下找，并把原因记下来；
+/// 三级都不行时一次报全。这样升级安装包后，旧数据目录里遗留的 Node 20 不会把 App 永久卡死
+/// （旧行为是数据目录一有旧版就直接 Err，公开版装包后反而起不来）。
+pub fn locate(storage_dir: &Path, resource_dir: Option<&Path>) -> Result<NodeRuntime, String> {
+    let mut notes: Vec<String> = Vec::new();
+    let mut candidates: Vec<PathBuf> = vec![node_dir(storage_dir)];
+    if let Some(res) = resource_dir {
+        candidates.push(res.join("runtime").join("node"));
+    }
+    for dir in candidates {
+        let Some(exe) = find_node_exe(&dir) else { continue };
         match probe_version(&exe) {
             Some((version, major)) if major >= MIN_MAJOR => {
                 return Ok(NodeRuntime {
@@ -92,39 +107,40 @@ pub fn locate(storage_dir: &Path) -> Result<NodeRuntime, String> {
                     supports_permission: true,
                 });
             }
-            Some((version, _)) => {
-                return Err(format!(
-                    "自带的 Node 版本过低({version},需要 v{MIN_MAJOR}+)。请重新安装测试扩展,或删除 {} 后用系统 Node。",
-                    bundled_dir.display()
-                ));
-            }
-            None => {
-                return Err(format!(
-                    "自带的 Node 无法执行({})。文件可能损坏,建议重新安装测试扩展。",
-                    exe.display()
-                ));
-            }
+            Some((version, _)) => notes.push(format!(
+                "{} 里的 Node 版本过低({version},需要 v{MIN_MAJOR}+)",
+                dir.display()
+            )),
+            None => notes.push(format!("{} 里的 Node 无法执行", exe.display())),
         }
     }
 
     // 回退到系统 PATH。这里**不隐藏**来源 —— 前端会把 source/version 显示给用户,
     // 让他知道正在依赖一个可能随时消失(比如装在移动盘上)的运行时。
-    let probe = Path::new("node");
-    match probe_version(probe) {
+    match probe_version(Path::new("node")) {
         Some((version, major)) if major >= MIN_MAJOR => Ok(NodeRuntime {
             program: "node".into(),
             version,
             source: "system".into(),
             supports_permission: true,
         }),
-        Some((version, _)) => Err(format!(
-            "系统 Node 版本过低({version},需要 v{MIN_MAJOR}+)。请升级,或安装测试扩展使用自带运行时。"
-        )),
-        None => Err(
-            "找不到 Node 运行时。可以在设置里点「安装测试扩展」下载自带版本(推荐),或自行安装 Node v20+。"
-                .into(),
-        ),
+        Some((version, _)) => {
+            notes.push(format!("系统 Node 版本过低({version},需要 v{MIN_MAJOR}+)"));
+            Err(runtime_missing(notes))
+        }
+        None => {
+            notes.push("系统 PATH 里没有 node".into());
+            Err(runtime_missing(notes))
+        }
     }
+}
+
+/// One readable failure for every level that was tried; the wizard surfaces this verbatim.
+fn runtime_missing(notes: Vec<String>) -> String {
+    format!(
+        "找不到可用的 Node 运行时（需要 v{MIN_MAJOR}+）：{}。Windows 安装包已内置运行时；只有从源码运行才需要自己安装 Node 24+。",
+        notes.join("；")
+    )
 }
 
 /// 给前端的运行时就绪状态(设置页显示用)。不抛错 —— 没有运行时也是一种"状态"。
@@ -141,9 +157,9 @@ pub struct RuntimeStatus {
     pub expect_dir: String,
 }
 
-pub fn status(storage_dir: &Path) -> RuntimeStatus {
+pub fn status(storage_dir: &Path, resource_dir: Option<&Path>) -> RuntimeStatus {
     let expect_dir = node_dir(storage_dir).to_string_lossy().to_string();
-    match locate(storage_dir) {
+    match locate(storage_dir, resource_dir) {
         Ok(rt) => {
             // 消息必须先算 —— 结构体字段按书写顺序求值,`program` 一旦被移进去,
             // 后面再借用 rt.program 就是"borrow of moved value"(CI 首轮报的 E0382)。

@@ -4,7 +4,7 @@
  *
  * Storage, change notification, clock and randomness arrive through {@link LorebookPorts};
  * this module touches no `window`, `localStorage` or `document`. The browser adapter and the
- * frozen `__lorebook` name live in l0/wiring/lorebook.js.
+ * frozen `lorebookSvc` name live in tooling/l0/wiring/lorebook.js.
  *
  * Entries live in localStorage rather than IndexedDB: the payload is small text, and LS is what
  * sync.js already dumps into the cloud KV, so "same lorebook on another device" comes for free

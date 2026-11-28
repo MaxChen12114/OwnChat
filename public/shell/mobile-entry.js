@@ -1,10 +1,32 @@
 // @ts-check
 /* public/shell/mobile-entry.js
  * ─────────────────────────────────────────────────────────────────────
- * 手机壳 shell bundle v0.4.0
+ * 手机壳 shell bundle v0.6.0
  *
  * 目标：在**不改 index.html 结构、不改 app.js** 的前提下，加一层可拆卸的手机 UI，
  *      同时验证 core 架构计划里「slot registry + 节点搬家」这条路走不走通。
+ *
+ * v0.6.0（2026-11-27）· 唯一手机 UI：
+ *   旧四 tab 底栏、mobile-tabs 引擎与 ?shell=off 回退全部删除；手机端只存在这一套壳。
+ *   壳 CSS 由 index.html 在 <head> 静态加载并在首帧贴 shell-mobile 类，bundle 只补 DOM，
+ *   加载过程中不会再先画出旧手机 UI。
+ *
+ * v0.5.1（2026-11-26）· 职责与可读材质修正：
+ *   ① 插槽解析认 window.slotRegistry，再退到 data-slot 与 id —— rightSidebar 不在
+ *      15 项 slot 表里（它是静态 id 容器），旧代码读错了全局名，等于永远走
+ *      属性兜底；现在 setConsole 首次打开必定把桌面右栏整块搬进 #shConsoleBody。
+ *   ② 两个面写死在页头：沙盘 = 内容台面（agent 挂载页/地图/图片/文档 + #shStage），
+ *      控制台 = 桌面右栏的 活动/群聊/状态；沙盘页不渲染控制台内容，两者不合并。
+ *   ③ 底栏「控制台」仍是覆盖式抽屉（不切当前页），点「沙盘」才切页。
+ *   ④ 控制台在未打开前保持空；打开时若右栏真的缺失，正文给可读提示而不是一块白板。
+ *
+ * v0.5.0（2026-11-26）· 与桌面共用标签状态机 + 独立沙盘：
+ *   右栏标签（services/panel/tab-state.ts → window.panelTabs）成为桌面与手机共用的一份
+ *   内容状态机：打开去重、关闭落到邻居、最近关闭都是同一套规则。目录统一读
+ *   window.toolCatalog（tool.json 的唯一一次解析），不再手抄 BUILTIN 清单。内置幻想沙盘
+ *   从目录摘除，改为外部 URL（cfw_panel_sandbox_url_v1；未配置时舞台显示启动引导）；
+ *   GEO 地图只在配了 cfw_panel_map_url_v1 时由宿主页提供。手机只保留一个前台舞台，
+ *   切标签按目标标签重建 iframe —— 后台标签不进内存。
  *
  * v0.4.1（2026-11-15）· stage_open 真链路修通：
  *   v0.4.0 把 __panel.open 写成「只入索引 + 点亮 tab 圆点」，但桌面有顶栏 ⊞ 可展开，
@@ -49,7 +71,6 @@
  *   3. 布局只搬节点、不写业务状态 —— core 不需要知道壳存在
  *
  * 开关：
- *   ?shell=off     完全停用（保留旧四 tab 底栏）
  *   ?shell=mobile  桌面窗口也强制启用（调试用）
  *   ?page=work     / ?page=sandbox   直达沙盘页（work 是 v0.2.0 旧参数，保留兼容）
  *   ?page=console  / ?page=stage     打开控制台面板（stage 是 v0.1.0 的旧参数，保留兼容）
@@ -61,9 +82,8 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.4.1';
+  var VERSION = '0.6.0';
   var params = new URLSearchParams(location.search);
-  if (params.get('shell') === 'off') return;
 
   var FORCE = params.get('shell') === 'mobile';
   var MQ = window.matchMedia('(max-width: 1023px)');
@@ -86,11 +106,15 @@
 
   /** L1b：插槽解析。registry 不在就用属性兜底。 */
   function slot(name) {
-    var reg = /** @type {any} */ (window).__slots;
+    var host = /** @type {any} */ (window);
+    // L1b 的唯一注册表全局就是 slotRegistry，不再引入新的契约名。
+    var reg = host.slotRegistry;
     var el = reg && typeof reg.get === 'function' ? reg.get(name) : null;
-    return /** @type {HTMLElement|null} */ (
-      el || document.querySelector('[data-slot="' + name + '"]')
-    );
+    if (el) return /** @type {HTMLElement|null} */ (el);
+    var marked = document.querySelector('[data-slot="' + name + '"]');
+    if (marked) return /** @type {HTMLElement|null} */ (marked);
+    // 静态 id 容器（rightSidebar）不在 15 项 slot 表里，按 id 兜底。
+    return /** @type {HTMLElement|null} */ (document.getElementById(name));
   }
 
   /** L1a：全局对象代理。hostApi 不在就退回旧的 window 全局（__ 前缀）。 */
@@ -99,10 +123,10 @@
     return (host && host[name]) || /** @type {any} */ (window)['__' + name];
   }
 
-  /* ── 样式注入（bundle 自带资源，不写 index.html） ─────────────── */
+  /* ── 样式注入（index.html 已静态加载；单独分发 bundle 时兜底） ─── */
 
   function injectCss() {
-    if (document.querySelector('link[data-shell-css]')) return;
+    if (document.querySelector('link[data-shell-css], link[href*="/shell/mobile-shell.css"]')) return;
     var link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = CSS_HREF;
@@ -138,15 +162,26 @@
 
   /** 控制台 = 桌面右栏整块搬过来（活动 / 群聊 / 状态 三栏 tab 随之可用，不用重写内容） */
   function placeStage() {
-    var aside = slot('rightSidebar') || document.getElementById('rightSidebar');
+    var aside = slot('rightSidebar');
     var host = document.getElementById('shConsoleBody');
-    if (!aside || !host) return;
-    if (aside.parentNode !== host) moveTo(/** @type {HTMLElement} */ (aside), host);
+    if (!host) return false;
+    var missing = host.querySelector('[data-sh-console-missing]');
+    if (!aside) {
+      // 右栏是静态 #rightSidebar，正常不会缺；真缺时给一句可读提示，别让用户盯空抽屉。
+      if (!host.childElementCount) {
+        host.innerHTML = '<div class="sh-hint" data-sh-console-missing><b>桌面右栏未就绪</b>' +
+          '控制台读取的是桌面右栏「活动 / 群聊 / 状态」。右栏挂载后重新打开控制台即可。</div>';
+      }
+      return false;
+    }
+    if (missing) missing.remove();
+    if (aside.parentNode !== host) moveTo(aside, host);
+    return true;
   }
 
   function homeStage() {
-    var aside = document.getElementById('rightSidebar');
-    if (aside) moveHome(/** @type {HTMLElement} */ (aside));
+    var aside = slot('rightSidebar');
+    if (aside) moveHome(aside);
   }
 
   /* ── 顶栏状态胶囊（v0.3.0） ─────────────────────────────────────
@@ -285,11 +320,6 @@
    */
 
   var MAP_URL_KEY = 'cfw_panel_map_url_v1';
-  // 与 panel-host 的 BUILTIN_TOOLS 同源同 URL：手机端也能「先 stage_list 再 stage_open」
-  var BUILTIN = [
-    { id: 'sandbox', title: '沙盘（幻想地图）', sub: '程序化生成 · 零依赖', kind: 'map', url: '/tools/sandbox/index.html?v=19' },
-    { id: 'council', title: '多智能体讨论区', sub: '多个 agent 各自发言', kind: 'mount', url: '/tools/council/index.html?v=3' }
-  ];
   var KIND_ICON = {
     map: ICONS.work,
     mount: '<rect x="4" y="3.5" width="16" height="17" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
@@ -297,16 +327,20 @@
     doc: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>'
   };
   var EMPTY = {
-    all: ['沙盘是什么', 'agent 挂上来的展示页、地图、讨论区、图片与文档，都摆在这个台面上。点卡片在页内打开，不跳走对话。'],
-    mount: ['还没有挂载内容', 'agent 用 stage_open 挂上来的展示页会收在这里；桌面右栏画布与手机沙盘共用一份 __panel 契约。'],
-    map: ['地图入口', '沙盘（幻想地图）随时可开。GEO 真实地图需先设置 cfw_panel_map_url_v1 才会出现在这里。'],
+    all: ['沙盘是什么', 'agent 挂上来的展示页、地图、讨论区与文档，都摆在这个内容台面上；点卡片在页内打开，不跳走对话。控制台是另一块面：底栏「控制台」打开桌面右栏的活动 / 群聊 / 状态。'],
+    mount: ['还没有挂载内容', 'agent 用 stage_open 挂上来的展示页会收在这里；桌面右栏与手机沙盘共用同一份标签状态机。'],
+    map: ['地图入口', '沙盘是独立仓，地址在「设置 → 内容面板」里填；GEO 地图只有配了地址才出现。'],
     image: ['图片索引未接', '对话里生成的插图与形象卡暂时仍回对话查看；这里先留位，等产物索引落地再填，不造空清单。'],
     doc: ['文档索引未接', '导出的文档与报告暂时仍回对话或下载查看；这里先留位，等产物索引落地再填，不造空清单。']
   };
 
-  var stageItems = [];   // agent 挂上来的内容：[{id,title,sub,kind,spec,at}]
-  var stageSpec = null;  // 当前舞台上的 spec
-  var stageSeq = 0;
+  // Shared tab state (services/panel/tab-state.ts): the mobile shell keeps its own single-stage UI
+  // but the identity/dedupe/close rules are the desktop ones. No second catalogue here either —
+  // window.toolCatalog is the single parse of tool.json, and host pages come from panelTabs.
+  var tabs = window.panelTabs.empty();
+  var stageSpec = null;   // what the stage currently shows (title/url/html/text/mode)
+  var stageTabId = '';    // which tab owns the stage; empty = inline one-off content
+  var pageSeq = 0;
   var workSeg = 'all';
   var panelOrig = null;
 
@@ -321,16 +355,48 @@
       'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
   }
 
-  function geoUrl() {
-    try { return String(localStorage.getItem(MAP_URL_KEY) || '').trim(); } catch (e) { return ''; }
+  function readStoredUrl(key) {
+    try { return String(localStorage.getItem(key) || '').trim(); } catch (e) { return ''; }
   }
 
-  /** 卡片清单 = agent 挂载项 + 站内内置页（GEO 地图只在配了地址时出现） */
+  /** Catalog + host pages, the same merge the desktop host performs.
+   *  Host pages consume window.sandboxViews (services/sandbox/views.ts): the sandbox tab defaults
+   *  to demo/play.html and a second 星图 tab appears once the source is configured. */
+  function pages() {
+    var cat = window.toolCatalog && typeof window.toolCatalog.entries === 'function'
+      ? window.toolCatalog.entries() : [];
+    var fromCatalog = window.panelTabs.pagesFromCatalog(cat, { panel: true });
+    var host = window.panelTabs.hostPages({ geoUrl: readStoredUrl(MAP_URL_KEY), views: window.sandboxViews });
+    return window.panelTabs.mergePages(fromCatalog, host);
+  }
+
+  function specOf(tab) {
+    if (!tab) return null;
+    var c = window.panelTabs.contentOf(tab, pages());
+    if (!c) return null;
+    var spec = { title: String(c.title || tab.title), mode: c.mode };
+    if (c.url) spec.url = c.url;
+    if (c.html) spec.html = c.html;
+    if (c.text) spec.text = c.text;
+    return spec;
+  }
+
+  /** 卡片清单 = 已开标签 + 目录/宿主页（GEO 只在配了地址时由 hostPages 提供） */
   function allItems() {
-    var list = stageItems.slice();
-    BUILTIN.forEach(function (it) { list.push(it); });
-    var g = geoUrl();
-    if (g) list.push({ id: 'geo', title: 'GEO 地图', sub: '真实地图 · 外部源', kind: 'map', url: g, mode: 'external' });
+    var list = [];
+    tabs.tabs.forEach(function (t) {
+      var c = window.panelTabs.contentOf(t, pages());
+      var sub = c && c.url ? String(c.url) : (c && c.html ? '内联 HTML' : '纯文本');
+      list.push({ id: t.id, title: t.title, sub: sub, kind: 'mount', url: c && c.url ? String(c.url) : '' });
+    });
+    pages().forEach(function (pg) {
+      list.push({
+        id: 'page:' + pg.id, title: pg.label,
+        sub: pg.href || '未配置 · 打开看启动引导',
+        kind: pg.id === 'sandbox' || pg.id === 'starmap' || pg.id === 'map' ? 'map' : 'mount',
+        url: pg.href || ''
+      });
+    });
     return list;
   }
 
@@ -358,33 +424,29 @@
     if (b) b.classList.toggle('has-new', !!on);
   }
 
-  function sameStage(a, b) {
-    return !!a && !!b && a.url === b.url && a.html === b.html && a.text === b.text;
-  }
-
-  /** 安全档只推断一次：openStage 与 __panel.open 的返回值共用，免得文案与实际 sandbox 口径漂移 */
-  function stageMode(spec) {
-    return spec.mode || (spec.html != null ? 'host-html'
-      : (/^https?:\/\//i.test(String(spec.url || '')) ? 'external' : 'trusted'));
-  }
-
   /** stage_call 的手机实现：把调用转发进舞台 iframe，协议与 panel-frame 的 call/call-result 一致 */
   var callSeq = 0;
-  function stageCall(fn, args, timeoutMs) {
+  function stageCall(fn, args, timeoutMs, id) {
     var name = String(fn || '').trim();
     if (!name) return Promise.reject(new Error('stage_call 需要 fn'));
-    if (!stageSpec) return Promise.reject(new Error('画布是空的 —— 先用 stage_open 打开一个页面'));
+    var target = id ? window.panelTabs.byId(tabs, id) : window.panelTabs.active(tabs);
+    if (!target) return Promise.reject(new Error('画布是空的 —— 先用 stage_open 打开一个页面'));
+    if (target.id !== tabs.activeId) {
+      tabs = window.panelTabs.activate(tabs, target.id);
+      renderWork();
+      showTab(window.panelTabs.active(tabs));
+    }
     var found = document.querySelector('#shStageBox iframe');
     var f = found instanceof HTMLIFrameElement ? found : null;
     var win = f && f.contentWindow;
     if (!win) return Promise.reject(new Error('沙盘画布还没就绪 —— 先在沙盘页打开这个内容'));
     var ms = Math.max(1000, Math.min(120000, parseInt(String(timeoutMs || 0), 10) || 15000));
-    var id = 'sh' + (++callSeq);
+    var callId = 'sh' + (++callSeq);
     return new Promise(function (resolve, reject) {
       function cleanup() { window.removeEventListener('message', onMsg); clearTimeout(timer); }
       function onMsg(ev) {
         var d = ev.data || {};
-        if (!d || d.__panel !== 1 || d.type !== 'call-result' || !d.data || d.data.id !== id) return;
+        if (!d || d.__panel !== 1 || d.type !== 'call-result' || !d.data || d.data.id !== callId) return;
         if (ev.source && ev.source !== win) return;
         cleanup();
         if (d.data.ok) resolve(d.data.result);
@@ -395,13 +457,16 @@
         reject(new Error('画布没有回应 ' + name + '（' + Math.round(ms / 1000) + ' 秒）'));
       }, ms);
       window.addEventListener('message', onMsg);
-      try { win.postMessage({ __panel: 1, type: 'call', data: { id: id, fn: name, args: args } }, '*'); }
+      try { win.postMessage({ __panel: 1, type: 'call', data: { id: callId, fn: name, args: args } }, '*'); }
       catch (e) { cleanup(); reject(e); }
     });
   }
 
-  /** 在沙盘页里打开一份内容。iframe 复用，关掉再开不重载（沙盘世界不会莫名其妙换一张） */
-  function openStage(spec) {
+  /**
+   * 在沙盘页里打开一份内容。同一个标签重复进入不重载（沙盘世界不会莫名其妙换一张）；
+   * 切标签时按目标标签重建 iframe —— 手机上永远只有一个前台舞台，后台标签不进内存。
+   */
+  function openStage(spec, tabId) {
     build();
     spec = spec || {};
     var host = document.getElementById('shStage');
@@ -409,8 +474,9 @@
     var titleEl = document.getElementById('shStageTitle');
     if (!host || !box) return;
     if (titleEl) titleEl.textContent = String(spec.title || '内容');
-    if (!(sameStage(stageSpec, spec) && box.firstChild)) {
-      stageSpec = spec;
+    var same = !!tabId && tabId === stageTabId && !!box.firstChild;
+    if (!same) {
+      stageTabId = tabId || '';
       box.innerHTML = '';
       if (spec.text != null && !spec.url && spec.html == null) {
         var pre = document.createElement('pre');
@@ -421,14 +487,14 @@
         var f = document.createElement('iframe');
         f.setAttribute('title', String(spec.title || '沙盘内容'));
         f.setAttribute('loading', 'lazy');
-        var mode = stageMode(spec);
         // 自家页要读同源 localStorage 的主题，不套 sandbox；内联 HTML 与外链进隔离沙箱
-        if (mode === 'host-html' || mode === 'external') f.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups');
+        if (spec.mode === 'host-html' || spec.mode === 'external') f.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups');
         if (spec.url) f.src = String(spec.url);
         else f.srcdoc = String(spec.html || '');
         box.appendChild(f);
       }
     }
+    stageSpec = spec;
     host.hidden = false;
   }
 
@@ -440,6 +506,7 @@
     var box = document.getElementById('shStageBox');
     if (box) box.innerHTML = '';
     stageSpec = null;
+    stageTabId = '';
   }
 
   function openStageWindow() {
@@ -447,56 +514,97 @@
     try { window.open(String(stageSpec.url), '_blank', 'noopener'); } catch (e) {}
   }
 
-  function openStageById(id) {
-    var it = allItems().filter(function (x) { return x.id === id; })[0];
-    if (!it) return;
-    openStage(it.spec || { url: it.url, title: it.title, mode: it.mode });
+  function showTab(tab) {
+    var spec = specOf(tab);
+    if (!spec) { closeStage(true); return; }
+    openStage(spec, tab ? tab.id : '');
+    markNew(false);
   }
 
-  function addStageItem(spec) {
-    var title = String(spec.title || '').trim() || (spec.url ? '页面' : '内联内容');
-    // 同名去重，与 panel-host.pushHistory 同口径
-    stageItems = stageItems.filter(function (x) { return x.title !== title; });
-    stageItems.unshift({
-      id: 'm' + (++stageSeq), title: title,
-      sub: spec.html != null ? '内联 HTML' : (spec.text != null ? '纯文本' : '展示页'),
-      kind: 'mount', spec: spec, at: Date.now()
-    });
-    if (stageItems.length > 10) stageItems.length = 10;
+  function openPageItem(pageId) {
+    tabs = window.panelTabs.open(tabs, { pageId: pageId }, pages(), { now: Date.now(), seq: ++pageSeq });
+    renderWork();
+    showTab(window.panelTabs.active(tabs));
+  }
+
+  function openStageById(id) {
+    var key = String(id || '');
+    if (key.indexOf('page:') === 0) { openPageItem(key.slice(5)); return; }
+    var next = window.panelTabs.activate(tabs, key);
+    if (next !== tabs) { tabs = next; renderWork(); showTab(window.panelTabs.active(tabs)); return; }
+    var page = window.panelTabs.findPageById(key, pages());
+    if (page) openPageItem(page.id);
   }
 
   /** 手机态把 __panel 的空壳补成能用的画布；桌面态由 unpatchPanel 还原 */
   function patchPanel() {
     var p = api('panel');
     if (!p || p.v !== 1) return;
-    if (!panelOrig) panelOrig = { open: p.open, close: p.close, state: p.state, view: p.view, tools: p.tools, call: p.call };
+    if (!panelOrig) {
+      panelOrig = {
+        open: p.open, openPage: p.openPage, expand: p.expand, close: p.close,
+        state: p.state, view: p.view, tools: p.tools, call: p.call
+      };
+    }
     p.open = function (spec) {
       spec = spec || {};
-      addStageItem(spec);
+      tabs = window.panelTabs.open(tabs, spec, pages(), { now: Date.now(), seq: ++pageSeq });
+      var tab = window.panelTabs.active(tabs);
+      if (!tab) return { ok: false, error: '至少给 page / url / html / text 之一。' };
+      var nextSpec = specOf(tab);
       renderWork();
       // 当前内容**立即生效**：桌面有顶栏 ⊞ 可展开，手机没有，所以 state/view/call
       // 必须马上认这份 spec；只是不切页、不弹 iframe（不抢用户的屏幕）。
-      stageSpec = spec;
+      stageSpec = nextSpec;
       if (current === 'work') {
-        openStage(spec);              // 人正看着沙盘：直接换台面上的内容
+        if (nextSpec) openStage(nextSpec, tab.id);
         markNew(false);
       } else {
         markNew(true);               // 在对话里：只点亮 tab，点进沙盘即展开
       }
-      return { ok: true, mode: stageMode(spec), title: String(spec.title || '') };
+      return { ok: true, mode: nextSpec ? nextSpec.mode : '', title: tab.title, id: tab.id };
     };
-    p.close = function () { closeStage(true); markNew(false); return { ok: true }; };
+    p.openPage = function (id) { return p.open({ pageId: id }); };
+    p.expand = function () { go('work'); };
+    p.close = function (id) {
+      var target = id || tabs.activeId;
+      if (!target) return { ok: true, id: '' };
+      var next = window.panelTabs.close(tabs, target, { now: Date.now() });
+      if (next === tabs) return { ok: false, error: '没有这个标签：' + target };
+      tabs = next;
+      renderWork();
+      if (stageTabId === target) {
+        var active = window.panelTabs.active(tabs);
+        if (active) showTab(active); else closeStage(true);
+      }
+      markNew(false);
+      return { ok: true, id: target };
+    };
     p.state = function () {
+      var tab = window.panelTabs.active(tabs);
       return {
         expanded: current === 'work', width: window.innerWidth,
         view: stageSpec ? 'canvas' : 'activity', tab: 'fishbowl',
-        hasContent: !!stageSpec, title: stageSpec ? String(stageSpec.title || '未命名') : ''
+        hasContent: tabs.tabs.length > 0, activeId: tabs.activeId,
+        title: tab ? tab.title : '',
+        tabs: tabs.tabs.map(function (t) {
+          return { id: t.id, title: t.title, pageId: t.pageId, icon: t.icon, active: t.id === tabs.activeId };
+        }),
+        catalog: pages().map(function (pg) {
+          return { id: pg.id, title: pg.label, url: pg.href || '', icon: pg.icon || '' };
+        })
       };
     };
-    p.view = function (name) { if (name === 'canvas' && stageSpec) { go('work'); openStage(stageSpec); } };
+    p.view = function (name) {
+      if (name !== 'canvas' || !stageSpec) return;
+      go('work');
+      var tab = window.panelTabs.active(tabs);
+      if (tab) showTab(tab);
+    };
     p.tools = function () {
-      return allItems().filter(function (it) { return !!it.url; })
-        .map(function (it) { return { id: it.id, title: it.title, url: it.url }; });
+      return pages().map(function (pg) {
+        return { id: pg.id, title: pg.label, url: pg.href || '', icon: pg.icon || '' };
+      });
     };
     p.call = stageCall;
   }
@@ -519,7 +627,7 @@
     var cls = 'sh-item' + (key === 'chat' && !panel ? ' on' : '');
     var attr = panel ? 'data-panel="console"' : 'data-page="' + key + '"';
     var aria = panel
-      ? 'role="button" aria-label="控制台（过程 · 活动 / 群聊 / 状态，覆盖在当前页之上）" aria-expanded="false" aria-controls="shConsole"'
+      ? 'role="button" aria-label="控制台（桌面右栏 · 活动 / 群聊 / 状态，覆盖在当前页之上）" aria-expanded="false" aria-controls="shConsole"'
       : 'aria-label="' + label + '"';
     return '<button class="' + cls + '" ' + attr + ' ' + aria + '>' +
       '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" ' +
@@ -571,11 +679,12 @@
           '</section>' +
         '</section>' +
 
-        /* 控制台：覆盖式面板，从任何页面唤起，不切走当前页 */
+        /* 控制台：桌面右栏 活动/群聊/状态的覆盖式抽屉，从任何页面唤起，不切走当前页。
+           注意：它不是沙盘 —— 沙盘摆 agent 的内容，控制台看过程与状态。 */
         '<div class="sh-scrim" data-close-console="1" aria-hidden="true"></div>' +
-        '<section class="sh-console" id="shConsole" role="dialog" aria-label="控制台" aria-hidden="true">' +
+        '<section class="sh-console" id="shConsole" role="dialog" aria-label="控制台（桌面右栏：活动 / 群聊 / 状态）" aria-hidden="true">' +
           '<div class="sh-head">' +
-            '<h2>控制台</h2><span class="sh-sub">活动 · 群聊 · 状态</span>' +
+            '<h2>控制台</h2><span class="sh-sub">活动 / 群聊 / 状态</span>' +
             '<button class="sh-close" data-close-console="1" aria-label="收起控制台">' + CLOSE_ICON + '</button>' +
           '</div>' +
           '<div class="sh-body-in" id="shConsoleBody"></div>' +
@@ -668,7 +777,10 @@
       // 桌面是「点顶栏 ⊞ 展开画布」，手机没有那个入口 —— 点沙盘 tab 就是这次点击：
       // 有新挂载时直接把内容铺上台面，不用让人再点一次卡片。
       var badge = document.querySelector('.sh-item[data-page="work"].has-new');
-      if (badge && stageSpec) openStage(stageSpec);
+      if (badge && stageSpec) {
+        var active = window.panelTabs.active(tabs);
+        openStage(stageSpec, active ? active.id : '');
+      }
       markNew(false);
     }
     var shell = document.getElementById('mobileShell');
@@ -689,6 +801,8 @@
     var on = FORCE || MQ.matches;
     if (!on) {
       html.classList.remove('shell-mobile', 'shell-chat', 'shell-console-open', 'shell-cap-open');
+      // 抽屉的 aria/高亮与 .on 状态跟着壳一起复位，免得回到手机态还留着「已展开」。
+      if (built) setConsole(false);
       consoleOpen = false;
       unpatchPanel();          // 桌面把 __panel 还给 panel-host，一个字节不改它的行为
       homeCapsule();
@@ -722,6 +836,16 @@
     if (!permSurfaced) return;
     permSurfaced = false;
     if (html.classList.contains('shell-mobile') && consoleOpen) setConsole(false);
+  });
+
+  /* Settings saved a sandbox/GEO root: pages() re-reads sandboxViews on the next call, so re-render
+     the work grid and re-resolve the active stage instead of keeping a stale iframe URL. */
+  window.addEventListener('panel:config-changed', function () {
+    if (!html.classList.contains('shell-mobile') || current !== 'work') return;
+    if (!window.panelTabs) return;
+    renderWork(workSeg);
+    var active = window.panelTabs.active(tabs);
+    if (active) showTab(active);
   });
 
   var t = 0;

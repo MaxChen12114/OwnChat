@@ -14,9 +14,9 @@
 
 ## 注册表是生成物
 
-`src/prompts/*/index.js` 是**生成物**（已 gitignore，勿手改勿提交）：由 `scripts/gen-prompts.mjs`
+`src/prompts/*/index.js` 是**生成物**（已 gitignore，勿手改勿提交）：由 `tooling/scripts/gen-prompts.mjs`
 扫描目录生成，`wrangler dev` / `wrangler deploy` 前自动执行（`[build] command` 里还串了
-`node l0/build.mjs --write` 与 `scripts/check-syntax.mjs` 真语法门）。
+`node tooling/l0/build.mjs --write` 与 `tooling/scripts/check-syntax.mjs` 真语法门）。
 
 ## 语言 / 风格
 
@@ -44,6 +44,6 @@
 
 | 改动面 | 证据 |
 |---|---|
-| 任意 JS | `node scripts/check-syntax.mjs`（别用 `node --check`，本仓库会漏报） |
+| 任意 JS | `node tooling/scripts/check-syntax.mjs`（别用 `node --check`，本仓库会漏报） |
 | 提示词 / 装配 / 生成脚本 | `npx wrangler deploy --dry-run` |
-| 前端运行时 | 起 `wrangler dev` 真加载页面，用真指针点击走一遍改过的路径；改 `public/` 后必须重启 dev server（资源清单是启动时快照） |
+| 前端运行时 | 起本机宿主（`node server/local.mjs`）或 `wrangler dev` 真加载页面，用真指针点击走一遍改过的路径；改 `public/` 后必须重启宿主（资源清单是启动时快照） |

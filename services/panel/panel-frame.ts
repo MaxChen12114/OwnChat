@@ -17,8 +17,14 @@
  * The original default (trusted) both handed generated content same-origin rights and, because the
  * trusted branch only sets `src`, silently rendered nothing at all.
  *
- * Mounting, timers, theme reading and the frame element itself stay in `l0/wiring/panel-frame.js`.
- * Lock: `test/panel-frame.test.mjs` (written with the migration, run against both implementations).
+ * Mounting, timers, theme reading and the frame element itself stay in `tooling/l0/wiring/panel-frame.js`.
+ * One pane = one box element; the tab host owns those boxes, so `mount` never has to know how many
+ * frames exist. Background panes stay mounted but are told to pause:
+ * `{__panel:1,type:"visibility",data:{visible:false}}` is the freeze signal, and a page that ignores
+ * it is destroyed by the host's live-frame cap rather than trusted to behave.
+ *
+ * Lock: `test/panel-frame.test.mjs` (written with the migration, run against both implementations)
+ * and `test/tab-state.test.mjs` for the visibility envelope.
  * @module services/panel/panel-frame
  */
 
@@ -48,6 +54,10 @@ export interface PanelEnvelope {
 
 export const PANEL_FRAME_VERSION = 1;
 export const PANEL_HOST_ORIGIN = "panel-host";
+/** The freeze/resume message type sent to every pane whose visibility changes. */
+export const PANEL_MSG_VISIBILITY = "visibility";
+/** The function-name call the agent's `stage_call` reaches a page with. */
+export const PANEL_MSG_CALL = "call";
 
 const PANEL_SANDBOX_SCRIPT_ONLY = "allow-scripts";
 const PANEL_SANDBOX_OWN = "allow-scripts allow-same-origin allow-forms";
@@ -120,6 +130,16 @@ export function panelEnvelope(type: string, data?: unknown, at?: number): PanelE
     data: recOf(data),
     at: typeof at === "number" ? at : Date.now(),
   };
+}
+
+/**
+ * The pause/resume signal for a background pane.
+ * @returns the exact envelope the bootstrap and page authors read: `visible:false` means "you are
+ * not on screen — stop animations and timers"; `visible:true` is sent on every activation so a
+ * page has a single resume path instead of guessing from resize events.
+ */
+export function visibilityEnvelope(visible: unknown): PanelEnvelope {
+  return panelEnvelope(PANEL_MSG_VISIBILITY, { visible: visible === true }, undefined);
 }
 
 /** The srcdoc body for `host-html`: the bootstrap first, then the payload verbatim. */

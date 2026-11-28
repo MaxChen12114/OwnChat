@@ -133,6 +133,9 @@ export interface CollectSources {
   cost?: { getCostStats?: () => unknown; getUsageStats?: () => unknown };
   sync?: { getStatus?: () => unknown };
   storage: { getItem(k: string): string | null };
+  /** The active conversation's summary text. Required: the summary table and its legacy key are
+   *  owned by `services/conv/summary.ts`, so this card must not read a storage key of its own. */
+  summaryText: () => string;
   modelId: string;
   now?: () => number;
 }
@@ -218,7 +221,8 @@ export function collectSnapshot(src: CollectSources): CtxSnapshot {
     });
   } catch (e) {}
 
-  const sumTokens = est(src.storage.getItem("cfw_prior_summary_v1") || "");
+  const sumText = String(src.summaryText() || "");
+  const sumTokens = est(sumText);
   const cardTokens = est(card ? JSON.stringify(card) : "");
   const presetTokens = est(presetsText);
   const skillTokens = est(skillsText);

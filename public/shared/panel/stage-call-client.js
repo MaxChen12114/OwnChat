@@ -6,6 +6,10 @@
      · external（跨源页面）宿主注入不进去（读不到别人的 document），此时在页面里引一次：
          <script src="http://127.0.0.1:8787/shared/panel/stage-call-client.js"></script>
 
+   登记豁免（E4，2026-11-26）：这是跨源外部页直接 <script src> 的协议胶水，不在 boot 清单、
+   不迁 services（迁了会改外部页契约，第三方页必须继续能只引这一个文件）。它不是业务逻辑，
+   改动前必须同步宿主注入副本（services/panel/panel-frame.ts）与 i18n 报错文案。
+
    用法：
      window.__stage = { 打招呼: function(名字){ return "你好 " + 名字; } };
      之后 agent 就能 stage_call({fn:"打招呼", args:["世界"]})。

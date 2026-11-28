@@ -4,7 +4,7 @@
  * Libraries are fetched through {@link MarkdownPorts} on every render rather than cached, matching
  * the old "never capture the reference early" semantics. The normalization of the marked-highlight
  * UMD — which may be a function or an exports object carrying `.markedHighlight` — happens in
- * l0/wiring/markdown.js, so this module only receives an already-normalized highlight factory and
+ * tooling/l0/wiring/markdown.js, so this module only receives an already-normalized highlight factory and
  * treats null as "library missing, fall back to legacy".
  *
  * Red line carried over from the old comment, and the P0 fix of the 2026-11-08 review must stay as

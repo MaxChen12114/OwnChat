@@ -262,17 +262,17 @@ function createQuickgen(ports               )           {
   return { mode, setMode, lastImage, setLastImage, clearLastImage, buildPrompt, editInstruction, styled };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/quickgen.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/quickgen.ts; this file owns the
 // panels, the styles, the buttons, the streamed request and the alerts.
 //
 // The panel markup is duplicated into two hosts on purpose: the desktop right sidebar and the mobile
 // tab render the same controls, and the binders are idempotent so a late re-injection is harmless.
 (function () {
-  var IC = window.__imageCommon;
+  var IC = window.imageCommonSvc;
   if (!IC) { console.error("[image-quickgen] 缺少 image-common.js，请确认其在本文件之前加载"); return; }
 
   function activeCard() {
-    try { return (window.__character && window.__character.getActiveCard) ? window.__character.getActiveCard() : null; }
+    try { return (window.characterSvc && window.characterSvc.getActiveCard) ? window.characterSvc.getActiveCard() : null; }
     catch (e) { return null; }
   }
 
@@ -290,7 +290,11 @@ function createQuickgen(ports               )           {
     });
     var txt = arr.slice(-8).join("\n");
     var sum = "";
-    try { sum = window.localStorage.getItem("cfw_prior_summary_v1") || ""; } catch (e) {}
+    try {
+      var app = window.appSvc;
+      var id = (app && app.getActiveConvId) ? app.getActiveConvId() : "";
+      sum = (window.convSummarySvc && id) ? window.convSummarySvc.load(id) : "";
+    } catch (e) {}
     if (sum) txt = "[剧情摘要]" + sum + "\n" + txt;
     txt = txt.slice(-2000);
     return txt || "一个安静的室内场景";
@@ -444,7 +448,7 @@ function createQuickgen(ports               )           {
 
   function openInStudio(url) {
     try {
-      if (window.__image && window.__image.open) window.__image.open();
+      if (window.imageStudioSvc && window.imageStudioSvc.open) window.imageStudioSvc.open();
       var out = document.getElementById("imgOutput");
       if (out) {
         var im = document.createElement("img");
@@ -493,10 +497,10 @@ function createQuickgen(ports               )           {
     if (!src) { alert("请先生成角色图再设为基准图"); return; }
     var card = activeCard();
     var id = (card && card.id) || "default";
-    if (!(window.__chatImage && window.__chatImage.setBaseImage)) { alert("发图模块未就绪(image-chat.js)"); return; }
+    if (!(window.chatImageSvc && window.chatImageSvc.setBaseImage)) { alert("发图模块未就绪(image-chat.js)"); return; }
     setStatus(kind, "正在设为基准图…");
     try {
-      await window.__chatImage.setBaseImage({ characterId: id, imageUrl: src });
+      await window.chatImageSvc.setBaseImage({ characterId: id, imageUrl: src });
       setStatus(kind, "已设为「" + ((card && card.name) || "当前角色") + "」的发图基准图,以后发图都以这张保持同一人");
     } catch (e) { setStatus(kind, ((e && e.message) || e)); }
   }

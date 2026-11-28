@@ -43,12 +43,96 @@ export interface ScopeCard {
 export interface ContextEnv {
   readonly multi?: { isMulti(): boolean };
   readonly character?: { getActiveCard(): ScopeCard | null };
-  readonly agentKernel?: { pairPendingToolCalls(msgs: ChatMessage[], reason: string): void };
+  readonly agentKernel?: {
+    pairPendingToolCalls(msgs: ChatMessage[], reason: string): void;
+    normalizeToolCallTypes(calls: unknown): unknown[];
+  };
   readonly ctxExact?: Record<string, number>;
   readonly ctxHints?: [string, number][];
-  readonly storage: { getItem(key: string): string | null };
+  readonly storage: {
+    getItem(key: string): string | null;
+    /** Present in the browser; absent in read-only tests, where the setters return null. */
+    setItem?(key: string, value: string): void;
+    removeItem?(key: string): void;
+  };
   /** #modelSel.value or cfw_model, empty when neither exists; the wiring layer swallows any throw. */
   modelId(): string;
+}
+
+/** The compaction configuration. Keys live here, so the settings card and the send path cannot drift. */
+export interface CompactConfig {
+  enabled: boolean;
+  trigger: number;
+  keep: number;
+  ratio: number;
+}
+
+export const COMPACT_KEYS = {
+  enabled: "cfw_summary_enabled",
+  trigger: "cfw_summary_trigger",
+  keep: "cfw_summary_keep",
+  ratio: "cfw_summary_ratio_v1",
+};
+
+/** Defaults match the pre-2026-11-25 hard-coded behaviour: on, 30/10, 70% of the window. */
+export const COMPACT_DEFAULTS: Readonly<CompactConfig> = {
+  enabled: true,
+  trigger: 30,
+  keep: 10,
+  ratio: 0.7,
+};
+
+/** Ranges the settings card exposes; out-of-range stored values clamp instead of surviving. */
+export const COMPACT_LIMITS = {
+  trigger: { min: 10, max: 200 },
+  keep: { min: 2, max: 50 },
+  ratio: { min: 0.3, max: 0.95 },
+};
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+/** The on/off key keeps the legacy polarity: absent or any value but "0" means on. */
+export function normalizeCompactEnabled(raw: string | null): boolean {
+  return raw !== "0";
+}
+
+/** Integer with the legacy 30 default; dirty input falls back, a valid number clamps. */
+export function normalizeCompactTrigger(raw: string | null): number {
+  const n = parseInt(String(raw == null ? "" : raw), 10);
+  return isNaN(n) ? COMPACT_DEFAULTS.trigger : clampNumber(n, COMPACT_LIMITS.trigger.min, COMPACT_LIMITS.trigger.max);
+}
+
+/** Integer with the legacy 10 default; dirty input falls back, a valid number clamps. */
+export function normalizeCompactKeep(raw: string | null): number {
+  const n = parseInt(String(raw == null ? "" : raw), 10);
+  return isNaN(n) ? COMPACT_DEFAULTS.keep : clampNumber(n, COMPACT_LIMITS.keep.min, COMPACT_LIMITS.keep.max);
+}
+
+/** Watermark ratio with the legacy 0.7 default, clamped to [0.3, 0.95]. */
+export function normalizeCompactRatio(raw: string | null): number {
+  const n = parseFloat(String(raw == null ? "" : raw));
+  return isFinite(n) ? clampNumber(n, COMPACT_LIMITS.ratio.min, COMPACT_LIMITS.ratio.max) : COMPACT_DEFAULTS.ratio;
+}
+
+/** Read the whole configuration; an unreadable storage yields the defaults, loudly at the call site. */
+export function readCompactConfig(storage: ContextEnv["storage"]): CompactConfig {
+  let enabled: string | null = null, trigger: string | null = null, keep: string | null = null, ratio: string | null = null;
+  try {
+    enabled = storage.getItem(COMPACT_KEYS.enabled);
+    trigger = storage.getItem(COMPACT_KEYS.trigger);
+    keep = storage.getItem(COMPACT_KEYS.keep);
+    ratio = storage.getItem(COMPACT_KEYS.ratio);
+  } catch (e) {
+    return { enabled: COMPACT_DEFAULTS.enabled, trigger: COMPACT_DEFAULTS.trigger, keep: COMPACT_DEFAULTS.keep, ratio: COMPACT_DEFAULTS.ratio };
+  }
+  return {
+    enabled: normalizeCompactEnabled(enabled),
+    trigger: normalizeCompactTrigger(trigger),
+    keep: normalizeCompactKeep(keep),
+    ratio: normalizeCompactRatio(ratio),
+  };
 }
 
 export interface ContextHost {
@@ -66,8 +150,13 @@ export interface ContextApi {
   estimateTokens(text: string): number;
   ctxLimitForCompact(): number;
   sessTokensForCompact(): number;
-  /** Numeric compaction gate: 4-message floor, then token watermark (70%) or count trigger. */
+  /** Numeric compaction gate: 4-message floor, then token watermark (ratio × window) or count trigger. */
   shouldCompact(sessionLength: unknown, summaryTrigger: unknown): boolean;
+  /** Current compaction settings, read from the injected storage on every call. */
+  compactConfig(): CompactConfig;
+  /** Merge a settings-card patch into storage and return the normalised result; a read-only storage
+   *  returns the new value without persisting it. */
+  setCompactConfig(patch: Partial<CompactConfig>): CompactConfig;
   /** Leading messages to summarize plus their count, or null when nothing is cut. */
   planCompact(session: unknown, keep: unknown): { cutoff: number; toSum: Record<string, unknown>[] } | null;
   /** Trimmed summary from an upstream reply, or null for every unusable shape. */
@@ -195,7 +284,13 @@ export function createContextFactory(env: ContextEnv) {
           const o: ChatMessage = { role: m.role, content: typeof m.content === "string" ? m.content : (Array.isArray(m.content) ? m.content : "") };
           if (hasTC) {
             o.content = "";
-            o.tool_calls = m.tool_calls;
+            // This is the history-to-request exit for the agent path: calls stored by older turns
+            // may predate the OpenAI `type` discriminant, and a call without it 422s the next
+            // request. Repair here and in pairPendingToolCalls below; without the kernel handle
+            // the raw array passes through unchanged, exactly as before this repair existed.
+            o.tool_calls = (env.agentKernel && typeof env.agentKernel.normalizeToolCallTypes === "function")
+              ? env.agentKernel.normalizeToolCallTypes(m.tool_calls)
+              : m.tool_calls;
             if (typeof m.reasoning_content === "string" && m.reasoning_content) o.reasoning_content = m.reasoning_content;
           }
           if (typeof m.speakerName === "string") o.speakerName = m.speakerName;
@@ -267,13 +362,35 @@ export function createContextFactory(env: ContextEnv) {
       }
 
       // Numeric gate only: the host short-circuits the on/off switches and the in-flight flag so
-      // token counting stays off the common no-summarization path. 70% leaves room for the summary
-      // request and the next turn; the count trigger preserves the legacy short-message fallback.
+      // token counting stays off the common no-summarization path. The ratio (default 70%) leaves
+      // room for the summary request and the next turn; the count trigger preserves the legacy
+      // short-message fallback.
+      function compactConfig(): CompactConfig {
+        return readCompactConfig(env.storage);
+      }
+
+      function setCompactConfig(patch: Partial<CompactConfig>): CompactConfig {
+        const p = patch || {};
+        const set = env.storage.setItem;
+        if (typeof set === "function") {
+          try {
+            if (typeof p.enabled === "boolean") set.call(env.storage, COMPACT_KEYS.enabled, p.enabled ? "1" : "0");
+            if (p.trigger !== undefined) set.call(env.storage, COMPACT_KEYS.trigger, String(normalizeCompactTrigger(String(p.trigger))));
+            if (p.keep !== undefined) set.call(env.storage, COMPACT_KEYS.keep, String(normalizeCompactKeep(String(p.keep))));
+            if (p.ratio !== undefined) set.call(env.storage, COMPACT_KEYS.ratio, String(normalizeCompactRatio(String(p.ratio))));
+          } catch (e) {
+            // Storage refused the write; still return the normalised intent so the card can paint it.
+          }
+        }
+        return readCompactConfig(env.storage);
+      }
+
       function shouldCompact(sessionLength: unknown, summaryTrigger: unknown): boolean {
         const length = asNumber(sessionLength, 0);
         if (length <= 4) return false;
         const limit = ctxLimitForCompact();
-        const watermark = limit > 0 && sessTokensForCompact() >= limit * 0.7;
+        const ratio = readCompactConfig(env.storage).ratio;
+        const watermark = limit > 0 && sessTokensForCompact() >= limit * ratio;
         return watermark || length > asNumber(summaryTrigger, 0);
       }
 
@@ -349,6 +466,7 @@ export function createContextFactory(env: ContextEnv) {
         kernelMessagesToSession,
         estimateTokens, ctxLimitForCompact, sessTokensForCompact,
         shouldCompact, planCompact, readSummary,
+        compactConfig, setCompactConfig,
         toRenderableMessages };
     },
   };

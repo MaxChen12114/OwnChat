@@ -4,7 +4,9 @@
   "version": "4.72.0",
   "identifier": "app.ownchat.desktop",
   "build": {
-    "frontendDist": "frontend"
+    "frontendDist": "host/runtime/public",
+    "beforeDevCommand": "node -e \"const fs=require('fs'),cp=require('child_process');const p=fs.existsSync('src-tauri/tauri.conf.json')?'tooling/stage-host.mjs':'../tooling/stage-host.mjs';const r=cp.spawnSync(process.execPath,[p],{stdio:'inherit'});process.exit(r.status||0)\"",
+    "beforeBuildCommand": "node -e \"const fs=require('fs'),cp=require('child_process');const p=fs.existsSync('src-tauri/tauri.conf.json')?'tooling/stage-host.mjs':'../tooling/stage-host.mjs';const r=cp.spawnSync(process.execPath,[p],{stdio:'inherit'});process.exit(r.status||0)\""
   },
   "app": {
     "withGlobalTauri": true,
@@ -12,6 +14,7 @@
       {
         "label": "main",
         "title": "OwnChat",
+        "url": "index.html",
         "width": 1200,
         "height": 800,
         "minWidth": 360,
@@ -29,7 +32,9 @@
     "targets": ["nsis"],
     "createUpdaterArtifacts": true,
     "resources": [
-      "resources/services/**/*"
+      "resources/services/**/*",
+      "runtime/**/*",
+      "host/runtime/**/*"
     ],
     "icon": [
       "icons/32x32.png",

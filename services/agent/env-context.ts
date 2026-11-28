@@ -7,7 +7,7 @@
  *
  * L0 exists because of the project's most frequent failure class: a duplicate `const` throwing
  * `SyntaxError`, a module loaded out of order, a file rolled back to an older build, or the `fetch` /
- * `Storage` chain breaking. A check that silently reports "1/6" is worse than none, so the `__dev`
+ * `Storage` chain breaking. A check that silently reports "1/6" is worse than none, so the `devSvc`
  * probe tests the method that actually exists (`isDevMode`, not the old made-up `isOn`).
  *
  * `snapshotText` is deliberately **session-static**: the date only, never hours and minutes. A
@@ -51,8 +51,10 @@ export interface LoadOrderResult {
 }
 
 export interface EnvContextEnv {
-  /** Reads a global by name (`__dev`, `AgentKernel`, `__appVersion`, …). */
+  /** Reads a global by name (`devSvc`, `AgentKernel`, …). */
   read(key: string): unknown;
+  /** App version from the DOM environment (`documentElement.dataset.appVersion`), or "". */
+  appVersion(): unknown;
   /** `window.fetch` — inspected to see whether the auth chain wrapped it. */
   fetch(): unknown;
   /** `Storage.prototype.setItem` — inspected to see whether sync took it over. */
@@ -108,9 +110,11 @@ function callWith(fn: unknown, self: unknown, arg: unknown): Promise<unknown> {
 
 export function createEnvContext(env: EnvContextEnv): EnvContextApi {
   function hasTauri(): boolean {
-    const t = recOf(env.read("__TAURI__"));
-    const core = recOf(t.core);
-    return typeof core.invoke === "function";
+    const svc = recOf(env.read("tauriSvc"));
+    if (svc === null) return false;
+    const available = svc["available"];
+    if (typeof available !== "function") return false;
+    return !!available.call(svc);
   }
 
   function build(opts?: unknown): EnvSnapshot {
@@ -122,7 +126,7 @@ export function createEnvContext(env: EnvContextEnv): EnvContextApi {
     } catch (e) {
       // A host without Intl falls back to the runtime's own zone.
     }
-    const rawVer = env.read("__appVersion");
+    const rawVer = env.appVersion();
     const ver = rawVer && typeof rawVer === "object" ? recOf(rawVer) : null;
     const verStr = typeof rawVer === "string" ? rawVer : "";
     const registry = recOf(o.registry);
@@ -182,8 +186,8 @@ export function createEnvContext(env: EnvContextEnv): EnvContextApi {
       checks.push({ name: name, ok: !!ok, detail: ok ? "" : detail || "" });
     }
 
-    const dev = recOf(env.read("__dev"));
-    add("dev.js (window.__dev)", typeof dev.isDevMode === "function", "window.__dev 缺失或无 isDevMode → dev.js 未加载或加载顺序错");
+    const dev = recOf(env.read("devSvc"));
+    add("dev.js (window.devSvc)", typeof dev.isDevMode === "function", "window.devSvc 缺失或无 isDevMode → dev.js 未加载或加载顺序错");
     const kernel = recOf(env.read("AgentKernel"));
     add("agent-kernel.js (window.AgentKernel)", typeof kernel.createToolRegistry === "function", "window.AgentKernel 缺失 → 内核未加载");
     const tools = recOf(env.read("OwnChatTools"));

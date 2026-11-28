@@ -6,7 +6,13 @@
  * Everything the browser owns arrives through {@link CharacterPorts}: the card store, key-value
  * storage, the change event, the uid clock and the best-effort hooks into sibling domains. This
  * file touches no `window`, `localStorage` or `document`; the adapter and the whole card panel
- * live in l0/wiring/character.js.
+ * live in tooling/l0/wiring/character.js.
+ *
+ * Storage is the unified `chars(id, name, data)` table behind the DbPort facade. Cards used to live
+ * in the IndexedDB stores `tavern_chars_v2/chars` + `/affections`; {@link createSqlCardStore} is the
+ * replacement adapter, {@link planCharsMigration} + {@link applyCharsMigration} are the one-time
+ * copy, and both stay here (not in the wiring) so the mapping is testable against SQLite without a
+ * browser.
  *
  * Cards are opaque records. Other writers (agent tools, studio) own fields this module knows
  * nothing about, so a save normalizes only the fields listed on {@link CharacterCard} and lets
@@ -27,18 +33,47 @@
                                               
 
 /**
- * Card store port: two object stores in the browser (cards keyed by `id`, affections keyed by
- * `cardId`), an in-memory map in the tests. `cardId` is typed `unknown` because the id read back
- * from storage is whatever a previous writer put there.
+ * Card store port: one row per card plus the affection score that belongs to it. The browser
+ * adapter is SQL over the DbPort facade ({@link createSqlCardStore}); the tests use an in-memory
+ * map. `cardId` is typed `unknown` because the id read back from storage is whatever a previous
+ * writer put there.
  */
                             
                             
                                     
                                      
-                                                                                     
+                                                                                         
                                                         
                                                               
                                                   
+ 
+
+/**
+ * The one statement surface the SQL card store needs. `window.dbSvc` (the DbPort facade) satisfies
+ * it structurally; the tests pass the same shape over the D1 shim. Rows are plain objects keyed by
+ * column name.
+ */
+                              
+                                                                      
+ 
+
+/** Knobs of {@link createSqlCardStore}. */
+                                      
+                                                               
+                     
+                                                                                                         
+                                                      
+ 
+
+/** The one-time copy from the legacy IndexedDB stores, already mapped to the SQL shape. */
+                                     
+                                                                                                             
+                   
+                                                                                                   
+                                                  
+                                                                               
+                       
+                            
  
 
 /** Sibling-domain hooks. Every one of them is best-effort: the wiring layer swallows failures. */
@@ -173,11 +208,30 @@ const KEY_PENDING_EVENTS = "tavern_aff_pending_v1";
 /** Per-card set of already-fired thresholds, so a band only fires once. */
 const KEY_TRIGGERED_PREFIX = "tavern_aff_triggered_";
 const KEY_CHAR_CAPS = "cfw_char_caps_v1";
+/**
+ * Set once the legacy IndexedDB cards have been copied into the `chars` table. The value carries
+ * the counts so a support session can tell what happened; absence means "retry on next boot".
+ */
+const CHARS_IDB_MIGRATED_KEY = "cfw_chars_idb_migrated_v1";
+
+/**
+ * Reserved top-level key inside `chars.data` for state that belongs to the row but is not card
+ * content. The schema has no affections table and `char_kv` is the user-visible notebook, so the
+ * score rides in the card's own row; reading strips the bag before anyone sees a card.
+ */
+const ROW_STATE_KEY = "__ownchat";
+/** Sub-key of the reserved bag holding `{value, updatedAt}` for the affection score. */
+const ROW_AFFECTION_KEY = "affection";
 
 /**
  * Budget for the V3 `assets` payload: entries are opaque blobs (often megabyte data URIs) that
  * ride inside the card row and into the cloud-sync payload. The budget is bytes-first; whatever
  * it drops is visible in the import report, which reads the kept count back from the saved card.
+ *
+ * Over the HTTP data plane the same row is also bounded by the request-body cap (`/api/data/exec`
+ * and `/api/data/tx`, 12 MiB), which this budget deliberately stays under: base64 URIs are ASCII,
+ * so 4M characters add at most ~4 MB to the JSON body plus the rest of the card. A larger card
+ * would need its assets moved out of the row, not a bigger budget.
  */
 const ASSET_MAX_COUNT = 40;
 const ASSET_MAX_URI_CHARS = 1_500_000;
@@ -264,6 +318,246 @@ function parseAffectionTag(text         )               {
   const sign = hit[1] === "-" ? -1 : 1;
   const step = Math.min(50, Math.max(0, parseInt(hit[2], 10) || 0));
   return { delta: sign * step, stripped: text.replace(re, "").replace(/\s+$/, "") };
+}
+
+/**
+ * `chars.data` → its two halves: the card record as stored, and the reserved state bag (empty when
+ * the row never carried one). `null` means the column is not a JSON object — a corrupt row, which
+ * the caller reports instead of coercing.
+ */
+function splitRowData(text         )                                                           {
+  if (typeof text !== "string" || text === "") return null;
+  let parsed         ;
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    return null;
+  }
+  const card = cardRecOf(parsed);
+  if (card === null) return null;
+  const state = cardRecOf(card[ROW_STATE_KEY]) || {};
+  delete card[ROW_STATE_KEY];
+  return { card: card, state: state };
+}
+
+/**
+ * One card → its `chars` row. `id` and `name` are copied out of the JSON because the table indexes
+ * them; `data` keeps the whole record so fields this module does not own survive the round trip.
+ * A card without an id throws: the store could not address it, and the old keyPath rejected it too.
+ */
+function charRowOf(card         )                                             {
+  const rec = cardRecOf(card);
+  if (rec === null) throw new Error("character: card must be an object");
+  const id = cardStrOf(rec["id"]);
+  if (id === "") throw new Error("character: card has no id");
+  return { id: id, name: cardStrOf(rec["name"]), data: JSON.stringify(rec) };
+}
+
+/**
+ * SQL-backed {@link CardStore} over the unified `chars` table.
+ *
+ * Where the score lives: the schema has no affections table, and `char_kv` is the notebook the
+ * character can read and write through `char_db_*`, so a second row there would surface as a
+ * notebook entry. Keeping it in the card row's reserved bag makes a card one row and deletion one
+ * `DELETE`.
+ *
+ * Write shape: the port has no interactive transaction, so a write that must keep the bag reads the
+ * row first and then upserts. `putAffection` on a missing row is a documented no-op: the caller's
+ * active card is stale and `refresh()` drops it, while inventing a row here would show a ghost card
+ * in the panel. `all()` orders by id, which is the key order IndexedDB returned.
+ * @param port - `exec(sql, params)`; the DbPort facade is the production implementation.
+ * @param options - clock and the corrupt-row sink.
+ */
+function createSqlCardStore(port             , options                      )            {
+  if (!port || typeof port.exec !== "function") throw new Error("character: a SQL port is required");
+  const opts = options || {};
+  const clock = typeof opts.now === "function" ? opts.now : Date.now;
+  const onCorrupt = typeof opts.onCorruptRow === "function" ? opts.onCorruptRow : null;
+
+  /** Rows as the table holds them; `data` stays the raw text so a corrupt row can be reported. */
+  async function rows(sql        , params            )                                                         {
+    const res = await port.exec(sql, params);
+    const raw = res && Array.isArray(res.rows) ? res.rows : [];
+    const out                                                = [];
+    for (let i = 0; i < raw.length; i++) {
+      const rec = cardRecOf(raw[i]);
+      if (rec === null) continue;
+      out.push({ id: cardStrOf(rec["id"]), name: cardStrOf(rec["name"]), data: rec["data"] });
+    }
+    return out;
+  }
+
+  async function rowOf(id        )                                                              {
+    const found = await rows("SELECT id, name, data FROM chars WHERE id = ?", [id]);
+    return found.length > 0 ? found[0] : null;
+  }
+
+  /** Read the bag, hand it to `mutate`, write the row back. No row means nothing to attach to. */
+  async function updateState(cardId        , mutate                                             )                {
+    const row = await rowOf(cardId);
+    if (row === null) return;
+    const split = splitRowData(row.data);
+    const card = split !== null ? split.card : { id: row.id, name: row.name };
+    const state = split !== null ? split.state : {};
+    if (!mutate(state)) return;
+    if (Object.keys(state).length > 0) card[ROW_STATE_KEY] = state;
+    else delete card[ROW_STATE_KEY];
+    await port.exec("UPDATE chars SET data = ? WHERE id = ?", [JSON.stringify(card), cardId]);
+  }
+
+  return {
+    async all()                     {
+      const list = await rows("SELECT id, name, data FROM chars ORDER BY id");
+      const out            = [];
+      for (let i = 0; i < list.length; i++) {
+        const split = splitRowData(list[i].data);
+        if (split === null) {
+          if (onCorrupt !== null) onCorrupt(list[i].id, new Error("chars.data is not a JSON object"));
+          continue;
+        }
+        out.push(split.card);
+      }
+      return out;
+    },
+
+    async put(card         )                {
+      const row = charRowOf(card);
+      const existing = await rowOf(row.id);
+      const split = existing !== null ? splitRowData(existing.data) : null;
+      const rec = cardRecOf(card);
+      let data = row.data;
+      if (rec !== null && split !== null && Object.keys(split.state).length > 0) {
+        rec[ROW_STATE_KEY] = split.state;
+        data = JSON.stringify(rec);
+      }
+      await port.exec(
+        "INSERT INTO chars (id, name, data) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, data = excluded.data",
+        [row.id, row.name, data]
+      );
+    },
+
+    async remove(id         )                {
+      const cardId = cardStrOf(id);
+      if (cardId === "") return;
+      await port.exec("DELETE FROM chars WHERE id = ?", [cardId]);
+    },
+
+    async getAffection(cardId         )                         {
+      const id = cardStrOf(cardId);
+      if (id === "") return null;
+      const row = await rowOf(id);
+      if (row === null) return null;
+      const split = splitRowData(row.data);
+      if (split === null) return null;
+      const aff = cardRecOf(split.state[ROW_AFFECTION_KEY]);
+      return aff !== null && typeof aff["value"] === "number" ? aff["value"] : null;
+    },
+
+    async putAffection(cardId         , value        )                {
+      const id = cardStrOf(cardId);
+      if (id === "" || typeof value !== "number" || !isFinite(value)) return;
+      await updateState(id, function (state) {
+        state[ROW_AFFECTION_KEY] = { value: value, updatedAt: clock() };
+        return true;
+      });
+    },
+
+    async removeAffection(cardId         )                {
+      const id = cardStrOf(cardId);
+      if (id === "") return;
+      await updateState(id, function (state) {
+        if (!Object.prototype.hasOwnProperty.call(state, ROW_AFFECTION_KEY)) return false;
+        delete state[ROW_AFFECTION_KEY];
+        return true;
+      });
+    },
+  };
+}
+
+/**
+ * Map a legacy `tavern_chars_v2` dump onto the SQL shape without touching either store.
+ *
+ * Rules, each mirroring the old adapter: a card without a usable id is skipped (the old keyPath
+ * would have rejected it); a repeated id keeps the last occurrence (IndexedDB could not repeat it);
+ * a score whose card is gone is skipped and counted — the SQL row is the only place it could live,
+ * and a synthetic card would surface in the panel. The old rows' `updatedAt` stamps are dropped on
+ * purpose: they existed for the legacy last-writer-wins blob merge, which the SQL path does not run;
+ * the SQL store stamps its own on write.
+ * @param dump - `{cards, affections}` as the two stores returned them; anything else is empty.
+ * @returns The rows to write plus how many inputs the rules dropped, for the boot report.
+ */
+function planCharsMigration(dump         )                     {
+  const src = cardRecOf(dump) || {};
+  const rawCards = cardArrOf(src["cards"]);
+  const rawAffections = cardArrOf(src["affections"]);
+  const byId = new Map                 ();
+  let skippedCards = 0;
+  for (let i = 0; i < rawCards.length; i++) {
+    const rec = cardRecOf(rawCards[i]);
+    const id = rec !== null ? cardStrOf(rec["id"]) : "";
+    if (rec === null || id === "") {
+      skippedCards++;
+      continue;
+    }
+    byId.set(id, rec);
+  }
+  const cards            = [];
+  byId.forEach(function (card) {
+    cards.push(card);
+  });
+  const affections                                      = [];
+  const seen = new Set        ();
+  let skippedAffections = 0;
+  for (let i = 0; i < rawAffections.length; i++) {
+    const rec = cardRecOf(rawAffections[i]);
+    const cardId = rec !== null ? cardStrOf(rec["cardId"]) : "";
+    const value = rec !== null ? rec["value"] : null;
+    if (cardId === "" || typeof value !== "number" || !isFinite(value) || !byId.has(cardId)) {
+      skippedAffections++;
+      continue;
+    }
+    if (seen.has(cardId)) {
+      skippedAffections++;
+      continue;
+    }
+    seen.add(cardId);
+    affections.push({ cardId: cardId, value: value });
+  }
+  return { cards: cards, affections: affections, skippedCards: skippedCards, skippedAffections: skippedAffections };
+}
+
+/**
+ * Write a migration plan and verify it read back. The caller may drop the legacy IndexedDB only
+ * after this resolves; a throw means the copy is incomplete and the old database must stay.
+ * Writing the same plan twice is safe (upsert), which is what makes a retry after a crash work.
+ * @throws When any planned card or score is not readable afterwards — the exact id is in the message.
+ */
+async function applyCharsMigration(
+  store           ,
+  plan                    
+)                                                 {
+  if (!store || typeof store.put !== "function") throw new Error("character: a card store is required");
+  const ids           = [];
+  for (let i = 0; i < plan.cards.length; i++) {
+    ids.push(charRowOf(plan.cards[i]).id);
+    await store.put(plan.cards[i]);
+  }
+  for (let i = 0; i < plan.affections.length; i++) {
+    await store.putAffection(plan.affections[i].cardId, plan.affections[i].value);
+  }
+  const written = await store.all();
+  const have = new Set        ();
+  for (let i = 0; i < written.length; i++) have.add(cardStrOf(written[i]["id"]));
+  for (let i = 0; i < ids.length; i++) {
+    if (!have.has(ids[i])) throw new Error("character: migration lost card " + ids[i]);
+  }
+  for (let i = 0; i < plan.affections.length; i++) {
+    const back = await store.getAffection(plan.affections[i].cardId);
+    if (back !== plan.affections[i].value) {
+      throw new Error("character: migration lost the affection of card " + plan.affections[i].cardId);
+    }
+  }
+  return { cards: ids.length, affections: plan.affections.length };
 }
 
 /**
@@ -678,20 +972,24 @@ function createCharacter(ports                )               {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
-// The data layer lives in services/data/character.ts; every browser-side duty is here — the two
-// IndexedDB tables (chars / affections), the localStorage trio, change-event dispatch, the uid
-// clock, and the whole card panel. The panel ships with the wiring because it has exactly one
-// consumer, itself: no second caller ever renders these controls.
-// Sibling-domain callbacks (sync / scene / character memory / lorebook) are all best-effort: a
-// failure is swallowed so one broken neighbour cannot abort a save.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
+// The data layer lives in services/data/character.ts; every browser-side duty is here — the SQL
+// card store over window.dbSvc, the one-time copy of the legacy IndexedDB cards, the localStorage
+// trio, change-event dispatch, the uid clock, and the whole card panel. The panel ships with the
+// wiring because it has exactly one consumer, itself: no second caller ever renders these controls.
+// Sibling-domain callbacks (scene / character memory / lorebook) are all best-effort: a failure is
+// swallowed so one broken neighbour cannot abort a save.
 (function () {
-  var DB_NAME = "tavern_chars_v2", ST_CARD = "chars", ST_AFF = "affections";
+  var LEGACY_DB = "tavern_chars_v2", ST_CARD = "chars", ST_AFF = "affections";
   var LSA = "tavern_active_char_id";
 
-  function openDb() {
+  // ── legacy IndexedDB (migration source only) ────────────────────────────────
+  // Read exactly once, before the first SQL read; afterwards the database is dropped and the
+  // marker stops a second attempt. The reader stays in the wiring because IndexedDB is
+  // browser-only; the row mapping itself lives in the service so it can be tested against SQLite.
+  function openLegacyDb() {
     return new Promise(function (res, rej) {
-      var q = window.indexedDB.open(DB_NAME, 2);
+      var q = window.indexedDB.open(LEGACY_DB, 2);
       q.onupgradeneeded = function () {
         var d = q.result;
         if (!d.objectStoreNames.contains(ST_CARD)) d.createObjectStore(ST_CARD, { keyPath: "id" });
@@ -702,71 +1000,38 @@ function createCharacter(ports                )               {
     });
   }
 
-  function store(mode, name) {
-    return openDb().then(function (d) { return d.transaction(name, mode).objectStore(name); });
+  function getAllFrom(db, name) {
+    return new Promise(function (res, rej) {
+      var t = db.transaction(name, "readonly").objectStore(name).getAll();
+      t.onsuccess = function () { res(t.result || []); };
+      t.onerror = function () { rej(t.error); };
+    });
   }
 
-  var cards = {
-    all: function () {
-      return store("readonly", ST_CARD).then(function (os) {
-        return new Promise(function (res, rej) {
-          var t = os.getAll();
-          t.onsuccess = function () { res(t.result || []); };
-          t.onerror = function () { rej(t.error); };
+  function readLegacyCards() {
+    return openLegacyDb().then(function (db) {
+      return getAllFrom(db, ST_CARD).then(function (cards) {
+        return getAllFrom(db, ST_AFF).then(function (affections) {
+          db.close();
+          return { cards: cards, affections: affections };
         });
       });
-    },
-    put: function (card) {
-      return store("readwrite", ST_CARD).then(function (os) {
-        return new Promise(function (res, rej) {
-          var t = os.put(card);
-          t.onsuccess = function () { res(); };
-          t.onerror = function () { rej(t.error); };
-        });
-      });
-    },
-    remove: function (id) {
-      return store("readwrite", ST_CARD).then(function (os) {
-        return new Promise(function (res, rej) {
-          var t = os.delete(id);
-          t.onsuccess = function () { res(); };
-          t.onerror = function () { rej(t.error); };
-        });
-      });
-    },
-    // Reads back {cardId, value, updatedAt}. A value that is not a number means "no record" to the
-    // service, which then falls back to the initial affection.
-    getAffection: function (cardId) {
-      return store("readonly", ST_AFF).then(function (os) {
-        return new Promise(function (res, rej) {
-          var t = os.get(cardId);
-          t.onsuccess = function () {
-            var r = t.result;
-            res(r && typeof r.value === "number" ? r.value : null);
-          };
-          t.onerror = function () { rej(t.error); };
-        });
-      });
-    },
-    putAffection: function (cardId, value) {
-      return store("readwrite", ST_AFF).then(function (os) {
-        return new Promise(function (res, rej) {
-          var t = os.put({ cardId: cardId, value: value, updatedAt: Date.now() });
-          t.onsuccess = function () { res(); };
-          t.onerror = function () { rej(t.error); };
-        });
-      });
-    },
-    removeAffection: function (cardId) {
-      return store("readwrite", ST_AFF).then(function (os) {
-        return new Promise(function (res, rej) {
-          var t = os.delete(cardId);
-          t.onsuccess = function () { res(); };
-          t.onerror = function () { rej(t.error); };
-        });
-      });
-    },
-  };
+    });
+  }
+
+  function dropLegacyDb() {
+    return new Promise(function (res) {
+      var req = window.indexedDB.deleteDatabase(LEGACY_DB);
+      req.onsuccess = req.onerror = function () { res(); };
+      // A second tab still holding the database blocks deletion until it closes. The migration
+      // marker is what stops a re-run, so the leftover copy is reported and left behind, not
+      // retried forever.
+      req.onblocked = function () {
+        try { console.warn("[character] 旧角色库被其他标签页占用，删除被跳过（迁移已完成，不再重试）"); } catch (e) {}
+        res();
+      };
+    });
+  }
 
   var storage = {
     getItem: function (key) {
@@ -788,6 +1053,61 @@ function createCharacter(ports                )               {
     },
   };
 
+  // ── SQL card store ─────────────────────────────────────────────────────────
+  // `chars(id, name, data)` through the DbPort facade; the affection score rides in the row's
+  // reserved bag. The port is resolved per call because the facade may switch adapters under us
+  // (tauri vs d1) without this closure being rebuilt.
+  var cards = createSqlCardStore({
+    exec: function (sql, params) {
+      var svc = window.dbSvc;
+      if (!svc || typeof svc.exec !== "function") throw new Error("角色卡存储未接线：dbSvc 缺失（db.js 未加载）");
+      return svc.exec(sql, params);
+    },
+  }, {
+    now: function () { return Date.now(); },
+    onCorruptRow: function (id, e) {
+      try { console.warn("[character] 角色卡行损坏，已跳过：" + id, e); } catch (x) {}
+    },
+  });
+
+  /**
+   * One-time legacy copy. Resolves the number of cards that landed in SQL (0 when there was nothing
+   * to do, the marker is present, or the copy failed). It writes the marker and drops the old
+   * database only after every card and score read back; a failure keeps the database and leaves the
+   * marker absent so the next boot retries. The active-card id lives in localStorage and keeps
+   * pointing at the same `u_<base36>` ids, so nothing has to be rewritten.
+   */
+  function migrateLegacyCards() {
+    if (storage.getItem(CHARS_IDB_MIGRATED_KEY)) return Promise.resolve(0);
+    if (!window.indexedDB) return Promise.resolve(0);
+    return readLegacyCards()
+      .then(function (dump) {
+        var plan = planCharsMigration(dump);
+        return applyCharsMigration(cards, plan).then(function (counts) {
+          return dropLegacyDb().then(function () {
+            storage.setItem(CHARS_IDB_MIGRATED_KEY, JSON.stringify({
+              at: Date.now(),
+              cards: counts.cards,
+              affections: counts.affections,
+              skippedCards: plan.skippedCards,
+              skippedAffections: plan.skippedAffections,
+            }));
+            return counts.cards;
+          });
+        });
+      })
+      .catch(function (e) {
+        // Loud on purpose: at this point the old database is still the only complete copy.
+        try {
+          console.error("[character] 角色卡迁移到 SQL 失败，旧 IndexedDB 保留待下次重试：", e);
+          window.dispatchEvent(new CustomEvent("character:migration-error", {
+            detail: { message: String((e && e.message) || e) },
+          }));
+        } catch (x) {}
+        return 0;
+      });
+  }
+
   var api = createCharacter({
     storage: storage,
     cards: cards,
@@ -799,21 +1119,19 @@ function createCharacter(ports                )               {
     now: function () {
       return Date.now();
     },
-    onCharsDirty: function () {
-      try { if (window.__sync && window.__sync.markCharsDirty) window.__sync.markCharsDirty(); } catch (e) {}
-    },
-    onCardMetaBump: function (id) {
-      try { if (window.__sync && window.__sync.bumpCharMeta) window.__sync.bumpCharMeta(id); } catch (e) {}
-    },
-    onCardTombstone: function (id) {
-      try { if (window.__sync && window.__sync.tombChar) window.__sync.tombChar(id); } catch (e) {}
-    },
+    // Cards live in D1 now, which *is* the sync; the legacy /sync/chars KV channel only carries
+    // the pre-SQL IndexedDB stores and is kept for old clients. Driving it from this client would
+    // publish an empty card set (the local database is migrated and dropped), so the three hooks
+    // stay deliberate no-ops until the channel retires. See services/data/sync.ts.
+    onCharsDirty: function () {},
+    onCardMetaBump: function () {},
+    onCardTombstone: function () {},
     // Scene membership lives in engine/multi-agent.js; this only forwards.
     onSceneAdd: function (id) {
-      try { if (window.__multi && window.__multi.addToScene) window.__multi.addToScene(id); } catch (e) {}
+      try { if (window.multiSvc && window.multiSvc.addToScene) window.multiSvc.addToScene(id); } catch (e) {}
     },
     onSceneRemove: function (id) {
-      try { if (window.__multi && typeof window.__multi.removeFromScene === "function") window.__multi.removeFromScene(id); } catch (e) {}
+      try { if (window.multiSvc && typeof window.multiSvc.removeFromScene === "function") window.multiSvc.removeFromScene(id); } catch (e) {}
     },
     onCardMemoryRemove: function (id) {
       try {
@@ -825,13 +1143,13 @@ function createCharacter(ports                )               {
     // it becomes a global entry instead of disappearing with the card.
     onLorebookUnbind: function (id) {
       try {
-        if (!window.__lorebook || typeof window.__lorebook.getAll !== "function" || typeof window.__lorebook.saveEntry !== "function") return;
-        var list = window.__lorebook.getAll();
+        if (!window.lorebookSvc || typeof window.lorebookSvc.getAll !== "function" || typeof window.lorebookSvc.saveEntry !== "function") return;
+        var list = window.lorebookSvc.getAll();
         if (!Array.isArray(list)) return;
         for (var i = 0; i < list.length; i++) {
           var en = list[i];
           if (en && en.scope === "perCard" && en.boundCardId === id) {
-            window.__lorebook.saveEntry(Object.assign({}, en, { scope: "global", boundCardId: null }));
+            window.lorebookSvc.saveEntry(Object.assign({}, en, { scope: "global", boundCardId: null }));
           }
         }
       } catch (e) {}
@@ -932,7 +1250,7 @@ function createCharacter(ports                )               {
     var c = api.getActiveCard();
     var r = api.getActiveRelation();
     var e = api.getActiveEmotion();
-    var M = window.__multi;
+    var M = window.multiSvc;
     var isMultiOn = !!(M && M.isMulti && M.isMulti());
     var sceneCards = isMultiOn && M.getSceneCards ? M.getSceneCards() : [];
     var h = [];
@@ -991,7 +1309,7 @@ function createCharacter(ports                )               {
       }
       var ai = "";
       try { ai = window.localStorage.getItem(LSA) || ""; } catch (e) {}
-      var M = window.__multi;
+      var M = window.multiSvc;
       var isMultiOn = !!(M && M.isMulti && M.isMulti());
       var sceneIds = new Set(isMultiOn ? M.getSceneIds() : []);
       g.innerHTML = a
@@ -1043,12 +1361,13 @@ function createCharacter(ports                )               {
       g.querySelectorAll("[data-d]").forEach(function (x) {
         x.addEventListener("click", function (ev) {
           ev.stopPropagation();
-          var ask = window.__feedback && window.__feedback.confirm
-            ? window.__feedback.confirm({ title: "删除角色卡", message: "删除这张角色卡？(将清除其好感度记录；绑定的设定集条目会转为全局保留)", okText: "删除", danger: true })
+          var ask = window.feedbackSvc && window.feedbackSvc.confirm
+            ? window.feedbackSvc.confirm({ title: "删除角色卡", message: "删除这张角色卡？(将清除其好感度记录；绑定的设定集条目会转为全局保留)", okText: "删除", danger: true })
             : Promise.resolve(confirm("删除这张角色卡？(将清除其好感度记录；绑定的设定集条目会转为全局保留)"));
           Promise.resolve(ask).then(function (ok) {
             if (!ok) return;
-            return api.deleteCard(x.dataset.d).then(function () { setTimeout(render, 30); });
+            return api.deleteCard(x.dataset.d).then(function () { setTimeout(render, 30); })
+              .catch(function (e) { alert("删除角色卡失败：" + ((e && e.message) || e)); });
           });
         });
       });
@@ -1136,12 +1455,12 @@ function createCharacter(ports                )               {
     wireThr();
 
     // Inline chat-image base picture: thumbnail plus upload / replace / clear, reusing the base-image
-    // contract exposed by `__chatImage`.
+    // contract exposed by `chatImageSvc`.
     if (!isN && c.id) {
       var thumb = b.querySelector("[data-baseimg-thumb]");
       var file = b.querySelector("[data-baseimg-file]");
       var refreshThumb = function () {
-        var ci = window.__chatImage || window.__chatImageText;
+        var ci = window.chatImageSvc || window.chatImageTextSvc;
         var p = ci && ci.getBaseImage ? Promise.resolve(ci.getBaseImage({ characterId: c.id })) : Promise.resolve(null);
         return p.then(function (url) {
           if (!thumb) return;
@@ -1162,7 +1481,7 @@ function createCharacter(ports                )               {
           if (!f) return;
           var rd = new FileReader();
           rd.onload = function () {
-            var ci = window.__chatImage;
+            var ci = window.chatImageSvc;
             var p = ci && ci.setBaseImage ? Promise.resolve(ci.setBaseImage({ characterId: c.id, imageUrl: rd.result })) : Promise.reject(new Error("nobase"));
             p.then(refreshThumb).catch(function (e) {
               alert(e && e.message === "nobase" ? "发图模块未就绪，无法保存基准图" : "基准图保存失败：" + ((e && e.message) || e));
@@ -1174,7 +1493,7 @@ function createCharacter(ports                )               {
       var clear = b.querySelector("[data-baseimg-clear]");
       if (clear) {
         clear.addEventListener("click", function () {
-          var ci = window.__chatImage;
+          var ci = window.chatImageSvc;
           if (!ci || !ci.clearBaseImage) return;
           Promise.resolve(ci.clearBaseImage({ characterId: c.id })).then(refreshThumb).catch(function () {});
         });
@@ -1216,10 +1535,14 @@ function createCharacter(ports                )               {
       };
       while (s.rules.length < 3) s.rules.push("");
       while (s.exampleQA.length < 2) s.exampleQA.push({ user: "", character: "" });
+      // The store is remote now (D1 / sidecar), so a save can fail where IndexedDB almost never
+      // did — a swallowed rejection would look like "the button does nothing".
       api.saveCard(s).then(function (saved) {
         api.setActiveId(saved.id);
         tab = "mine";
         setTimeout(render, 30);
+      }).catch(function (e) {
+        alert("角色卡保存失败：" + ((e && e.message) || e));
       });
     });
     b.querySelector("[data-back]").addEventListener("click", function () { tab = "mine"; render(); });
@@ -1294,7 +1617,7 @@ function createCharacter(ports                )               {
     P.querySelectorAll("[data-rmscene]").forEach(function (x) {
       x.addEventListener("click", function (ev) {
         ev.stopPropagation();
-        if (window.__multi && window.__multi.removeFromScene) window.__multi.removeFromScene(x.dataset.rmscene);
+        if (window.multiSvc && window.multiSvc.removeFromScene) window.multiSvc.removeFromScene(x.dataset.rmscene);
         setTimeout(render, 30);
       });
     });
@@ -1330,7 +1653,7 @@ function createCharacter(ports                )               {
     if (mask && mask.style.display !== "none") render();
   });
 
-  window.__character = {
+  window.characterSvc = {
     open: open,
     close: close,
     getActiveCard: api.getActiveCard,
@@ -1363,8 +1686,19 @@ function createCharacter(ports                )               {
   };
 
   // Read once at startup so the sidebar and the send path see the right active card before anyone
-  // clicks anything.
-  api.refresh();
+  // clicks anything. The legacy copy lands first: a fresh install has nothing to move, an upgraded
+  // one must see its cards on the very first read. A failed migration still refreshes whatever SQL
+  // already holds, and the error above is the loud part. A completed copy notifies once, because
+  // panels that read before it finished would otherwise keep showing the empty state.
+  migrateLegacyCards()
+    .then(function (moved) {
+      return api.refresh().then(function () {
+        if (moved > 0) return api.reload();
+      });
+    })
+    .catch(function (e) {
+      try { console.error("[character] 角色卡读取失败（存储不可用？）：", e); } catch (x) {}
+    });
 
   document.addEventListener("DOMContentLoaded", function () {
     var b = document.getElementById("characterBtn");
@@ -1372,8 +1706,13 @@ function createCharacter(ports                )               {
   });
 })();
 
+globalThis.CHARS_IDB_MIGRATED_KEY = CHARS_IDB_MIGRATED_KEY;
 globalThis.affectionStageFor = affectionStageFor;
 globalThis.relationFromText = relationFromText;
 globalThis.parseAffectionTag = parseAffectionTag;
+globalThis.charRowOf = charRowOf;
+globalThis.createSqlCardStore = createSqlCardStore;
+globalThis.planCharsMigration = planCharsMigration;
+globalThis.applyCharsMigration = applyCharsMigration;
 globalThis.createCharacter = createCharacter;
 })();

@@ -21,8 +21,10 @@
                                      
                                                    
                           
-                                                                                               
+                                                                                         
                           
+                                                                                                    
+                                
                                                          
                                 
  
@@ -46,7 +48,11 @@ function planCatNav(input             )             {
   for (let i = 0; i < input.items.length; i++) {
     const item = input.items[i];
     if (item.devOnly && !input.devOn) hidden.push(item.cat);
-    else if (item.cat === "voice" && !input.isApp) hidden.push(item.cat);
+    // The voice tab used to be shell-only because local GPT-SoVITS needs native audio. Cloud speech
+    // (2026-11-25) runs through the Worker and works in the browser, so the tab is visible whenever
+    // either engine is available — otherwise the only speech setting in a web guest session would
+    // be buried in the model-API category.
+    else if (item.cat === "voice" && !input.isApp && !input.hasCloudTts) hidden.push(item.cat);
   }
   const visible = (cat        )          => hidden.indexOf(cat) < 0;
   // 旧实现用 `items.find(cat === saved && 可见)`：保存的分类必须**当前存在于列表里**才算数，
@@ -88,7 +94,8 @@ function planCatNav(input             )             {
       return planCatNav({
         items: list,
         devOn: gate("cfw_dev_mode_v1"),
-        isApp: !!(window.__TAURI__ || window.__TAURI_INTERNALS__),
+        isApp: !!(window.tauriSvc && (window.tauriSvc.has() || window.tauriSvc.presence().internals)),
+        hasCloudTts: !!window.cloudTtsSvc,
         saved: savedCat(),
       });
     },

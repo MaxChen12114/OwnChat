@@ -2,25 +2,26 @@
  * Version painter: reads the app version from the Tauri shell and paints both version tags.
  *
  * Two shell shapes are supported (plugin API first, raw invoke second), both routed through
- * {@link PainterPorts} so the plan asserts in a vm with fake objects; web builds have no
- * `__TAURI__` and stay unpainted. The painted text is also mirrored onto `window.__appVersion`
- * through the ports — env-context reads that global, the wiring owns the assignment.
+ * {@link PainterPorts} so the plan asserts in a vm with fake objects; web builds have no shell
+ * object and stay unpainted. The painted text is also handed to the environment port
+ * (`documentElement.dataset.appVersion`), which env-context reads without a window global. The
+ * shell global itself belongs to services/platform/tauri.ts; this module sees only the raw object.
  * @module services/ui/version-painter
  */
 
-/** Ports: shell access, the two text sinks and the global version mirror. */
+/** Ports: shell access, the two text sinks and the environment version mirror. */
 export interface PainterPorts {
-  /** `window.__TAURI__`; `null`/`undefined` on web builds. */
+  /** Raw shell object from the platform port; `null`/`undefined` on web builds. */
   getTauri(): unknown;
   /** Raw invoke for shells without the app plugin; resolves to a version string. */
   invoke(cmd: string): Promise<unknown>;
   /** `textContent` write on a version tag; missing elements are skipped by the wiring. */
   setText(id: string, text: string): void;
-  /** Mirror the version onto `window.__appVersion`. */
-  setGlobalVersion(v: string): void;
+  /** Mirror the version into the DOM environment for env-context (no window global). */
+  setEnvVersion(v: string): void;
 }
 
-/** Public surface; no frozen contract of its own — `__appVersion` already is one. */
+/** Public surface; no frozen contract of its own. */
 export interface PainterApi {
   /** One pass: read, mirror, paint. Resolves after the sink writes (or immediately when absent). */
   run(): Promise<void>;
@@ -67,7 +68,7 @@ export function createVersionPainter(ports: PainterPorts): PainterApi {
       v = "";
     }
     if (v === "" || typeof v !== "string") return;
-    ports.setGlobalVersion(v);
+    ports.setEnvVersion(v);
     const text = versionText(v);
     ports.setText("appVersionTag", text);
     ports.setText("appVersionTagHome", text);

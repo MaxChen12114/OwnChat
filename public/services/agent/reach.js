@@ -61,7 +61,7 @@
  
 
                            
-                                                                                                      
+                                                                                                              
                                     
                                                                                                 
                                                                         
@@ -597,7 +597,7 @@ function errMessage(e         )         {
   const PROXY = typeof global.__agentReachProxy === "string"
     ? global.__agentReachProxy
     : "/api/fetch"  // worker 代理，绕过 CORS（网页侧必要）
-  const IS_DESKTOP = !!(global.__TAURI__ && global.__TAURI__.core && typeof global.__TAURI__.core.invoke === "function")
+  const IS_DESKTOP = !!(global.tauriSvc && global.tauriSvc.available())
 
   const svc = createReach({
     isDesktop: IS_DESKTOP,
@@ -617,7 +617,7 @@ function errMessage(e         )         {
     origin: function () { try { return global.location ? global.location.origin : "" } catch (e) { return "" } },
     onLine: function () { try { return global.navigator ? global.navigator.onLine : undefined } catch (e) { return undefined } },
     hasInvoke: function () {
-      return !!(global.__TAURI__ && global.__TAURI__.core && typeof global.__TAURI__.core.invoke === "function")
+      return !!(global.tauriSvc && global.tauriSvc.available())
     },
     storage: {
       getItem: function (k) { try { return global.localStorage ? global.localStorage.getItem(k) : null } catch (e) { return null } },
@@ -654,8 +654,7 @@ function errMessage(e         )         {
   // Desktop native fallback: plain text on success, null when not on desktop, on failure or on
   // timeout. `headers` is optional and is forwarded to the Rust http_request call.
   async function tryNativeFetch(url, maxChars, headers, rawHtml) {
-    const invoke = (typeof global.__TAURI__ !== "undefined" && global.__TAURI__ && global.__TAURI__.core && typeof global.__TAURI__.core.invoke === "function")
-      ? global.__TAURI__.core.invoke.bind(global.__TAURI__.core) : null
+    const invoke = global.tauriSvc ? global.tauriSvc.invokeOrNull() : null
     if (!invoke) return null
     try {
       const r = await withTimeout(invoke("http_request", { method: "GET", url: url, follow_redirects: true, headers: headers || {} }), DEFAULT_TIMEOUT_MS, "原生抓取")
@@ -717,40 +716,6 @@ function errMessage(e         )         {
 `.trim()
 
   // Internal helpers.
-
-  // Transport policy, and why it is split:
-  //   · Web: every outbound call goes through the same-origin /api/fetch proxy. Direct calls to the
-  //     reader and search hosts fail from a browser — blocked on the way out, or rejected by CORS —
-  //     and a blocked call used to burn the full timeout before failing, which read as "the agent
-  //     can never reach the network". The Worker's egress has neither problem: handleFetchProxy in
-  //     worker.js makes the call server-side.
-  //   · Desktop: a native Rust http_request instead of a webview fetch, because the webview is still
-  //     bound by same-origin rules and every overseas host died on CORS. It is wrapped in a
-  //     Response-like object so jinaRead / multiSourceSearch callers do not have to branch.
-  //   · A native failure degrades to the worker proxy; on desktop that proxy usually does not exist,
-  //     so it fails again — with an error, never a hang.
-  // IS_DESKTOP is resolved at the top of the file because the service needs it at construction.
-  async function nativeFetchResponse(url, init, timeoutMs) {
-    const raw = await tryNativeFetch(url, 500000, (init && init.headers) || {})
-    if (raw != null) {
-      return {
-        ok: true, status: 200,
-        headers: { get: function () { return null } },
-        text: function () { return Promise.resolve(raw) },
-        json: function () {
-          try { return Promise.resolve(JSON.parse(raw)) }
-          catch (e) { return Promise.reject(e) }
-        }
-      }
-    }
-    // Native failure degrades to the worker proxy.
-    return fetchWithTimeout(PROXY + "?url=" + encodeURIComponent(url), init, timeoutMs)
-  }
-
-  function extFetch(url, init, timeoutMs) {
-    if (IS_DESKTOP) return nativeFetchResponse(url, init, timeoutMs)
-    return fetchWithTimeout(PROXY + "?url=" + encodeURIComponent(url), init, timeoutMs)
-  }
 
   /**
    * The one fetch wrapper every tool goes through: proxied on the web, native-first on desktop

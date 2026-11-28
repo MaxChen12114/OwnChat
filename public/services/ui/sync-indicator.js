@@ -77,7 +77,7 @@ function siHtml(cls        , txt        )         {
   return '<span class="sync-dot ' + cls + '"></span><span class="sync-text">' + txt + '</span>';
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/sync-indicator.ts
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/sync-indicator.ts
 // (relative time, status classification and markup); this file owns the indicator
 // node, the status subscription, localStorage and the refresh schedule.
 (function(){
@@ -85,7 +85,7 @@ function siHtml(cls        , txt        )         {
     if (document.hidden) return;
     var ind = document.getElementById('syncStatusIndicator');
     if (!ind) return;
-    var sync = window.__sync;
+    var sync = window.syncSvc;
     var enabled = false;
     try {
       if (sync && typeof sync.syncEnabled === 'function') enabled = !!sync.syncEnabled();
@@ -109,8 +109,8 @@ function siHtml(cls        , txt        )         {
     ind.innerHTML = siHtml(st.cls, st.txt);
     ind.title = st.title;
   }
-  if (window.__sync && typeof window.__sync.onStatus === 'function') {
-    try { window.__sync.onStatus(refresh); } catch(e){}
+  if (window.syncSvc && typeof window.syncSvc.onStatus === 'function') {
+    try { window.syncSvc.onStatus(refresh); } catch(e){}
   }
   window.addEventListener('storage', function(e){ if (e.key && e.key.indexOf('cfw_sync_') === 0) refresh(); });
   setInterval(refresh, 15000);

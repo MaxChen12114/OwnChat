@@ -5,7 +5,7 @@
  * Ports: storage (the two registry keys, the legacy migration keys, the model key and the old
  * candidate pools), auth (resolved per call, for guest detection and the Authorization header),
  * notify (the change event) and onStorage (cross-tab). The service never touches window;
- * l0/wiring/providers.js is the adapter and keeps the frozen name, including the four startup
+ * tooling/l0/wiring/providers.js is the adapter and keeps the frozen name, including the four startup
  * side effects it orchestrates in order.
  *
  * One rule explains the shape of v3: a custom channel takes over chat only when it was activated.

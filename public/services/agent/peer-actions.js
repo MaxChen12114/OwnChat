@@ -61,6 +61,8 @@
                   
                
                  
+                                                                                 
+                  
  
 
 /** Return of {@link PeerActions.runPeerMeeting}. `dropped` appears only when names were cut. */
@@ -304,32 +306,55 @@ function createPeerActions(ports                  )              {
     };
 
     const participants = ()           => entries.map((e) => e.name);
+    // One attendee is the designated reviewer for round 1. Prefer an aspect that already names
+    // risk/cost/security; otherwise the last attendee. A meeting where everybody agrees is not a
+    // decision aid, so the demand for a rigorous critique is structural, not left to chance.
+    // The reviewer argues against the bar (stable + correct + efficient + high-quality), not for a
+    // cheaper option; the proposer gets the floor to rebut in round 2.
+    const reviewerIdx = entries.findIndex((e) => /反方|风险|成本|安全|审查|质疑|反对/.test(e.aspect));
+    const reviewer = entries[(reviewerIdx >= 0 ? reviewerIdx : entries.length - 1)].name;
     onEvent({ type: "meeting_start", topic: topic, participants: participants(), rounds: rounds });
     await councilPush("begin", [{ topic: topic, rounds: rounds, isolated: isolated, participants: participants() }]);
 
+    const stanceOf = (s        )         => {
+      const m = s.match(/(?:^|\n)\s*(?:\*\*)?(?:最终)?立场(?:\*\*)?\s*[:：]\s*(?:\*\*)?\s*(赞成|反对|有条件|中立)/);
+      return m ? m[1] : "";
+    };
     const answers                  = [];
     const runRound = async (roundNo        , withReview         )                           => {
       await councilPush("round", [roundNo]);
       return await Promise.all(entries.map(async (e)                         => {
         const aspectLine = e.aspect ? "\n本会议你负责的方面：" + e.aspect : "";
-        const review = withReview
-          ? "\n【上一轮其他人的结论】\n" + answers.map((a) => "· " + a.who + "：" + textOf(a.text).slice(0, 800)).join("\n") + "\n请针对以上结论补充、修正或反驳（不必重复赞同）。"
+        const roleLine = roundNo === 1 && e.name === reviewer
+          ? "\n本轮你是挑剔审查者（不是为反对而反对）：以“绝对稳定、正确、高效、优质”同时成立为门槛，逐条质疑方案的关键假设、边界、失败路径与隐性成本，并给出你认为更优的设计。不要用“够用”当通过理由。"
           : "";
-        const brief = "【私下小会·第 " + roundNo + " 轮】议题：" + topic + aspectLine + review + "\n请直接用你的身份给出结论（简洁、可执行；不要寒暄、不要提问、不要输出方括号标记）。";
+        const review = withReview
+          ? "\n【上一轮其他人的结论】\n" + answers.map((a) => "· " + a.who + (a.stance ? "（" + a.stance + "）" : "") + "：" + textOf(a.text).slice(0, 800)).join("\n") +
+            "\n逐条回应与你不同的结论：提案人先回应质疑（可反驳、可修改方案）；其他人至少明确接受一处、至少明确不同意一处，不要只重复赞同。"
+          : "";
+        const debate = roundNo === 1
+          ? "\n这是决策讨论，不是表态。请严格按下面格式输出：\n立场：赞成 / 反对 / 有条件（三选一）\n方案/判断：你主张的做法，或你对该议题的判断\n关键假设：这个方案成立依赖什么\n失败路径：至少两条，写清触发条件与后果\n最优解门槛：在稳定、正确、高效、优质四个维度里，它还差什么\n改变立场的条件：什么证据会让你改判"
+          : "\n这是复核轮。请严格按下面格式输出：\n回应：如果你上一轮提出了方案，逐条回应针对它的质疑（哪些接受、哪些反驳、方案怎么改）；如果你没有提方案，指出至少一处必须修改的地方\n让步：明确接受上一轮的哪一条（至少一处）\n坚持：明确不同意哪一条，并说明理由\n最终立场：赞成 / 反对 / 有条件（可以改判）";
+        const brief = "【私下小会·第 " + roundNo + " 轮】议题：" + topic + aspectLine + roleLine + review + debate +
+          "\n不要寒暄、不要提问、不要输出方括号标记。";
         try {
           onEvent({ type: "meeting_speaker", who: e.name, round: roundNo, phase: "start" });
           await councilPush("speaking", [e.name]);
           const memInj = textOf(await memBuildInjection(firstOf(e.card && e.card.id, e.card && e.card.name), brief));
           const text = await callPeerModel(e.card, capView(e.card), brief + memInj);
           const clean = textOf(text).trim();
+          const stance = stanceOf(clean);
+          // Drop a bare `立场：X` line: the panel renders the same fact as a chip. Keep the line when
+          // the model put its reasoning on it (we only remove an exact, standalone stance line).
+          const body = clean.replace(/^\s*(?:\*\*)?(?:最终)?立场(?:\*\*)?\s*[:：]\s*(?:\*\*)?\s*(?:赞成|反对|有条件|中立)\s*(?:\*\*)?\s*[。.]?\s*\n?/m, "").trim() || clean;
           // `text` carries the full answer (the steps panel reads what the meeting actually said);
           // `summary` is only the one-line preview for the right-hand console.
-          onEvent({ type: "meeting_speaker", who: e.name, round: roundNo, phase: "done", summary: clean.slice(0, 200), text: clean });
-          await councilPush("say", [{ who: e.name, text: clean }]);
+          onEvent({ type: "meeting_speaker", who: e.name, round: roundNo, phase: "done", summary: body.slice(0, 200), text: body });
+          await councilPush("say", [{ who: e.name, text: body, stance: stance }]);
           if (e.card && memEnabled()) {
-            memRemember("【" + e.name + "】" + clean, { speakerCid: e.card.id });
+            memRemember("【" + e.name + "】" + body, { speakerCid: e.card.id });
           }
-          return { who: e.name, aspect: e.aspect, text: clean };
+          return { who: e.name, aspect: e.aspect, text: body, stance: stance || undefined };
         } catch (err) {
           const msg = errText(err);
           onEvent({ type: "meeting_speaker", who: e.name, round: roundNo, phase: "error", error: msg });
@@ -344,7 +369,15 @@ function createPeerActions(ports                  )              {
     let reviewRound                         = null;
     if (rounds >= 2) reviewRound = await runRound(2, true);
     onEvent({ type: "meeting_done", topic: topic, participants: answers.map((a) => a.who) });
-    await councilPush("done", [{ note: rounds + " 轮结束 · 结论已回给主 agent" }]);
+    // The closing card carries the final-round balance, so the owner can see at a glance whether the
+    // meeting actually debated (and the main agent gets the same tally in its tool result).
+    const finalAnswers = reviewRound || firstRound;
+    const tally = { "赞成": 0, "反对": 0, "有条件": 0 };
+    finalAnswers.forEach((a) => { if (a.stance && tally[a.stance                      ] != null) tally[a.stance                      ]++; });
+    const tallyText = (tally["赞成"] || tally["反对"] || tally["有条件"])
+      ? " · 赞成 " + tally["赞成"] + " / 反对 " + tally["反对"] + " / 有条件 " + tally["有条件"]
+      : "";
+    await councilPush("done", [{ note: rounds + " 轮结束" + tallyText + " · 结论已回给主 agent" }]);
     return {
       ok: true,
       topic: topic,
@@ -352,8 +385,8 @@ function createPeerActions(ports                  )              {
       room: "/tools/council/index.html",
       dropped: dropped.length ? dropped : undefined,
       context: isolated ? "isolated" : "chat",
-      answers: answers.map((a)                => ({ who: a.who, aspect: a.aspect || undefined, text: a.text, error: a.error || undefined })),
-      review: reviewRound ? reviewRound.map((a)                => ({ who: a.who, text: a.text, error: a.error || undefined })) : undefined,
+      answers: answers.map((a)                => ({ who: a.who, aspect: a.aspect || undefined, text: a.text, error: a.error || undefined, stance: a.stance || undefined })),
+      review: reviewRound ? reviewRound.map((a)                => ({ who: a.who, text: a.text, error: a.error || undefined, stance: a.stance || undefined })) : undefined,
       note: "以上为多智能体讨论结论（未进聊天时间线）。过程在右栏讨论区可见（room 字段的地址，用 stage_open 打开）。" +
         "可据此作答；也可用 invite_character 请其中一位上台直接回答。",
     };
@@ -464,7 +497,7 @@ function createPeerActions(ports                  )              {
   return { runPeerMeeting, whisperTo, inviteCharacterToTimeline };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // agent domain, eighth brick (2026-11-15): the orchestration moved to services/agent/peer-actions.ts.
 // `app.js` still owns the page — rows, session, persistence, memory core — and hands all of it in as
 // ports, so this file only binds the frozen name and guards a double install. Nothing to resolve

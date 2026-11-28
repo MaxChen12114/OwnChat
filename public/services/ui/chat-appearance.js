@@ -184,7 +184,7 @@ function createChatAppearance(env               )                    {
   };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // The implementation moved to services/ui/chat-appearance.ts. Ports are localStorage and the document;
 // every function still takes an optional `doc` so a caller can target a specific document.
 // The apply-on-load that used to run inside the module body happens here, after the object exists.

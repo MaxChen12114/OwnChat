@@ -23,6 +23,7 @@ import { buildCharacterBasePrompt, buildLayer2, isValidCard } from "./prompts/la
 import { buildLorebookInstruction, buildReplyStyleInstruction, buildSummarizeSysPrompt, buildTurnNudge } from "./prompts/layers/chat.js";
 import { handleImageRequest } from "./image-routes.js";
 import { handlePcProxy } from "./pc-proxy.js";
+import { dataExec, dataTx, dataSearch } from "./data-api.js";
 
 // 渠道注册表 / 统一解析(resolveProvider) / 模型 id 网关 已搬到 src/model/providers.js
 // 2026-10-13 (批 E1):请求按 payload.providerId(预设) / payload.customProvider(BYO) 路由;
@@ -35,7 +36,7 @@ import { handlePcProxy } from "./pc-proxy.js";
 //   · assemble.js 唯一装配入口: 层顺序 + 分隔符拼接
 //   身份铁则 / 尺度 / 开发者三层已于 2026-10-05 删除。
 //   两套提示词注册表: 解锁 → src/prompts/bases/(解限底座,红线一字不改),
-//                     锁定 → src/prompts/neutrals/(基础行为准则);均由 scripts/gen-prompts.mjs 生成。
+//                     锁定 → src/prompts/neutrals/(基础行为准则);均由 tooling/scripts/gen-prompts.mjs 生成。
 
 // ────────────────────────────
 // 鉴权 + 云同步
@@ -504,6 +505,43 @@ function chatEventJson(value) {
   return JSON.stringify(value);
 }
 
+// ── 2026-11-28（T1）：数据面三端点。实现全部在 src/data-api.js；这里只做鉴权、体积闸与响应包装。
+// 与 Node sidecar 同一条代码路径（sidecar 把请求转给 worker.fetch），不存在第二份 SQL 拼接。
+async function handleDataPlane(request, env, url) {
+  if (checkAuth(request, env) !== true) {
+    return resp("Unauthorized", "text/plain; charset=utf-8", 401);
+  }
+  if (!env.TAVERN_EVENTS) {
+    return resp(JSON.stringify({ error: "统一存储未启用：D1 binding TAVERN_EVENTS 未绑定", code: "d1_not_bound" }), "application/json; charset=utf-8", 503);
+  }
+  const db = env.TAVERN_EVENTS;
+  let result;
+  try {
+    if (url.pathname === "/api/data/search") {
+      if (request.method !== "GET") return resp("Method not allowed", "text/plain; charset=utf-8", 405);
+      result = await dataSearch(db, url.searchParams);
+    } else {
+      if (request.method !== "POST") return resp("Method not allowed", "text/plain; charset=utf-8", 405);
+      // 2026-11-28: 角色卡的 assets 预算允许 4M 字符（常是 base64 data URI），旧 IDB 没有请求体上限。
+      // 统一存储把整卡塞进一条 INSERT 后，1MiB/4MiB 的老上限会把合法卡片打成 413；两档统一抬到 12MiB
+      // （D1/Worker 自身请求体上限远高于此，侧车 MAX_REQUEST_BYTES=32MiB）。
+      const maxBytes = 12 * 1024 * 1024;
+      const text = await request.text();
+      if (text.length > maxBytes) {
+        return resp(JSON.stringify({ error: "body too large" }), "application/json; charset=utf-8", 413);
+      }
+      let body = null;
+      try { body = JSON.parse(text); } catch (e) {
+        return resp(JSON.stringify({ error: "bad json" }), "application/json; charset=utf-8", 400);
+      }
+      result = url.pathname === "/api/data/tx" ? await dataTx(db, body) : await dataExec(db, body);
+    }
+  } catch (e) {
+    return resp(JSON.stringify({ error: "数据面不可用", code: "data_error", detail: String((e && e.message) || e) }), "application/json; charset=utf-8", 500);
+  }
+  return resp(JSON.stringify(result.json), "application/json; charset=utf-8", result.status);
+}
+
 function parseChatEventPayload(text) {
   try { return JSON.parse(text); } catch { return null; }
 }
@@ -652,11 +690,11 @@ const MODEL_POOL_OVERRIDE_JS = [
   '  function has(list, id) { return (list || []).some(function (m) { return m.id === id; }); }',
   '  if (window.APP_MODELS_FREE.length && !has(window.APP_MODELS_FREE, window.APP_DEFAULT_MODEL_FREE)) window.APP_DEFAULT_MODEL_FREE = window.APP_MODELS_FREE[0].id;',
   '  if (window.APP_MODELS_FAST.length && !has(window.APP_MODELS_FAST, window.APP_DEFAULT_MODEL_FAST)) window.APP_DEFAULT_MODEL_FAST = window.APP_MODELS_FAST[0].id;',
-  '  if (!window.__providers) {',
+  '  if (!window.providersSvc) {',
   '    try {',
   '      var cur = localStorage.getItem("cfw_model");',
   '      // 上次选的模型已不在池里(改了池 / 源站下线了这个版本) → 清掉,自动回落厂商默认',
-  '      // 2026-11-06: 有 __providers(批 E1)时跳过 —— 模型清单在 cfw_providers_v3,不是旧池;',
+  '      // 2026-11-06: 有 providersSvc(批 E1)时跳过 —— 模型清单在 cfw_providers_v3,不是旧池;',
   '      // 旧逻辑会把当前模型误清,导致刷新后顶栏回落 deepseek-flash。有效性由 app.js initModels 校验。',
   '      if (cur && !has(window.APP_MODELS_FREE, cur) && !has(window.APP_MODELS_FAST, cur)) localStorage.removeItem("cfw_model");',
   '    } catch (e) {}',
@@ -685,6 +723,78 @@ function clientConfigJs() {
     `window.APP_NEUTRAL_IDS = ${JSON.stringify(neutralIds())};`,
     MODEL_POOL_OVERRIDE_JS,
   ].join("\n");
+}
+
+// 2026-11-28 (T4-C): GET /api/runtime —— 站点能力清单（profile / capabilities / limits）。
+// 口径与 /sync 一致：带 header 必须对（错的 401）；没带 header 是 guest，不阻塞聊天。
+// profile 是「这台宿主属于哪一档」，由鉴权 + 可选环境变量 RUNTIME_PROFILE 决定：
+//   · RUNTIME_PROFILE=guest|account|desktop|selfhost 时以它为准（自托管/桌面侧车用它盖章）；
+//   · 否则带对的 Bearer → account，匿名 → guest。
+// capabilities 是**能力表**（不是工具快照）：每一项对应客户端要启用的一个 provider 组
+// （见 core/runtime-manifest.ts 的 RUNTIME_CAPABILITIES）。guest 至少保留 chat —— 没有账号的
+// 页面也必须能说话；云端面（sync/data/presets/pc）只在鉴权通过且绑定存在时才开。
+// limits 必须与服务端真实闸门同值：它由 test/runtime-manifest.test.mjs 与
+// core/runtime-manifest.ts 的 DEFAULT_RUNTIME_LIMITS 双向对拍，并在 /sync 上做「限额+1 → 413」
+// 的行为验证。改这里的数字必须同时改 worker 里的闸门与那张表。
+const RUNTIME_PROFILE_NAMES = ["guest", "account", "desktop", "selfhost"];
+const RUNTIME_LIMITS = {
+  sync: { maxBodyBytes: 5 * 1024 * 1024 },
+  syncCost: { maxBodyBytes: 512 * 1024 },
+  syncExclude: { maxBodyBytes: 256 * 1024 },
+  syncChat: { maxBodyBytes: 5 * 1024 * 1024 },
+  syncChars: { maxBodyBytes: 5 * 1024 * 1024 },
+  data: {
+    maxBodyBytes: 12 * 1024 * 1024,
+    maxSqlChars: 100000,
+    maxTxStatements: 200,
+    maxSearchLimit: 50,
+    maxQueryChars: 200,
+  },
+  chatEvents: {
+    maxBodyBytes: Math.floor(1.5 * 1024 * 1024),
+    maxEventBytes: 256 * 1024,
+    batch: 50,
+    keep: 2000,
+  },
+};
+
+function runtimeProfile(env, authed) {
+  const override = String((env && env.RUNTIME_PROFILE) || "").trim().toLowerCase();
+  if (RUNTIME_PROFILE_NAMES.indexOf(override) >= 0) return override;
+  return authed ? "account" : "guest";
+}
+
+function runtimeCapabilities(env, authed) {
+  const configured = !!(env && String(env.CHAT_PASSWORD || "").trim());
+  const mode = chatMode(env);
+  // /api/fetch /api/search /api/tts 只在配了访问码时要求令牌；未配的部署匿名可用（与路由同口径）。
+  const publicPaidApis = authed || !configured;
+  return {
+    chat: authed || mode !== "private",
+    sync: authed && !!env.TAVERN_SYNC,
+    data: authed && !!env.TAVERN_EVENTS,
+    presets: authed,
+    search: publicPaidApis,
+    tts: publicPaidApis,
+    image: true,
+    pc: authed,
+    deploy: authed,
+  };
+}
+
+function handleRuntimeManifest(request, env) {
+  const auth = checkAuth(request, env);
+  if (auth === false) {
+    return resp("Unauthorized", "text/plain; charset=utf-8", 401);
+  }
+  const authed = auth === true;
+  return resp(JSON.stringify({
+    version: 1,
+    profile: runtimeProfile(env, authed),
+    capabilities: runtimeCapabilities(env, authed),
+    limits: RUNTIME_LIMITS,
+    source: "worker",
+  }), "application/json; charset=utf-8", 200, { "Cache-Control": "no-store" });
 }
 
 // 2026-09-10 (方案 C): GET /api/models?mode=free|fast —— 翻源站的模型列表给前端候选池抽屉。
@@ -998,6 +1108,16 @@ async function handleChat(request, env) {
   const tools = Array.isArray(payload?.tools) && payload.tools.length ? payload.tools : null;
   // 2026-10-07 联网搜索：最后一轮要能"摘掉工具"强制作答，所以走一个可变副本（见下方工具循环）。
   let finalTools = tools;
+  // 2026-11-25 DeepSeek 全家桶服务端内置工具。只在 DeepSeek 预设渠道生效，且与客户端 webSearch
+  // 探针互不干扰：探针用 sendTools 自己的副本，内置工具只在最终出稿这轮挂上。服务端完成工具调用
+  // 与上下文拼接，SSE 里多出的 server_tool_use 块前端解析层不消费，正文照常出。
+  const kit = payload?.deepseekKit && typeof payload.deepseekKit === "object" ? payload.deepseekKit : null;
+  if (kit && provider.id === "deepseek") {
+    const kitTools = [];
+    if (kit.readUrl === true) kitTools.push({ type: "deepseek_read_url" });
+    if (kit.safetyCheck === true) kitTools.push({ type: "safety_check" });
+    if (kitTools.length) finalTools = (finalTools || []).concat(kitTools);
+  }
   const toolChoice = payload?.tool_choice !== undefined ? payload.tool_choice : undefined;
   const wantStream = payload?.stream !== false;
 
@@ -1632,6 +1752,49 @@ async function searchViaDeepSeek(env, q, n) {
   }
 }
 
+// 2026-11-25: /api/tts — DeepSeek 云端语音合成代理。浏览器拿不到 DEEPSEEK_API_KEY,必须走 Worker。
+// 官方 POST https://api.deepseek.com/v1/tools/tts (Bearer),text/voice_id/format/filter_markdown,
+// 音频在响应体里流式返回。这里原样转发音频字节；上游的非 2xx 转成 JSON 错误,让前端能读原因。
+// 与 /api/search 同口径:付费端点,配了 CHAT_PASSWORD 时要求有效令牌(前端 auth.js 自动注入)。
+async function handleTtsProxy(request, env) {
+  const key = ((env.DEEPSEEK_API_KEY || "").trim());
+  if (!key) return resp(JSON.stringify({ error: "服务端未配置 DEEPSEEK_API_KEY" }), "application/json; charset=utf-8", 503);
+  let body;
+  try { body = await request.json(); } catch { return resp(JSON.stringify({ error: "请求体不是合法 JSON" }), "application/json; charset=utf-8", 400); }
+  const text = typeof body?.text === "string" ? body.text.trim() : "";
+  if (!text) return resp(JSON.stringify({ error: "text 不能为空" }), "application/json; charset=utf-8", 400);
+  // 官方上限:10000 个计费字符(汉字算 2)、请求体 64 KiB。这里按 UTF-16 码元粗算并在入口截断,
+  // 宁可少读一点也不让上游 400;voice_id/format 白名单,不把任意字段透传给第三方。
+  const voiceId = body.voice_id === "tide" ? "tide" : "stella";
+  const format = body.format === "pcm" ? "pcm" : "wav";
+  const payload = {
+    text: text.slice(0, 4000),
+    voice_id: voiceId,
+    format: format,
+    filter_markdown: body.filter_markdown !== false,
+  };
+  let upstream;
+  try {
+    upstream = await fetchWithTimeout("https://api.deepseek.com/v1/tools/tts", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }, 60000);
+  } catch (e) {
+    return resp(JSON.stringify({ error: "语音服务连接失败" }), "application/json; charset=utf-8", 504);
+  }
+  if (!upstream.ok) {
+    const msg = (await upstream.text().catch(() => "")).slice(0, 200);
+    const status = upstream.status === 429 || upstream.status === 503 ? upstream.status : 502;
+    return resp(JSON.stringify({ error: "语音合成失败(" + upstream.status + ")", detail: msg }), "application/json; charset=utf-8", status);
+  }
+  const headers = {
+    "Content-Type": format === "pcm" ? "audio/pcm" : "audio/wav",
+    "Cache-Control": "no-store",
+  };
+  return new Response(upstream.body, { status: 200, headers });
+}
+
 // 2026-06-18 / 4.70: /api/search — 服务端搜索。主通道 Exa(env.EXA_API_KEY,服务端 API、不按 IP 封),
 // 未配 key 或 Exa 失败时降级到 DDG html 抓取(对 CF 数据中心出口 IP 易被限速)。无 GFW / 无 CORS。
 // 等价 Claude Code 的服务端 WebSearch：搜索在 Cloudflare Worker 执行，客户端无需直连境外站。
@@ -1804,6 +1967,11 @@ export default {
       return resp(clientConfigJs(), "text/javascript; charset=utf-8");
     }
 
+    // 2026-11-28 (T4-C): 站点能力清单。与 /sync 同一鉴权口径：错令牌 401，无令牌 = guest。
+    if (request.method === "GET" && url.pathname === "/api/runtime") {
+      return handleRuntimeManifest(request, env);
+    }
+
     if (request.method === "POST" && url.pathname === "/api/chat") {
       return handleChat(request, env);
     }
@@ -1853,7 +2021,7 @@ export default {
     // 2026-11-08: 配置了聊天密码时要求有效令牌 —— 这两个端点是对外的代理/付费搜索直通面
     // (deep=1 直烧 Exa/DeepSeek 配额),不能匿名。前端 auth.js 对所有 /api/* 自动注入令牌,无感;
     // 未配密码的私人部署照常匿名可用(checkAuth null 放行)。
-    if (url.pathname === "/api/fetch" || url.pathname === "/api/search") {
+    if (url.pathname === "/api/fetch" || url.pathname === "/api/search" || url.pathname === "/api/tts") {
       if (request.method !== "OPTIONS" && (env.CHAT_PASSWORD || "").trim() && checkAuth(request, env) !== true) {
         return resp("Unauthorized", "text/plain; charset=utf-8", 401);
       }
@@ -1865,6 +2033,12 @@ export default {
     // 2026-06-18 / 4.70: 服务端搜索 —— web_search 走这里。主通道 Exa(配 EXA_API_KEY),降级 DDG html。无 GFW / CORS
     if (url.pathname === "/api/search") {
       return handleSearchProxy(request, env);
+    }
+
+    // 2026-11-25: 云端朗读(DeepSeek /v1/tools/tts)的服务端代理,key 只在 Worker env。
+    if (url.pathname === "/api/tts") {
+      if (request.method !== "POST") return resp("Method not allowed", "text/plain; charset=utf-8", 405);
+      return handleTtsProxy(request, env);
     }
 
     if ((request.method === "GET" || request.method === "PUT" || request.method === "DELETE") && url.pathname === "/sync") {
@@ -1889,6 +2063,12 @@ export default {
     // 4.78: 角色卡独立同步通道,按卡 id LWW 合并 + tombstone,跨设备不再被 main blob 整段覆盖
     if ((request.method === "GET" || request.method === "PUT" || request.method === "DELETE") && url.pathname === "/sync/chars") {
       return handleSyncChars(request, env);
+    }
+
+    // 2026-11-28（T1 统一存储）：数据面三端点。实现与 Node sidecar 共用 src/data-api.js，
+    // 鉴权与 /sync 同口径（必须带对的 Bearer）；D1 未绑定一律 503，客户端照常降级。
+    if (url.pathname === "/api/data/exec" || url.pathname === "/api/data/tx" || url.pathname === "/api/data/search") {
+      return handleDataPlane(request, env, url);
     }
 
     // 2026-11-12: 实时聊天事件通道（D1 自增 seq + 短轮询）。D1 未绑定/表缺失返回 503，客户端自动降级。

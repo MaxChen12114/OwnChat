@@ -7,27 +7,44 @@
  *
  * One extraction, N writes: `extract()` is the only model call on the write path, `putFacts()` is
  * pure storage, and `remember()` fans the same facts out to every character who was in earshot.
- * Retrieval is BM25 (Chinese bigrams) → one-hop entity expansion → RRF, plus a vector arm that
- * plugs into an empty slot whenever the embedding model happens to be available.
+ * Retrieval is the storage layer's FTS5 ranking → one-hop entity expansion → RRF, plus a vector arm
+ * that plugs into an empty slot whenever the embedding model happens to be available.
+ *
+ * Storage is the unified `epi` table plus `memory_fts` (T3-A). Two consequences worth knowing:
+ *   - the lexical arm is a database query now; the local BM25 that used to score rows in the page is
+ *     gone (`dbSearchSql` owns the surface SQL, `memory_fts`/`bm25()` do the ranking);
+ *   - the MATCH argument is the OR of the query's 3-code-point windows, never the whole sentence.
+ *     `tokenize='trigram'` only answers a phrase that occurs literally in a stored row, and a
+ *     question rarely is one. `queryTerms()` also reports the 2-character windows the index cannot
+ *     serve; when the FTS arm finds nothing they go to one OR'd `LIKE` statement, which is how a
+ *     two-character Chinese word still recalls a fact. Fusion, injection format and every budget are
+ *     unchanged from the pre-migration implementation.
  *
  * Ports, because this module has the heaviest environment dependencies of the domain:
- *   - `storage` — the two feature switches;
- *   - `db` — IndexedDB (one `epi` store with a `cid` index); the browser hands over the real
- *     implementation, the tests an in-memory stub;
+ *   - `settings` / `setVecEnabled` — the shared table in `services/memory/config.ts`;
+ *   - `db` — the unified DbPort (`core/db.ts`): the browser hands over `window.dbSvc`'s forwarding
+ *     port, the tests an in-memory `node:sqlite` port;
  *   - `app` — the host one-shot call, used by extraction, query rewriting and consolidation;
  *   - `loadVectorPipe` — the browser loader for the vector leg (dynamic import + `location`, all
  *     browser code, lives in the wiring template). The service only tracks the
  *     wanted/ready/loading/failed state machine.
  *
- * Zero `as`, zero `any`: IndexedDB rows are narrowed at the port boundary by {@link MemRow}.
- * Equivalence lock: scripts/test-memory-core.mjs.
+ * Zero `as`, zero `any`: database rows are narrowed at the port boundary by {@link toMemRow}.
+ * Equivalence locks: tooling/scripts/test-memory-core.mjs (isolation properties) and test/memory-sql.test.mjs
+ * (the storage base).
  * @module services/memory/core
  */
 
-                            
-                                      
-                                            
- 
+                                                   
+                                             
+
+// Separate emit product, bridged on `window.dbSearchSql` by tooling/l0/wiring/db-search.js (boot order puts
+// it at #16, well before memory). Declared rather than imported because the emit channel carries
+// import-free sources only; the SQL text, scope validation and limit clamps stay in that one place.
+                                
+                                       
+                                                                       
+  
 
 /** One memory row, matching the shape `putFacts` writes. */
                          
@@ -45,28 +62,13 @@
                
                 
              
+                                                                                                 
                
                  
  
 
 /** One raw fact as the model returned it; `putFacts` fills in the blanks. */
                                               
-
-/** Minimal IndexedDB request shape, satisfied by the stub and by the real thing. */
-                                            
-                                                                       
-                           
-                                
-                         
-                           
- 
-/**
- * IndexedDB port. When `fn` returns `{__req}`, the implementation resolves with `req.result`
- * once the transaction completes; a plain return value resolves directly.
- */
-                        
-                                                                                                              
- 
 
                          
                                                                                       
@@ -78,8 +80,13 @@
  
 
                               
-                     
-            
+                                                                                                  
+                                                                    
+                           
+                                                                                   
+                                   
+                                           
+             
                        
                                                                               
                                                
@@ -112,8 +119,16 @@
                  
  
 
-// One scored row: shared by the BM25, RRF and vector arms.
+// One scored row: shared by the lexical, entity and vector arms.
                                                
+
+/** Query-side terms split by what the trigram index can answer. */
+                             
+                                                                                            
+                
+                                                                                               
+                 
+ 
 
 // Bridge from `object` to a record, without a cast.
 function toRecord(o        )                          {
@@ -122,52 +137,199 @@ function toRecord(o        )                          {
   return out;
 }
 function numOf(v         )         { return typeof v === "number" ? v : 0; }
+function strOf(v         )         { return typeof v === "string" ? v : ""; }
+
+/** JSON column → string[]. A dirty cell is an empty list, never a crash on a read path. */
+function jsonList(v         )           {
+  if (typeof v !== "string" || !v) return [];
+  try {
+    const parsed          = JSON.parse(v);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+/** JSON column → number[]. Absent, empty or dirty means "this row has no vector". */
+function jsonVec(v         )                       {
+  if (typeof v !== "string" || !v) return undefined;
+  try {
+    const parsed          = JSON.parse(v);
+    if (!Array.isArray(parsed)) return undefined;
+    const out           = [];
+    for (const item of parsed) {
+      if (typeof item === "number" && Number.isFinite(item)) out.push(item);
+    }
+    return out.length ? out : undefined;
+  } catch (e) {
+    return undefined;
+  }
+}
+
+// Column order used by every statement in this file; `when`/`where` need quoting (SQL keywords).
+const COLS = 'id, cid, what, kind, fact_type, fact_kind, entities, terms, ts, "when", "where", who, why, scene, vec';
+const INSERT_SQL = "INSERT INTO epi (" + COLS + ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+
+/** Storage row → service row. Terms are re-joined into `text` so the shape callers see is stable. */
+function toMemRow(row       )         {
+  const what = strOf(row.what);
+  const terms = jsonList(row.terms);
+  return {
+    id: strOf(row.id),
+    cid: strOf(row.cid),
+    what: what,
+    when: strOf(row.when),
+    where: strOf(row.where),
+    who: strOf(row.who),
+    why: strOf(row.why),
+    entities: jsonList(row.entities),
+    terms: terms,
+    fact_kind: strOf(row.fact_kind),
+    fact_type: strOf(row.fact_type),
+    kind: strOf(row.kind),
+    scene: strOf(row.scene),
+    ts: numOf(row.ts),
+    text: what + (terms.length ? " " + terms.join(" ") : ""),
+    vec: jsonVec(row.vec),
+  };
+}
+
+const CJK = /[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/;
+const LATIN = /[A-Za-z0-9_]/;
+const FTS_TERM_CAP = 24;
+const LIKE_TERM_CAP = 6;
+
+/** Keep head and tail of a long list instead of truncating it to its opening phrase. */
+function sample(list          , cap        )           {
+  if (list.length <= cap) return list;
+  const step = (list.length - 1) / (cap - 1);
+  const out           = [];
+  for (let i = 0; i < cap; i++) out.push(list[Math.round(i * step)]);
+  return out;
+}
+
+/**
+ * Split a query into the terms each storage path can serve.
+ *
+ * Why windows and not words: Chinese is not whitespace-delimited, and the trigram index only
+ * matches literal 3-character substrings, so every overlapping window of a CJK run is a term. A
+ * two-character run and a two-character Latin word produce no window the index can answer; they are
+ * reported under `like` so the caller can scan for them instead of silently losing the query.
+ *
+ * Shared with `services/memory/char-memory.ts` (published as `window.queryTerms` by the emitter);
+ * one tokenizer, two memory surfaces.
+ * @returns `{fts, like}`, both de-duplicated and capped (24 / 6).
+ */
+function queryTerms(q         )             {
+  const s = String(q === undefined || q === null ? "" : q);
+  const ftsAll           = [];
+  const likeAll           = [];
+  const seenF                         = {};
+  const seenL                         = {};
+  const pushF = function (t        )       {
+    if (!t || seenF[t]) return;
+    seenF[t] = 1;
+    ftsAll.push(t);
+  };
+  const pushL = function (t        )       {
+    if (!t || seenL[t]) return;
+    seenL[t] = 1;
+    likeAll.push(t);
+  };
+  const run           = [];
+  let latin = "";
+  const flushRun = function ()       {
+    if (run.length >= 3) {
+      for (let i = 0; i + 3 <= run.length; i++) pushF(run.slice(i, i + 3).join(""));
+      for (let j = 0; j + 2 <= run.length; j++) pushL(run.slice(j, j + 2).join(""));
+    } else if (run.length === 2) {
+      pushL(run.join(""));
+    }
+    run.length = 0;
+  };
+  const flushLatin = function ()       {
+    if (latin.length >= 3) pushF(latin);
+    else if (latin.length === 2) pushL(latin);
+    latin = "";
+  };
+  for (const ch of s) {
+    if (CJK.test(ch)) { flushLatin(); run.push(ch); continue; }
+    flushRun();
+    if (LATIN.test(ch)) { latin += ch.toLowerCase(); continue; }
+    flushLatin();
+  }
+  flushRun();
+  flushLatin();
+  return { fts: sample(ftsAll, FTS_TERM_CAP), like: sample(likeAll, LIKE_TERM_CAP) };
+}
 
 function createMemCore(ports             )               {
-  const storage = ports.storage;
-  const DB_NAME = "cfw_char_mem_v2", DB_VER = 1, ST = "epi";
-  const LS_ON = "cfw_mem_v1";   // "1" on, "0" off, on by default
+  // Settings live in services/memory/config.ts. A missing port is a wiring bug: report it and
+  // fail closed (memory off, vectors off) instead of silently using a second copy of the defaults.
+  function settings()                      {
+    try {
+      return ports.settings();
+    } catch (e) {
+      try { console.error("[memory] 记忆配置端口不可用，已按关闭处理", e); } catch (_) {}
+      return null;
+    }
+  }
 
   function enabled()          {
-    try { return storage.getItem(LS_ON) !== "0"; } catch { return true; }
+    const cfg = settings();
+    return cfg ? cfg.enabled : false;
   }
 
-  function tx   (mode                          , fn                                                      )             {
-    return ports.db.tx   (mode, fn);
-  }
-
-  // ---------- tokenizer: Chinese bigrams + Latin words ----------
-  function tok(s         )           {
-    const t = String(s || "").toLowerCase();
+  // ---------- lexical arm: one statement per phase, ranking done by the database ----------
+  //
+  // Phase 1 is the FTS5 query. The SQL text, the scope value and the limit clamp come from
+  // `dbSearchSql` so this file holds no second copy of the surface statement; only the MATCH
+  // argument is replaced (the OR of the query windows, each still quoted as one FTS5 phrase so user
+  // text can never become FTS5 syntax). Phase 2 only runs when phase 1 found nothing: the
+  // two-character windows go out as one OR'd LIKE statement. Both phases are a single round trip,
+  // which is what keeps a recall from turning into a burst of small queries.
+  async function lexArm(cid        , query         , limit        )                    {
+    const terms = queryTerms(query);
+    const capped = dbSearchSql.clampSearchLimit(limit);
     const out           = [];
-    const lat = t.match(/[a-z0-9_]{2,}/g) || [];
-    for (let i = 0; i < lat.length; i++) out.push(lat[i]);
-    const segs = t.replace(/[^\u4e00-\u9fa5]+/g, " ").split(/\s+/);
-    for (let j = 0; j < segs.length; j++) {
-      const w = segs[j];
-      for (let k = 0; k < w.length - 1; k++) out.push(w.slice(k, k + 2));
-      if (w.length === 1) out.push(w);
-    }
-    return out;
-  }
-
-  function bm25(docs          , query         , k1         , b         )           {
-    const k1v = k1 || 1.4; const bv = b || 0.75;
-    const N = docs.length; if (!N) return [];
-    const toks = docs.map(function (d) { return tok(d.text); });
-    const avg = toks.reduce(function (a, t) { return a + t.length; }, 0) / N || 1;
-    const df                         = {}; toks.forEach(function (t) { t.forEach(function (x) { df[x] = (df[x] || 0) + 1; }); });
-    const qset                         = {}; tok(query).forEach(function (x) { qset[x] = 1; });
-    return docs.map(function (d, i) {
-      const tf                         = {}; toks[i].forEach(function (x) { tf[x] = (tf[x] || 0) + 1; });
-      let s = 0;
-      for (const term in qset) {
-        if (!tf[term]) continue;
-        const idf = Math.log(1 + (N - df[term] + 0.5) / (df[term] + 0.5));
-        s += idf * (tf[term] * (k1v + 1)) / (tf[term] + k1v * (1 - bv + bv * toks[i].length / avg));
+    const seen                         = {};
+    function absorb(rows         )       {
+      for (const row of rows) {
+        const doc = toMemRow(row);
+        if (!doc.id || seen[doc.id]) continue;
+        seen[doc.id] = 1;
+        // Rank order is the score: RRF consumes positions, not magnitudes.
+        out.push({ doc: doc, score: 1 / (out.length + 1) });
       }
-      return { doc: d, score: s };
-    }).filter(function (x) { return x.score > 0; }).sort(function (a, b2) { return b2.score - a.score; });
+    }
+    if (!terms.fts.length) {
+      // The whole query sits below the trigram floor: the storage layer's own LIKE fallback answers
+      // (the same branch `src/data-api.js` documents for short queries), one term at a time because
+      // a single LIKE pattern cannot express "either of these two-character words".
+      for (const term of terms.like) {
+        absorb(await ports.db.search("memory", { cid: cid }, term, capped));
+        if (out.length >= capped) break;
+      }
+      return out.slice(0, capped);
+    }
+    const built = dbSearchSql.buildSearchQuery("memory", { cid: cid }, terms.fts[0], capped);
+    const expr = terms.fts.map(function (t) { return dbSearchSql.ftsPhrase(t); }).join(" OR ");
+    const res = await ports.db.exec(built.sql, [expr, built.scope, built.limit]);
+    absorb(res.rows);
+    if (!out.length && terms.like.length) {
+      const patterns = terms.like.map(function (t) { return dbSearchSql.likePattern(t); });
+      // 0004: `terms` is part of the recall surface now — the old BM25 scored what+terms together,
+      // and a fact whose useful word only sits in the extracted terms must survive the 2-char leg.
+      const sql = "SELECT " + COLS + " FROM epi WHERE cid = ? AND ("
+        + patterns.map(function () { return "(what LIKE ? ESCAPE '\\' OR terms LIKE ? ESCAPE '\\')"; }).join(" OR ")
+        + ") ORDER BY ts DESC, id ASC LIMIT ?";
+      const paramList            = [];
+      for (const pattern of patterns) paramList.push(pattern, pattern);
+      const params            = [cid, ...paramList, capped];
+      const like = await ports.db.exec(sql, params);
+      absorb(like.rows);
+    }
+    return out.slice(0, capped);
   }
 
   // ---------- RRF (the formula from Hindsight's search/fusion.py) ----------
@@ -235,10 +397,12 @@ function createMemCore(ports             )               {
   }
 
   // ---------- vector leg: the state machine lives here, the loader in the wiring ----------
-  const LS_VEC = "cfw_mem_vec_v1";
   let _pipe                    = null, _pipeLoading                                    = null, _vecFailed = false;
 
-  function vectorsWanted()          { try { return storage.getItem(LS_VEC) !== "0"; } catch { return true; } }
+  function vectorsWanted()          {
+    const cfg = settings();
+    return cfg ? cfg.vecEnabled : false;
+  }
   function vectorsReady()          { return !!_pipe; }
   function vectorState()              { return { wanted: vectorsWanted(), ready: !!_pipe, loading: !!_pipeLoading, failed: _vecFailed }; }
 
@@ -306,8 +470,7 @@ function createMemCore(ports             )               {
         kind: String(o.kind || "observed"),
         scene: String(o.scene || ""),
         ts: now,
-        // Widen at write time: fold search_terms into the indexed text, so a differently
-        // worded question can still hit.
+        // The vector leg embeds fact + search terms; the lexical index only sees `what` (schema).
         text: text,
       };
     }).filter(function (r)              { return !!r && !!r.what; });
@@ -318,7 +481,20 @@ function createMemCore(ports             )               {
         if (v) rows[vi].vec = v;
       }
     }
-    await tx("readwrite", function (st) { rows.forEach(function (r) { st.put(r); }); return null; });
+    if (rows.length) {
+      // Collect-then-commit (core/db.ts): the caller gets one atomic batch and no partial write.
+      await ports.db.transaction(function (tx) {
+        for (const r of rows) {
+          tx.exec(INSERT_SQL, [
+            r.id, r.cid, r.what, r.kind, r.fact_type, r.fact_kind,
+            JSON.stringify(r.entities), JSON.stringify(r.terms), r.ts,
+            r.when, r.where, r.who, r.why, r.scene,
+            r.vec ? JSON.stringify(r.vec) : null,
+          ]);
+        }
+        return null;
+      });
+    }
     return rows.length;
   }
 
@@ -351,8 +527,10 @@ function createMemCore(ports             )               {
 
   // ---------- reading ----------
   async function allOf(cid        )                    {
-    const rows = await tx          ("readonly", function (st) { return { __req: st.index("cid").getAll(String(cid)) }; });
-    return (rows || []).sort(function (a, b) { return numOf(b.ts) - numOf(a.ts); });
+    const c = String(cid || "");
+    if (!c) return [];
+    const res = await ports.db.exec("SELECT " + COLS + " FROM epi WHERE cid = ? ORDER BY ts DESC, id ASC", [c]);
+    return res.rows.map(toMemRow);
   }
 
   // ---------- query rewriting, used only when the first pass recalls nothing ----------
@@ -372,7 +550,7 @@ function createMemCore(ports             )               {
     } catch { return []; }
   }
 
-  // recall: BM25 arm + one-hop entity arm → RRF fusion
+  // recall: FTS arm + one-hop entity arm → RRF fusion
   async function recall(cid        , query         , opts    
                
                      
@@ -386,7 +564,7 @@ function createMemCore(ports             )               {
     const rows = await allOf(cid);
     if (!rows.length) return { ok: true, hits: [], total: 0, arms: { lex: 0, ent: 0 } };
 
-    let lex = bm25(rows, String(query || ""), 1.4, 0.75).slice(0, k * 3);
+    let lex = await lexArm(String(cid || ""), query, k * 3);
 
     // Entity expansion, query side, no model: entities of this card that appear in the query.
     const known                         = {};
@@ -411,7 +589,7 @@ function createMemCore(ports             )               {
       const terms = await expandQuery(query);
       if (terms.length) {
         expanded = terms;
-        const lex2 = bm25(rows, terms.join(" "), 1.4, 0.75).slice(0, k * 3);
+        const lex2 = await lexArm(String(cid || ""), terms.join(" "), k * 3);
         const want2                         = {};
         terms.forEach(function (t) { Object.keys(known).forEach(function (e) { if (e && (t.indexOf(e) >= 0 || e.indexOf(t) >= 0)) want2[e] = 1; }); });
         const ent2           = [];
@@ -453,7 +631,9 @@ function createMemCore(ports             )               {
   // Pre-request assembly
   async function buildInjection(cid        , query         , opts                 )                  {
     try {
-      const r = await recall(cid, query, opts || { k: 4 });
+      const cfg = settings();
+      if (!cfg) return "";
+      const r = await recall(cid, query, opts || { k: cfg.recallK });
       if (!r.ok || !r.hits.length) return "";
       const lines = r.hits.map(function (h) {
         // "May be untrue": a character reuses its own previous fabrication as fact (observed).
@@ -466,9 +646,11 @@ function createMemCore(ports             )               {
 
   // ---------- consolidation (L1 → L2) ----------
   async function reflect(cid        , question          )                                                                {
+    const cfg = settings();
+    if (!cfg) return { ok: false, error: "记忆配置不可用" };
     const rows = await allOf(cid);
     if (!rows.length) return { ok: false, error: "这个角色还没有记忆" };
-    const digest = rows.slice(0, 40).map(function (r, i) { return (i + 1) + ". " + r.what; }).join("\n");
+    const digest = rows.slice(0, cfg.reflectMaxRows).map(function (r, i) { return (i + 1) + ". " + r.what; }).join("\n");
     const sys = "You compress a character's episodic memories into durable conclusions.\n" +
       "Write in the same language as the memories. Be concrete, keep names and numbers.\n" +
       "Output 3-6 short bullet lines, no preamble. Each bullet must be a claim the character would still hold later.";
@@ -488,86 +670,258 @@ function createMemCore(ports             )               {
     return { ok: true, conclusion: text };
   }
 
-  async function count(cid        )                  { return (await allOf(cid)).length; }
+  async function count(cid        )                  {
+    const c = String(cid || "");
+    if (!c) return 0;
+    const res = await ports.db.exec("SELECT COUNT(*) AS n FROM epi WHERE cid = ?", [c]);
+    const row = res.rows[0];
+    return row ? numOf(row.n) : 0;
+  }
+
   async function clear(cid        )                                            {
-    const rows = await allOf(cid);
-    await tx("readwrite", function (st) { rows.forEach(function (r) { st.delete(r.id); }); return null; });
-    return { ok: true, removed: rows.length };
+    const c = String(cid || "");
+    const removed = await count(c);
+    if (!removed) return { ok: true, removed: 0 };
+    // One statement is its own transaction; the count above only feeds the return value.
+    await ports.db.exec("DELETE FROM epi WHERE cid = ?", [c]);
+    return { ok: true, removed: removed };
   }
 
   return {
-    v: 2,
+    v: 3,
     prompt: EXTRACT_SYSTEM,
     enabled: enabled,
+    /** Whether the end-of-turn auto writer is on (cfw_mem_auto_v1, default off). */
+    autoWriteEnabled: function ()          {
+      const cfg = settings();
+      return cfg ? cfg.autoWrite : false;
+    },
     enableVectors: function (on         )              {
-      try { storage.setItem(LS_VEC, on ? "1" : "0"); } catch {}
+      try { ports.setVecEnabled(!!on); } catch (e) {
+        try { console.warn("[memory] 向量腿开关写入失败", e); } catch (_) {}
+      }
       if (on) loadVectors(); return vectorState();
     },
     vectorState: vectorState, loadVectors: loadVectors,
     extract: extract, putFacts: putFacts, remember: remember,
     recall: recall, buildInjection: buildInjection, reflect: reflect,
     count: count, clear: clear, list: allOf,
-    _tok: tok, _bm25: bm25, _rrf: rrf,
+    _terms: queryTerms, _rrf: rrf,
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
-// The real IDB adapter and the vector loader are browser-only code and ship with the artifact. The
-// vm test swaps in an in-memory `sandbox.indexedDB`, which must stay structurally identical to the
-// real one: `getAll` wraps its result once, and the request wrapper sits outside the service's tx
-// callback.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
+//
+// Engine: services/memory/core.ts. Three things cannot live in a service and live here:
+//   1) the SQL port — the `db` service `window.dbSvc` provides (T2), resolved per call so a host
+//      switch never invalidates the port this facade captured;
+//   2) the one-time move of the old IndexedDB bank (`cfw_char_mem_v2`, store `epi`) into the `epi`
+//      table + `memory_fts`, and the browser-only vector loader;
+//   3) the `window.__memCore` mount.
+//
+// T4-A: the whole block is a runtime plugin that injects `db`, so the guard is declarative instead
+// of a lazy "if dbSvc exists" inside every call, and `dispose` removes the facade + the provided
+// service reference. The migration keeps its own discipline:
+//   · every port call awaits `ready`, so a recall that starts during the first boot sees migrated
+//     rows instead of racing them;
+//   · re-running is safe — the marker is written only after every batch committed, and each insert
+//     is a primary-key upsert (`ON CONFLICT(id) DO UPDATE`, which also keeps `memory_fts` in step
+//     through the UPDATE trigger);
+//   · a failure deletes nothing: the IndexedDB database stays, the marker stays unset and the next
+//     boot retries. A silent loss is worse than a duplicated write.
 (function () {
+  "use strict";
+  var HOST = (typeof window !== "undefined" && window.runtimeCore && window.runtimeCore.host) || null;
   var G = (typeof window !== "undefined" ? window : globalThis);
-  var DB_NAME = 'cfw_char_mem_v2', DB_VER = 1, ST = 'epi';
-  function openRaw() {
-    return new Promise(function (res, rej) {
-      var req = G.indexedDB.open(DB_NAME, DB_VER);
-      req.onupgradeneeded = function () {
-        var d = req.result;
-        if (!d.objectStoreNames.contains(ST)) {
-          var s = d.createObjectStore(ST, { keyPath: 'id' });
-          s.createIndex('cid', 'cid', { unique: false });
-        }
-      };
-      req.onsuccess = function () { res(req.result); };
-      req.onerror = function () { rej(req.error); };
-    });
+  var DB_NAME = "cfw_char_mem_v2", DB_VER = 1, ST = "epi";
+  var MARK = "cfw_mem_sql_migrated_v1";
+  var BATCH = 150; // /api/data/tx refuses more than 200 statements per commit
+  var UPSERT = "INSERT INTO epi (id, cid, what, kind, fact_type, fact_kind, entities, terms, ts, \"when\", \"where\", who, why, scene, vec)"
+    + " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    + " ON CONFLICT(id) DO UPDATE SET cid=excluded.cid, what=excluded.what, kind=excluded.kind,"
+    + " fact_type=excluded.fact_type, fact_kind=excluded.fact_kind, entities=excluded.entities,"
+    + " terms=excluded.terms, ts=excluded.ts, \"when\"=excluded.\"when\", \"where\"=excluded.\"where\","
+    + " who=excluded.who, why=excluded.why, scene=excluded.scene, vec=excluded.vec";
+
+  function lsGet(key) {
+    try { return G.localStorage.getItem(key); } catch (e) { return null; }
   }
-  var dbPort = {
-    tx: function (mode, fn) {
-      return openRaw().then(function (d) {
-        return new Promise(function (res, rej) {
-          var t = d.transaction(ST, mode), st = t.objectStore(ST), out;
-          try { out = fn(st); } catch (e) { rej(e); return; }
-          t.oncomplete = function () { res(out && out.__req ? out.__req.result : out); };
-          t.onerror = function () { rej(t.error); };
-        });
+  function lsSet(key, value) {
+    try { G.localStorage.setItem(key, value); } catch (e) {}
+  }
+  function strOf(value) {
+    return value === undefined || value === null ? null : String(value);
+  }
+  /** JSON column: a list of strings, or "[]" for anything else. */
+  function listJson(value) {
+    if (!Array.isArray(value)) return "[]";
+    try { return JSON.stringify(value.map(String)); } catch (e) { return "[]"; }
+  }
+  /** JSON column: a numeric vector, or null (a row without a vector simply has no vector leg). */
+  function vecJson(value) {
+    if (!Array.isArray(value) || !value.length) return null;
+    try { return JSON.stringify(value); } catch (e) { return null; }
+  }
+
+  function apply(ctx) {
+    // The injected service first, then the facade fallback: a page that registered adapters the old
+    // way (no runtime host) must keep working. Both answer exec/transaction/search.
+    var injected = ctx && typeof ctx.get === "function" ? ctx.get("db") : null;
+    function dbPort() {
+      if (disposed) throw new Error("memory: 记忆插件已卸载（调用方持有的门面应立即重取）");
+      if (injected && typeof injected.exec === "function") return injected;
+      var svc = G.dbSvc;
+      if (!svc || typeof svc.get !== "function") throw new Error("dbSvc 未接线（存储层未加载）");
+      return svc.get();
+    }
+
+    function openLegacy() {
+      return new Promise(function (resolve, reject) {
+        var req;
+        try { req = G.indexedDB.open(DB_NAME, DB_VER); } catch (e) { reject(e); return; }
+        req.onupgradeneeded = function () {
+          try {
+            var d = req.result;
+            if (!d.objectStoreNames.contains(ST)) {
+              var s = d.createObjectStore(ST, { keyPath: "id" });
+              s.createIndex("cid", "cid", { unique: false });
+            }
+          } catch (e) {}
+        };
+        req.onsuccess = function () { resolve(req.result); };
+        req.onerror = function () { reject(req.error || new Error("indexedDB.open(" + DB_NAME + ") 失败")); };
       });
-    },
-  };
-  var ports = {
-    storage: { getItem: function (k) { return G.localStorage.getItem(k); }, setItem: function (k, v) { G.localStorage.setItem(k, v); } },
-    db: dbPort,
-    app: function () { return G.__app || null; },
-    // Vector leg (browser only): transformers.js with its bundled webpack build (onnxruntime-web
-    // included). Model and wasm are published with the repo under public/models/, loaded from a
-    // same-origin path — no external network dependency at runtime.
-    loadVectorPipe: function () {
-      return (async function () {
-        var mod = await import(new URL('/models/tf/transformers.min.js', location.origin).href);
-        var env = mod.env;
-        env.allowRemoteModels = true;
-        env.remoteHost = (location && location.origin ? location.origin : '') + '/models';
-        env.remotePathTemplate = '{model}/';
-        env.useBrowserCache = true;
-        env.allowLocalModels = false;
-        try { env.backends.onnx.wasm.wasmPaths = (location && location.origin ? location.origin : '') + '/models/tf/'; } catch (e) {}
-        return await mod.pipeline('feature-extraction', 'Xenova/bge-small-zh-v1.5', { quantized: true });
-      })();
-    },
-  };
-  G.__memCore = createMemCore(ports);
+    }
+
+    function readLegacy(conn) {
+      return new Promise(function (resolve, reject) {
+        var req;
+        try { req = conn.transaction(ST, "readonly").objectStore(ST).getAll(); } catch (e) { reject(e); return; }
+        req.onsuccess = function () { resolve(Array.isArray(req.result) ? req.result : []); };
+        req.onerror = function () { reject(req.error || new Error("读取旧 " + ST + " 失败")); };
+      });
+    }
+
+    function dropLegacy() {
+      return new Promise(function (resolve) {
+        var req;
+        try { req = G.indexedDB.deleteDatabase(DB_NAME); } catch (e) { resolve(false); return; }
+        req.onsuccess = function () { resolve(true); };
+        req.onerror = function () { resolve(false); };
+        req.onblocked = function () { resolve(false); };
+      });
+    }
+
+    var disposed = false;
+
+    async function migrate() {
+      // No IndexedDB: a non-browser host, or a browser that never had the old bank. Nothing to move.
+      if (!G.indexedDB) return;
+      if (lsGet(MARK) === "1") return;
+      var conn = null;
+      try {
+        conn = await openLegacy();
+        var rows = [];
+        try { rows = await readLegacy(conn); } catch (e) { rows = []; }
+        try { conn.close(); } catch (e) {}
+        conn = null;
+        var moved = 0;
+        for (var i = 0; i < rows.length; i += BATCH) {
+          var slice = rows.slice(i, i + BATCH);
+          await dbPort().transaction(function (tx) {
+            for (var j = 0; j < slice.length; j++) {
+              var r = slice[j] || {};
+              if (!r.id || !r.cid) continue;
+              tx.exec(UPSERT, [
+                String(r.id), String(r.cid), String(r.what || ""), strOf(r.kind), strOf(r.fact_type), strOf(r.fact_kind),
+                listJson(r.entities), listJson(r.terms), Number(r.ts) || 0,
+                strOf(r.when), strOf(r.where), strOf(r.who), strOf(r.why), strOf(r.scene),
+                vecJson(r.vec),
+              ]);
+              moved++;
+            }
+          });
+        }
+        var dropped = await dropLegacy();
+        lsSet(MARK, "1");
+        if (moved) console.info("[memory] 旧 IndexedDB 记忆已迁到 SQL：" + moved + " 条");
+        if (rows.length && !dropped) console.warn("[memory] 旧 IndexedDB 删除失败（数据已全部迁到 SQL，残留库可手动清理）");
+      } catch (e) {
+        try { if (conn) conn.close(); } catch (_) {}
+        console.warn("[memory] 旧记忆迁移失败，IndexedDB 原件保留，下次启动重试：", e);
+      }
+    }
+
+    var ready = migrate();
+    var dbPortFwd = {
+      exec: function (sql, params) {
+        return ready.then(function () { return dbPort().exec(sql, params); });
+      },
+      transaction: function (fn) {
+        return ready.then(function () { return dbPort().transaction(fn); });
+      },
+      search: function (surface, scope, q, limit) {
+        return ready.then(function () { return dbPort().search(surface, scope, q, limit); });
+      },
+    };
+
+    var ports = {
+      // Settings are owned by services/memory/config.ts and mounted on this same facade by the next
+      // wiring step (memory-config.js). Resolved per call so load order does not matter; a missing
+      // table throws and the service reports it instead of guessing defaults.
+      settings: function () {
+        var cfg = G.__memCore && G.__memCore.config;
+        if (!cfg) throw new Error("memory config 未接线（memory-config.js 未加载）");
+        return cfg.read();
+      },
+      setVecEnabled: function (on) {
+        var cfg = G.__memCore && G.__memCore.config;
+        if (!cfg) throw new Error("memory config 未接线（memory-config.js 未加载）");
+        cfg.write({ vecEnabled: !!on });
+      },
+      db: dbPortFwd,
+      app: function () { return G.appSvc || null; },
+      // Vector leg (browser only): transformers.js with its bundled webpack build (onnxruntime-web
+      // included). Model and wasm are published with the repo under public/models/, loaded from a
+      // same-origin path — no external network dependency at runtime.
+      loadVectorPipe: function () {
+        return (async function () {
+          var mod = await import(new URL('/models/tf/transformers.min.js', location.origin).href);
+          var env = mod.env;
+          env.allowRemoteModels = true;
+          env.remoteHost = (location && location.origin ? location.origin : '') + '/models';
+          env.remotePathTemplate = '{model}/';
+          env.useBrowserCache = true;
+          env.allowLocalModels = false;
+          try { env.backends.onnx.wasm.wasmPaths = (location && location.origin ? location.origin : '') + '/models/tf/'; } catch (e) {}
+          return await mod.pipeline('feature-extraction', 'Xenova/bge-small-zh-v1.5', { quantized: true });
+        })();
+      },
+    };
+
+    var api = createMemCore(ports);
+    G.__memCore = api;
+    // Other plugins inject the memory core; the window name stays the compat surface.
+    if (ctx && typeof ctx.provide === "function") {
+      ctx.provide("memory", { v: 1, core: api, ready: ready });
+    }
+    return function dispose() {
+      disposed = true;
+      if (G.__memCore === api) {
+        try { delete G.__memCore; } catch (e) { G.__memCore = undefined; }
+      }
+    };
+  }
+
+  var mod = { name: "memory", inject: ["db"], apply: apply };
+  if (HOST) {
+    HOST.define("memory", mod);
+    HOST.start("memory");
+    return;
+  }
+  apply({ get: function () { return null; }, provide: function () {} });
 })();
 
+globalThis.queryTerms = queryTerms;
 globalThis.createMemCore = createMemCore;
 })();

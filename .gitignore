@@ -21,7 +21,7 @@ build/
 .cache/
 
 # 两份提示词注册表：源 = src/prompts/bases/ 与 src/prompts/neutrals/ 下的 .md/.txt，
-# 由 scripts/gen-prompts.mjs 生成（wrangler dev/deploy 前自动跑）。
+# 由 tooling/scripts/gen-prompts.mjs 生成（wrangler dev/deploy 前自动跑）。
 # 不提交 —— 避免与文本源并存两份事实源而漂移。
 src/prompts/bases/unlocked/index.js
 src/prompts/bases/locked/index.js
@@ -49,7 +49,7 @@ ownchat.key
 *.key
 *.key.pub
 
-# 2026-11-09：向量模型（43MB 二进制）不进仓库 —— 用 scripts/fetch-model.mjs 拉到本地。
+# 2026-11-09：向量模型（43MB 二进制）不进仓库 —— 用 tooling/scripts/fetch-model.mjs 拉到本地。
 public/models/
 .tmp-fetch-model/
 
@@ -63,3 +63,17 @@ public/models/
 public/_art/
 .tmp-bundle/
 .tmp-*-emit/
+
+# 2026-11-27：spike 本地服务（server/local.mjs）的运行数据 —— SQLite KV / D1 仿真，
+# 与线上 Cloudflare 的 KV / D1 无任何关系，纯本机状态，绝不入库。
+.local-data/
+
+# 2026-11-28（T4-B）：Tauri 的随包宿主运行树（node src-tauri/scripts/stage-host.mjs 生成）。
+# 里面是 public/ 与 server/ 的构建期快照，体积 ~36MB，绝不入库；frontendDist 指向它。
+src-tauri/host/
+
+# 2026-11-28（公开版开箱即用）：安装包随包的 Node 运行时。CI 从 setup-node 的 node.exe 复制进来，
+# 由 tauri.conf.json 的 bundle.resources 打进安装包；本机源码构建不生成它（回退系统 Node）。
+src-tauri/runtime/*
+!src-tauri/runtime/node/
+!src-tauri/runtime/node/README.md

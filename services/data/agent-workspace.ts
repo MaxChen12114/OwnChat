@@ -2,14 +2,17 @@
  * Agent file workspace: a per-conversation file store handed to the model as six tools
  * (list / read / search / write / edit / delete) plus an export that reaches the real disk.
  *
- * The store is IndexedDB in the browser and a map in the tests; both arrive through
- * {@link WorkspacePorts}. So do line slicing, text search, the clock and the disk export, because
+ * The store arrives through {@link WorkspacePorts}: the browser wiring backs it with the unified
+ * SQLite `workspace` / `workspace_versions` / `workspace_blobs` tables, keeps the legacy IndexedDB
+ * database only as the one-time import source and as a fallback for hosts without those tables,
+ * and the tests use a map. So do line slicing, text search, the clock and the disk export, because
  * each of them already has an owner elsewhere. This file touches no `window`, `document` or
- * `indexedDB`; the adapter lives in l0/wiring/agent-workspace.js.
+ * `indexedDB`; the adapter lives in tooling/l0/wiring/agent-workspace.js.
  *
- * Files are keyed by `convId::path`, so a task's intermediate products die with its conversation.
- * That is the non-obvious choice here: the workspace is a scratchpad per conversation, not a shared
- * drive, and every path is flat — `..` is rejected rather than resolved.
+ * Files are keyed by `convId::path` (the SQL row keeps that composite key in `path`, because the
+ * table's primary key is `path` alone), so a task's intermediate products die with its
+ * conversation. That is the non-obvious choice here: the workspace is a scratchpad per
+ * conversation, not a shared drive, and every path is flat — `..` is rejected rather than resolved.
  *
  * Tools are registered one `try` at a time. A duplicate name makes `define` throw, and a shared
  * `try` would take every later file tool down with it.
@@ -501,7 +504,7 @@ export function createWorkspace(ports: WorkspacePorts) {
       try {
         await ports.store.put(row);
       } catch (_e) {
-        return { ok: false, error: "工作区不可用(IndexedDB 打不开)" };
+        return { ok: false, error: "工作区不可用(存储未就绪)" };
       }
       let version: number | null = null;
       if (withHistory) {
@@ -867,7 +870,7 @@ export function createWorkspace(ports: WorkspacePorts) {
   const DEFS: ToolDef[] = [
     {
       name: "list_files",
-      description: "列出当前会话工作区里的文件(路径 / 大小 / 最后修改时间)。工作区是本设备的 IndexedDB,跨会话隔离。",
+      description: "列出当前会话工作区里的文件(路径 / 大小 / 最后修改时间)。工作区存于统一存储,按会话隔离。",
       parameters: { type: "object", properties: {} },
       run: () => listFiles(),
     },
@@ -910,7 +913,7 @@ export function createWorkspace(ports: WorkspacePorts) {
     {
       name: "write_file",
       description:
-        "把内容写入当前会话工作区(IndexedDB,真持久化,可被 read_file 立刻读回)。" +
+        "把内容写入当前会话工作区(统一存储,真持久化,可被 read_file 立刻读回)。" +
         "适合产出报告/代码/数据,或作为多步任务的中间产物。要导出到真实磁盘用 export_file。",
       destructive: true,
       parameters: {

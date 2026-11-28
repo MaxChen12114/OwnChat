@@ -34,6 +34,7 @@
                                               
                                                
                                               
+                                                 
  
 
 /** Snapshot passed into agentBody, field for field the old `__request.agentBody(s)` argument. */
@@ -57,6 +58,56 @@
                                                                                                                              
                        
  
+
+/** Snapshot for one compaction call. The model fields follow the send-path snapshot rules: a BYO
+ *  channel's own model wins over the top-bar selection; mode/providerId ride along so the worker
+ *  routes the summary through the same channel the user is actually chatting with. */
+                                    
+                     
+                         
+                          
+                           
+                 
+                  
+                       
+ 
+
+/** Read the BYO model, if the custom-provider snapshot carries one. */
+function byoModelOf(customProvider         )         {
+  const cp = (customProvider && typeof customProvider === "object" && !Array.isArray(customProvider))
+    ? Object.fromEntries(Object.entries(customProvider))
+    : {};
+  const model = cp.model;
+  return typeof model === "string" ? model.trim() : "";
+}
+
+/**
+ * Body for `POST /api/summarize`.
+ *
+ * Field rules, all carried over from the old inline object:
+ *   - `messages` is always an array (the worker answers an empty summary for an empty one);
+ *   - `priorSummary` / `characterName` are strings, never undefined;
+ *   - `model` prefers the BYO channel's model and otherwise uses the top-bar selection — the same
+ *     precedence the chat request uses. `mode` and `providerId` let the worker resolve the channel
+ *     instead of falling back to its `fast` default;
+ *   - `customProvider` and `providerId` stay `undefined` when absent, so JSON serialisation drops
+ *     them and an old client body keeps its exact bytes.
+ * @param snapshot - the send-time snapshot collected by the app.
+ * @returns The request body.
+ */
+function summarizeBody(snapshot                                      )                          {
+  const s = snapshot || {};
+  const model = byoModelOf(s.customProvider) || (typeof s.model === "string" ? s.model.trim() : "");
+  return {
+    messages: Array.isArray(s.messages) ? s.messages : [],
+    priorSummary: typeof s.priorSummary === "string" ? s.priorSummary : "",
+    characterName: typeof s.characterName === "string" ? s.characterName : "",
+    customProvider: s.customProvider,
+    mode: typeof s.mode === "string" ? s.mode : undefined,
+    providerId: s.providerId,
+    model: model || undefined,
+  };
+}
 
 /**
  * Agent-path request body. `s` must carry the *instances* created inside app.js's closure: calling
@@ -104,11 +155,12 @@ function agentBody(s                                      , ports              )
     ...prof.neutralIdPayload(),
     ...prof.stateLayerPayload(),
     ...prof.webSearchPayload(),
+    ...(prof.deepseekKitPayload ? prof.deepseekKitPayload() : {}),
     messages: s.messages,
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 // The implementation lives in services/chat/request.ts. `replyStyle` used to read localStorage
 // inline with a try/catch falling back to "default"; that read now lives here as a port, still
 // resolved per call rather than captured.
@@ -123,8 +175,10 @@ function agentBody(s                                      , ports              )
   window.__request = {
     v: 1,
     agentBody: function (s) { return agentBody(s, ports); },
+    summarizeBody: function (s) { return summarizeBody(s); },
   };
 })();
 
+globalThis.summarizeBody = summarizeBody;
 globalThis.agentBody = agentBody;
 })();

@@ -141,7 +141,7 @@ function clRenameCommit(oldName         , input         )                {
   return null;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/conv-list.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/conv-list.ts; this file owns the
 // DOM: the sidebar mount, the stylesheet, row/menu/rename construction and the poll/event wiring.
 // Every decision lives in the engine — relative-time labels, the content signature, both redraw
 // gates, preview/title copy, menu placement geometry, and the rename commit rule.
@@ -201,7 +201,7 @@ function clRenameCommit(oldName         , input         )                {
 .conv-menu button.danger:hover{background:rgba(232,96,125,.16);}
 `;
 
-  var esc = window.__ownEscape.esc;
+  var esc = window.escapeSvc.esc;
   function ensureCss() {
     if (document.getElementById(STYLE_ID)) return;
     var s = document.createElement("style");
@@ -209,7 +209,7 @@ function clRenameCommit(oldName         , input         )                {
     s.textContent = CSS_TEXT;
     (document.head || document.documentElement).appendChild(s);
   }
-  function app() { return window.__app || null; }
+  function app() { return window.appSvc || null; }
   function fmtAgo(ts) {
     return clFmtAgo(ts, Date.now());
   }
@@ -384,7 +384,7 @@ function clRenameCommit(oldName         , input         )                {
   }
 
   function doDelete(c) {
-    var fb = window.__feedback;
+    var fb = window.feedbackSvc;
     var go = function () {
       try { app().deleteConversation(c.convId); } catch (e) {}
       lastSig = ""; render();

@@ -1,25 +1,60 @@
 (function () {
 /**
- * The right-side content panel's state machine — two modes, four views, one persisted record.
+ * The right-side panel's mode/view machine — two modes, four views, one persisted record.
  *
  * Fixed mode is a symmetric 240 px column with two text tabs (activity / status). Expanded mode is a
- * resizable 240–1200 px column whose body is the content canvas; activity and status are temporary
- * overlays you step back out of. Nothing here draws anything: which section is visible, how the bar
- * lays itself out and where the iframe lives are all `l0/wiring/panel-host.js`.
+ * resizable 240–1200 px column whose body is the tabbed content canvas; activity and status are
+ * temporary overlays you step back out of. Nothing here draws anything: which section is visible, how
+ * the bar lays itself out and where the panes live are all `tooling/l0/wiring/panel-host.js`.
  *
- * Three rules that are easy to get wrong and are therefore pure functions here:
+ * Two rules that are easy to get wrong and are therefore pure functions here:
  *   · `view` is **not** persisted. The expanded panel always comes back to the canvas; restoring the
  *     last overlay is how "I clicked activity once and now every open starts on activity" happens.
  *   · Width is clamped on both read and write, and `0` means "no opinion" rather than "zero pixels".
- *   · Built-in pages (sandbox, council) are tools, not generated content, so they never enter the
- *     recent-content history — they would push the artifacts a user wants to revisit out of the list.
  *
- * Lock: `test/panel-host.test.mjs` (state transitions dual-run against the classic implementation).
+ * Tab identity, persistence and the page catalogue moved to `services/panel/tab-state.ts`; this file
+ * deliberately knows nothing about what is inside the canvas.
  * @module services/panel/panel-host
  */
 
                                                                   
                                                       
+
+/** One row of the right column's view list. */
+                               
+                                                                                      
+                                   
+                                                                 
+                
+                                                                           
+                
+                                                                                        
+               
+ 
+
+/**
+ * Every view of the right column, in fixed-tab order. This table is the only place a view is
+ * declared: the fixed strip (`#rsTabs`), the expanded bar's `data-pv` buttons and the "⋯" menu all
+ * render from it, and `panelKeyOf` / `viewState` derive their view→tab mapping from it too. Adding
+ * a view means one row here plus its `<section data-rs-panel>` in index.html.
+ *
+ * `chat` is the group-chat discussion area: multi-agent output mounts into `#fishbowlSlot` inside
+ * that panel. It is permanent — it must NOT become a closable dynamic tab, because the discussion
+ * content has nowhere else to render.
+ */
+const PANEL_VIEWS                          = [
+  { id: "activity", tab: "fishbowl", label: "活动", icon: "activity" },
+  { id: "chat", tab: "chat", label: "群聊", icon: "chat" },
+  { id: "status", tab: "status", label: "状态", icon: "status" },
+];
+
+/** The table row for a view name, or null for `canvas` / an unknown name. */
+function viewDefOf(view         )                      {
+  for (let i = 0; i < PANEL_VIEWS.length; i++) {
+    if (PANEL_VIEWS[i].id === view) return PANEL_VIEWS[i];
+  }
+  return null;
+}
 
                              
                     
@@ -28,58 +63,18 @@
                 
  
 
-                            
-             
-                 
-                
-               
-                  
- 
-
-                               
-                
-             
-                
- 
-
 const PANEL_VERSION = 1;
 const PANEL_LS_STATE = "cfw_panel_state_v1";
 const PANEL_LS_CURRENT = "cfw_panel_current_v1";
-const PANEL_LS_MAP_URL = "cfw_panel_map_url_v1";
 
 const PANEL_W_MIN = 240;
 /** Raised from 640: at 1440 px the middle column wants ~720, so 640 stranded the drag short. */
 const PANEL_W_MAX = 1200;
 const PANEL_W_DEFAULT = 460;
 const PANEL_DESKTOP_MIN = 1024;
-const PANEL_HISTORY_MAX = 10;
 const PANEL_TOPBAR_TIGHT = 560;
 
 const PANEL_DEFAULT_STATE             = { expanded: false, width: PANEL_W_DEFAULT, view: "canvas", tab: "fishbowl" };
-
-/** Built-in canvas pages. They are tools, not content: they never enter the history. */
-const PANEL_BUILTIN_TOOLS              = [
-  { id: "sandbox", title: "沙盘（幻想地图）", icon: "map", url: "/tools/sandbox/index.html?v=19", chrome: "map" },
-  // The council page exists because meeting results used to go only to the main agent, leaving the UI
-  // blank — the agent then wrote its own HTML page and role-played every participant in one context.
-  { id: "council", title: "多智能体讨论区", icon: "users", url: "/tools/council/index.html?v=3" },
-  { id: "map", title: "GEO 地图（真实地图，外部源）", icon: "globe", url: "" },
-];
-
-/** Chrome bar definitions per tool; `seg` is a segmented control, everything else a button. */
-const PANEL_CHROMES                                                 = {
-  map: [
-    {
-      type: "seg",
-      items: [
-        { cmd: "skin", val: "A", text: "像素" },
-        { cmd: "skin", val: "B", text: "等距" },
-      ],
-    },
-    { cmd: "regen", text: "换世界" },
-    { cmd: "run", text: "跑图", toggle: true },
-  ],
-};
 
 function recOf(value         )                          {
   const out                          = {};
@@ -122,7 +117,7 @@ function loadPanelState(raw         )             {
 }
 
 function isPanelView(name         )                    {
-  return name === "canvas" || name === "activity" || name === "chat" || name === "status";
+  return name === "canvas" || viewDefOf(name) !== null;
 }
 
 /** Maps a tab's `data-rs-tab` to the stored tab, defaulting to the fishbowl (the historical name). */
@@ -133,12 +128,13 @@ function tabFromName(name         )           {
   return "fishbowl";
 }
 
-/** View name → the `data-rs-panel` key of the section that renders it. */
+/**
+ * View name → the `data-rs-panel` key of the section that renders it. The section keys are the tab
+ * names, so the mapping is the view's `tab`; `canvas` is its own section.
+ */
 function panelKeyOf(view         )         {
-  if (view === "activity") return "fishbowl";
-  if (view === "chat") return "chat";
-  if (view === "status") return "status";
-  return "canvas";
+  const def = viewDefOf(view);
+  return def ? def.tab : "canvas";
 }
 
 /** The section that should be visible, given the mode. */
@@ -163,8 +159,9 @@ function expandedState(state            , on         )             {
  */
 function viewState(state            , name         )             {
   if (!isPanelView(name)) return state;
+  const def = viewDefOf(name);
   const next             = { expanded: state.expanded, width: state.width, view: name, tab: state.tab };
-  if (!state.expanded) next.tab = name === "status" ? "status" : name === "chat" ? "chat" : "fishbowl";
+  if (!state.expanded) next.tab = def ? def.tab : state.tab;
   return next;
 }
 
@@ -183,56 +180,7 @@ function tabState(state            , name         )             {
   };
 }
 
-/** Display title for a spec: explicit title, else "页面" for a URL, else "内联内容". */
-function contentTitleOf(spec         )         {
-  const s = recOf(spec);
-  const t = text(s.title).trim();
-  if (t) return t;
-  return s.url ? "页面" : "内联内容";
-}
-
-/**
- * Whether a URL belongs to a built-in tool page (compared without query string and without the
- * trailing `index.html`, so both `/tools/sandbox/` and `/tools/sandbox/index.html?v=19` match).
- */
-function isBuiltinPage(url         , tools         )          {
-  const s = text(url).split("?")[0];
-  if (!s) return false;
-  const list = Array.isArray(tools) ? tools : [];
-  for (let i = 0; i < list.length; i++) {
-    const t = recOf(list[i]);
-    const u = text(t.url);
-    if (!u) continue;
-    const b = u.split("?")[0].replace(/index\.html$/, "");
-    if (s === b || s.indexOf(b) === 0) return true;
-  }
-  return false;
-}
-
-/**
- * Prepends a spec to the history.
- * @returns a new array, or the input array untouched when the entry is skipped (a built-in tool, or a
- * URL that belongs to one). Entries are deduplicated by title and capped at
- * {@link PANEL_HISTORY_MAX}.
- */
-function nextHistory(list         , spec         , at         , tools         )                 {
-  const arr = Array.isArray(list) ? list : [];
-  const s = recOf(spec);
-  // Skipped entries return the *same array* so the caller can tell "nothing changed" by identity.
-  if (spec && s._builtin) return arr;
-  if (spec && isBuiltinPage(s.url, tools)) return arr;
-  const prev = arr.map((x) => {
-    const e = recOf(x);
-    return { title: text(e.title), at: Number(e.at) || 0, spec: e.spec };
-  });
-  const title = contentTitleOf(spec);
-  const out = prev.filter((e) => e.title !== title);
-  out.unshift({ title: title, at: typeof at === "number" ? at : Date.now(), spec: spec });
-  if (out.length > PANEL_HISTORY_MAX) out.length = PANEL_HISTORY_MAX;
-  return out;
-}
-
-/** `HH:MM` in local time. */
+/** `HH:MM` in local time, for the "recently closed" rows. */
 function fmtClock(ts         )         {
   const d = new Date(Number(ts));
   return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
@@ -243,49 +191,52 @@ function callTimeoutMs(raw         )         {
   return Math.max(1000, Math.min(120000, parseInt(text(raw), 10) || 15000));
 }
 
-/** Icon markup for a tool id; unknown ids get a neutral square. */
-function toolIcon(name         )         {
-  if (name === "map") {
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4L3.5 6v14L9 18l6 2 5.5-2V4L15 6 9 4z"/><path d="M9 4v14M15 6v14"/></svg>';
-  }
-  if (name === "globe") {
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.2"/><path d="M3.8 12h16.4M12 3.8c2.2 2.3 3.3 5.1 3.3 8.2s-1.1 5.9-3.3 8.2c-2.2-2.3-3.3-5.1-3.3-8.2s1.1-5.9 3.3-8.2z"/></svg>';
-  }
-  if (name === "users") {
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.2" r="3.2"/><path d="M3.4 19c0-3.1 2.5-5.2 5.6-5.2s5.6 2.1 5.6 5.2"/><circle cx="16.8" cy="9.4" r="2.4"/><path d="M15.6 13.6c2.6 0 4.8 1.7 4.8 4.4"/></svg>';
-  }
-  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/></svg>';
-}
-
-/** The "GEO map not connected" guide page, shown when the external map URL is unset. */
-function geoGuideHtml()         {
-  return '<div style="margin:0;padding:20px 18px;font:12.5px/1.75 system-ui,\'Microsoft YaHei\',sans-serif;color:#c9d3de">' +
-    '<div style="font-size:13px;font-weight:600;color:#eaf2fa;margin-bottom:6px">GEO 地图未连接</div>' +
-    '<div style="color:#8595a6;margin-bottom:14px">这里是 GEO-Agent 提供的真实地图（OSM/卫星），属于外部源，需要先把 GEO-Agent 跑起来。</div>' +
-    '<div style="color:#8595a6;margin-bottom:6px">1. 启动 GEO-Agent（它的启动器会拉起 8795 / 8796）</div>' +
-    '<div style="color:#8595a6;margin-bottom:6px">2. 在控制台执行一次（只需一次）：</div>' +
-    '<pre style="margin:0 0 12px;padding:9px 11px;background:#111820;border:1px solid #243040;border-radius:8px;' +
-    'font:11px/1.6 ui-monospace,Consolas,monospace;color:#9fc0e0;overflow:auto;white-space:pre-wrap">' +
-    "localStorage.setItem('cfw_panel_map_url_v1', 'http://127.0.0.1:8796/map-viewer/')</pre>" +
-    '<div style="color:#6f8194;font-size:11px">配置后重新点这个图标。沙盘不需要这一步，随时可开。</div>' +
-    '</div>';
-}
-
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
-// The state machine — mode/view/tab transitions, width clamping, persisted record, history dedupe,
-// built-in page detection, clock and icons — moved to services/panel/panel-host.ts. Everything below
-// is DOM: building the bar and the canvas section, view switching, drag-to-resize, the two menus, the
-// detached window, and the topbar reflow.
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
+// The right-column tab host. Every decision about *which* tabs exist, what they mount and what
+// survives a reload lives in services/panel/tab-state.ts; the mode/view machine lives in
+// services/panel/panel-host.ts. This file owns only the DOM: the bar, the tab strip, the "+" menu,
+// one pane per tab (created lazily, destroyed on close or when the live-frame cap is hit), the
+// visibility pause message, the detached window and the topbar reflow.
 (function (global) {
   "use strict";
 
-  if (global.__panel && global.__panel.v === 1) return;
+  var HOST = (global.runtimeCore && global.runtimeCore.host) || null;
+  var mounted = false;
+  var teardown = [];
+  var created = [];
+
+  /** Track one listener; its inverse runs LIFO on dispose. */
+  function on(target, type, fn, opts) {
+    if (!target || typeof target.addEventListener !== "function") return;
+    target.addEventListener(type, fn, opts);
+    teardown.push(function () {
+      try { target.removeEventListener(type, fn, opts); } catch (e) {}
+    });
+  }
+
+  /** Track one timer so a dispose cannot leave an apply()/ask() callback behind. */
+  function later(fn, ms) {
+    var handle = setTimeout(fn, ms);
+    teardown.push(function () { try { clearTimeout(handle); } catch (e) {} });
+    return handle;
+  }
+
+  /** Track an arbitrary inverse (a ResizeObserver, an unsubscribe, a channel close). */
+  function manual(fn) {
+    if (typeof fn === "function") teardown.push(fn);
+  }
+
+  function apply() {
+    if (mounted || (global.panelSvc && global.panelSvc.v === 1)) return function () {};
+    mounted = true;
 
   var V = PANEL_VERSION;
   var LS = PANEL_LS_STATE;
   var LS_CUR = PANEL_LS_CURRENT;
+  var LS_TABS = PANEL_LS_TABS;
   var W_MIN = PANEL_W_MIN, W_MAX = PANEL_W_MAX, W_DEF = PANEL_W_DEFAULT;
   var DESKTOP_MIN = PANEL_DESKTOP_MIN;
+  var LIVE_MAX = PANEL_TAB_LIVE_MAX;
 
   // Standalone window: the same index.html opened with ?panel=1 takes over as a full-screen
   // overlay and never runs the normal controller.
@@ -293,9 +244,12 @@ function geoGuideHtml()         {
   try { isPanelWindow = new URLSearchParams(location.search || "").get("panel") === "1"; } catch (e) {}
 
   var st = Object.assign({}, PANEL_DEFAULT_STATE);
+  var tset = panelTabs.empty();
+  var pages = [];
   var els = {};
   var frame = null;
   var listeners = [];
+  var idSeq = 0;
 
   function $(sel, root) { return (root || document).querySelector(sel); }
 
@@ -309,17 +263,78 @@ function geoGuideHtml()         {
     try { return global.innerWidth >= DESKTOP_MIN; } catch (e) { return true; }
   }
 
-  function load() {
-    var raw = null;
-    try { raw = localStorage.getItem(LS); } catch (e) {}
-    // Views are not persisted, the width is clamped at both ends and the tab whitelist applies —
-    // all three live in loadPanelState, one implementation.
-    st = loadPanelState(raw);
+  function origin() {
+    try { return location.origin || ""; } catch (e) { return ""; }
   }
 
-  function save() {
-    try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) {}
+  function readLs(key) {
+    try { return localStorage.getItem(key) || ""; } catch (e) { return ""; }
   }
+
+  function writeLs(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) {}
+  }
+
+  function geoMapUrl() { return readLs(PANEL_MAP_URL_KEY).trim(); }
+
+  // Capability bits for `requires` in tool.json. Only what the page itself can know; an unknown
+  // required bit simply keeps the page out instead of mounting something half-broken.
+  function caps() {
+    return {
+      panel: true,
+      tauri: !!(global.tauriSvc && global.tauriSvc.has()) ||
+        !!(global.top && global.top.tauriSvc && global.top.tauriSvc.has()),
+      unlocked: readLs("cfw_unlocked_v1") === "1",
+      pcEnabled: readLs("cfw_pc_enabled_v1") === "1",
+      pcBridge: false,
+      localExec: false,
+      sourceServer: false,
+      multiAgent: true,
+    };
+  }
+
+  // Single scan of #toolsPageCatalog: the left sidebar's renderer publishes `window.toolCatalog`;
+  // falling back to the raw block keeps the panel working if that script has not run yet.
+  function catalogEntries() {
+    if (global.toolCatalog && typeof global.toolCatalog.entries === "function") {
+      try { return global.toolCatalog.entries(); } catch (e) {}
+    }
+    var raw = document.getElementById("toolsPageCatalog");
+    if (!raw) return [];
+    var parsed = parseCatalog(raw.textContent || "");
+    return parsed;
+  }
+
+  function buildPages() {
+    var fromCatalog = panelTabs.pagesFromCatalog(catalogEntries(), caps());
+    var host = panelTabs.hostPages({ geoUrl: geoMapUrl(), views: global.sandboxViews });
+    return panelTabs.mergePages(fromCatalog, host);
+  }
+
+  function pageOfId(id) { return global.panelTabs ? panelTabs.findPageById(id, pages) : null; }
+
+  // Icons are a catalogue string -> SVG path table (services/ui/tools-pages.ts, one table for both
+  // sidebars). An unknown icon key falls back to the neutral square rather than dropping the tab.
+  function iconSvg(name) {
+    var open = typeof SVG_OPEN === "string"
+      ? SVG_OPEN
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+    var table = typeof ICON_PATHS === "object" && ICON_PATHS ? ICON_PATHS : {};
+    var fallback = typeof FALLBACK_ICON_PATH === "string"
+      ? FALLBACK_ICON_PATH
+      : '<rect x="4" y="4" width="16" height="16" rx="3"/>';
+    var key = String(name || "");
+    return open + (Object.prototype.hasOwnProperty.call(table, key) ? table[key] : fallback) + "</svg>";
+  }
+
+  function load() {
+    st = loadPanelState(readLs(LS));
+    pages = buildPages();
+    tset = panelTabs.deserialize(readLs(LS_TABS), pages, { origin: origin(), now: Date.now() });
+  }
+
+  function save() { writeLs(LS, JSON.stringify(st)); }
+  function saveTabs() { writeLs(LS_TABS, panelTabs.serialize(tset)); }
 
   function emit(type, data) {
     var ev = { type: type, data: data || {} };
@@ -328,111 +343,37 @@ function geoGuideHtml()         {
     }
   }
 
-  // ---------- DOM assembly (built here; index.html keeps only the topbar button) ----------
-  // ---------- Tool slots, not a content list ----------
-  // Two tools with different standing:
-  //   sandbox  our own sandbox (procedural fantasy map, zero dependencies) — always available
-  //   map      the GEO map (real map, external source) — connects only once an address is set;
-  //            unconfigured, it opens a setup page
-  // Content (artifacts, reports, pages) is always mounted by the agent through open(); it never
-  // lands here.
-  var LS_MAP_URL = PANEL_LS_MAP_URL;
-
-  function geoMapUrl() {
-    try { return String(localStorage.getItem(LS_MAP_URL) || "").trim(); } catch (e) { return ""; }
-  }
-
-  var BUILTIN_TOOLS = PANEL_BUILTIN_TOOLS;
-  var tools = [];
-
-  function openTool(t) {
-    if (t.id === "map") {
-      var u = geoMapUrl();
-      if (!u) { open({ html: geoGuideHtml(), title: "GEO 地图", _builtin: true }); return; }
-      open({ url: u, title: "GEO 地图", mode: "external", _builtin: true });
-      return;
-    }
-    open({ url: t.url, title: t.title, mode: "trusted", chrome: t.chrome || null, _builtin: true });
-  }
-
-  function renderTools() {
-    // Wide panel: tools and views sit on the bar. Narrow panel: they collapse into "...".
-    // Both channels are rendered — icon buttons on the bar (.pbar-tools), icon+label rows in the
-    // menu. Which one is visible is decided by wireBarFit() toggling .pbar-wide, pure CSS.
-    var box = $("#panelMoreMenu");
-    var inline = els.bar && els.bar.querySelector(".pbar-tools");
-    var items = tools.map(function (t) {
-      var off = (t.id === "map" && !geoMapUrl());
-      return '<button class="pmenu-item' + (off ? " is-off" : "") + '" type="button" data-tool="' + esc(t.id) + '"' +
-        (off ? ' title="未配置 GEO 地图地址，点开会给引导"' : "") + ">" +
-        '<span class="pmenu-ico">' + toolIcon(t.icon) + "</span>" +
-        '<span class="pmenu-t">' + esc(t.title || t.id) + "</span></button>";
+  // ---------- DOM assembly ----------
+  // The expanded bar's view buttons. Generated from PANEL_VIEWS so the bar, the fixed strip and the
+  // "⋯" menu cannot disagree about which views exist (a hardcoded list here was one of the four
+  // copies that had to be edited to add a view).
+  function viewBarButtons() {
+    return PANEL_VIEWS.map(function (entry) {
+      return '<button class="pbtn" type="button" data-pv="' + esc(entry.id) + '" title="' +
+        esc(entry.label + "（再点一次回画布）") + '">' + iconSvg(entry.icon) + "</button>";
     }).join("");
-    var VIEWS = [{ pv: "chat", t: "群聊" }, { pv: "activity", t: "活动" }, { pv: "status", t: "状态" }];
-    var views = VIEWS.map(function (v) {
-      var on = st.view === v.pv;
-      return '<button class="pmenu-item' + (on ? " on" : "") + '" type="button" data-menu-pv="' + v.pv + '">' +
-        '<span class="pmenu-t">' + v.t + "</span>" +
-        '<span class="pmenu-time">' + (on ? "当前" : "") + "</span></button>";
-    }).join("");
-    // No group headings in the menu (neither "Open" nor "View"): list the entries directly.
-    if (box) box.innerHTML = items + views;
-    if (inline) {
-      inline.innerHTML = tools.map(function (t) {
-        var off = (t.id === "map" && !geoMapUrl());
-        return '<button class="pbtn pbtn-tool' + (off ? " pbtn-off" : "") + '" type="button" data-tool="' + esc(t.id) + '"' +
-          ' title="' + esc(t.title || t.id) + '">' + toolIcon(t.icon) + "</button>";
-      }).join("");
-    }
-  }
-
-  function registerTool(def) {
-    // url may be empty: an external tool (the GEO map) still needs a slot before it is configured,
-    // and openTool shows the setup page when it is clicked.
-    if (!def || !def.id) return false;
-    for (var i = 0; i < tools.length; i++) {
-      if (tools[i].id === def.id) { tools[i] = def; renderTools(); return true; }
-    }
-    tools.push(def);
-    renderTools();
-    return true;
   }
 
   function buildBar() {
     var header = $("#rightSidebar .rs-header");
     if (!header) return null;
     var bar = document.createElement("div");
-    // The bar keeps only [Content v][...][Pop out][Close]. Tools (sandbox, council, GEO) and view
-    // switches (group chat, activity, status) all live in the "..." menu. "Content v" returns to
-    // its job: the recently produced artifacts, nothing else.
-    bar.className = "pbar pbar-plain-title";
+    // The tab strip owns content navigation, so the bar keeps only the panel-level switches:
+    // 活动 / 群聊 / 状态 + 拉出 + 收起. The old page-shortcut row, the "内容" title dropdown and
+    // the "..." menu were duplicates of the tab strip and are gone.
+    bar.className = "pbar";
     bar.id = "panelBar";
     bar.hidden = true;
     bar.innerHTML =
-      // Narrow panel: only [...][Content v][Pop out][Close]. Wide panel: tools and views move back
-      // out of the menu onto the bar.
-      '<button class="pbtn" type="button" id="panelMoreBtn" title="工具与视图">' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.35" fill="currentColor" stroke="none"/></svg></button>' +
-      '<span class="pbar-tools"></span>' +
-      '<button class="pbar-title" id="panelTitleBtn" type="button" title="切换最近生成的内容">' +
-        '<span class="pbar-title-tx" id="panelTitle"></span>' +
-        '<svg class="pbar-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>' +
-      '</button>' +
       '<span class="pbar-acts">' +
-        '<button class="pbtn" type="button" data-pv="chat" title="群聊（再点一次回画布）">' +
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8l-3.5 2.5V14.5H4A1.5 1.5 0 0 1 2.5 13V7A1.5 1.5 0 0 1 4 5.5z"/><path d="M17 8.5h3A1.5 1.5 0 0 1 21.5 10v5.5a1.5 1.5 0 0 1-1.5 1.5h-.5v2.5L16 17.5h-3"/></svg></button>' +
-        '<button class="pbtn" type="button" data-pv="activity" title="活动（再点一次回画布）">' +
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2.5-6 4 12 2.5-6h5"/></svg></button>' +
-        '<button class="pbtn" type="button" data-pv="status" title="状态（再点一次回画布）">' +
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5h16M7.5 19.5V14M12 19.5V6.5M16.5 19.5V11"/></svg></button>' +
-        '<button class="pbtn" type="button" data-pa="pop" title="拉出为独立窗口">' +
+        viewBarButtons() +
+        '<button class="pbtn" type="button" data-pa="pop" title="把当前标签拉出为独立窗口">' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8"/><path d="M19 14v5H5V5h5"/></svg></button>' +
         '<button class="pbtn pbtn-close" type="button" data-pa="close" title="收起面板">' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
-      '</span>' +
-      '<div class="pbar-menu" id="panelMenu" hidden></div>' +
-      '<div class="pbar-menu" id="panelMoreMenu" hidden></div>';
+      '</span>';
     header.appendChild(bar);
+    created.push(bar);
     return bar;
   }
 
@@ -443,47 +384,236 @@ function geoGuideHtml()         {
     sec.className = "rs-panel rs-canvas";
     sec.setAttribute("data-rs-panel", "canvas");
     sec.setAttribute("role", "tabpanel");
-    // Chrome bar: only when the content declares chrome (the sandbox does). The host draws the
-    // buttons and sends commands to the iframe.
+
+    // Tab strip: horizontal scroll on the left, "+" on the right. The menu drops from the "+".
+    var strip = document.createElement("div");
+    strip.className = "ptab-strip";
+    strip.id = "panelTabStrip";
+    strip.innerHTML =
+      '<div class="ptab-scroll" id="panelTabScroll" role="tablist" aria-label="内容标签"></div>' +
+      '<button class="ptab-add" id="panelTabAdd" type="button" title="打开页面">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>' +
+      '<div class="pbar-menu ptab-menu" id="panelTabMenu" hidden></div>';
+
     var chrome = document.createElement("div");
     chrome.className = "chrome-bar";
     chrome.id = "panelChrome";
     chrome.hidden = true;
+
     var box = document.createElement("div");
     box.className = "pframe-box";
     box.id = "panelCanvasBox";
-    // Empty state: says what this area is for when nothing is open. .has-content hides it once
-    // something is mounted.
+    // Empty state: says what this area is for when no tab is open.
     var empty = document.createElement("div");
     empty.className = "pframe-empty";
     empty.innerHTML =
       '<div class="pframe-empty-t">还没有打开内容</div>' +
-      '<div class="pframe-empty-d">agent 在对话里打开的地图、报告、产物会显示在这里；<br>也可以点上方图标直接打开沙盘。</div>';
+      '<div class="pframe-empty-d">点上方 + 选一个页面，或让 agent 在对话里打开内容；<br>每个页面都是一个标签，切走会暂停。</div>';
     box.appendChild(empty);
+
+    sec.appendChild(strip);
     sec.appendChild(chrome);
     sec.appendChild(box);
     body.appendChild(sec);
+    created.push(sec);
     return sec;
   }
 
-  // ---------- Chrome bar ----------
-  var CHROMES = PANEL_CHROMES;
-  function renderChrome(kind) {
+  // ---------- Pane management ----------
+  function paneEl(id) {
+    if (!els.canvasBox) return null;
+    return els.canvasBox.querySelector('.ptab-pane[data-tab-id="' + String(id).replace(/"/g, "") + '"]');
+  }
+
+  function createPane(tab) {
+    var pane = document.createElement("div");
+    pane.className = "ptab-pane";
+    pane.setAttribute("data-tab-id", tab.id);
+    pane.hidden = true;
+    els.canvasBox.appendChild(pane);
+    return pane;
+  }
+
+  function mountPane(pane, tab) {
+    if (!frame || !pane || !tab) return null;
+    var c = panelTabs.contentOf(tab, pages);
+    var spec = { title: c.title || tab.title, mode: c.mode };
+    if (c.url) spec.url = c.url;
+    if (c.html) spec.html = c.html;
+    if (c.text) spec.text = c.text;
+    pane.dataset.chrome = c.chrome || "";
+    return frame.mount(pane, spec);
+  }
+
+  function destroyPane(id) {
+    var pane = paneEl(id);
+    if (!pane) return;
+    if (frame) frame.unmount(pane);
+    try { pane.parentNode.removeChild(pane); } catch (e) {}
+  }
+
+  function mountedIds() {
+    var out = [];
+    if (!els.canvasBox) return out;
+    var panes = els.canvasBox.querySelectorAll(".ptab-pane");
+    for (var i = 0; i < panes.length; i++) {
+      if (frame && frame.current(panes[i])) out.push(panes[i].getAttribute("data-tab-id"));
+    }
+    return out;
+  }
+
+  // Keep the live-frame count bounded. A page that ignores the pause message still costs one frame
+  // per tab, so the host tears the oldest background pane down; the tab record stays and remounts
+  // on its next activation.
+  function trimLive() {
+    var victims = panelTabs.liveToDestroy(tset, mountedIds(), LIVE_MAX);
+    for (var i = 0; i < victims.length; i++) destroyPane(victims[i]);
+  }
+
+  // Push the active tab into the DOM. Panes are created on first activation; background panes stay
+  // mounted but hidden and are sent the visibility pause. A tab that only exists in the strip has
+  // no iframe yet — that is the lazy-create rule, not a bug.
+  function syncPanes() {
+    if (!els.canvasBox) return;
+    var canvasVisible = st.expanded && st.view === "canvas";
+    var activeId = tset.activeId;
+
+    var panes = els.canvasBox.querySelectorAll(".ptab-pane");
+    for (var p = 0; p < panes.length; p++) {
+      var paneId = panes[p].getAttribute("data-tab-id");
+      if (!panelTabs.byId(tset, paneId)) destroyPane(paneId);
+    }
+
+    for (var i = 0; i < tset.tabs.length; i++) {
+      var tab = tset.tabs[i];
+      var on = canvasVisible && tab.id === activeId;
+      var pane = paneEl(tab.id);
+      if (on && !pane) pane = createPane(tab);
+      if (!pane) continue;
+      if (on && frame && !frame.current(pane)) mountPane(pane, tab);
+      pane.hidden = !on;
+      if (frame) {
+        frame.setVisible(pane, on);
+        if (on) frame.resize(pane);
+      }
+    }
+
+    trimLive();
+    updateEmptyState();
+    updateChrome();
+  }
+
+  function ensurePaneFor(tab) {
+    if (!els.canvasBox || !tab) return null;
+    var pane = paneEl(tab.id) || createPane(tab);
+    if (frame && !frame.current(pane)) {
+      mountPane(pane, tab);
+      // A call may target a background tab while the panel is collapsed: mount it paused so a page
+      // that starts its own animation loop does not keep running off screen.
+      if (frame && pane.hidden) frame.setVisible(pane, false);
+    }
+    return pane;
+  }
+
+  function updateEmptyState() {
+    if (!els.canvasBox) return;
+    els.canvasBox.classList.toggle("has-content", tset.tabs.length > 0);
+  }
+
+  // ---------- Tab strip ----------
+  function renderTabStrip() {
+    if (!els.strip) return;
+    els.strip.innerHTML = tset.tabs.map(function (tab) {
+      var on = tab.id === tset.activeId;
+      return '<span class="ptab' + (on ? " on" : "") + '" data-ptab="' + esc(tab.id) + '" role="tab" aria-selected="' + (on ? "true" : "false") + '">' +
+        '<button class="ptab-main" type="button" title="' + esc(tab.title) + '">' +
+          iconSvg(tab.icon) + '<span class="ptab-t">' + esc(tab.title) + "</span></button>" +
+        '<button class="ptab-x" type="button" data-ptab-close="' + esc(tab.id) + '" title="关闭标签" aria-label="关闭标签">×</button>' +
+        "</span>";
+    }).join("");
+    var on = els.strip.querySelector(".ptab.on");
+    if (on && on.scrollIntoView) {
+      try { on.scrollIntoView({ block: "nearest", inline: "nearest" }); } catch (e) {}
+    }
+  }
+
+  function renderTabMenu() {
+    var menu = $("#panelTabMenu");
+    if (!menu) return;
+    var openRows = pages.map(function (p) {
+      var missing = !p.href;
+      return '<button class="pmenu-item' + (missing ? " is-off" : "") + '" type="button" data-page="' + esc(p.id) + '"' +
+        (missing ? ' title="未配置地址，点开会给启动引导"' : "") + ">" +
+        '<span class="pmenu-ico">' + iconSvg(p.icon) + "</span>" +
+        '<span class="pmenu-t">' + esc(p.label || p.id) + "</span>" +
+        (missing ? '<span class="pmenu-time">未配置</span>' : "") + "</button>";
+    }).join("");
+    var closedRows = tset.closed.map(function (c, i) {
+      return '<button class="pmenu-item" type="button" data-closed="' + i + '">' +
+        '<span class="pmenu-ico">' + iconSvg(c.icon) + "</span>" +
+        '<span class="pmenu-t">' + esc(c.title || c.url) + "</span>" +
+        '<span class="pmenu-time">' + esc(fmtClock(c.at)) + "</span></button>";
+    }).join("");
+    menu.innerHTML = '<div class="pmenu-sec">打开页面</div>' + openRows +
+      (closedRows ? '<div class="pmenu-sec">最近关闭</div>' + closedRows : "");
+  }
+
+  function reopenClosed(index) {
+    var c = tset.closed[index];
+    if (!c) return;
+    var req = c.pageId ? { pageId: c.pageId, title: c.title } : { url: c.url, title: c.title };
+    open(req);
+    tset = panelTabs.forgetClosed(tset, c.pageId || c.url);
+    saveTabs();
+  }
+
+  // ---------- Chrome bar (page-owned definitions) ----------
+  // tool.json's `chrome` string says "this page owns a chrome bar"; the page then sends the buttons
+  // over `{__panel:1,type:"chrome",data:{items}}`. No definitions are hardcoded in the host.
+  function chromeItemHtml(item) {
+    if (!item || typeof item !== "object") return "";
+    if (item.type === "seg" && Array.isArray(item.items)) {
+      return '<span class="seg">' + item.items.map(function (b) {
+        return '<button type="button" data-cmd="' + esc(b.cmd) + '" data-val="' + esc(b.val) + '">' + esc(b.text) + "</button>";
+      }).join("") + "</span>";
+    }
+    return '<button type="button" data-cmd="' + esc(item.cmd) + '"' +
+      (item.toggle ? ' class="tgl on" data-tgl="1"' : "") + ">" + esc(item.text) + "</button>";
+  }
+
+  function setChromeItems(items) {
     var bar = $("#panelChrome");
     if (!bar) return;
-    var def = kind && CHROMES[kind];
-    if (!def) { bar.hidden = true; bar.innerHTML = ""; return; }
+    var tab = panelTabs.active(tset);
+    var content = tab ? panelTabs.contentOf(tab, pages) : null;
+    if (!content || !content.chrome || !Array.isArray(items) || items.length === 0) {
+      bar.hidden = true;
+      bar.innerHTML = "";
+      return;
+    }
     bar.hidden = false;
-    bar.innerHTML = def.map(function (item) {
-      if (item.type === "seg") {
-        return '<span class="seg">' + item.items.map(function (b) {
-          return '<button type="button" data-cmd="' + b.cmd + '" data-val="' + b.val + '">' + esc(b.text) + "</button>";
-        }).join("") + "</span>";
-      }
-      return '<button type="button" data-cmd="' + item.cmd + '"' +
-        (item.toggle ? ' class="tgl on" data-tgl="1"' : "") + ">" + esc(item.text) + "</button>";
-    }).join("");
-    bar.addEventListener("click", function (e) {
+    bar.innerHTML = items.map(chromeItemHtml).join("");
+  }
+
+  function updateChrome() {
+    var bar = $("#panelChrome");
+    if (!bar) return;
+    var tab = panelTabs.active(tset);
+    var content = tab ? panelTabs.contentOf(tab, pages) : null;
+    var kind = content && content.chrome ? content.chrome : "";
+    // A different page owns the bar: drop the previous page's buttons. The new page declares its
+    // own through the `chrome` message; until then the bar stays hidden instead of flashing empty.
+    if (bar.getAttribute("data-chrome") !== kind) {
+      bar.hidden = true;
+      bar.innerHTML = "";
+      bar.setAttribute("data-chrome", kind);
+    }
+  }
+
+  function bindChrome() {
+    var bar = $("#panelChrome");
+    if (!bar) return;
+    on(bar, "click", function (e) {
       var b = e.target.closest ? e.target.closest("button[data-cmd]") : null;
       if (!b) return;
       var cmd = b.getAttribute("data-cmd");
@@ -495,13 +625,13 @@ function geoGuideHtml()         {
       } else if (b.hasAttribute("data-val")) {
         payload.value = b.getAttribute("data-val");
       }
-      if (frame && els.canvasBox) {
-        frame.post(els.canvasBox, { __panel: 1, type: "command", data: payload });
-      }
+      var tab = panelTabs.active(tset);
+      var pane = tab ? paneEl(tab.id) : null;
+      if (pane && frame) frame.post(pane, { __panel: 1, type: "command", data: payload });
     });
   }
 
-  // The content reports its state; reconcile the chrome buttons with it.
+  // The page reports state; reconcile the chrome buttons with it.
   function onFrameState(data) {
     var bar = $("#panelChrome");
     if (!bar || !data) return;
@@ -517,34 +647,34 @@ function geoGuideHtml()         {
     }
   }
 
-  // ---------- Canvas callbacks: host -> the currently open canvas page ----------
-  // Why it exists: stage_open could only open a page, and once open it was read-only — the sandbox
-  // could be looked at but not driven. This channel lets a canvas page register
-  // window.__stage = { fn: (args) => result }, and stage_call({fn, args}) reaches it.
-  // Only function NAMES are accepted, never code strings: the page declares what it exposes and
-  // the host never evals anything.
+  // ---------- Canvas callbacks: host -> one tab's page ----------
+  // Why it exists: stage_open could only open a page and the page was read-only afterwards.
+  // A page registers window.__stage = { fn: (args) => result } and stage_call({fn,args,id}) reaches
+  // it. Only function NAMES are accepted, never code strings.
   var _callSeq = 1;
   var _callPending = {};
 
-  function callPage(fn, args, timeoutMs) {
+  function callPage(fn, args, timeoutMs, id) {
     var name = String(fn || "").trim();
     if (!name) return Promise.reject(new Error("stage_call 需要 fn（画布页注册的函数名）"));
     if (!frame || !els.canvasBox) return Promise.reject(new Error("右栏画布还没就绪"));
-    var cur = frame.current(els.canvasBox);
-    if (!cur) return Promise.reject(new Error("画布是空的 —— 先用 stage_open 打开一个页面"));
+    var tab = id ? panelTabs.byId(tset, id) : panelTabs.active(tset);
+    if (!tab) return Promise.reject(new Error("画布是空的 —— 先用 stage_open 打开一个页面"));
+    var pane = ensurePaneFor(tab);
+    if (!pane) return Promise.reject(new Error("画布是空的 —— 先用 stage_open 打开一个页面"));
     var ms = callTimeoutMs(timeoutMs);
-    var id = "c" + (_callSeq++);
+    var callId = "c" + (_callSeq++);
     return new Promise(function (resolve, reject) {
       var timer = setTimeout(function () {
-        delete _callPending[id];
+        delete _callPending[callId];
         reject(new Error("画布没有回应 " + name + "（" + Math.round(ms / 1000) + " 秒）。" +
           "常见原因：这个页面没注册 window.__stage，或者函数名不在里面"));
       }, ms);
-      _callPending[id] = { resolve: resolve, reject: reject, fn: name, timer: timer };
+      _callPending[callId] = { resolve: resolve, reject: reject, fn: name, timer: timer };
       var ok = false;
-      try { ok = frame.post(els.canvasBox, { __panel: 1, type: "call", data: { id: id, fn: name, args: args } }); } catch (e) {}
+      try { ok = frame.post(pane, { __panel: 1, type: "call", data: { id: callId, fn: name, args: args } }); } catch (e) {}
       if (!ok) {
-        clearTimeout(timer); delete _callPending[id];
+        clearTimeout(timer); delete _callPending[callId];
         reject(new Error("调用发不出去（画布页可能已经卸载）"));
       }
     });
@@ -560,69 +690,50 @@ function geoGuideHtml()         {
     else p.reject(new Error(String(data.error || ("画布页执行 " + p.fn + " 失败"))));
   }
 
-  function updateEmptyState() {    if (!els.canvasBox) return;
-    var cur = frame ? frame.current(els.canvasBox) : null;
-    els.canvasBox.classList.toggle("has-content", !!cur);
-  }
-
-  // The bar has two states, wide and narrow. Wide puts tools and views on the bar; narrow tucks
-  // them into the "..." menu. The decision cannot ride on ResizeObserver alone — in a background
-  // tab neither it nor rAF fires (measured: zero callbacks). So the primary path is a call at the
-  // end of apply(), which every expand / collapse / drag already goes through; the observer and
-  // window.resize are only a backup.
-  function updateBarFit() {
-    var bar = els.bar;
-    if (!bar) return;
-    var w = bar.getBoundingClientRect().width;
-    bar.classList.toggle("pbar-wide", w >= 400);
-  }
-
-  function wireBarFit(bar) {
-    if (!bar) return;
-    try {
-      if (typeof ResizeObserver === "function") new ResizeObserver(updateBarFit).observe(bar);
-      global.addEventListener("resize", updateBarFit);
-    } catch (e) {}
-    global.requestAnimationFrame ? global.requestAnimationFrame(updateBarFit) : updateBarFit();
-  }
-
+  // The bar keeps a fixed set of view switches; no width-dependent "..." collapsing is needed now
+  // that the page shortcuts and title dropdown are gone.
   function bindBar(bar) {
-    bar.addEventListener("click", function (e) {
+    on(bar, "click", function (e) {
       var t = e.target.closest ? e.target.closest("button") : null;
       if (!t) return;
-      if (t.id === "panelTitleBtn") { toggleMenu(); return; }
-      if (t.id === "panelMoreBtn") { toggleMore(); return; }
-      // A tool entry inside the "..." menu.
-      var toolId = t.getAttribute("data-tool");
-      if (toolId) {
-        for (var i = 0; i < tools.length; i++) if (tools[i].id === toolId) { openTool(tools[i]); break; }
-        toggleMore(false);
-        return;
-      }
-      // A view entry inside the "..." menu.
-      var mpv = t.getAttribute("data-menu-pv");
-      if (mpv) { setView(mpv); toggleMore(false); return; }
-      var idx = t.getAttribute("data-idx");
-      if (idx != null) { selectHistory(parseInt(idx, 10)); return; }
       var pv = t.getAttribute("data-pv");
       var pa = t.getAttribute("data-pa");
-      if (pv) {
-        // Clicking the active view again returns to the canvas.
-        setView(st.view === pv ? "canvas" : pv);
-        return;
-      }
+      if (pv) { setView(st.view === pv ? "canvas" : pv); return; }
       if (pa === "pop") { popOut(); return; }
       if (pa === "close") { setExpanded(false); return; }
     });
-    // A click anywhere outside the bar closes both dropdowns.
-    document.addEventListener("click", function (e) {
-      var m1 = $("#panelMenu"), m2 = $("#panelMoreMenu");
-      var anyOpen = (m1 && !m1.hidden) || (m2 && !m2.hidden);
-      if (!anyOpen) return;
-      if (e.target.closest && (e.target.closest("#panelMenu") || e.target.closest("#panelMoreMenu") ||
-          e.target.closest("#panelTitleBtn") || e.target.closest("#panelMoreBtn"))) return;
-      toggleMenu(false);
-      toggleMore(false);
+  }
+
+  function bindTabStrip() {
+    var strip = $("#panelTabStrip");
+    if (!strip) return;
+    on(strip, "click", function (e) {
+      var t = e.target;
+      var closeBtn = t.closest ? t.closest("[data-ptab-close]") : null;
+      if (closeBtn) {
+        close(closeBtn.getAttribute("data-ptab-close"));
+        return;
+      }
+      var tabBtn = t.closest ? t.closest("[data-ptab]") : null;
+      if (tabBtn) { activate(tabBtn.getAttribute("data-ptab")); return; }
+      if (t.closest && t.closest("#panelTabAdd")) { toggleTabMenu(); return; }
+    });
+    var menu = $("#panelTabMenu");
+    if (menu) {
+      on(menu, "click", function (e) {
+        var t = e.target;
+        var pageBtn = t.closest ? t.closest("[data-page]") : null;
+        if (pageBtn) { openPage(pageBtn.getAttribute("data-page")); toggleTabMenu(false); return; }
+        var closedBtn = t.closest ? t.closest("[data-closed]") : null;
+        if (closedBtn) { reopenClosed(parseInt(closedBtn.getAttribute("data-closed"), 10)); toggleTabMenu(false); }
+      });
+    }
+    // A click anywhere outside the strip closes the menu.
+    on(document, "click", function (e) {
+      var m = $("#panelTabMenu");
+      if (!m || m.hidden) return;
+      if (e.target.closest && (e.target.closest("#panelTabMenu") || e.target.closest("#panelTabAdd"))) return;
+      toggleTabMenu(false);
     });
   }
 
@@ -637,8 +748,6 @@ function geoGuideHtml()         {
   }
 
   function setView(name) {
-    // An invalid view name makes viewState return the same object unchanged; that identity is the
-    // early-exit signal here, the same guard the old implementation had.
     var next = viewState(st, name);
     if (next === st) return;
     st = next;
@@ -648,8 +757,6 @@ function geoGuideHtml()         {
   }
 
   function setExpanded(on) {
-    // Expanding always lands on the content canvas: activity and status are temporary overlays and
-    // must not be remembered. That rule lives in expandedState.
     st = expandedState(st, on);
     save();
     apply();
@@ -660,13 +767,14 @@ function geoGuideHtml()         {
     st = widthState(st, w);
     save();
     apply();
-    if (frame && global.__panelFrame) {
-      var box = els.canvasBox;
-      if (box) global.__panelFrame.resize(box);
+    if (els.canvasBox && frame) {
+      var tab = panelTabs.active(tset);
+      var pane = tab ? paneEl(tab.id) : null;
+      if (pane) frame.resize(pane);
     }
   }
 
-  // Push the state into the DOM.
+  // Push the mode/view state into the DOM.
   function apply() {
     var html = document.documentElement;
     var col = $("#rightSidebar");
@@ -675,22 +783,17 @@ function geoGuideHtml()         {
     var expanded = st.expanded && isDesktop();
     html.classList.toggle("panel-expanded", expanded);
     html.style.setProperty("--panel-w", st.width + "px");
-    if (expanded) markNew(false); // 展开即视为"已看到新内容"
+    if (expanded) markNew(false);
 
     var bar = els.bar;
     if (bar) bar.hidden = !expanded;
 
-    // Pinned: the original rs-tabs stay visible. Expanded: hidden.
     var tabs = $("#rightSidebar .rs-tabs");
     if (tabs) tabs.hidden = expanded;
 
     var ps = panels();
-    // Pinned: follow st.tab only (fishbowl | status).
-    // Expanded: follow st.view (canvas | activity | status), mapped to a section by panelKeyOf.
     var activeKey = activeKeyOf(st, expanded);
     var active = expanded ? st.view : st.tab;
-    // Also write "who should be visible" onto the html element so CSS can hold the line: when a
-    // JS-set hidden occasionally does not take, exactly one section is still visible.
     html.setAttribute("data-panel-view", activeKey);
 
     Object.keys(ps).forEach(function (k) {
@@ -701,115 +804,81 @@ function geoGuideHtml()         {
       el.classList.toggle("active", show);
     });
 
-    // Highlight the icon buttons.
     if (bar) {
       var btns = bar.querySelectorAll("button[data-pv]");
       for (var i = 0; i < btns.length; i++) {
-        var on = expanded && btns[i].getAttribute("data-pv") === active &&
-                 active !== "canvas";
+        var on = expanded && btns[i].getAttribute("data-pv") === active && active !== "canvas";
         btns[i].classList.toggle("active", on);
       }
     }
 
-    // Title placeholder: show "Content" when nothing is open. Otherwise the title is an empty
-    // string and the dropdown looks like it is not there.
-    if (!String(lastSpec && lastSpec.title || "").trim()) setTitle("");
-
-    // Canvas size changed: tell the content.
-    if (expanded && active === "canvas" && global.__panelFrame && els.canvasBox) {
-      global.__panelFrame.resize(els.canvasBox);
-    }
-    updateEmptyState();
-    updateBarFit(); // 面板条宽/窄两态（展开、拖宽都走这里，不依赖 RO/rAF）
-    // The grid reflows on the next frame, so measuring the bar width waits one more beat.
+    syncPanes();
     requestAnimationFrame(refitTopbar);
   }
 
-  // ---------- Content ----------
-  var lastSpec = null;
+  // ---------- Tabs ----------
+  function openPage(id) {
+    var p = pageOfId(id);
+    if (!p) return { ok: false, error: "未知页面：" + String(id) };
+    return open({ pageId: p.id });
+  }
 
   function open(spec) {
-    spec = spec || {};
     if (!frame) return { ok: false, error: "panel-frame 未加载" };
     if (!els.canvasBox) return { ok: false, error: "画布未装配" };
-    var r = frame.mount(els.canvasBox, spec);
-    lastSpec = spec;
-    setTitle(spec.title || "");
-    pushHistory(spec);
-    renderChrome(spec.chrome || null);
-    updateEmptyState();
-    // When the agent opens content the panel does not expand on its own: taking over the user's
-    // screen is not the agent's call. While collapsed, a dot on the topbar toggle says there is new
-    // content; the user opens it when they want it.
-    if (!st.expanded) markNew(true); else setView("canvas");
+    var req = spec || {};
+    tset = panelTabs.open(tset, req, pages, { now: Date.now(), origin: origin(), seq: ++idSeq });
+    var tab = panelTabs.active(tset);
+    if (!tab) return { ok: false, error: "至少给 url / html / text 之一。" };
+    saveTabs();
+    renderTabStrip();
+    if (!st.expanded) {
+      // Taking over the user's screen is not the agent's call: while collapsed, only a dot says
+      // there is new content. The pane mounts on the first expansion.
+      markNew(true);
+    } else {
+      setView("canvas");
+      syncPanes();
+    }
     publishCurrent();
-    emit("open", { title: spec.title || "", mode: r ? r.mode : "" });
-    return { ok: true, mode: r ? r.mode : "", title: spec.title || "" };
+    emit("open", { title: tab.title, mode: tab.mode, id: tab.id });
+    return { ok: true, mode: tab.mode, title: tab.title, id: tab.id };
   }
 
-  function close() {
-    if (frame && els.canvasBox) frame.unmount(els.canvasBox);
-    lastSpec = null;
-    setTitle("");
-    renderChrome(null);
-    updateEmptyState();
-    setView(st.expanded ? "canvas" : st.tab);
+  function activate(id) {
+    var before = tset;
+    tset = panelTabs.activate(tset, id);
+    if (tset === before) return false;
+    saveTabs();
+    renderTabStrip();
+    syncPanes();
     publishCurrent();
-    emit("close", {});
+    emit("tab", { id: tset.activeId });
+    return true;
   }
 
-  // The "has new content" dot on the topbar toggle.
+  function close(id) {
+    var target = id ? String(id) : tset.activeId;
+    if (!target) return { ok: true, id: "" };
+    var before = tset;
+    tset = panelTabs.close(tset, target, { now: Date.now() });
+    if (tset === before) return { ok: false, error: "没有这个标签：" + target };
+    destroyPane(target);
+    saveTabs();
+    renderTabStrip();
+    syncPanes();
+    publishCurrent();
+    emit("close", { id: target });
+    return { ok: true, id: target };
+  }
+
   function markNew(on) {
     var btn = $("#panelToggle") || $("#stageToggle");
     if (!btn) return;
     btn.classList.toggle("has-new", !!on);
   }
 
-  // The content title on the bar.
-  // It MUST NOT hide when there is no content: an earlier version did, and the dropdown simply
-  // disappeared for the user. With nothing open it shows the placeholder "Content" — and because
-  // the same dropdown also carries the view switches, it stays meaningful and clickable.
-  function setTitle(t) {
-    var el = $("#panelTitle");
-    var txt = String(t || "").trim();
-    if (el) el.textContent = txt || "内容";
-    var bar = $("#panelBar");
-    if (bar) bar.classList.toggle("pbar-plain-title", !txt);
-  }
-
-  // ---------- Content history (bar dropdown: name + generated time, reopenable) ----------
-  var histList = []; // [{ title, at, spec }]，最多 10 条，最新在前
-
-  // Built-in canvas pages are NOT artifacts. The council and the sandbox are tools, not content the
-  // agent produced; listing them in the history dropdown pushes out the artifacts the user actually
-  // wants to reopen (measured: the council showed up twice, back to back). The test is the URL, so
-  // stage_open on a built-in page does not record it either.
-  function pushHistory(spec) {
-    // On a skip, nextHistory returns the same array object unchanged; that identity preserves the
-    // old behaviour of not re-ordering the menu for built-in pages.
-    var next = nextHistory(histList, spec, Date.now(), tools);
-    if (next === histList) return;
-    histList = next;
-    renderMenu();
-  }
-
-  function renderMenu() {
-    var menu = $("#panelMenu");
-    if (!menu) return;
-    // The dropdown is back to its job: recently produced content only, no view switches.
-    var curTitle = lastSpec ? contentTitleOf(lastSpec) : "";
-    menu.innerHTML = histList.length
-      ? '<div class="pmenu-sec">最近内容</div>' + histList.map(function (it, i) {
-          return '<button class="pmenu-item' + (it.title === curTitle ? " on" : "") + '" type="button" data-idx="' + i + '">' +
-            '<span class="pmenu-t">' + esc(it.title) + "</span>" +
-            '<span class="pmenu-time">' + fmtClock(it.at) + "</span></button>";
-        }).join("")
-      : '<div class="pmenu-empty">还没有生成过内容</div>';
-  }
-
-  // The dropdown used to be pinned with a CSS left:56px, so moving the title button knocked it out
-  // of place. Left-aligning the "..." menu pushed it 18px past the panel's right edge instead.
-  // Both now align to the trigger button's RIGHT edge, 180-240px wide and capped to the bar.
+  // ---------- Menus ----------
   function placeMenu(menu, btn) {
     if (!menu || !btn) return;
     var host = menu.parentNode;
@@ -823,53 +892,48 @@ function geoGuideHtml()         {
     menu.style.width = w + "px";
   }
 
-  function toggleMenu(force) {
-    var menu = $("#panelMenu");
+  function toggleTabMenu(force) {
+    var menu = $("#panelTabMenu");
     if (!menu) return;
     var show = force === undefined ? menu.hidden : !!force;
     menu.hidden = !show;
-    if (show) { toggleMore(false); renderMenu(); placeMenu(menu, $("#panelTitleBtn")); }
+    if (show) {
+      renderTabMenu();
+      placeMenu(menu, $("#panelTabAdd"));
+    }
   }
 
-  // The "..." menu: tools plus views (the bar itself keeps only pop-out and close).
-  function toggleMore(force) {
-    var menu = $("#panelMoreMenu");
-    if (!menu) return;
-    var show = force === undefined ? menu.hidden : !!force;
-    menu.hidden = !show;
-    if (show) { toggleMenu(false); renderTools(); placeMenu(menu, $("#panelMoreBtn")); }
-  }
-
-  function selectHistory(idx) {
-    var it = histList[idx];
-    if (!it || !frame || !els.canvasBox) return;
-    frame.mount(els.canvasBox, it.spec);
-    lastSpec = it.spec;
-    setTitle(it.title);
-    updateEmptyState();
-    toggleMenu(false);
-    setView("canvas");
-    publishCurrent();
-  }
-
-  // ---------- Detached window (two channels: BroadcastChannel first, storage events as fallback) ----------
+  // ---------- Detached window (BroadcastChannel first, storage events as fallback) ----------
+  // Mirrors the ACTIVE tab only. Mirroring the whole tab set would need a second tab strip in the
+  // detached window; the owner ruled that cost is not worth it yet.
   var bc = null;
   var popupWin = null;
 
   function ensureChannel() {
     if (bc) return bc;
     try { bc = new BroadcastChannel("cfw-panel"); } catch (e) { return null; }
-    bc.addEventListener("message", function (e) {
+    on(bc, "message", function (e) {
       var d = e.data || {};
-      // A detached window asks for the current state on startup.
       if (d.kind === "ask" && !isPanelWindow) publishCurrent();
     });
     return bc;
   }
 
+  function activeSpec() {
+    var tab = panelTabs.active(tset);
+    if (!tab) return null;
+    var c = panelTabs.contentOf(tab, pages);
+    var spec = { title: c.title || tab.title, mode: c.mode };
+    if (c.url) spec.url = c.url;
+    if (c.html) spec.html = c.html;
+    if (c.text) spec.text = c.text;
+    if (c.chrome) spec.chrome = c.chrome;
+    return spec;
+  }
+
   function publishCurrent() {
-    if (isPanelWindow) return; // 只有主窗发布
-    var msg = { kind: "current", spec: lastSpec || null, at: Date.now() };
+    if (isPanelWindow) return; // only the main window publishes
+    var msg = { kind: "current", spec: activeSpec(), at: Date.now() };
     var ch = ensureChannel();
     if (ch) { try { ch.postMessage(msg); } catch (e) {} }
     try { localStorage.setItem(LS_CUR, JSON.stringify(msg)); } catch (e) {}
@@ -879,9 +943,9 @@ function geoGuideHtml()         {
     // The Tauri webview does not implement window.open (it returns null), so the desktop shell opens
     // a native window through the open_panel_window command. The web keeps window.open.
     var url = location.origin + location.pathname + "?panel=1&t=" + Date.now();
-    var T = global.__TAURI__;
-    if (T && T.core && typeof T.core.invoke === "function") {
-      T.core.invoke("open_panel_window", { url: url }).then(function () {
+    var invoke = global.tauriSvc ? global.tauriSvc.invokeOrNull() : null;
+    if (invoke) {
+      invoke("open_panel_window", { url: url }).then(function () {
         publishCurrent();
       }).catch(function () { emit("popup-blocked", {}); });
       return;
@@ -891,7 +955,7 @@ function geoGuideHtml()         {
     publishCurrent();
   }
 
-  // Detached-window mode: a full-screen overlay that renders the content plus one title bar.
+  // Detached-window mode: a full-screen overlay that renders the mirrored tab plus one title bar.
   function bootWindow() {
     document.documentElement.classList.add("panel-window");
     var wrap = document.createElement("div");
@@ -904,14 +968,14 @@ function geoGuideHtml()         {
 
     var box = wrap.querySelector("#panelWinBox");
     var titleEl = wrap.querySelector(".pw-title");
-    var f = global.__panelFrame || null;
+    var f = global.panelSvcFrame || null;
 
-    wrap.querySelector(".pw-close").addEventListener("click", function () {
+    on(wrap.querySelector(".pw-close"), "click", function () {
       // In the desktop shell window.close() does nothing to a native window, so the shell command
       // closes it.
-      var T = global.__TAURI__;
-      if (T && T.core && typeof T.core.invoke === "function") {
-        T.core.invoke("close_panel_window").catch(function () { try { global.close(); } catch (e) {} });
+      var invoke = global.tauriSvc ? global.tauriSvc.invokeOrNull() : null;
+      if (invoke) {
+        invoke("close_panel_window").catch(function () { try { global.close(); } catch (e) {} });
         return;
       }
       try { global.close(); } catch (e) {}
@@ -927,42 +991,34 @@ function geoGuideHtml()         {
 
     var ch = ensureChannel();
     if (ch) {
-      ch.addEventListener("message", function (e) {
+      on(ch, "message", function (e) {
         var d = e.data || {};
         if (d.kind === "current") applySpec(d.spec);
       });
     }
-    global.addEventListener("storage", function (e) {
+    on(global, "storage", function (e) {
       if (e.key !== LS_CUR || !e.newValue) return;
       try { var o = JSON.parse(e.newValue); if (o && o.kind === "current") applySpec(o.spec); } catch (err) {}
     });
 
-    // Startup: read the local cache first (a BroadcastChannel message can arrive before the
-    // listener is attached), then send one ask as the fallback.
     try {
       var cached = JSON.parse(localStorage.getItem(LS_CUR) || "null");
       if (cached && cached.kind === "current") applySpec(cached.spec);
     } catch (e) {}
     try { if (ch) ch.postMessage({ kind: "ask", at: Date.now() }); } catch (e) {}
-    setTimeout(function () {
+    later(function () {
       try { if (ch) ch.postMessage({ kind: "ask", at: Date.now() }); } catch (e) {}
     }, 800);
 
-    global.addEventListener("resize", function () { if (f) f.resize(box); });
+    on(global, "resize", function () { if (f) f.resize(box); });
     f && f.resize(box);
   }
 
   // ---------- Topbar adaptation ----------
-  // Watch the actual width of the middle column (#app) and add .topbar-tight only below the
-  // threshold. "Is the panel expanded" is the wrong test: expanded but still wide (middle column
-  // over 560px) keeps the sync badge, the built-in label and the model label.
   var TOPBAR_TIGHT = PANEL_TOPBAR_TIGHT;
 
   function refitTopbar() {
     var app = document.getElementById("app");
-    // The composer's right offset is measured directly as viewport edge minus chat-column edge. That
-    // automatically includes the panel width, the seam margin and any gap; measuring the panel itself
-    // misses its margin-left: 10px, which getBoundingClientRect does not report.
     if (app && document.documentElement.classList.contains("panel-expanded")) {
       var gap = Math.round(global.innerWidth - app.getBoundingClientRect().right);
       document.documentElement.style.setProperty("--panel-actual", Math.max(0, gap) + "px");
@@ -975,23 +1031,18 @@ function geoGuideHtml()         {
   function wireTopbarFit() {
     var app = document.getElementById("app");
     if (!app) return;
-    // Two triggers: a panel state change (apply() schedules one rAF) and a viewport change.
-    global.addEventListener("resize", function () { requestAnimationFrame(refitTopbar); });
-    // The third: a ResizeObserver backup for grid reflows neither of those catches.
+    on(global, "resize", function () { requestAnimationFrame(refitTopbar); });
     if (typeof ResizeObserver === "function") {
-      try { new ResizeObserver(function () { requestAnimationFrame(refitTopbar); }).observe(app); } catch (e) {}
+      try {
+        var ro2 = new ResizeObserver(function () { requestAnimationFrame(refitTopbar); });
+        ro2.observe(app);
+        manual(function () { try { ro2.disconnect(); } catch (e) {} });
+      } catch (e) {}
     }
     requestAnimationFrame(refitTopbar);
   }
 
   // ---------- Drag to resize ----------
-  // Pairs with "seam v2" in styles-panel.css.
-  //  1. The hit band is 20px: 10px of seam (the pointer is over .app-shell) plus 10px inside the
-  //     sidebar (the ::before width). The old version only accepted 8px inside the sidebar and used
-  //     e.offsetX, which is relative to whatever child sits under the pointer (a header, say) and
-  //     therefore misjudged; the comparison is now clientX against the sidebar's left edge.
-  //  2. Entering the band adds .seam-hover, dragging adds html.panel-resizing, so the grip responds.
-  //  3. Double-clicking the band resets to the default width (previously it had to be dragged back).
   var SEAM_W = 10, HIT_W = 10;
 
   function bindResize() {
@@ -1013,10 +1064,11 @@ function geoGuideHtml()         {
     function startDrag(e) {
       e.preventDefault();
       var startX = e.clientX, startW = st.width, moved = false;
-      // Pointer events are disabled on iframes while dragging: once the cursor crosses into an
-      // iframe the parent stops receiving mousemove and the drag dies.
-      var f = els.canvasBox && els.canvasBox.querySelector("iframe");
-      if (f) f.style.pointerEvents = "none";
+      // Pointer events are disabled on every pane while dragging: crossing into an iframe would
+      // otherwise stop mousemove on the parent and kill the drag.
+      var fs = els.canvasBox ? els.canvasBox.querySelectorAll("iframe") : [];
+      var i;
+      for (i = 0; i < fs.length; i++) fs[i].style.pointerEvents = "none";
       document.body.style.cursor = "col-resize";
       html.classList.add("panel-resizing");
       function mv(ev) {
@@ -1026,34 +1078,31 @@ function geoGuideHtml()         {
       function up() {
         document.removeEventListener("mousemove", mv);
         document.removeEventListener("mouseup", up);
-        if (f) f.style.pointerEvents = "";
+        for (i = 0; i < fs.length; i++) fs[i].style.pointerEvents = "";
         document.body.style.cursor = "";
         html.classList.remove("panel-resizing");
         if (moved) emit("width", { width: st.width });
       }
-      document.addEventListener("mousemove", mv);
-      document.addEventListener("mouseup", up);
+      on(document, "mousemove", mv);
+      on(document, "mouseup", up);
     }
     function onDown(e) {
       if (isControl(e) || !inBand(e.clientX)) return;
       startDrag(e);
     }
-    col.addEventListener("mousedown", onDown);
-    // The seam is the sidebar's margin area, so the pointer lands on .app-shell. Only a blank hit
-    // starts a drag; a bubbled event from the column has a different target and passes through, so
-    // startDrag cannot run twice.
-    if (shell) shell.addEventListener("mousedown", function (e) {
+    on(col, "mousedown", onDown);
+    if (shell) on(shell, "mousedown", function (e) {
       if (e.target !== shell) return;
       onDown(e);
     });
 
-    document.addEventListener("mousemove", function (e) {
+    on(document, "mousemove", function (e) {
       var on = inBand(e.clientX);
       if (on === hovered) return;
       hovered = on;
       col.classList.toggle("seam-hover", on);
     });
-    document.addEventListener("dblclick", function (e) {
+    on(document, "dblclick", function (e) {
       if (isControl(e) || !inBand(e.clientX)) return;
       setWidth(W_DEF);
       emit("width", { width: W_DEF });
@@ -1064,83 +1113,145 @@ function geoGuideHtml()         {
   function bindToggle() {
     var btn = $("#stageToggle") || $("#panelToggle");
     if (!btn) return;
-    btn.addEventListener("click", function () { setExpanded(!st.expanded); });
+    on(btn, "click", function () { setExpanded(!st.expanded); });
   }
 
-  // ---------- Pinned tab switching (takes over logic that was missing) ----------
+  // ---------- Pinned tab switching (activity / chat / status) ----------
+  // The fixed strip is rendered from PANEL_VIEWS; index.html ships an empty `#rsTabs` container.
+  // It lives here (not in the page) so the three views are declared exactly once, in the service.
+  // Must run before bindTabs() and before boot()'s `st.tab` lookup below.
+  // services/ui/right-sidebar-tabs.js loads ~170 manifest rows earlier and resolves `.rs-tab` on
+  // every use (`readTabs`), so its three automatic switches (boot pass / console mount / topbar
+  // multi-agent) see this strip once it is rendered. They call `panelSvc.chooseTab` so the highlight
+  // and the visible panel move together; a tab click stays owned here, with its persisted state.
+  function renderFixedTabs() {
+    var box = document.getElementById("rsTabs") || $("#rightSidebar .rs-tabs");
+    if (!box) return;
+    box.innerHTML = PANEL_VIEWS.map(function (entry) {
+      var on = entry.tab === st.tab;
+      return '<button class="rs-tab' + (on ? " active" : "") + '" data-rs-tab="' + esc(entry.tab) + '"' +
+        ' role="tab" aria-selected="' + (on ? "true" : "false") + '" type="button">' +
+        iconSvg(entry.icon) + "<span>" + esc(entry.label) + "</span>" +
+        '<span class="rs-dot" aria-hidden="true"></span></button>';
+    }).join("");
+  }
+
+  // Fixed-mode selection: one body for a strip click and for the strip's own automatic moves
+  // (boot pass / console mount / topbar button, services/ui/right-sidebar-tabs.js). Keeping the
+  // state machine here is what makes the highlight and the visible panel agree — when the two
+  // modules each painted their own copy, the next apply() re-showed the old panel under a new tab.
+  // `persist:false` keeps an automatic move out of localStorage: a reload must land on the tab the
+  // user picked, not on the one the boot pass guessed.
+  function selectTab(name, opts) {
+    var persist = !(opts && opts.persist === false);
+    st = tabState(st, name);
+    if (persist) save();
+    apply();
+    var all = document.querySelectorAll("#rightSidebar .rs-tab");
+    for (var i = 0; i < all.length; i++) {
+      var on = all[i].getAttribute("data-rs-tab") === st.tab;
+      all[i].classList.toggle("active", on);
+      all[i].setAttribute("aria-selected", on ? "true" : "false");
+      // Looking at a tab clears its unread dot. The rule (`clearActivity`) is owned by
+      // services/ui/right-sidebar-tabs.ts; that module's own clear only reaches the buttons it
+      // snapshotted, which are none — this strip is rendered from PANEL_VIEWS.
+      if (on) all[i].classList.remove("has-activity");
+    }
+    if (persist) emit("tab", { tab: st.tab });
+  }
+
   function bindTabs() {
     var tabs = document.querySelectorAll("#rightSidebar .rs-tab");
     if (!tabs.length) return;
     for (var i = 0; i < tabs.length; i++) {
-      tabs[i].addEventListener("click", function () {
-        var name = this.getAttribute("data-rs-tab");
-        // Pinned mode gained a group-chat tab (data-rs-tab="chat").
-        st = tabState(st, name);
-        save();
-        apply();
-        // Keep the original tabs' aria-selected and active class in sync; status-panel's observer
-        // reads them.
-        var all = document.querySelectorAll("#rightSidebar .rs-tab");
-        for (var j = 0; j < all.length; j++) {
-          var on = all[j] === this;
-          all[j].classList.toggle("active", on);
-          all[j].setAttribute("aria-selected", on ? "true" : "false");
-        }
-        emit("tab", { tab: st.tab });
+      on(tabs[i], "click", function () {
+        selectTab(this.getAttribute("data-rs-tab"));
       });
     }
   }
 
+  // Settings changed a URL: rebuild pages, keep tabs (page-backed tabs re-resolve at mount). The
+  // active pane is torn down so a sandbox guide → real URL switch takes effect immediately.
+  function refreshPages() {
+    pages = buildPages();
+    if (tset.activeId) destroyPane(tset.activeId);
+    renderTabStrip();
+    syncPanes();
+  }
+
   function boot() {
     load();
-    if (isPanelWindow) { bootWindow(); return; } // 独立窗：全屏覆盖层，不建右栏控制器
-    if (!isDesktop()) return; // 手机端走原有底部抽屉，本控制器不介入
+    // Before the mode gates: the strip markup belongs to the page, not to the desktop layout, and a
+    // narrow window that grows later must not find an empty column.
+    renderFixedTabs();
+    if (isPanelWindow) { bootWindow(); return; }
+    if (!isDesktop()) return;
     wireTopbarFit();
     els.bar = buildBar();
-    renderTools();      // 工具已注册过时，先把条上那排图标画出来
-    wireBarFit(els.bar); // 面板宽 → 按钮铺出来；面板窄 → 收进「⋯」
     els.canvas = buildCanvas();
     els.canvasBox = $("#panelCanvasBox");
-    frame = global.__panelFrame || null;
+    els.strip = $("#panelTabScroll");
+    frame = global.panelSvcFrame || null;
     if (frame && typeof frame.on === "function") {
       frame.on(function (ev) {
         if (!ev) return;
         if (ev.type === "state") onFrameState(ev.data);
         else if (ev.type === "call-result") onCallResult(ev.data);
+        else if (ev.type === "chrome") setChromeItems(ev.data && ev.data.items);
       });
     }
     if (els.bar) bindBar(els.bar);
-    BUILTIN_TOOLS.forEach(registerTool);
+    bindChrome();
+    bindTabStrip();
     bindResize();
     bindToggle();
     bindTabs();
-    // Sync the original tab highlight on startup. Nothing did this before, so the status tab
-    // started out wrong.
+    on(global, "panel:config-changed", refreshPages);
     var cur = document.querySelector('#rightSidebar .rs-tab[data-rs-tab="' + st.tab + '"]');
     if (cur) {
       var all = document.querySelectorAll("#rightSidebar .rs-tab");
       for (var i = 0; i < all.length; i++) {
-        var on = all[i] === cur;
-        all[i].classList.toggle("active", on);
-        all[i].setAttribute("aria-selected", on ? "true" : "false");
+        var isCurrent = all[i] === cur;
+        all[i].classList.toggle("active", isCurrent);
+        all[i].setAttribute("aria-selected", isCurrent ? "true" : "false");
       }
     }
+    renderTabStrip();
     apply();
-    // Startup timing guard: re-check visibility once layout and fonts settle (two panels were seen
-    // visible at the same time).
     requestAnimationFrame(function () { try { apply(); } catch (e) {} });
-    setTimeout(function () { try { apply(); } catch (e) {} }, 250);
+    later(function () { try { apply(); } catch (e) {} }, 250);
   }
 
   var api = {
     v: V,
+    // Content API. `open` keeps the pre-tab contract: it creates/focuses a tab and returns the
+    // active tab's mode/title. `openPage` addresses a catalog page by id.
     open: open,
+    openPage: openPage,
     close: close,
+    activate: activate,
     view: setView,
+    // Fixed-tab selection for the strip's automatic moves (services/ui/right-sidebar-tabs.js):
+    // adopts the tab in the same state machine a click uses, without persisting it. Ignored while
+    // expanded — the fixed strip is off screen there, and re-selecting a tab would swap the canvas
+    // for an overlay the user never asked for.
+    chooseTab: function (name) {
+      if (st.expanded) return;
+      selectTab(name, { persist: false });
+    },
     state: function () {
+      var tab = panelTabs.active(tset);
       return {
         expanded: st.expanded, width: st.width, view: st.view, tab: st.tab,
-        hasContent: !!(frame && els.canvasBox && frame.current(els.canvasBox))
+        hasContent: tset.tabs.length > 0,
+        activeId: tset.activeId,
+        title: tab ? tab.title : "",
+        tabs: tset.tabs.map(function (t) {
+          return { id: t.id, title: t.title, pageId: t.pageId, icon: t.icon, active: t.id === tset.activeId };
+        }),
+        catalog: pages.map(function (p) {
+          return { id: p.id, title: p.label, url: p.href || "", icon: p.icon || "", chrome: p.chrome || "" };
+        }),
       };
     },
     on: function (fn) {
@@ -1151,37 +1262,86 @@ function geoGuideHtml()         {
         if (i >= 0) listeners.splice(i, 1);
       };
     },
-    // Call a function the current canvas page registered; the agent's stage_call lands here.
+    // Call a function on one tab's page (active by default); the agent's stage_call lands here.
     call: callPage,
+    // Re-read tool.json + the two URL settings without a reload.
+    refresh: refreshPages,
+    // Panel-open control, so a launcher can reveal what it just opened.
+    expand: function () { setExpanded(true); },
+    collapse: function () { setExpanded(false); },
     // Internal / debug (not a contract).
     _toggle: function () { setExpanded(!st.expanded); },
     _width: setWidth,
     _apply: apply,
-    // Tool-slot registration (shared by the built-ins and future external tools; content never goes
-    // here).
-    registerTool: registerTool,
-    tools: function () { return tools.slice(); }
+    tools: function () {
+      return pages.map(function (p) {
+        return { id: p.id, title: p.label, url: p.href || "", icon: p.icon || "", chrome: p.chrome || "" };
+      });
+    }
   };
 
-  global.__panel = api;
+    global.panelSvc = api;
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
-  else boot();
+    // A boot failure must not leave the façade behind without an inverse: the kernel would mark the
+    // plugin "error" and the global would survive every subsequent remount.
+    try {
+      if (document.readyState === "loading") on(document, "DOMContentLoaded", boot);
+      else boot();
+    } catch (e) {
+      try { console.warn("[panel] 启动失败（卸载仍可执行）", e); } catch (_e) {}
+    }
+
+    return function dispose() {
+      for (var i = teardown.length - 1; i >= 0; i--) {
+        try { teardown[i](); } catch (e) {}
+      }
+      teardown.length = 0;
+      // Pane unmounts go through the frame host so its own window listeners go with them.
+      try {
+        if (els.canvasBox) {
+          var panes = els.canvasBox.querySelectorAll(".ptab-pane");
+          for (var p = 0; p < panes.length; p++) {
+            try { if (frame) frame.unmount(panes[p]); } catch (e) {}
+          }
+        }
+      } catch (e) {}
+      for (var c = created.length - 1; c >= 0; c--) {
+        try { if (created[c] && created[c].parentNode) created[c].parentNode.removeChild(created[c]); } catch (e) {}
+      }
+      created.length = 0;
+      try { document.documentElement.classList.remove("panel-window", "panel-resizing"); } catch (e) {}
+      try { if (bc) bc.close(); } catch (e) {}
+      bc = null;
+      if (global.panelSvc === api) {
+        try { delete global.panelSvc; } catch (e) { global.panelSvc = undefined; }
+      }
+      mounted = false;
+    };
+  }
+
+  // Read-only bridge for the equivalence lock (and for debugging): the fixed view table is the
+  // single source, so the test reads the emitted artifact instead of re-declaring the list.
+  try { global.PANEL_VIEWS = PANEL_VIEWS; } catch (e) {}
+
+  var mod = { name: "panel-host", inject: ["db", "transport"], apply: apply };
+  if (HOST) {
+    HOST.define("panel-host", mod);
+    HOST.start("panel-host");
+    return;
+  }
+  apply({ get: function () { return null; } });
 })(window);
 
+globalThis.PANEL_VIEWS = PANEL_VIEWS;
 globalThis.PANEL_VERSION = PANEL_VERSION;
 globalThis.PANEL_LS_STATE = PANEL_LS_STATE;
 globalThis.PANEL_LS_CURRENT = PANEL_LS_CURRENT;
-globalThis.PANEL_LS_MAP_URL = PANEL_LS_MAP_URL;
 globalThis.PANEL_W_MIN = PANEL_W_MIN;
 globalThis.PANEL_W_MAX = PANEL_W_MAX;
 globalThis.PANEL_W_DEFAULT = PANEL_W_DEFAULT;
 globalThis.PANEL_DESKTOP_MIN = PANEL_DESKTOP_MIN;
-globalThis.PANEL_HISTORY_MAX = PANEL_HISTORY_MAX;
 globalThis.PANEL_TOPBAR_TIGHT = PANEL_TOPBAR_TIGHT;
 globalThis.PANEL_DEFAULT_STATE = PANEL_DEFAULT_STATE;
-globalThis.PANEL_BUILTIN_TOOLS = PANEL_BUILTIN_TOOLS;
-globalThis.PANEL_CHROMES = PANEL_CHROMES;
 globalThis.clampPanelWidth = clampPanelWidth;
 globalThis.loadPanelState = loadPanelState;
 globalThis.isPanelView = isPanelView;
@@ -1192,11 +1352,6 @@ globalThis.expandedState = expandedState;
 globalThis.viewState = viewState;
 globalThis.widthState = widthState;
 globalThis.tabState = tabState;
-globalThis.contentTitleOf = contentTitleOf;
-globalThis.isBuiltinPage = isBuiltinPage;
-globalThis.nextHistory = nextHistory;
 globalThis.fmtClock = fmtClock;
 globalThis.callTimeoutMs = callTimeoutMs;
-globalThis.toolIcon = toolIcon;
-globalThis.geoGuideHtml = geoGuideHtml;
 })();

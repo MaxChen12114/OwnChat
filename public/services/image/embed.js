@@ -301,11 +301,11 @@ function editNoFile()              {
   return { status: "改图 无 file_url", badge: "err", title: "成功但无 file_url" };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/embed.ts; this file owns the modal
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/embed.ts; this file owns the modal
 // shell, both forms, the output list and every click.
 //
 // Self-mounting, like the prompt editor: it injects its own markup and theme-agnostic CSS
-// (currentColor), publishes `window.__image`, and closes on ESC, mask click or the close button. The
+// (currentColor), publishes `window.imageStudioSvc`, and closes on ESC, mask click or the close button. The
 // workshop reuses the left rail's image button and enables it at runtime, so the main HTML needs no
 // extra line.
 //
@@ -314,18 +314,18 @@ function editNoFile()              {
 //   edit          -> imageCommon.genEdit (needs a channel with the site proxy, e.g. the preset)
 //
 // Authentication, endpoints, downloads and polling all live in image-common; this file is the shell,
-// the forms and the status badge. Public API: window.__image = { open, close, switchMode, generate,
+// the forms and the status badge. Public API: window.imageStudioSvc = { open, close, switchMode, generate,
 // abort } -- image-gallery hooks `open`, image-portrait and image-quickgen call into it.
 //
 // Load order: after image-common and the channel registry.
 (function () {
   'use strict';
-  if (window.__image) return;
+  if (window.imageStudioSvc) return;
 
-  var IC = window.__imageCommon;
+  var IC = window.imageCommonSvc;
   if (!IC) { console.error('[image-embed] 缺少 image-common.js，请确认其在本模块前加载'); return; }
   // Channels are data: the preset is one row, and this select only picks or overrides.
-  var C = window.__imageChannels;
+  var C = window.imageChannelsSvc;
 
   var MASK_ID = 'imageStudioMask';
   var KEY_LS = 'cfw_image_key_v1';
@@ -796,7 +796,7 @@ function editNoFile()              {
     document.head.appendChild(s);
   }
 
-  window.__image = { open: open, close: close, switchMode: switchMode, generate: generate, abort: abort };
+  window.imageStudioSvc = { open: open, close: close, switchMode: switchMode, generate: generate, abort: abort };
 })();
 
 globalThis.RESOLUTIONS = RESOLUTIONS;

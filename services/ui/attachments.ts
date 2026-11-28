@@ -4,12 +4,12 @@
  * stored attachment metadata into payload content (fenced file blocks, vision image arrays).
  *
  * Non-obvious choice: document full texts never enter session storage — messages carry only
- * {id,name,chars,truncated}; the full text lives in IndexedDB (via the injected getBlob port)
- * plus an in-page memo that covers the async IDB write window, and expansion re-fetches it on
- * every send. This keeps the 2MB localStorage session slot from being overflowed by a single
- * paste, which used to evict the oldest messages (= real data loss).
+ * {id,name,chars,truncated}; the full text lives in the unified `attachments` store (via the
+ * injected getText/getBlob ports) plus an in-page memo that covers the async write window, and
+ * expansion re-fetches it on every send. This keeps the 2MB localStorage session slot from being
+ * overflowed by a single paste, which used to evict the oldest messages (= real data loss).
  *
- * The wiring (browser adapter appended by l0/emit.mjs) owns IndexedDB access, DOM rendering,
+ * The wiring (browser adapter appended by tooling/l0/emit.mjs) owns the storage backends, DOM rendering,
  * the lightbox gestures and the frozen attach facade; everything here is pure and vm-testable.
  * @module services/ui/attachments
  */
@@ -59,11 +59,13 @@ export interface AttMetaLike {
 /**
  * Browser ports injected by the wiring. putBlob must never throw synchronously (its caller
  * wraps the Blob construction in the same try as before); getBlob resolves null instead of
- * rejecting when a device does not hold the blob.
+ * rejecting when a device does not hold the blob. getText is the fast path for text attachments
+ * (the SQL store keeps them in a text column); absent or null means "fall back to getBlob".
  */
 export interface AttachCoreHost {
-  putBlob: (id: string, blob: Blob | null) => Promise<boolean> | boolean;
+  putBlob: (id: string, blob: Blob | null, name?: string) => Promise<boolean> | boolean;
   getBlob: (id: string) => Promise<Blob | null>;
+  getText?: (id: string) => Promise<string | null>;
   onPendingChange: () => void;
 }
 
@@ -210,7 +212,7 @@ export function createAttachmentsCore(host: AttachCoreHost): AttachCore {
     const text = String(item.text == null ? "" : item.text);
     _textMemo.set(id, text);
     try {
-      host.putBlob(id, new Blob([text], { type: "text/plain;charset=utf-8" }));
+      host.putBlob(id, new Blob([text], { type: "text/plain;charset=utf-8" }), item.name || "未命名");
     } catch (_) {
       // Blob construction can fail in non-browser realms; the memo below still covers the send.
     }
@@ -228,14 +230,14 @@ export function createAttachmentsCore(host: AttachCoreHost): AttachCore {
       w: item.w || 0, h: item.h || 0
     };
     pending.push(p);
-    if (p.blob) host.putBlob(p.id, p.blob);
+    if (p.blob) host.putBlob(p.id, p.blob, p.name);
     host.onPendingChange();
     return p;
   }
 
   /**
    * Drain the pending list into the shapes a sent message needs. files/images carry metadata
-   * only (the full text lives in IDB/memo, fetched back via fileFullText) so the session
+   * only (the full text lives in the store/memo, fetched back via fileFullText) so the session
    * store is never overflowed by document bodies; _memImages exists for this render only.
    */
   function takePending(): AttTaken {
@@ -261,7 +263,7 @@ export function createAttachmentsCore(host: AttachCoreHost): AttachCore {
 
   /**
    * Put a sent message's attachments back into the pending list (the retry path). New-format
-   * files (with id) reuse the original id — the blob is already in IDB, no re-ingest; legacy
+   * files (with id) reuse the original id — the blob is already stored, no re-ingest; legacy
    * files (with inline text) are restaged as-is and read from f.text during expansion.
    */
   function restage(msg: unknown): number {
@@ -285,7 +287,7 @@ export function createAttachmentsCore(host: AttachCoreHost): AttachCore {
     }
     const images = Array.isArray(m.images) ? m.images.filter(isImageMeta) : [];
     for (const im of images) {
-      // Reuse the original id: the image blob is already in IndexedDB and can be fetched
+      // Reuse the original id: the image blob is already stored and can be fetched
       // back to a dataURL at send time.
       pending.push({ id: im.id || uid(), kind: "image", name: im.name || "图片", dataUrl: "", blob: null, w: im.w || 0, h: im.h || 0 });
       n++;
@@ -319,9 +321,10 @@ export function createAttachmentsCore(host: AttachCoreHost): AttachCore {
   }
 
   /**
-   * Fetch a document's full text: in-page memo first (covers the IDB async-write race for
-   * texts added this page load), then the legacy inline f.text (historical sessions), then
-   * IDB. Empty string when nothing is available — never rejects.
+   * Fetch a document's full text: in-page memo first (covers the async store-write race for
+   * texts added this page load), then the legacy inline f.text (historical sessions), then the
+   * store's text column (getText), then the Blob body. Empty string when nothing is available —
+   * never rejects.
    */
   async function fileFullText(f: AttFileMeta | null | undefined): Promise<string> {
     if (!f) return "";
@@ -329,6 +332,10 @@ export function createAttachmentsCore(host: AttachCoreHost): AttachCore {
     if (typeof f.text === "string") return f.text;
     if (f.id) {
       try {
+        if (typeof host.getText === "function") {
+          const text = await host.getText(f.id);
+          if (text != null) return text;
+        }
         const b = await host.getBlob(f.id);
         if (b) return await b.text();
       } catch (_) {
@@ -376,7 +383,7 @@ export function createAttachmentsCore(host: AttachCoreHost): AttachCore {
    * Request-assembly expansion (memory-only; the session is never rewritten, so retry and
    * refresh cannot lose anything):
    *   · files — only the LATEST message carrying files expands full texts; earlier file
-   *     messages keep the first 1000 chars. Before the IDB migration every historical file
+   *     messages keep the first 1000 chars. Before the storage migration every historical file
    *     message resent its full text each turn (cost x turns, blowing the upstream context
    *     in 2-3 turns on large docs).
    *   · images — only the last user message expands, into the vision array.

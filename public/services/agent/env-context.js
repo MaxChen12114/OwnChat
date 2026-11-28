@@ -8,7 +8,7 @@
  *
  * L0 exists because of the project's most frequent failure class: a duplicate `const` throwing
  * `SyntaxError`, a module loaded out of order, a file rolled back to an older build, or the `fetch` /
- * `Storage` chain breaking. A check that silently reports "1/6" is worse than none, so the `__dev`
+ * `Storage` chain breaking. A check that silently reports "1/6" is worse than none, so the `devSvc`
  * probe tests the method that actually exists (`isDevMode`, not the old made-up `isOn`).
  *
  * `snapshotText` is deliberately **session-static**: the date only, never hours and minutes. A
@@ -52,8 +52,10 @@
  
 
                                 
-                                                                            
+                                                             
                              
+                                                                                            
+                        
                                                                              
                    
                                                                                   
@@ -109,9 +111,11 @@ function callWith(fn         , self         , arg         )                   {
 
 function createEnvContext(env               )                {
   function hasTauri()          {
-    const t = recOf(env.read("__TAURI__"));
-    const core = recOf(t.core);
-    return typeof core.invoke === "function";
+    const svc = recOf(env.read("tauriSvc"));
+    if (svc === null) return false;
+    const available = svc["available"];
+    if (typeof available !== "function") return false;
+    return !!available.call(svc);
   }
 
   function build(opts          )              {
@@ -123,7 +127,7 @@ function createEnvContext(env               )                {
     } catch (e) {
       // A host without Intl falls back to the runtime's own zone.
     }
-    const rawVer = env.read("__appVersion");
+    const rawVer = env.appVersion();
     const ver = rawVer && typeof rawVer === "object" ? recOf(rawVer) : null;
     const verStr = typeof rawVer === "string" ? rawVer : "";
     const registry = recOf(o.registry);
@@ -183,8 +187,8 @@ function createEnvContext(env               )                {
       checks.push({ name: name, ok: !!ok, detail: ok ? "" : detail || "" });
     }
 
-    const dev = recOf(env.read("__dev"));
-    add("dev.js (window.__dev)", typeof dev.isDevMode === "function", "window.__dev 缺失或无 isDevMode → dev.js 未加载或加载顺序错");
+    const dev = recOf(env.read("devSvc"));
+    add("dev.js (window.devSvc)", typeof dev.isDevMode === "function", "window.devSvc 缺失或无 isDevMode → dev.js 未加载或加载顺序错");
     const kernel = recOf(env.read("AgentKernel"));
     add("agent-kernel.js (window.AgentKernel)", typeof kernel.createToolRegistry === "function", "window.AgentKernel 缺失 → 内核未加载");
     const tools = recOf(env.read("OwnChatTools"));
@@ -280,7 +284,7 @@ function createEnvContext(env               )                {
   return { build: build, loadOrderCheck: loadOrderCheck, snapshotText: snapshotText, defineTools: defineTools };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // The implementation moved to services/agent/env-context.ts. Ports are the global reader plus the four
 // platform probes it inspects (navigator / screen / location / fetch) and Storage.prototype.setItem,
 // which the sync module is expected to have wrapped.
@@ -288,6 +292,9 @@ function createEnvContext(env               )                {
   "use strict";
   var api = createEnvContext({
     read: function (key) { return g[key]; },
+    appVersion: function () {
+      try { return document.documentElement.dataset.appVersion || ""; } catch (e) { return ""; }
+    },
     fetch: function () { return g.fetch; },
     storageSetItem: function () { try { return g.Storage.prototype.setItem; } catch (e) { return null; } },
     navigator: function () { try { return g.navigator || null; } catch (e) { return null; } },

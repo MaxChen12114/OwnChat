@@ -40,7 +40,7 @@
   function unlockTok() { try { return localStorage.getItem("cfw_unlock_token_v1") || ""; } catch (e) { return ""; } }
 
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
-  var esc = window.__ownEscape.esc;
+  var esc = window.escapeSvc.esc;
   function syncScroll() { var pre = $("#edPre"), ed = $("#editor"); if (pre && ed) { pre.scrollTop = ed.scrollTop; pre.scrollLeft = ed.scrollLeft; } }
   function updateHighlight() {
     var code = $("#edHL"); if (!code) return;
@@ -454,7 +454,7 @@
   async function aiChat(system, user, model, onDelta) {
     // 2026-11-11 (B8)：统一走 services/data/chat-stream.ts 的产物；code 页的解限来自页面 checkbox，显式传入
     aiAborter = new AbortController();
-    return window.__chatStream.call({
+    return window.chatStreamSvc.call({
       profile: "assist",
       mode: aiModeForModel(model),
       model: model || "",

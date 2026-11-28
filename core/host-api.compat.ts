@@ -41,14 +41,14 @@ export interface HostApiTargets {
  * pins the eight required members at compile time).
  */
 export const HOST_API_TARGETS: HostApiTargets & Record<string, string> = {
-  app: "__app",
-  cost: "__cost",
-  pipeline: "__pipeline",
-  turnRuntime: "__turnRuntime",
-  sync: "__sync",
-  character: "__character",
-  multi: "__multi",
-  auth: "__auth",
+  app: "appSvc",
+  cost: "costSvc",
+  pipeline: "pipelineSvc",
+  turnRuntime: "turnRuntimeSvc",
+  sync: "syncSvc",
+  character: "characterSvc",
+  multi: "multiSvc",
+  auth: "authSvc",
 };
 
 /**

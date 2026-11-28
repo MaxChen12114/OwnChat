@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// scripts/dev/source-server.mjs — 本地只读源码/产物检索服务（开发工具）
+// tooling/scripts/dev/source-server.mjs — 本地只读源码/产物检索服务（开发工具）
 // ─────────────────────────────────────────────────────────────────────
 // 干什么：给 agent 的 list_source / search_source / read_source / list_artifacts /
 //   read_artifact 五个工具提供后端。只读、只绑 127.0.0.1、无写端点。
@@ -11,7 +11,7 @@
 //   GET /list_artifacts?prefix=           产物清单（需 --artifacts 指定根）
 //   GET /read_artifact?path=&start=&lines= 产物读回（TEXT 白名单 ≤2MiB；二进制给 URL）
 // 用法：
-//   node scripts/dev/source-server.mjs [--port 8797] [--root <目录>]...
+//   node tooling/scripts/dev/source-server.mjs [--port 8797] [--root <目录>]...
 //        [--artifacts <产物目录>] [--artifact-url http://127.0.0.1:8796/artifacts]
 //   默认 --root = 本仓库根；可重复 --root 允许多个根（相对路径按当前目录解析）。
 // 安全纪律：

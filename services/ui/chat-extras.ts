@@ -1,7 +1,7 @@
 /**
  * The two chat-page extras: dropping files into the composer, and the sync-conflict panel.
  *
- * **Attachments.** A text or code file becomes a structured attachment (`__attach`), not a paragraph
+ * **Attachments.** A text or code file becomes a structured attachment (`attachSvc`), not a paragraph
  * pasted into the input: the chip above the composer is removable, the full text rides on the message's
  * `files` field and is expanded into the payload only at send time. Anything past the character budget
  * is truncated — and the user is told, because the old build only put the count in a chip's `title`,

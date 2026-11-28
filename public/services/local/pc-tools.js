@@ -707,7 +707,7 @@ function definePcTools(registry         , ports             )         {
   return tools.length;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/local/pc-tools.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/local/pc-tools.ts; this file owns the
 // gate storage, the Web/desktop split, both timeout layers and the four image hooks.
 //
 // The desktop path is not an optimisation: the request runs in Rust, so it never meets CORS, and it
@@ -739,8 +739,7 @@ function definePcTools(registry         , ports             )         {
   }
   function tauriInvoke() {
     try {
-      const shell = window.__TAURI__;
-      return (shell && shell.core && typeof shell.core.invoke === "function") ? shell.core.invoke.bind(shell.core) : null;
+      return window.tauriSvc ? window.tauriSvc.invokeOrNull() : null;
     } catch (error) { return null; }
   }
   function directMode() { return !!(tauriInvoke() && bridgeToken()); }
@@ -876,7 +875,7 @@ function definePcTools(registry         , ports             )         {
   }
   async function putBlob(id, blob) {
     try {
-      const attach = window.__attach;
+      const attach = window.attachSvc;
       if (!attach || typeof attach.putBlob !== "function") return false;
       return !!(await attach.putBlob(id, blob));
     } catch (error) { return false; }

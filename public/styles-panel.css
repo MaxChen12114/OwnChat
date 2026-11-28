@@ -1,6 +1,7 @@
 /* public/styles-panel.css — 右栏内容面板（panel-host / panel-frame）
  * ─────────────────────────────────────────────────────────────────────
- * 只负责三样：展开态布局、面板条按钮、画布容器。不动右栏原有 tab 样式。
+ * 只负责三样：展开态布局、面板条按钮的布局、画布容器。控件视觉（按钮 / 标签的材质与状态）
+ * 在 styles-controls.css；这里不再写 tab 或按钮的配色。
  * 变量：--panel-w 由 panel-host 写在 html 上（默认 460px，范围 240~640）。
  * 手机端（<1024）由 panel-host 直接不初始化，这里只做兜底隐藏。
  * ───────────────────────────────────────────────────────────────────── */
@@ -23,9 +24,9 @@ html.panel-expanded .app-shell {
 :root {
   --panel-seam: #0b0c0f;                       /* 缝底色 */
   --panel-seam-shadow: rgba(0, 0, 0, .30);    /* 景深投影 */
-  --panel-seam-line: rgba(255, 255, 255, .10);/* 右缘 1px 细线 */
-  --panel-seam-fade: rgba(0, 0, 0, .22);      /* 内侧淡出 */
-  --panel-grip: rgba(255, 255, 255, .22);     /* 握把常态 */
+  --panel-seam-line: color-mix(in srgb, var(--text) 14%, transparent); /* 1px 发丝线 */
+  --panel-seam-fade: color-mix(in srgb, var(--text) 4%, transparent);  /* 悬停内侧淡出 */
+  --panel-grip: color-mix(in srgb, var(--accent, #7fa4c9) 32%, transparent); /* 握把常态 */
   --panel-grip-on: var(--accent, #7fa4c9);    /* 握把高亮 */
 }
 html[data-scheme="light"]:not([data-theme]) {
@@ -50,13 +51,27 @@ html[data-theme="candle"] {
   --panel-grip: rgba(217, 168, 104, .30);
 }
 
+/* ── lumen（Daygo 液态玻璃）──
+   lumen 是后加的第四主题，旧的四主题隔离带清单没有它，于是回落到 #0b0c0f 黑带。
+   这里用 Daygo 的窗口底色与玻璃边框收口；右栏空画布也回到同一条窗口渐变。 */
+html[data-theme="lumen"] body {
+  /* Let the window gradient show through the 10px hit band; only the hairline and grip mark it. */
+  --panel-seam: transparent;
+  --panel-seam-shadow: color-mix(in srgb, var(--dg-text-primary, #f5f5f7) 3%, transparent);
+  --panel-seam-line: color-mix(in srgb, var(--dg-card-border, rgba(255,255,255,.10)) 65%, transparent);
+  --panel-seam-fade: transparent;
+  --panel-grip: color-mix(in srgb, var(--dg-text-muted, #9d9ca8) 28%, transparent);
+  --panel-grip-on: var(--dg-accent, #ff8a5b);
+}
+html[data-theme="lumen"] .pframe-box { background: transparent; }
+
 html.panel-expanded .right-sidebar {
   margin-left: 10px;
-  border-left: none;
-  /* 第一层 0 模糊的硬阴影把 10px 缝填成主题色：box-shadow 不受元素自身
-     overflow-y:auto 裁剪，所以不必把伪元素挪到 left:-10px（那样会被裁掉）。 */
-  box-shadow: -10px 0 0 var(--panel-seam),
-              -14px 0 26px var(--panel-seam-shadow);
+  /* The gap is breathing room, not a painted 10px bar: let the window field show through and
+     keep only a hairline at the panel edge. The old solid fill + hard shadow read as a separate
+     chrome strip, especially on lumen's warm glass. */
+  border-left: 1px solid var(--panel-seam-line);
+  box-shadow: none;
   position: relative;
   cursor: default;
 }
@@ -69,8 +84,7 @@ html.panel-expanded .right-sidebar::before {
   bottom: 0;
   width: 10px;
   cursor: col-resize;
-  border-left: 1px solid var(--panel-seam-line);
-  background: linear-gradient(to right, var(--panel-seam-fade), transparent);
+  background: transparent;
   z-index: 25; /* 盖在 iframe 之上，否则鼠标落在 iframe 里 */
   transition: background .18s ease, border-left-color .18s ease;
 }
@@ -93,7 +107,6 @@ html.panel-expanded .right-sidebar::after {
 /* 只由 panel-host 在指针确实落在隔离带上时加类，右栏本体 hover 不会误亮 */
 html.panel-expanded .right-sidebar.seam-hover::before,
 html.panel-resizing .right-sidebar::before {
-  border-left-color: var(--panel-grip-on);
   background: linear-gradient(to right, var(--accent-soft, rgba(127, 164, 201, .16)), transparent);
 }
 html.panel-expanded .right-sidebar.seam-hover::after,
@@ -131,60 +144,20 @@ html.panel-resizing body { user-select: none; -webkit-user-select: none; }
   #rightSidebar .rs-header { padding: 10px 12px !important; }
 }
 
-/* ── 面板条（展开态替换 tab 行） ──
-   2026-11-11（所有者定稿）：条上只有 [内容▾][⋯][拉出][关闭]。
-   工具与视图都收进「⋯」，所以这条永远放得下，不需要折行逻辑。 */
+/* ── 面板条（展开态） ──
+   2026-11-26（所有者定稿）：内容导航已经在 ptab-strip 的标签页里，条上不再放页面快捷方式、
+   「内容」标题下拉或「⋯」视图菜单 —— 只留 活动/群聊/状态 + 拉出 + 收起。 */
 .pbar {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: 4px;
   flex: 1 1 auto;
   min-width: 0;
-  flex-wrap: wrap;
-  row-gap: 2px;
+  flex-wrap: nowrap;
 }
 .pbar[hidden] { display: none !important; }
-/* 2026-11-11：面板条两态（panel-host 的 wireBarFit 按条宽切 .pbar-wide）
-   宽 → 工具/视图直接铺在条上，「⋯」隐藏；
-   窄 → 工具/视图收进「⋯」菜单。 */
-.pbar-tools { display: flex; align-items: center; gap: 4px; flex: none; }
-.pbar:not(.pbar-wide) .pbar-tools { display: none; }
-.pbar:not(.pbar-wide) .pbar-acts [data-pv] { display: none; }
-.pbar.pbar-wide #panelMoreBtn { display: none; }
-.pbtn-tool.pbtn-off { opacity: .38; }
-.pbtn-tool.pbtn-off:hover { opacity: .62; }
-/* 没有内容时标题退成占位词「内容」 */
-.pbar.pbar-plain-title .pbar-title { color: var(--muted); }
-.pbar.pbar-plain-title .pbar-title-tx { opacity: .8; }
-/* 面板条上的内容标题：可点开的下拉（名字 + 生成时间，可回看最近 10 份） */
-.pbar-title {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 34px; /* 与两侧 34px 图标键齐平 */
-  padding: 3px 6px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted, #9a9a9a);
-  font: inherit;
-  font-size: 11.5px;
-  cursor: pointer;
-  text-align: left;
-}
-.pbar-title:hover { background: rgba(127, 127, 127, .10); color: var(--text, #ececec); }
-.pbar-title-tx {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pbar-caret { width: 13px; height: 13px; flex: none; opacity: .6; }
 
 /* 下拉层 */
 .pbar-menu {
@@ -275,30 +248,9 @@ html.panel-resizing body { user-select: none; -webkit-user-select: none; }
 #panelCanvasBox .pframe,
 #panelCanvasBox .pframe-text { border-radius: 8px; }
 
-.pbtn {
-  /* 2026-11-11（所有者）：跟聊天区顶栏的 .iconbtn 同一尺寸（34px / 圆角 9 / 图标 18），
-     面板条与主顶栏并排时不再一高一矮。 */
-  width: 34px;
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: transparent;
-  color: inherit;
-  opacity: .62;
-  cursor: pointer;
-  padding: 0;
-  transition: background .15s, opacity .15s, border-color .15s;
-}
-.pbtn:hover { opacity: .9; background: rgba(127, 127, 127, .12); }
-.pbtn.active {
-  opacity: 1;
-  background: var(--accent-soft, rgba(127, 127, 127, .22));
-  border-color: var(--border-soft, #2a2b30);
-}
-.pbtn svg { width: 18px; height: 18px; flex: none; }
+/* .pbtn 的视觉材质（34px 盒 / 圆角 / hover / active / 图标尺寸）已迁到 styles-controls.css ——
+   它是 .ui-iconbtn 的别名，四主题统一读 --ctl-* / --seg-*。这里只留布局：条内不参与收缩。 */
+.pbtn { flex: none; }
 
 /* 「⋯」菜单里的工具项：图标 + 文字 */
 .pmenu-ico { display: inline-flex; width: 17px; height: 17px; flex: none; opacity: .8; }
@@ -321,6 +273,49 @@ html.panel-resizing body { user-select: none; -webkit-user-select: none; }
   position: relative;
   background: var(--bg, #0e0e11);
 }
+
+/* ── 内容标签条：每页一个标签，横向滚动；"+ 下拉"含目录与最近关闭 ── */
+.ptab-strip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px;
+  position: relative;
+  min-width: 0;
+  border-bottom: 1px solid var(--border-soft, #2a2b30);
+  background: var(--surface-2, #16171a);
+}
+.ptab-scroll {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 1 1 auto;
+  min-width: 0;
+  /* 3px breathing room: a keyboard focus ring on .ptab-main is drawn 3px outside the button and
+     overflow-y:hidden would clip it flush. padding + equal negative margin keeps the strip height. */
+  padding-block: 3px;
+  margin-block: -3px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+/* 动态标签的视觉材质（高度 / 圆角 / 底色 / .on 选中态 / 主按钮 / 关闭键 / “+” 键）已迁到
+   styles-controls.css（.ui-tab 一族，.ptab* 是别名）。这里只留条内布局与滚动。 */
+.ptab {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  max-width: 190px;
+}
+/* 每个标签一个 pane；后台 pane 保留 iframe 但隐藏并收到 visibility:false。 */
+.ptab-pane {
+  position: absolute;
+  inset: 0;
+  background: var(--bg, #0e0e11);
+}
+.ptab-pane[hidden] { display: none !important; }
+.ptab-pane .pframe { width: 100%; height: 100%; border: 0; display: block; }
 
 /* 空态：没有内容时的引导（有内容后由 .has-content 隐藏） */
 .pframe-empty {
@@ -513,17 +508,24 @@ html.panel-window body { background: var(--bg, #0e0e11); overflow: hidden; }
 html.topbar-tight .topbar-inner { gap: 6px; }
 html.topbar-tight .topbar-shell { padding-left: 10px; padding-right: 8px; }
 html.topbar-tight .model-pill .model-label { display: none; }
+/* 2026-11-26: 窄列里模型胶囊也参与收缩（min-width:0），否则 select 的固有宽度会把它
+   顶成不可压缩块，后面的按钮只能被裁。 */
+html.topbar-tight #topbar .model-pill { min-width: 0; flex: 0 1 auto; }
 /* 2026-11-11（所有者：最小状态下设置按钮被挡住）：这两条以前被 index.html 里
    `#topbar .model-pill #modelSel`（2 个 id）压住，从未真正生效（死规则）—— 窄中栏时
    select 仍保持 179px，把 ⚙ 挤出可视区。提高选择器特异性，让「窄屏收模型名」按设计生效。
    限定桌面：.topbar-tight 只看 #app 宽度，手机上也会 <560；不加这个 media，
    手机模型名会被从 200px 砍到 132px（桌面右栏场景才该让位）。 */
 @media (min-width: 1024px) {
-  html.topbar-tight #topbar .model-pill #modelSel { min-width: 78px; max-width: 132px; }
+  /* 0 而不是 78：空间真的不够时先让下拉缩，按钮组永远完整；标签已在上一条隐藏。 */
+  html.topbar-tight #topbar .model-pill #modelSel { min-width: 0; max-width: 132px; }
   html.topbar-tight #topbar #personaToggle { padding: 0; width: 34px; gap: 0; }
 }
 html.topbar-tight #topbar #personaToggle .btn-text { display: none; }
 html.topbar-tight #syncStatusIndicator { display: none; }
+/* 账单键在窄列让位：费用完整数据仍在「设置 → 高级 → 费用日志」。选择器带两个 id，
+   才能压过上面 `#topbar #costDisplay.topbar-cost-inline` 的 display:inline-flex。 */
+html.topbar-tight #topbar #costDisplay.topbar-cost-inline { display: none; }
 
 /* ── 计费按钮 + 账单卡 ── */
 #costDisplay.topbar-cost-inline {

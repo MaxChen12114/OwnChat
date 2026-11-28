@@ -118,7 +118,7 @@ function wgShouldStopFishbowl(state         )          {
   return state === "running" || state === "paused";
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/wechat-group.ts
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/wechat-group.ts
 // (membership diff, name rules, active predicate and every HTML fragment); this file owns
 // the stylesheet, DOM creation, event binding and the frozen global facade.
 //
@@ -130,21 +130,21 @@ const LS_NAME = WG_LS_NAME;
 
 function getGroupName() { return wgGroupName(localStorage.getItem(LS_NAME)); }
 function setGroupName(n) { try { localStorage.setItem(LS_NAME, wgNameForWrite(n)); } catch (e) {} }
-var safe = window.__ownEscape.esc;
+var safe = window.escapeSvc.esc;
 function allCards() {
-  try { return (window.__character && window.__character.listAllCards) ? (window.__character.listAllCards() || []) : []; }
+  try { return (window.characterSvc && window.characterSvc.listAllCards) ? (window.characterSvc.listAllCards() || []) : []; }
   catch (e) { return []; }
 }
 function sceneCards() {
-  try { return (window.__multi && window.__multi.getSceneCards) ? (window.__multi.getSceneCards() || []) : []; }
+  try { return (window.multiSvc && window.multiSvc.getSceneCards) ? (window.multiSvc.getSceneCards() || []) : []; }
   catch (e) { return []; }
 }
 function groupActive() {
-  const M = window.__multi;
+  const M = window.multiSvc;
   return wgIsGroupActive(!!(M && M.isMulti && M.isMulti()), sceneCards().length);
 }
 function applyMembers(ids) {
-  const M = window.__multi;
+  const M = window.multiSvc;
   if (!M) return;
   const cur = (M.getSceneIds && M.getSceneIds()) || [];
   const plan = wgDiffMembers(ids, cur);
@@ -152,25 +152,25 @@ function applyMembers(ids) {
   plan.add.forEach(id => { if (M.addToScene) M.addToScene(id); });
 }
 function enterGroup(ids, name) {
-  const M = window.__multi;
+  const M = window.multiSvc;
   if (!M) { alert("多人模块未就绪(multi-agent.js)"); return; }
   setGroupName(name || "");
   if (M.setMulti) M.setMulti(true);
   applyMembers(ids);
   try {
-    if (window.__dev && window.__dev.setReplyStyle) window.__dev.setReplyStyle("wechat");
+    if (window.devSvc && window.devSvc.setReplyStyle) window.devSvc.setReplyStyle("wechat");
     else localStorage.setItem("cfw_reply_style_v1", "wechat");
   } catch (e) {}
   try { const sel = document.getElementById("replyStyleSel"); if (sel) sel.value = "wechat"; } catch (e) {}
   try {
-    const fb = window.__fishbowl;
+    const fb = window.fishbowlSvc;
     if (fb) {
       const st = fb.getState ? fb.getState() : null;
       if (st && wgShouldStopFishbowl(st.state) && fb.stop) fb.stop();
       if (fb.getMode && fb.getMode() !== "orchestrate" && fb.setMode) fb.setMode("orchestrate");
     }
   } catch (e) {}
-  try { if (window.__character && window.__character.setActiveId && ids[0]) window.__character.setActiveId(ids[0]); } catch (e) {}
+  try { if (window.characterSvc && window.characterSvc.setActiveId && ids[0]) window.characterSvc.setActiveId(ids[0]); } catch (e) {}
   closeBuilder();
   renderHeader();
   try { const input = document.getElementById("msg"); if (input) input.focus(); } catch (e) {}
@@ -246,7 +246,7 @@ function updateCount() {
 function openBuilder() {
   if (!allCards().length) { alert("还没有角色卡。先到 🎭 角色卡 里创建/导入几张,再来建群。"); return; }
   ensureBuilder();
-  _sel = new Set((window.__multi && window.__multi.getSceneIds && window.__multi.getSceneIds()) || []);
+  _sel = new Set((window.multiSvc && window.multiSvc.getSceneIds && window.multiSvc.getSceneIds()) || []);
   renderBuilder();
   _mask.classList.add("open");
 }
@@ -301,13 +301,13 @@ function renderHeader() {
   if (mb) mb.addEventListener("click", openBuilder);
   const lb = header.querySelector("#wgLeaveBtn");
   if (lb) lb.addEventListener("click", () => {
-    if (window.__multi && window.__multi.setMulti) window.__multi.setMulti(false);
+    if (window.multiSvc && window.multiSvc.setMulti) window.multiSvc.setMulti(false);
     renderHeader();
   });
 }
 
 function wire() {
-  const btn = document.getElementById("wechatGroupBtn");
+  const btn = document.getElementById("wechatGroupBtn") || document.getElementById("wgConsoleBuildBtn");
   if (btn) btn.addEventListener("click", openBuilder);
   renderHeader();
   window.addEventListener("multi-agent:changed", renderHeader);
@@ -315,7 +315,8 @@ function wire() {
   document.addEventListener("click", () => { const m = document.getElementById("wgMenu"); if (m) m.classList.remove("open"); });
 }
 
-window.__wechatGroup = { open: openBuilder, enter: enterGroup, getGroupName, isActive: groupActive };
+// G1 (2026-11-26): no frozen facade — the console button is bound in wire() above, and every other
+// entry point is internal to this product.
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire);
 else wire();

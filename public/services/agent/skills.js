@@ -14,10 +14,10 @@
  * box. That default is a security boundary, not a UX preference.
  *
  * Storage and network arrive through {@link SkillsEnv}: `localStorage` in the page, a stub in tests.
- * The settings card itself is not here — it is DOM, so it lives in `l0/wiring/skills.js` and reaches
+ * The settings card itself is not here — it is DOM, so it lives in `tooling/l0/wiring/skills.js` and reaches
  * back through `onChange`.
  *
- * Lock: `scripts/test-skills-import.mjs` (imports through the real store) and `test/slot-runtime.test.mjs`.
+ * Lock: `tooling/scripts/test-skills-import.mjs` (imports through the real store) and `test/slot-runtime.test.mjs`.
  * @module services/agent/skills
  */
 
@@ -401,12 +401,12 @@ function createSkills(env           )            {
   };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name,
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name,
 // and owns everything that is DOM — the settings card, its event wiring and the lazy script loader.
 // The store, the catalogue and the SKILL.md parser moved to services/agent/skills.ts; the card calls
 // back into it and re-renders through onChange().
 (function () {
-  if (window.__skills) return;
+  if (window.skillsSvc) return;
 
   const api = createSkills({
     storage: {
@@ -417,7 +417,7 @@ function createSkills(env           )            {
     onChange: function () { renderList(); },
   });
 
-  window.__skills = {
+  window.skillsSvc = {
     buildCatalogPrompt: api.buildCatalogPrompt,
     getByName: api.getByName,
     list: api.list,
@@ -432,7 +432,7 @@ function createSkills(env           )            {
     parseSkillMd: api.parseSkillMd,
   };
 
-  const esc = window.__ownEscape.esc;
+  const esc = window.escapeSvc.esc;
 
   // Scripts loaded on demand for the ZIP import chain (zip-read.js → skills-import.js). They are not
   // in the boot list on purpose: reading a ZIP is only needed when someone clicks "import a pack".
@@ -508,7 +508,7 @@ function createSkills(env           )            {
     const listEl = card.querySelector("#skillList");
     if (listEl) {
       listEl.addEventListener("change", function (e) { const t = e.target.closest('input[data-act="toggle"]'); if (!t) return; api.setEnabled(t.getAttribute("data-id"), t.checked); });
-      listEl.addEventListener("click", async function (e) { const b = e.target.closest('button[data-act="del"]'); if (!b) return; const ok = (window.__feedback && window.__feedback.confirm) ? await window.__feedback.confirm({ title: "删除技能", message: "删除这条技能？", okText: "删除", danger: true }) : confirm("删除这条技能？"); if (!ok) return; api.remove(b.getAttribute("data-id")); renderList(); });
+      listEl.addEventListener("click", async function (e) { const b = e.target.closest('button[data-act="del"]'); if (!b) return; const ok = (window.feedbackSvc && window.feedbackSvc.confirm) ? await window.feedbackSvc.confirm({ title: "删除技能", message: "删除这条技能？", okText: "删除", danger: true }) : confirm("删除这条技能？"); if (!ok) return; api.remove(b.getAttribute("data-id")); renderList(); });
     }
 
     const pasteBtn = card.querySelector("#skillPasteBtn"), pasteText = card.querySelector("#skillPasteText");
@@ -554,7 +554,7 @@ function createSkills(env           )            {
         zipBtn.disabled = true; setMsg("读取技能包…");
         try {
           const buf = new Uint8Array(await f.arrayBuffer());
-          if (!window.ZipRead) await loadScriptOnce("/services/core/zip-read.js");
+          if (!window.ZipRead) await loadScriptOnce("/shared/lib/zip-read.js");
           if (!window.__skillsImport) await loadScriptOnce("/services/agent/skills-import.js");
           if (!window.__skillsImport || typeof window.__skillsImport.importZipBytes !== "function") throw new Error("技能包模块未就绪");
           const r = await window.__skillsImport.importZipBytes(buf, { onConflict: "skip" });
@@ -568,34 +568,42 @@ function createSkills(env           )            {
   }
 
   function mountCard() {
-    const slot = window.slotRegistry.pick("setSkillSlot");
-    if (slot) window.slotRegistry.claim({ cardId: "skillSystemCard", slotId: "setSkillSlot" });
-    if (!slot || document.getElementById("skillSystemCard")) return;
-    const IN = 'width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;';
-    const card = document.createElement("div");
-    card.className = "card";
-    card.id = "skillSystemCard";
-    card.innerHTML =
-      '<h4>Skill 系统（技能）</h4>'
-      + '<p>导入 <b>SKILL.md</b>（纯 Markdown + YAML frontmatter）。技能走<b>三级渐进披露</b>：只有「名称 + 描述」这一行目录挂在 <b>agent 模式</b>的系统提示里，正文由 agent 需要时自己调 <code>load_skill</code> 取 —— 这是 Anthropic Agent Skills / DeepSeek Harness / ZCode 的通行做法（摘要常驻、正文按需）。<b>普通对话不挂技能。</b>随云同步、跨设备可用。</p>'
-      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="skillGlobalToggle"><label for="skillGlobalToggle">启用技能目录（总开关）</label></div></div>'
-      + '<div id="skillList" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;"></div>'
-      + '<div style="margin-top:14px;"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;">导入技能</div>'
-      + '<textarea id="skillPasteText" rows="4" placeholder="粘贴 SKILL.md 内容…" style="' + IN + 'resize:vertical;"></textarea>'
-      + '<div class="rowline" style="margin-top:8px;"><div></div><div class="btns">'
-      + '<button class="smallbtn" id="skillPasteBtn">从文本导入</button>'
-      + '<button class="smallbtn" id="skillFileBtn">从文件导入</button>'
-      + '<input type="file" id="skillFileInput" accept=".md,.markdown,.txt" style="display:none">'
-      + '<button class="smallbtn" id="skillZipBtn">导入技能包（ZIP）</button>'
-      + '<input type="file" id="skillZipInput" accept=".zip,application/zip" style="display:none">'
-      + '<button class="smallbtn" id="skillSampleBtn">导入起始技能库</button>'
-      + '</div></div>'
-      + '<div class="rowline" style="margin-top:6px;align-items:center;gap:8px;"><input type="text" id="skillUrlInput" placeholder="GitHub raw 链接（raw.githubusercontent.com/…/SKILL.md）" style="flex:1;' + IN + '"><button class="smallbtn" id="skillUrlBtn">拉取</button></div>'
-      + '<div id="skillImportStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div></div>'
-      + '<div class="settings-warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg><span>第三方 / 社区技能可能含提示词注入，<b>导入后默认不进目录</b>；请先阅读正文再手动列入。正文超过 6000 字会在加载时被工具结果裁剪；含 reference 的技能当前不加载附件（P1：等 agent 工作区成熟再做按需读）。</span></div>';
-    slot.appendChild(card);
-    wireCard(card);
-    renderList();
+    // 2026-11-28 card-shell batch 2: shell + declareCard; the guard id already sat on the card
+    // element. The trailing settings-warn block is not a settings-tip, so it rides in extra
+    // verbatim — no tip field. wireCard/renderList keep working on the same ids.
+    window.slotRegistry.declareCard({
+      id: "skillSystemCard",
+      slotId: "setSkillSlot",
+      build: function (slot) {
+        // Field material lives in the shared .field-input classes (styles-controls.css); the inline
+        // string this used to carry was byte-equal to field-input--fluid + field-input--pad-lg.
+        const shell = window.cardShell.createCardShell({
+          id: "skillSystemCard",
+          title: "Skill 系统",
+          desc: '导入 <b>SKILL.md</b>（纯 Markdown + YAML frontmatter）。技能走<b>三级渐进披露</b>：只有「名称 + 描述」这一行目录挂在 <b>agent 模式</b>的系统提示里，正文由 agent 需要时自己调 <code>load_skill</code> 取 —— 这是 Anthropic Agent Skills / DeepSeek Harness / ZCode 的通行做法（摘要常驻、正文按需）。<b>普通对话不挂技能。</b>随云同步、跨设备可用。',
+          extra: '<div class="rowline"><div class="toggle"><input type="checkbox" id="skillGlobalToggle"><label for="skillGlobalToggle">启用技能目录（总开关）</label></div></div>'
+            + '<div id="skillList" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;"></div>'
+            + '<div style="margin-top:14px;"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;">导入技能</div>'
+            + '<textarea id="skillPasteText" rows="4" placeholder="粘贴 SKILL.md 内容…" class="field-input field-input--fluid field-input--pad-lg" style="resize:vertical;"></textarea>'
+            + '<div class="rowline" style="margin-top:8px;"><div></div><div class="btns">'
+            + '<button class="smallbtn" id="skillPasteBtn">从文本导入</button>'
+            + '<button class="smallbtn" id="skillFileBtn">从文件导入</button>'
+            + '<input type="file" id="skillFileInput" accept=".md,.markdown,.txt" style="display:none">'
+            + '<button class="smallbtn" id="skillZipBtn">导入技能包（ZIP）</button>'
+            + '<input type="file" id="skillZipInput" accept=".zip,application/zip" style="display:none">'
+            + '<button class="smallbtn" id="skillSampleBtn">导入起始技能库</button>'
+            + '</div></div>'
+            + '<div class="rowline" style="margin-top:6px;align-items:center;gap:8px;"><input type="text" id="skillUrlInput" placeholder="GitHub raw 链接（raw.githubusercontent.com/…/SKILL.md）" class="field-input field-input--fluid field-input--pad-lg" style="flex:1;"><button class="smallbtn" id="skillUrlBtn">拉取</button></div>'
+            + '<div id="skillImportStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div></div>'
+            + '<div class="settings-warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg><span>第三方 / 社区技能可能含提示词注入，<b>导入后默认不进目录</b>；请先阅读正文再手动列入。正文超过 6000 字会在加载时被工具结果裁剪；含 reference 的技能当前不加载附件（P1：等 agent 工作区成熟再做按需读）。</span></div>'
+        });
+        const card = shell.card;
+        slot.appendChild(card);
+        wireCard(card);
+        renderList();
+        return card;
+      }
+    });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mountCard);

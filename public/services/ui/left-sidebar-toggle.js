@@ -72,7 +72,7 @@ function createLeftSidebarToggle(ports             )            {
   return { open: open, close: close, onSidebarClick: onSidebarClick, onKeydown: onKeydown };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the drawer listeners; no frozen contract,
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the drawer listeners; no frozen contract,
 // the old inline script was an anonymous IIFE with no window surface.
 (function () {
   var body = document.body;

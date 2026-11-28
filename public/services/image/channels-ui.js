@@ -175,7 +175,7 @@ function testRequest(ch         )                     {
   return { url: url, headers: headers };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/channels-ui.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/channels-ui.ts; this file owns the
 // card markup, the list/detail panes and the click wiring.
 //
 // Layout mirrors the chat channel card: channel list on the left, details on the right. The list is
@@ -185,22 +185,22 @@ function testRequest(ch         )                     {
 // Loads after the channel registry; mounted when settings opens.
 (function () {
   'use strict';
-  if (window.__imageChannelsUI) return;
+  // G1 (2026-11-26): the settings card asks through the DOM (dataset flag + event), not a frozen
+  // window global. The dataset guard keeps the product idempotent if loaded twice.
+  if (document.documentElement.dataset.imageChannelsUi === "1") return;
 
-  var C = window.__imageChannels;
+  var C = window.imageChannelsSvc;
   if (!C) { console.warn('[image-channels-ui] 缺少 image-channels.js'); return; }
 
   function q(id) { return document.getElementById(id); }
-  var esc = window.__ownEscape.esc;
-  function guest() { try { return !!(window.__auth && window.__auth.getToken && !window.__auth.getToken()); } catch (e) { return false; } }
+  var esc = window.escapeSvc.esc;
+  function guest() { try { return !!(window.authSvc && window.authSvc.getToken && !window.authSvc.getToken()); } catch (e) { return false; } }
 
-  // Same inline styles as the chat channel card.
-  var INP = 'width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;';
-  var LBL = 'font-size:12px;color:var(--muted);display:block;margin-bottom:4px;';
-  var BTN = 'cursor:pointer;text-align:left;width:100%;padding:7px 9px;border-radius:8px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:12px;line-height:1.5;';
-
+  // Field material moved to the shared .field-input / .field-label / .field-btn classes in
+  // styles-controls.css (the values were byte-equal to the chat channel card's inline strings).
+  // Per-element layout leftovers (a dashed border, the selected tint) stay inline.
   function field(label, input) {
-    return '<div style="margin-top:8px;"><label style="' + LBL + '">' + label + '</label>' + input + '</div>';
+    return '<div style="margin-top:8px;"><label class="field-label field-label--block">' + label + '</label>' + input + '</div>';
   }
   // The option list itself comes from the service; only the markup is built here.
   function modelOptionsHtml(ch) {
@@ -253,13 +253,13 @@ function testRequest(ch         )                     {
         }
         var isAct = C.activeId() === ch.id, isSel = selId === ch.id;
         var badge = isAct ? '<span style="color:var(--accent,#7aa2f7);">　● 使用中</span>' : '';
-        html += '<button type="button" data-id="' + esc(ch.id) + '" style="' + BTN + (isSel ? 'border-color:var(--accent,#7aa2f7);' : '') + '">'
+        html += '<button type="button" data-id="' + esc(ch.id) + '" class="field-btn"' + (isSel ? ' style="border-color:var(--accent,#7aa2f7);"' : '') + '">'
           + '<b style="font-size:12.5px;">' + esc(ch.name) + badge + '</b>'
           + '<small style="color:var(--muted);font-size:11px;display:block;margin-top:1px;word-break:break-all;">' + esc(channelTag(ch)) + '</small></button>';
       });
-      html += '<button type="button" data-new="1" style="' + BTN + 'border-style:dashed;color:var(--muted);">＋ 新增图像渠道</button>';
+      html += '<button type="button" data-new="1" class="field-btn" style="border-style:dashed;color:var(--muted);">＋ 新增图像渠道</button>';
       if (!guest() && !chs.some(isGitee)) {
-        html += '<button type="button" data-restore="1" style="' + BTN + 'border-style:dashed;color:var(--muted);">恢复 Gitee 预设</button>';
+        html += '<button type="button" data-restore="1" class="field-btn" style="border-style:dashed;color:var(--muted);">恢复 Gitee 预设</button>';
       }
       listEl.innerHTML = html;
     }
@@ -342,27 +342,27 @@ function testRequest(ch         )                     {
 
       if (gitee) {
         html += '<div style="font-size:12px;color:var(--muted);margin-top:4px;">站点代理：Endpoint 固定为 <code>https://ai.gitee.com/v1</code>，经部署的 <code>/img/v1</code> 代理调用。</div>';
-        html += field('API Key', '<input id="imgChKey" type="password" placeholder="Gitee API Key" style="' + INP + '" value="' + esc(ch.key) + '">');
-        html += field('模型列表（逗号分隔）', '<input id="imgChModels" placeholder="z-image-turbo, Qwen-Image-Edit-2511" style="' + INP + '" value="' + esc((ch.models || []).join(', ')) + '">');
-        html += field('默认模型', '<select id="imgChModel" style="' + INP + '">' + modelOptionsHtml(ch) + '</select>');
-        html += field('改图模型', '<input id="imgChEditModel" placeholder="Qwen-Image-Edit-2511" style="' + INP + '" value="' + esc(ch.editModel) + '">');
+        html += field('API Key', '<input id="imgChKey" type="password" placeholder="Gitee API Key" class="field-input field-input--fluid" value="' + esc(ch.key) + '">');
+        html += field('模型列表（逗号分隔）', '<input id="imgChModels" placeholder="z-image-turbo, Qwen-Image-Edit-2511" class="field-input field-input--fluid" value="' + esc((ch.models || []).join(', ')) + '">');
+        html += field('默认模型', '<select id="imgChModel" class="field-input field-input--fluid">' + modelOptionsHtml(ch) + '</select>');
+        html += field('改图模型', '<input id="imgChEditModel" placeholder="Qwen-Image-Edit-2511" class="field-input field-input--fluid" value="' + esc(ch.editModel) + '">');
         html += '<div class="btns" style="margin-top:12px;">' + useBtn
           + '<button class="smallbtn" type="button" data-act="save">保存</button>'
           + '<button class="smallbtn" type="button" data-act="test">测试</button></div>';
       } else {
-        html += field('渠道名称', '<input id="imgChName" placeholder="渠道名称" style="' + INP + '" value="' + esc(ch.name) + '">');
-        html += field('渠道类型', '<select id="imgChKind" style="' + INP + '">'
+        html += field('渠道名称', '<input id="imgChName" placeholder="渠道名称" class="field-input field-input--fluid" value="' + esc(ch.name) + '">');
+        html += field('渠道类型', '<select id="imgChKind" class="field-input field-input--fluid">'
           + '<option value="openai"' + (comfy ? '' : ' selected') + '>OpenAI 兼容</option>'
           + '<option value="comfyui"' + (comfy ? ' selected' : '') + '>本地 ComfyUI</option></select>');
-        html += field('Base URL', '<input id="imgChBase" placeholder="OpenAI 兼容填 .../v1；ComfyUI 填 http://127.0.0.1:8188" style="' + INP + '" value="' + esc(ch.baseUrl) + '">');
+        html += field('Base URL', '<input id="imgChBase" placeholder="OpenAI 兼容填 .../v1；ComfyUI 填 http://127.0.0.1:8188" class="field-input field-input--fluid" value="' + esc(ch.baseUrl) + '">');
         html += '<div id="imgChOpenAiFields" style="display:' + (comfy ? 'none' : '') + ';">';
-        html += field('API Key', '<input id="imgChKey" type="password" placeholder="可留空（本地端点）" style="' + INP + '" value="' + esc(ch.key) + '">');
-        html += field('模型列表（逗号分隔）', '<input id="imgChModels" placeholder="模型名，逗号分隔" style="' + INP + '" value="' + esc((ch.models || []).join(', ')) + '">');
-        html += field('默认模型', '<select id="imgChModel" style="' + INP + '">' + modelOptionsHtml(ch) + '</select>');
+        html += field('API Key', '<input id="imgChKey" type="password" placeholder="可留空（本地端点）" class="field-input field-input--fluid" value="' + esc(ch.key) + '">');
+        html += field('模型列表（逗号分隔）', '<input id="imgChModels" placeholder="模型名，逗号分隔" class="field-input field-input--fluid" value="' + esc((ch.models || []).join(', ')) + '">');
+        html += field('默认模型', '<select id="imgChModel" class="field-input field-input--fluid">' + modelOptionsHtml(ch) + '</select>');
         html += '</div>';
         html += '<div id="imgChComfyFields" style="display:' + (comfy ? '' : 'none') + ';">';
-        html += field('ckpt 文件名', '<input id="imgChCkpt" placeholder="z-image-turbo-fp8-aio.safetensors" style="' + INP + '" value="' + esc(ch.ckpt) + '">');
-        html += field('steps', '<input id="imgChSteps" type="number" min="1" max="80" value="' + (ch.steps || 9) + '" style="' + INP + '">');
+        html += field('ckpt 文件名', '<input id="imgChCkpt" placeholder="z-image-turbo-fp8-aio.safetensors" class="field-input field-input--fluid" value="' + esc(ch.ckpt) + '">');
+        html += field('steps', '<input id="imgChSteps" type="number" min="1" max="80" value="' + (ch.steps || 9) + '" class="field-input field-input--fluid">');
         html += '</div>';
         html += '<div class="btns" style="margin-top:12px;">' + useBtn
           + '<button class="smallbtn" type="button" data-act="save">保存此渠道</button>'
@@ -419,8 +419,8 @@ function testRequest(ch         )                     {
       if (act === 'test') return testChannel(readForm(selId));
       if (act === 'delete') {
         var ch = C.get(selId); if (!ch || isGitee(ch)) return;
-        const okDel = (window.__feedback && window.__feedback.confirm)
-          ? await window.__feedback.confirm({ title: '删除渠道', message: '删除渠道「' + (ch.name || selId) + '」？Key 一并删除。', okText: '删除', danger: true })
+        const okDel = (window.feedbackSvc && window.feedbackSvc.confirm)
+          ? await window.feedbackSvc.confirm({ title: '删除渠道', message: '删除渠道「' + (ch.name || selId) + '」？Key 一并删除。', okText: '删除', danger: true })
           : confirm('删除渠道「' + (ch.name || selId) + '」？Key 一并删除。');
         if (!okDel) return;
         var wasActive = C.activeId() === ch.id;
@@ -435,7 +435,10 @@ function testRequest(ch         )                     {
     renderDetail();
   }
 
-  window.__imageChannelsUI = { mount: mount };
+  document.documentElement.dataset.imageChannelsUi = "1";
+  document.addEventListener("cfw:mount-image-channels", function () {
+    try { mount(); } catch (e) {}
+  });
 })();
 
 globalThis.isGitee = isGitee;

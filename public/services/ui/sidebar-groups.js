@@ -167,7 +167,7 @@ function sbIsToggleKey(key        )          {
   return key === "Enter" || key === " ";
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/sidebar-groups.ts; this file owns
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/sidebar-groups.ts; this file owns
 // the DOM: the nav scan, the wrapper nodes, the stylesheet, the delegated listeners, the childList
 // observer and localStorage.
 //
@@ -181,7 +181,6 @@ function sbIsToggleKey(key        )          {
 // happen before the fold is applied, and a pass that wraps nothing must not repaint folds.
 (function () {
   "use strict";
-  if (window.__sidebarGroups) return;
 
   var STYLE_ID = "sbGroupStyles";
   var CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
@@ -318,8 +317,6 @@ function sbIsToggleKey(key        )          {
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
   else start();
-
-  window.__sidebarGroups = { refresh: function () { if (wrapAll()) applyFold(); }, applyFold: applyFold };
 })();
 
 globalThis.SB_LS_FOLDED = SB_LS_FOLDED;

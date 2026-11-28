@@ -74,14 +74,14 @@ export interface CapabilitySpec {
 }
 
 export const CAPABILITY_SPECS: readonly CapabilitySpec[] = [
-  { id: "tauri", file: "public/services/local/pc-tools.js", signal: "window.__TAURI__" },
-  { id: "panel", file: "public/services/ui/stage-tools.js", signal: "__panel.v === 1" },
+  { id: "tauri", file: "public/services/platform/tauri.js", signal: "__TAURI__" },
+  { id: "panel", file: "public/services/ui/stage-tools.js", signal: "panelSvc.v === 1" },
   { id: "unlocked", file: "public/services/auth/unlock.js", signal: "cfw_unlocked_v1" },
   { id: "pcEnabled", file: "public/services/local/pc-tools.js", signal: "cfw_pc_enabled_v1" },
   { id: "pcBridge", file: "public/services/local/pc-tools.js", signal: "cfw_pc_bridge_token_v1" },
   { id: "localExec", file: "public/services/local/local-exec-tools.js", signal: "cfw_local_exec_token" },
   { id: "sourceServer", file: "public/services/agent/source-tools.js", signal: "cfw_source_tools_on_v1" },
-  { id: "multiAgent", file: "public/shared/agent/tools.js", signal: "tavern_multi_agent_mode_v1" },
+  { id: "multiAgent", file: "public/services/tools/agent/tools.js", signal: "tavern_multi_agent_mode_v1" },
 ];
 
 /** Runtime id list — derived from SPECS, never a second copy of the literals (two copies drift). */

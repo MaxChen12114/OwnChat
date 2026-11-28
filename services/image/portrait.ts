@@ -5,7 +5,7 @@
  *
  * Two things are deliberately kept apart here. Prompt composition is pure and lives below; the
  * image call and the base-image hand-off are ports, because both need modules that are classic
- * scripts (`__image` / `__chatImage`) and neither can be reached from a realm-neutral service.
+ * scripts (`imageStudioSvc` / `chatImageSvc`) and neither can be reached from a realm-neutral service.
  * The style preference is a port too, so the storage key stays with the wiring that owns
  * localStorage and the change event.
  *
@@ -20,21 +20,35 @@ export interface StyleSpec {
 }
 
 export const PORTRAIT_STYLES: Record<string, StyleSpec> = {
-  none: { label: "默认", tags: "" },
+  none: { label: "默认（不指定）", tags: "" },
   real: { label: "写实", tags: "写实风格 / photorealistic" },
-  anime: { label: "动漫·日系", tags: "现代日系动漫 / anime 插画风格" },
+  anime: { label: "动漫（现代日系）", tags: "现代日系动漫 / anime 插画风格" },
   soft: { label: "日系厚涂", tags: "日系厚涂 / Japanese semi-realistic painterly" },
-  webtoon: { label: "韩漫·网漫", tags: "韩漫 / Korean webtoon manhwa" },
-  uscomic: { label: "美漫·美式", tags: "美漫 / American comic" },
-  gufeng: { label: "中式·国风", tags: "中式国风插画 / Chinese gufeng ink painting" },
+  webtoon: { label: "韩漫（网漫）", tags: "韩漫 / Korean webtoon manhwa" },
+  uscomic: { label: "美漫（美式）", tags: "美漫 / American comic" },
+  gufeng: { label: "中式（国风）", tags: "中式国风插画 / Chinese gufeng ink painting" },
   fantasy: { label: "欧美奇幻厚涂", tags: "欧美奇幻厚涂 / Western fantasy concept art" },
   oil: { label: "古典油画", tags: "古典油画 / classical oil painting" },
   water: { label: "水彩", tags: "水彩插画 / watercolor painting" },
-  render3d: { label: "3D·皮克斯", tags: "3D 渲染 / Pixar Disney 3D render" },
-  chibi: { label: "Q版·萝系", tags: "Q 版萝系 / chibi" },
-  inkmanga: { label: "默白漫画", tags: "日式默白漫画 / black-and-white manga" },
+  render3d: { label: "3D（皮克斯渲染）", tags: "3D 渲染 / Pixar Disney 3D render" },
+  chibi: { label: "Q版（萌系）", tags: "Q 版萝系 / chibi" },
+  inkmanga: { label: "黑白漫画", tags: "日式默白漫画 / black-and-white manga" },
   cyber: { label: "赛博朋克", tags: "赛博朋克插画 / cyberpunk" }
 };
+
+/** One picker row; `key` is the stored value, `label` is the user-facing text. */
+export interface StyleOption {
+  readonly key: string;
+  readonly label: string;
+}
+
+/** The picker rows in table order. The settings cards render this, never a local copy. */
+export function styleOptions(): StyleOption[] {
+  const out: StyleOption[] = [];
+  const keys = Object.keys(PORTRAIT_STYLES);
+  for (let i = 0; i < keys.length; i++) out.push({ key: keys[i], label: PORTRAIT_STYLES[keys[i]].label });
+  return out;
+}
 
 const DEFAULT_STYLE = "none";
 const ILLUSTRATION_WARNING = "这是一幅二维插画/手绘作品（绝对不是真人照片）。";
@@ -77,6 +91,8 @@ export interface Portrait {
   setStyle(s: unknown): void;
   getStyleTags(): string;
   getLastImage(): PortraitImage | null;
+  /** The picker rows, so both settings cards and any future UI share one style table. */
+  styles(): StyleOption[];
 }
 
 function recOf(v: unknown): Record<string, unknown> {
@@ -196,6 +212,7 @@ export function createPortrait(ports: PortraitPorts): Portrait {
     },
     getLastImage: function () {
       return lastImage;
-    }
+    },
+    styles: styleOptions
   };
 }

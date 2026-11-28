@@ -18,8 +18,14 @@
  * The original default (trusted) both handed generated content same-origin rights and, because the
  * trusted branch only sets `src`, silently rendered nothing at all.
  *
- * Mounting, timers, theme reading and the frame element itself stay in `l0/wiring/panel-frame.js`.
- * Lock: `test/panel-frame.test.mjs` (written with the migration, run against both implementations).
+ * Mounting, timers, theme reading and the frame element itself stay in `tooling/l0/wiring/panel-frame.js`.
+ * One pane = one box element; the tab host owns those boxes, so `mount` never has to know how many
+ * frames exist. Background panes stay mounted but are told to pause:
+ * `{__panel:1,type:"visibility",data:{visible:false}}` is the freeze signal, and a page that ignores
+ * it is destroyed by the host's live-frame cap rather than trusted to behave.
+ *
+ * Lock: `test/panel-frame.test.mjs` (written with the migration, run against both implementations)
+ * and `test/tab-state.test.mjs` for the visibility envelope.
  * @module services/panel/panel-frame
  */
 
@@ -49,6 +55,10 @@
 
 const PANEL_FRAME_VERSION = 1;
 const PANEL_HOST_ORIGIN = "panel-host";
+/** The freeze/resume message type sent to every pane whose visibility changes. */
+const PANEL_MSG_VISIBILITY = "visibility";
+/** The function-name call the agent's `stage_call` reaches a page with. */
+const PANEL_MSG_CALL = "call";
 
 const PANEL_SANDBOX_SCRIPT_ONLY = "allow-scripts";
 const PANEL_SANDBOX_OWN = "allow-scripts allow-same-origin allow-forms";
@@ -123,19 +133,29 @@ function panelEnvelope(type        , data          , at         )               
   };
 }
 
+/**
+ * The pause/resume signal for a background pane.
+ * @returns the exact envelope the bootstrap and page authors read: `visible:false` means "you are
+ * not on screen — stop animations and timers"; `visible:true` is sent on every activation so a
+ * page has a single resume path instead of guessing from resize events.
+ */
+function visibilityEnvelope(visible         )                {
+  return panelEnvelope(PANEL_MSG_VISIBILITY, { visible: visible === true }, undefined);
+}
+
 /** The srcdoc body for `host-html`: the bootstrap first, then the payload verbatim. */
 function panelSrcDoc(html         )         {
   return "<script>" + PANEL_BOOTSTRAP + "</scr" + "ipt>" + text(html);
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // The security decisions moved to services/panel/panel-frame.ts (mode inference, sandbox attributes,
 // envelope, bootstrap). This file owns the frame element itself: creating it, the load/timeout
 // heuristics, injecting the bootstrap into a same-origin document, and the message subscription.
 (function (global) {
   "use strict";
 
-  if (global.__panelFrame && global.__panelFrame.v === 1) return;
+  if (global.panelSvcFrame && global.panelSvcFrame.v === 1) return;
 
   var V = PANEL_FRAME_VERSION;
   var LOAD_TIMEOUT_MS = 3500;
@@ -314,6 +334,18 @@ function panelSrcDoc(html         )         {
     post(box, panelEnvelope("resize", { w: box.clientWidth, h: box.clientHeight }));
   }
 
+  // Pause/resume signal for a background pane. Pages that animate or poll should listen for
+  // `{__panel:1,type:"visibility",data:{visible}}`; a page that ignores it is still torn down by the
+  // host's live-frame cap, so this is an optimisation, not the safety boundary.
+  function setVisible(box, visible) {
+    if (!box) return false;
+    return post(box, visibilityEnvelope(visible === true));
+  }
+
+  function hasFrame(box) {
+    return !!(box && box.querySelector("iframe.pframe"));
+  }
+
   function readTheme() {
     var out = {};
     try {
@@ -336,7 +368,7 @@ function panelSrcDoc(html         )         {
     };
   }
 
-  global.__panelFrame = {
+  global.panelSvcFrame = {
     v: V,
     MODES: MODES,
     mount: mount,
@@ -344,16 +376,21 @@ function panelSrcDoc(html         )         {
     current: current,
     post: post,
     resize: resize,
+    setVisible: setVisible,
+    hasFrame: hasFrame,
     on: on
   };
 })(window);
 
 globalThis.PANEL_FRAME_VERSION = PANEL_FRAME_VERSION;
 globalThis.PANEL_HOST_ORIGIN = PANEL_HOST_ORIGIN;
+globalThis.PANEL_MSG_VISIBILITY = PANEL_MSG_VISIBILITY;
+globalThis.PANEL_MSG_CALL = PANEL_MSG_CALL;
 globalThis.PANEL_BOOTSTRAP = PANEL_BOOTSTRAP;
 globalThis.isTextOnlySpec = isTextOnlySpec;
 globalThis.inferPanelMode = inferPanelMode;
 globalThis.panelSandbox = panelSandbox;
 globalThis.panelEnvelope = panelEnvelope;
+globalThis.visibilityEnvelope = visibilityEnvelope;
 globalThis.panelSrcDoc = panelSrcDoc;
 })();

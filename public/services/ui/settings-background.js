@@ -161,7 +161,7 @@ function createBackground(ports                 ) {
       try { window.localStorage.removeItem(key); } catch (e) {}
     },
     applyBg: function () {
-      try { if (window.__theme && typeof window.__theme.applyBg === "function") window.__theme.applyBg(); } catch (e) {}
+      try { if (window.themeSvc && typeof window.themeSvc.applyBg === "function") window.themeSvc.applyBg(); } catch (e) {}
     },
   });
 })();

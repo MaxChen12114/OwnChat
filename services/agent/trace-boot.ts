@@ -25,7 +25,7 @@ export interface TraceBootPorts {
   now(): number;
 }
 
-/** Public surface; `window.__agentTraceBoot` (the existing frozen name) is the wiring's job. */
+/** Public surface; the retired diagnostics sink is the wiring's job. */
 export interface TraceBootApi {
   /** One attempt; schedules up to {@link MAX_TRIES} retries while the kernel is missing. */
   install(): void;

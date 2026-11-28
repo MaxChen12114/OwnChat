@@ -48,7 +48,7 @@ function createCharacterTools(deps               )               {
     const args = recOf(input);
     const store = deps.character();
     if (!store || typeof store.adjustActiveAffection !== "function") {
-      return { ok: false, error: "好感模块未就绪 (character.js / window.__character)" };
+      return { ok: false, error: "好感模块未就绪 (character.js / window.characterSvc)" };
     }
     const value = await store.adjustActiveAffection(args.delta);
     return { ok: true, delta: args.delta, value: typeof value === "number" ? value : undefined };

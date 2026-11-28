@@ -13,7 +13,7 @@
  * document.
  *
  * Nothing here closes over the page: page-level state arrives through {@link PeerCaps} and browser
- * globals through {@link PeerEnv}, both supplied by `l0/wiring/agent-peer-calls.js`. The env handles
+ * globals through {@link PeerEnv}, both supplied by `tooling/l0/wiring/agent-peer-calls.js`. The env handles
  * are re-read on every call rather than captured at construction, because boot order is not fixed —
  * the agent kernel is an ESM module that lands after the classic scripts, and the memory core can be
  * attached later still. A handle captured at construction would be permanently null.
@@ -97,9 +97,9 @@ interface PanelLike {
  * a defined degraded path, and the old code swallowed the same failures.
  */
 export interface PeerEnv {
-  /** `__multi.getSceneCards()` — the characters currently on stage. */
+  /** `multiSvc.getSceneCards()` — the characters currently on stage. */
   sceneCards?(): unknown;
-  /** `__character.listAllCards()` — the whole card library. */
+  /** `characterSvc.listAllCards()` — the whole card library. */
   allCards?(): unknown;
   /** The user's own provider when one is configured; undefined on the hosted path. */
   byo?(): unknown;
@@ -378,8 +378,11 @@ export function createPeerCalls(caps: PeerCaps): PeerCallsApi {
       const n = parseInt(textOf(setting(key)), 10);
       return isNaN(n) ? def : Math.max(lo, Math.min(hi, n));
     };
+    // Defaults and clamps mirror services/ui/settings-multi-agent.ts (the write-side home). The
+    // old meetingMax default was 6 here vs 3 in the card, so the shown value was not the one used;
+    // test/settings-multi-agent.test.mjs locks this cfg() against that service's engineConfig().
     return {
-      meetingMax: num("cfw_ma_meeting_max_v1", 6, 1, 6),
+      meetingMax: num("cfw_ma_meeting_max_v1", 3, 1, 6),
       meetingRounds: num("cfw_ma_meeting_rounds_v1", 1, 1, 2),
       ctxMsgs: num("cfw_ma_ctx_msgs_v1", 60, 0, 400),
     };

@@ -14,7 +14,7 @@
  * document.
  *
  * Nothing here closes over the page: page-level state arrives through {@link PeerCaps} and browser
- * globals through {@link PeerEnv}, both supplied by `l0/wiring/agent-peer-calls.js`. The env handles
+ * globals through {@link PeerEnv}, both supplied by `tooling/l0/wiring/agent-peer-calls.js`. The env handles
  * are re-read on every call rather than captured at construction, because boot order is not fixed —
  * the agent kernel is an ESM module that lands after the classic scripts, and the memory core can be
  * attached later still. A handle captured at construction would be permanently null.
@@ -98,9 +98,9 @@
  * a defined degraded path, and the old code swallowed the same failures.
  */
                           
-                                                                       
+                                                                        
                          
-                                                               
+                                                                
                        
                                                                                       
                   
@@ -379,8 +379,11 @@ function createPeerCalls(caps          )               {
       const n = parseInt(textOf(setting(key)), 10);
       return isNaN(n) ? def : Math.max(lo, Math.min(hi, n));
     };
+    // Defaults and clamps mirror services/ui/settings-multi-agent.ts (the write-side home). The
+    // old meetingMax default was 6 here vs 3 in the card, so the shown value was not the one used;
+    // test/settings-multi-agent.test.mjs locks this cfg() against that service's engineConfig().
     return {
-      meetingMax: num("cfw_ma_meeting_max_v1", 6, 1, 6),
+      meetingMax: num("cfw_ma_meeting_max_v1", 3, 1, 6),
       meetingRounds: num("cfw_ma_meeting_rounds_v1", 1, 1, 2),
       ctxMsgs: num("cfw_ma_ctx_msgs_v1", 60, 0, 400),
     };
@@ -628,7 +631,7 @@ function createPeerCalls(caps          )               {
   };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // agent domain, seventh brick (2026-11-15): the implementation moved to services/agent/peer-calls.ts,
 // so every window access lives here — localStorage reads, the fetch exit, the AbortSignal
 // constructor, and the five page globals (card library, cards on stage, kernel, tool bundle, memory
@@ -659,13 +662,13 @@ function createPeerCalls(caps          )               {
     };
     caps.env = {
       sceneCards: function () {
-        return window.__multi && window.__multi.getSceneCards ? window.__multi.getSceneCards() : null;
+        return window.multiSvc && window.multiSvc.getSceneCards ? window.multiSvc.getSceneCards() : null;
       },
       allCards: function () {
-        return window.__character && window.__character.listAllCards ? window.__character.listAllCards() : null;
+        return window.characterSvc && window.characterSvc.listAllCards ? window.characterSvc.listAllCards() : null;
       },
       byo: function () {
-        return window.__byoProvider && window.__byoProvider.get ? window.__byoProvider.get() : undefined;
+        return window.byoProviderSvc && window.byoProviderSvc.get ? window.byoProviderSvc.get() : undefined;
       },
       kernel: function () {
         return window.AgentKernel;
@@ -683,7 +686,7 @@ function createPeerCalls(caps          )               {
         return window.__charMemory;
       },
       panel: function () {
-        return window.__panel;
+        return window.panelSvc;
       },
     };
     return caps;

@@ -112,7 +112,7 @@ export function createSourceTools(env: SourceEnv): SourceToolsApi {
   function down(extra?: unknown): string {
     return (
       "源码服务不可达（" + base() + "）。\n" +
-      "启动：node scripts/dev/source-server.mjs [--root <目录>] [--artifacts <产物目录>]\n" +
+      "启动：node tooling/scripts/dev/source-server.mjs [--root <目录>] [--artifacts <产物目录>]\n" +
       '（地址可在 设置→高级→开发工具 或 localStorage["' + SOURCE_URL_KEY + '"] 修改）' +
       (extra ? "\n原始错误：" + text(extra) : "")
     );

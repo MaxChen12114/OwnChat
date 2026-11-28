@@ -3,16 +3,14 @@
  * target-container choice, external-settings key filtering and startup/remount decisions. The
  * wiring owns DOM lookup, mounting, events and the frozen console global.
  *
- * A console root is healthy only while it is still connected AND lives in the container that
- * matches the current breakpoint; a stale root in the hidden mobile panel MUST be rebuilt, or the
- * desktop right column stays empty forever.
+ * A console root is healthy only while it is still connected AND lives in the container the
+ * orchestrator mounts into. The mobile shell moves that same right-side container into its console,
+ * so both breakpoints share one host and a stale root MUST be rebuilt.
  * @module services/ui/agent-mode-orchestrator
  */
 
 export const AM_LS_AGENT = "cfw_agent_mode_v1";
 export const AM_LS_MULTI = "tavern_multi_agent_mode_v1";
-/** Breakpoint shared with the mobile layout; the wiring feeds it to matchMedia. */
-export const AM_MOBILE_QUERY = "(max-width: 1023px)";
 
 /** @returns whether the stored mode flag means the agent mode is on. */
 export function amIsAgentOn(raw: unknown): boolean {
@@ -33,14 +31,9 @@ export function amButtonState(on: boolean): { active: boolean; ariaPressed: stri
   };
 }
 
-/** @returns the container the console must live in for the current breakpoint. */
-export function amTargetBox(
-  isMobile: boolean,
-  mobilePanel: unknown,
-  consoleSlot: unknown,
-  fishbowlSlot: unknown,
-): unknown {
-  return isMobile ? mobilePanel : (consoleSlot || fishbowlSlot);
+/** @returns the container the console must live in (same slot on desktop and inside the mobile shell). */
+export function amTargetBox(consoleSlot: unknown, fishbowlSlot: unknown): unknown {
+  return consoleSlot || fishbowlSlot;
 }
 
 /** @returns whether an existing console root can be reused. */

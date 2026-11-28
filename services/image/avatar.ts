@@ -4,7 +4,7 @@
  * also what files the result into the local gallery — this module never talks to a provider.
  *
  * The map is one JSON blob under a single storage key, not one key per character: the set is small,
- * every read wants at most one entry, and `__character` reads it on each card render. A payload
+ * every read wants at most one entry, and `characterSvc` reads it on each card render. A payload
  * that is not a JSON object is treated as empty, and non-string values are dropped on read, so a
  * bad write degrades to "no avatar" instead of breaking the settings card.
  * @module services/image/avatar

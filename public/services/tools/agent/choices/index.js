@@ -57,7 +57,7 @@ function createChoicesTools(deps             )             {
     const args = recOf(input);
     const renderer = deps.choices();
     if (!renderer || typeof renderer.renderChoices !== "function") {
-      return { ok: false, error: "选项模块未就绪 (choices.js / window.__choices)" };
+      return { ok: false, error: "选项模块未就绪 (choices.js / window.choicesSvc)" };
     }
 
     const raw = Array.isArray(args.options) ? args.options : [];

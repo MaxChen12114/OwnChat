@@ -18,6 +18,8 @@
  *  - A steer message appends to `messages` without resetting the context. Screenshots are injected
  *    before steers so the model sees the frame before it reads the interruption.
  *  - At most six screenshots per turn; the cap is enforced where they are enqueued, not here.
+ *  - The prior summary (when present) rides the system injections as a background block. It is not
+ *    Layer 2: the agent keeps its assist posture while retaining what compaction removed.
  *
  * steer / stop / injectImage are not here either: they already ride the caller's turn queues, so
  * this file only owns the in-turn execution.
@@ -99,6 +101,14 @@
                                          
  
 
+/** The memory facade this file consults at the end of a turn. */
+                                   
+                                                                                               
+                                                                                             
+                                                        
+                                                                         
+ 
+
 /** Module bridges, resolved at call time so a late-loading module is still picked up. */
                                  
                               
@@ -106,9 +116,13 @@
                               
                                 
                                       
+                                                                                    
+                                    
                                   
-                                                                                                            
+                                                                                                             
                                         
+                                                                                            
+                                               
                                                                                    
                       
  
@@ -119,6 +133,47 @@
                                   
                                                   
            
+ 
+
+/** The tool runtime module surface this file consumes (services/agent/tool-runtime.ts). */
+                                        
+                                                                 
+ 
+
+                                  
+                             
+                                       
+                                 
+ 
+
+/**
+ * The subset of `core/runtime.ts`'s RuntimeContext a turn needs. Structural on purpose: this file
+ * declares it instead of importing, so the emitted classic product stays import-free.
+ */
+                            
+                    
+                                           
+                                              
+                             
+                  
+ 
+
+/** Per-turn usage accumulator. Mounted on the turn scope, closed exactly once at teardown. */
+                             
+                            
+                                                 
+                                                                                                   
+                    
+ 
+
+/** The trace recorder surface (services/chat/turn-events.ts). */
+                                
+                             
+                                             
+ 
+
+                                   
+                                                                                                  
  
 
 /** Host bridge: the app's own closures, injected so this file never reaches into them. */
@@ -134,6 +189,10 @@
                                                
                                                                                                    
                                              
+                                                                                            
+                                                                                                 
+                                        
+                            
                             
                                       
                                                                   
@@ -156,6 +215,12 @@
                               
                                                                                              
                                                
+                                                                             
+                                      
+                                                                              
+                                                    
+                                                                                                 
+                                                                                 
  
 
                                       
@@ -163,11 +228,23 @@
                               
                   
                       
+     
+                                                                                              
+                                                                                                  
+                                                                                      
+     
+                           
+                                                                                                  
+                                  
  
 
                                      
                     
                       
+                                                                                             
+                                             
+                                                                                           
+                 
  
 
 /** unknown to array, narrowed without an assertion. */
@@ -184,16 +261,108 @@ function recOf(v         )                          {
   return out;
 }
 
+function numOf(v         )         {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * The per-turn usage meter. One instance per run, bound to the host before the first model call so
+ * the charging site (which owns pricing and the daily log) can report the same numbers the AI row
+ * used to accumulate. Closing is the scope's job: after the turn ends, a stray call from a retried
+ * request must not land in the next turn's counters.
+ */
+function createUsageMeter()                                 {
+  let p = 0;
+  let c = 0;
+  let n = 0;
+  let closed = false;
+  return {
+    add: function (usage         ) {
+      if (closed) return;
+      const u = recOf(usage);
+      const prompt = Math.floor(numOf(u["prompt_tokens"]));
+      const completion = Math.floor(numOf(u["completion_tokens"]));
+      if (prompt <= 0 && completion <= 0) return;
+      p += prompt;
+      c += completion;
+      n += 1;
+    },
+    summary: function () { return { p: p, c: c, n: n }; },
+    closed: function () { return closed; },
+    close: function () { closed = true; },
+  };
+}
+
+/** Per-run mutable bits shared by `run`'s teardown and `execute`'s body. */
+                        
+                                
+                              
+                 
+                 
+                   
+ 
+
 function createAgentTurn(ports                , args                     ) {
   const session = args.session;
   const controller = args.controller;
   const turn = args.turn;
   const host = args.host;
+  const rootScope = args.scope || null;
+  const traceRecorder = args.trace || null;
 
   async function run()                              {
+    // One child scope per turn: the abort listener, the usage meter and the scoped tool registry
+    // all hang from it, so the end of the turn (any exit: done / abort / error) unwinds them once.
+    const turnScope                   = rootScope ? rootScope.fork() : null;
+    const usage = createUsageMeter();
+    const state               = { tools: null, trace: null, status: "done", reason: "", aborted: false };
+    try {
+      if (turnScope) {
+        turnScope.effect(function () {
+          return function () { usage.close(); };
+        });
+        turnScope.effect(function () {
+          const onAbort = function () { state.aborted = true; };
+          try { controller.signal.addEventListener("abort", onAbort, { once: true }); } catch (e) { /* already aborted */ }
+          return function () {
+            try { controller.signal.removeEventListener("abort", onAbort); } catch (e) { /* signal gone */ }
+          };
+        });
+        // Queues belong to this turn; a finished turn must not feed leftovers to the next request.
+        turnScope.effect(function () {
+          return function () {
+            try { if (turn.steerQueue) turn.steerQueue.length = 0; } catch (e) { /* frozen array */ }
+            try { if (turn.imageQueue) turn.imageQueue.length = 0; } catch (e) { /* frozen array */ }
+          };
+        });
+      }
+      try { if (typeof host.bindUsage === "function") host.bindUsage(usage); } catch (e) { /* stats only */ }
+      if (traceRecorder) {
+        let meta                                    = {};
+        try { meta = (host.getTurnMeta ? host.getTurnMeta() : null) || {}; } catch (e) { meta = {}; }
+        state.trace = traceRecorder.begin({ convId: turn.convId, source: "agent", mode: meta.mode || "", model: meta.model || "" });
+      }
+      const result = await execute(state, turnScope, usage);
+      state.status = result.status;
+      return result;
+    } catch (e) {
+      const name = e && typeof e === "object" ? String(Reflect.get(e, "name")) : "";
+      state.status = name === "AbortError" ? "aborted" : "error";
+      state.reason = e && typeof e === "object" ? String(Reflect.get(e, "message") || "") : String(e);
+      throw e;
+    } finally {
+      if (state.aborted) state.status = "aborted";
+      try { if (state.tools) state.tools.dispose("turn-end"); } catch (e) { /* the fork is discarded; removal is best-effort */ }
+      try { if (state.trace) state.trace.end(state.status, state.reason); } catch (e) { /* tracing never breaks a turn */ }
+      try { if (turnScope) turnScope.dispose(); } catch (e) { /* scoped teardown is best-effort */ }
+    }
+  }
+
+  async function execute(state              , turnScope                  , usage            )                              {
     // Registry comes prebuilt from the app; the image callback it took is the app's own.
     const toolsConfig = host.getToolsConfig();
-    const registry = toolsConfig.registry;
+    let registry = toolsConfig.registry;
     const envSnap = String(toolsConfig.envSnap || "");
 
     // Backoff and watchdog live in the wrapper; this only adapts it to the kernel's signature.
@@ -235,7 +404,10 @@ function createAgentTurn(ports                , args                     ) {
       isNearBottom: () => host.isNearBottom(),
       scrollToBottom: () => host.scrollToBottom(),
     });
-    const _onEvent = (ev         ) => _events.dispatch(ev);
+    const _onEvent = (ev         ) => {
+      try { if (state.trace) state.trace.feed(ev); } catch (e) { /* tracing never breaks a turn */ }
+      _events.dispatch(ev);
+    };
 
     // Permission policy belongs to the host: prompt in front, wait for a tab switch back,
     // auto-deny after five minutes.
@@ -263,6 +435,31 @@ function createAgentTurn(ports                , args                     ) {
     if (mem && typeof mem.defineTools === "function") {
       try { mem.defineTools(registry); } catch (e) { console.warn("[char-memory] defineTools 失败:", e); }
     }
+    // T4-A: compile this turn's tool set through the pipeline. Compiling AFTER the memory domain
+    // registered its tools means those tools get pre/execute/post too; the scoped fork is what the
+    // kernel, the tool-mode runtime and peer workers see. `tool_search` and the tools it discovers
+    // are defined on the scoped registry during the loop — later additions bypass the wrapper by
+    // design (the catalog is the permission surface, the pipeline is the accounting surface).
+    try {
+      const tr = typeof ports.toolRuntime === "function" ? ports.toolRuntime() : null;
+      if (tr && typeof tr.create === "function") {
+        let profile                                                              = null;
+        try { profile = host.getToolProfile ? host.getToolProfile() : null; } catch (e) { profile = null; }
+        const built = tr.create({
+          registry: registry,
+          profile: profile || undefined,
+          scope: turnScope || undefined,
+        });
+        if (built && built.registry && typeof built.registry === "object") {
+          state.tools = built;
+          registry = built.registry;
+        }
+      }
+    } catch (e) {
+      // A broken pipeline must not cost the turn its tools: the kernel falls back to the full
+      // registry the app built (same posture as tool-mode's degrade-to-full).
+      state.tools = null;
+    }
     let _kbInj = "";
     try {
       if (mem && typeof mem.buildInjection === "function") {
@@ -273,7 +470,14 @@ function createAgentTurn(ports                , args                     ) {
         _kbInj = await mem.buildInjection(host.getCharacterCard(), _lastUser);
       }
     } catch (e) {}
-    host.setInjections(_kbInj, envSnap);
+    // Compaction continuity: the summary is a system-prompt block (not Layer 2), so the agent
+    // keeps the plot/decisions removed from `session` without changing its RP posture.
+    const _prior = String(host.getPriorSummary() || "").trim();
+    const _summaryBlock = _prior
+      ? "\n\n【先前剧情摘要】\n" + _prior + "\n（以上是早期对话压缩后的摘要，作为背景；最近消息仍是原文。）"
+      : "";
+    const _envWithSummary = envSnap + _summaryBlock;
+    host.setInjections(_kbInj, _envWithSummary);
 
     // B2 C-3: tool mode runtime. LS cfw_tool_mode_v1 defaults to full — no runtime, no
     // tool_search, the kernel sends the registry's full set exactly as before. In directory mode
@@ -290,7 +494,7 @@ function createAgentTurn(ports                , args                     ) {
           manifest: tc.toolManifest,
           registry: registry,
           onDirectoryText: function (text        ) {
-            try { host.setInjections(_kbInj, envSnap + (text ? "\n\n" + text : "")); } catch (_dt) {}
+            try { host.setInjections(_kbInj, _envWithSummary + (text ? "\n\n" + text : "")); } catch (_dt) {}
           },
         });
         if (rt && typeof rt.registerToolSearch === "function" && typeof rt.resolveSchemas === "function") {
@@ -357,11 +561,19 @@ function createAgentTurn(ports                , args                     ) {
       if (e && e.name === "AbortError") {
         try { const _S = host.getSteps(); if (_S) _S.finish("aborted"); } catch (_fz) {}
         if (e._agentMessages) _writeBackRounds(e._agentMessages);
+        state.status = "aborted";
+        state.reason = String((e && e.message) || "");
+      } else {
+        state.status = "error";
+        state.reason = e && typeof e === "object" ? String(Reflect.get(e, "message") || "") : String(e);
       }
       throw e;
     }
 
     const finalText = String((result && result.finalText) || "");
+    // The kernel's stop reason is the turn's outcome; map it onto the trace vocabulary once.
+    const stopReason = result && typeof result.stopReason === "string" ? result.stopReason : "stop";
+    state.status = stopReason === "stop" ? "done" : stopReason;
     // End of turn: the step block collapses into a one-line summary, the reply follows below.
     try { const _S = host.getSteps(); if (_S) _S.finish("done"); } catch (_fz) {}
 
@@ -371,7 +583,20 @@ function createAgentTurn(ports                , args                     ) {
     // fields are stripped when the request body is assembled.
     _writeBackRounds(result && result.messages);
 
-    return { finalText: finalText, messages: arrOf(result && result.messages) };
+    // End-of-turn auto write (cfw_mem_auto_v1, default off). Only the final visible answer is
+    // offered to the shared writer: tool-round text never reaches here, and every failure (kernel
+    // throw, abort) has already returned or rethrown before this point. The writer owns the
+    // empty/config/rejection guards, so this line cannot drift from the ordinary chat path.
+    try {
+      const memory = ports.memory();
+      if (memory && typeof memory.autoWriteTurn === "function") {
+        memory.autoWriteTurn(finalText, host.getCharacterCard(), turn.convId);
+      }
+    } catch (e) {
+      try { console.warn("[memory] 自动写入失败（回合不受影响）:", e); } catch (_) {}
+    }
+
+    return { finalText: finalText, messages: arrOf(result && result.messages), usage: usage.summary(), status: state.status };
   }
 
   return {
@@ -379,7 +604,7 @@ function createAgentTurn(ports                , args                     ) {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 // Every module bridge is resolved per call, never captured: the kernel, events, console and
 // character memory are globals assembled earlier in boot and can still be missing here. The
 // `__context` instance (which closes over the app) and the permission-card policy arrive through
@@ -390,11 +615,15 @@ function createAgentTurn(ports                , args                     ) {
     kernel: function () { return window.AgentKernel || null; },
     callLoop: function () { return window.__callLoop || null; },
     events: function () { return window.__agentEvents || null; },
-    console: function () { return window.__agentConsole || null; },
+    console: function () { return window.agentConsoleSvc || null; },
     charMemory: function () { return window.__charMemory || null; },
-    feedback: function () { return window.__feedback || null; },
+    // L1/L2 memory facade: the turn-end auto writer reads cfw_mem_auto_v1 and calls remember().
+    memory: function () { return window.__memCore || null; },
+    feedback: function () { return window.feedbackSvc || null; },
     // B2 C-3: the tool-mode runtime (policy domain). Absent product → null → full mode, no tool_search.
-    toolMode: function () { try { return window.__toolMode || null; } catch (e) { return null; } },
+    toolMode: function () { try { return window.toolModeSvc || null; } catch (e) { return null; } },
+    // T4-A: the scoped tool pipeline. Absent product → the kernel gets the app-built registry as-is.
+    toolRuntime: function () { try { return window.toolRuntimeSvc || null; } catch (e) { return null; } },
     visionOn: function () {
       try { return !!window.__agentVisionOn; } catch (e) { return false; }
     },
@@ -404,5 +633,6 @@ function createAgentTurn(ports                , args                     ) {
   };
 })();
 
+globalThis.createUsageMeter = createUsageMeter;
 globalThis.createAgentTurn = createAgentTurn;
 })();

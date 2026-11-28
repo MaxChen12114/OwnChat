@@ -176,7 +176,7 @@ function svcErrorText(prefix        , err         )         {
   return prefix + String(fieldOf(err, "message") || err);
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/local/service-manager.ts (row markup,
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/local/service-manager.ts (row markup,
 // list rule, card skeleton and the action plan); this file owns the shell probe, the invoke port,
 // the status line, the mount and the poll timer.
 (function (g) {
@@ -185,8 +185,7 @@ function svcErrorText(prefix        , err         )         {
 
   function tauriInvoke() {
     try {
-      var t = g.__TAURI__;
-      return (t && t.core && typeof t.core.invoke === "function") ? t.core.invoke.bind(t.core) : null;
+      return g.tauriSvc ? g.tauriSvc.invokeOrNull() : null;
     } catch (e) { return null; }
   }
   function $(id) { return document.getElementById(id); }

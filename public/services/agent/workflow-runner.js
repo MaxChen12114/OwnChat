@@ -5,7 +5,7 @@
  *
  * Hard gates: 20 steps, 10 minutes, 50 condition-loop executions, abortable via AbortSignal.
  * The schema is an injected PORT, not a global: createWorkflowRunner(schemaProvider) is given a
- * function that yields the schema, and the classic binding in l0/wiring/workflow-runner.js resolves
+ * function that yields the schema, and the classic binding in tooling/l0/wiring/workflow-runner.js resolves
  * `window.__workflowSchema` at call time (so load order cannot freeze a null snapshot). The frozen
  * `window.__workflowRunner` contract is mounted there too; this file has zero browser globals.
  * @module services/agent/workflow-runner

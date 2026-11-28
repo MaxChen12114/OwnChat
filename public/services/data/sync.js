@@ -8,7 +8,7 @@
  * random, IndexedDB, the DOM event bus, page reload, file save and the seven sibling modules this
  * engine reads or nudges (provider merge, provider registry, cost UI, the realtime channel, the
  * character-card merge, the character store and the desktop shell). This file touches no `window`,
- * `document`, `fetch` or `indexedDB`; l0/wiring/sync.js is the adapter.
+ * `document`, `fetch` or `indexedDB`; tooling/l0/wiring/sync.js is the adapter.
  *
  * Why five channels instead of one blob is the architecture decision worth knowing: a single
  * last-writer-wins blob over the whole database loses data whenever two devices write in the same
@@ -25,8 +25,29 @@
  *    treating `[]` as deletion lets one device wipe another's conversation.
  *  - Every write performed while landing remote data must be suppressed from re-marking the same
  *    channel dirty, or a merge ping-pongs forever between devices.
+ *
+ * The engine is assembled from sibling fragments (tooling/l0/emit.mjs SOURCE_PARTS stitches them
+ * into this one artifact, so the IIFE and its export surface stay identical): `sync-context` owns
+ * the shared state every fragment sees explicitly (constants, primitives, status bus, switches,
+ * exclusion registry, remote-apply flags, the per-channel debounce loop), `sync-upload` is the main
+ * blob, `sync-cost` / `sync-exclude` / `sync-chat` / `sync-chars` are their channels, `sync-merge`
+ * holds the merge algorithms, `sync-conflict` the conflict lifecycle, `sync-tombstone` the
+ * character tombstone writes and `sync-lifecycle` the cross-channel orchestration. createSync below
+ * is assembly only — no business logic lives here. The public members of the returned object are a
+ * frozen contract with existing callers and must not change shape.
  * @module services/data/sync
  */
+                                               
+
+
+
+
+
+
+
+
+
+
 
 /** JSON object shape used for every untyped payload crossing the network or storage boundary. */
                                               
@@ -131,6 +152,18 @@
                                   
                                     
                                     
+     
+                                                                                               
+                                                                                          
+                                                                                            
+                                                                     
+     
+                                   
+ 
+
+/** The one method this engine needs from services/session/store.ts. */
+                               
+                                                                                   
  
 
                                                                       
@@ -189,6 +222,141 @@ function arrOf(value         )            {
   return out;
 }
 
+/**
+ * Build the sync engine.
+ *
+ * The returned object is the whole public surface; the wiring layer republishes it under the
+ * frozen global name, so every member name here is a contract with existing callers. Assembly
+ * order follows the dependency direction: context → merge → tombstone → conflict (with the chat
+ * push wired late) → chat → chars/cost/exclude → upload → lifecycle.
+ */
+function createSync(ports           ) {
+  const ctx = createSyncContext(ports);
+  const merge = createMergeEngine(ctx);
+  const tombstone = createTombstoneEngine(ctx);
+  // The chat channel does not exist yet when the conflict engine is built. The late slot keeps the
+  // dependency one-directional (conflict knows nothing of chat); a resolution schedules its push
+  // through the same fire-and-forget wrapper the inline code used before the split.
+  const lateChat                               = { chat: null };
+  const conflict = createConflictEngine(ctx, {
+    scheduleChatPush()       {
+      const push = lateChat.chat ? lateChat.chat.pushChatNow() : undefined;
+      if (push && typeof push.then === "function") push.catch(() => {});
+    },
+  });
+  const chat = createChatChannel(ctx, merge, conflict);
+  lateChat.chat = chat;
+  const chars = createCharsChannel(ctx, merge);
+  const cost = createCostChannel(ctx, merge);
+  const exclude = createExcludeChannel(ctx);
+  const upload = createUploadChannel(ctx);
+  const lifecycle = createLifecycle(ctx, { upload: upload, cost: cost, exclude: exclude, chat: chat, chars: chars });
+
+  return {
+    // main blob
+    markDirty: upload.markDirty,
+    pushNow: upload.pushNow,
+    pullFromKV: upload.pullFromKV,
+    pullOnStartup: upload.pullOnStartup,
+    dumpAll: upload.dumpAll,
+    restoreAll: upload.restoreAll,
+    // cost channel
+    markCostDirty: cost.markCostDirty,
+    pushCostNow: cost.pushCostNow,
+    pullCostOnStartup: cost.pullCostOnStartup,
+    // cloud deletion
+    wipeCloud: lifecycle.wipeCloud,
+    deleteMainFromKV: lifecycle.deleteMainFromKV,
+    deleteCostFromKV: lifecycle.deleteCostFromKV,
+    deleteChatFromKV: lifecycle.deleteChatFromKV,
+    deleteCharsFromKV: lifecycle.deleteCharsFromKV,
+    deleteExcludeFromKV: lifecycle.deleteExcludeFromKV,
+    deleteChatEventsFromKV: lifecycle.deleteChatEventsFromKV,
+    // per-entity exclusion
+    wipeCloudEntity: lifecycle.wipeCloudEntity,
+    restoreCloudEntity: lifecycle.restoreCloudEntity,
+    getExcluded: ctx.getExcluded,
+    addExclusion: ctx.addExclusion,
+    removeExclusion: ctx.removeExclusion,
+    // exclusion channel
+    pullExcludeOnStartup: exclude.pullExcludeOnStartup,
+    pushExcludeNow: exclude.pushExcludeNow,
+    getRegistry: ctx.getRegistry,
+    // chat channel
+    markChatDirty: chat.markChatDirty,
+    pushChatNow: chat.pushChatNow,
+    pullChatOnStartup: chat.pullChatOnStartup,
+    pullChatNow: chat.pullChatNow,
+    mergeChatSessions: merge.mergeChatSessions,
+    getChatConflicts: conflict.getChatConflicts,
+    resolveChatConflict: conflict.resolveChatConflict,
+    withRemoteApply: ctx.withRemoteApply,
+    isExcludedSession: chat.isExcludedSession,
+    setChatConflict: conflict.setChatConflict,
+    getChatSlotMeta: ctx.getChatSlotMeta,
+    getChatTomb: ctx.getChatTomb,
+    getConvMetaMap: ctx.getConvMetaMap,
+    getChatSynced: ctx.getChatSynced,
+    getDeviceId: lifecycle.getDeviceId,
+    authHeaders: ctx.authHeaders,
+    hashChat: ctx.hashStr,
+    // character channel
+    markCharsDirty: chars.markCharsDirty,
+    pushCharsNow: chars.pushCharsNow,
+    pullCharsOnStartup: chars.pullCharsOnStartup,
+    bumpCharMeta: tombstone.bumpCharMeta,
+    tombChar: tombstone.tombChar,
+    // backup
+    exportJSON: upload.exportJSON,
+    importJSONText: upload.importJSONText,
+    // switches
+    syncEnabled: ctx.syncEnabled,
+    setSyncEnabled: ctx.setSyncEnabled,
+    includeChat: ctx.includeChat,
+    setIncludeChat: ctx.setIncludeChat,
+    isPaused: ctx.isPaused,
+    pause: ctx.pause,
+    resume: ctx.resume,
+    // status
+    onStatus: ctx.onStatus,
+    getStatus: lifecycle.getStatus,
+    // lifecycle
+    bootstrap: lifecycle.bootstrap,
+    flushAll: lifecycle.flushAll,
+    noteStorageWrite: lifecycle.noteStorageWrite,
+    noteStorageRemove: lifecycle.noteStorageRemove,
+    noteStorageEvent: lifecycle.noteStorageEvent,
+  };
+}
+
+/**
+ * Shared context for the sync engine's channel factories: the key and path constants, the storage
+ * and HTTP primitives, the status bus, the switch set, the exclusion registry, the KV-quota push
+ * counter, the device id, the remote-apply suppression flags and the per-channel debounce loop.
+ *
+ * Why this file exists: createSync used to be one ~2100-line closure and every channel reached
+ * every other channel's state implicitly through that closure. After the split a channel sees
+ * exactly what its {@link SyncContext} parameter carries and nothing else, so the sharing is
+ * explicit at every call site. The context owns cross-channel state only; channel-private state
+ * (a debounce loop instance, which loop a `markDirty` belongs to) stays inside the channel factory
+ * that created it.
+ *
+ * One non-obvious choice: the remote-apply flags live here as one plain mutable record rather than
+ * inside the chat/chars channels. The storage-write router (in sync-lifecycle) has to test both
+ * flags for every same-tab write, and giving the router a third-party view of them is what keeps
+ * the suppression semantics in exactly one shape.
+ *
+ * Dead helpers dropped while splitting: `lsGet` and `lsRemove` had no caller (each channel reads
+ * `ctx.storage` directly). `requestJson` also has no caller, but its error strings are registered
+ * by the i18n coverage baseline, so it moves over verbatim instead of being deleted here; the
+ * exclusions registry, the switches and the device id are context-level because the main-blob,
+ * chat and chars channels all consult them.
+ * @module services/data/sync-context
+ */
+                                                                                            
+
+
+/** Bridge helpers shared by every fragment; `recOf` / `arrOf` stay exported in the host file. */
 function strOf(value         )         {
   return value == null ? "" : String(value);
 }
@@ -209,15 +377,41 @@ function keysOf(obj      )           {
   return out;
 }
 
+/** Per-channel write-suppression view; see the module comment for why it is context-level. */
+                                   
+                
+                 
+                                                                                                   
+                
+ 
+
 /**
- * Build the sync engine.
- *
- * The returned object is the whole public surface; the wiring layer republishes it under the
- * frozen global name, so every member name here is a contract with existing callers.
+ * One channel's push loop: the inflight lock, the at-most-one queued retry and the debounce timer
+ * that used to be five copies of the same three closure variables. `run` mirrors the original
+ * bodies exactly: an inflight call sets the queued flag and returns `undefined`, the finally block
+ * re-queues the channel's own job after {@link REQUEUE_MS}.
  */
-function createSync(ports           ) {
+                              
+                                                                                                 
+                              
+                                                                                           
+                    
+                                                                                              
+                      
+                                                                                       
+                                                        
+ 
+
+/** Shared delay before a queued push retries, uniform across all five channels. */
+const REQUEUE_MS = 1500;
+
+/**
+ * Build the sync engine's shared context. The returned object is the whole state the channel
+ * factories share; everything not on it is private to one fragment.
+ */
+function createSyncContext(ports           )              {
   const storage = ports.storage;
-  const timers = ports.timers;
+  const timers            = ports.timers;
   const now = ()         => ports.now();
 
   const SYNC_ENABLED_KEY = "cfw_sync_enabled_v1";
@@ -230,6 +424,7 @@ function createSync(ports           ) {
   /** Cloudflare KV free tier allows 1000 writes/day; warn once at 800. */
   const PUSH_DAILY_WARN = 800;
   const EXCLUDE_KEY = "cfw_sync_exclude_v1";
+  /** Legacy character-card store name: this channel reads IndexedDB, never the SQL `chars` table. */
   const CHARS_DB = "tavern_chars_v2";
   const LAST_EXCLUDE_PUSH_KEY = "cfw_sync_last_exclude_push_v1";
   const LAST_EXCLUDE_PULL_KEY = "cfw_sync_last_exclude_pull_v1";
@@ -260,116 +455,33 @@ function createSync(ports           ) {
   const CHARS_PATH = "/sync/chars";
   const CHAT_EVENTS_PATH = "/sync/chat/events";
 
-  /**
-   * Exact keys carried by the main blob. This list is the whole allow-list: {@link collectLS}
-   * takes "listed here" plus "matching a prefix", with no fallback sweep, so a key added nowhere is
-   * never synced and nothing reports it.
-   */
-  const LS_EXPLICIT           = [
-    "cfw_thinking",
-    "cfw_prior_summary_v1", "cfw_summary_enabled", "cfw_summary_trigger", "cfw_summary_keep",
-    "tavern_active_scene_v1", "tavern_aff_pending_v1",
-    "cfw_prompt_presets_v1", "cfw_skills_v1", "cfw_skills_enabled_v1", "tavern_multi_agent_mode_v1",
-    "tavern_lorebook_v1",
-    "cfw_mode", "cfw_model", "cfw_use_builtin", "cfw_history_enabled",
-    "cfw_prompt_enabled", "cfw_custom_prompt_v1",
-    "cfw_byo_provider_public_v1", "cfw_custom_pricing_v1",
-    "cfw_providers_public_v3",
-    // Channel registries are account-scoped since 2026-11-13: one account, one set of keys. They
-    // ride the strongly authenticated main blob, so a key only ever lands in the user's own KV.
-    "cfw_providers_v3",
-    // Image channels follow the same rule. A channel pointing at a local ComfyUI simply fails to
-    // connect on other devices; it does not affect the rest of the list.
-    "cfw_image_channels_v1",
-    "cfw_char_caps_v1",
-    "cfw_ma_delegate_v1", "cfw_ma_meeting_v1", "cfw_ma_invite_v1",
-    "cfw_ma_meeting_max_v1", "cfw_ma_meeting_rounds_v1", "cfw_ma_ctx_msgs_v1",
-  ];
-
-  /** Prefix families (multi-instance keys), matched after the exact list. */
-  const LS_PREFIXES           = ["tavern_aff_triggered_", "cfw_summary_"];
-
-  /**
-   * Keys that must never ride the blob. Only the prefix loop and the restore guard consult this at
-   * runtime, but the list is also the written record of intent: adding a device-local key here is
-   * how you say "this belongs to one machine" before someone adds it to the allow-list above.
-   */
-  const PROTECTED           = [
-    "cfw_auth_token_v1",
-    // Appearance is per-device. Listing it here also protects it during restore: older blobs still
-    // carry these keys, and removing them from the allow-list alone would not stop a restore from
-    // overwriting a hand-picked theme.
-    "cfw_theme_v1", "cfw_theme_accent_v1", "cfw_ui_overrides_v1",
-    "cfw_chat_protect_v1",
-    "cfw_byo_provider_v1",
-    "cfw_byo_providers_v2",
-    "cfw_app_fx_rich_v1",
-    "cfw_mem_idle_release_v1",
-    SYNC_ENABLED_KEY, LAST_PUSH_KEY, LAST_PULL_KEY,
-    INCLUDE_CHAT_KEY, PAUSE_KEY, PUSH_COUNT_KEY, PUSH_COUNT_DAY_KEY,
-    "cfw_cost_log_v1",
-    "cfw_sync_last_cost_push_v1",
-    "cfw_sync_last_cost_pull_v1",
-    // The device id is the metering bucket. Sharing one across devices under-counts every total.
-    "cfw_device_id_v1",
-    EXCLUDE_KEY,
-    LAST_EXCLUDE_PUSH_KEY, LAST_EXCLUDE_PULL_KEY,
-    "cfw_dev_mode_v1", "cfw_dev_hud_v1", "cfw_dev_notes_v1", "cfw_dev_overrides_v1",
-    "cfw_dev_debug_v1", "cfw_dev_force_comply_v1", "cfw_dev_stream_probe_v1", "cfw_dev_io_record_v1",
-    LAST_CHAT_PUSH_KEY, LAST_CHAT_PULL_KEY,
-    "cfw_ui_assets_v1",
-    "cfw_chat_session_v1",
-    "cfw_chat_slot_meta_v1",
-    "cfw_chat_tomb_v1",
-    "cfw_conv_meta_v1",
-    "cfw_chat_synced_v1",
-    "cfw_chat_conflicts_v1",
-    "cfw_conv_active_v1",
-    CHARS_META_KEY, CHARS_TOMB_KEY,
-    LAST_CHARS_PUSH_KEY, LAST_CHARS_PULL_KEY,
-    CHAT_EVENTS_SEQ_KEY, CHAT_EVENTS_QUEUE_KEY, "cfw_chat_events_pending_v1", CHAT_REALTIME_KEY, CHARS_SYNCED_KEY,
-  ];
-
-  /**
-   * Databases carried by the main blob. Empty on purpose: cards moved to their own channel and the
-   * props database no longer exists. The loops below stay because that is where a future database
-   * gets added.
-   */
-  const IDB_NAMES           = [];
-
   const listeners = new Set              ();
 
-  let applyingRemoteChat = false;
-  let applyingRemoteChars = false;
-  let remoteApplyDepth = 0;
-
-  let pushTimer          = null;
-  let pushing = false;
-  let pendingPush = false;
-  let costPushTimer          = null;
-  let costPushing = false;
-  let pendingCostPush = false;
-  let excludePushing = false;
-  let pendingExcludePush = false;
-  let chatPushTimer          = null;
-  let chatPushing = false;
-  let pendingChatPush = false;
-  let charsPushTimer          = null;
-  let charsPushing = false;
-  let pendingCharsPush = false;
+  const flags                   = { chat: false, chars: false, depth: 0 };
 
   // ── storage primitives ──
-
-  function lsGet(key        )                {
-    return storage.getItem(key);
-  }
 
   function lsSet(key        , value        )       {
     storage.setItem(key, value);
   }
 
-  function lsRemove(key        )       {
-    storage.removeItem(key);
+  /**
+   * Write the whole conversation map. Preferred path is the session store, which updates its
+   * in-memory mirror and rewrites only the hot windows; the direct blob write is the legacy
+   * fallback. A throwing facade must not abort a merge that already happened in memory, so the
+   * fallback is taken on any exception.
+   */
+  function writeChatSessions(sessions      , source        )       {
+    try {
+      const facade = typeof ports.sessions === "function" ? ports.sessions() : null;
+      if (facade && typeof facade.applyRemote === "function") {
+        facade.applyRemote(recOf(sessions), { source: source });
+        return;
+      }
+    } catch (e) {
+      /* fall through to the legacy write */
+    }
+    lsSet("cfw_chat_session_v1", JSON.stringify(sessions));
   }
 
   function lsInt(key        )         {
@@ -405,7 +517,7 @@ function createSync(ports           ) {
     }
   }
 
-  // ── auth ──
+  // ── auth and switches ──
 
   function token()         {
     return ports.token();
@@ -470,6 +582,484 @@ function createSync(ports           ) {
       }
     });
   }
+
+  // ── channel HTTP: auth-checked verbs shared by all five channels ──
+
+  // No current caller, kept verbatim: its error strings are registered by the i18n coverage gate,
+  // and dropping the helper would silently change that contract from a structural cleanup.
+  async function requestJson(path        , init           )                   {
+    if (!token()) throw new Error("未启用云同步（缺 token）");
+    const res = await ports.http(path, init);
+    if (res.status === 401) throw new Error("密码错误");
+    if (!res.ok) throw new Error("请求失败: " + res.status);
+    return res.json();
+  }
+
+  async function getChannel(path        , label        )                       {
+    if (!token()) throw new Error("未启用云同步(缺 token)");
+    const res = await ports.http(path, { headers: authHeaders() });
+    if (res.status === 401) throw new Error("密码错误");
+    if (!res.ok) throw new Error("拉取" + label + "失败: " + res.status);
+    const text = await res.text();
+    if (!text || text === "null") return null;
+    try {
+      const parsed = JSON.parse(text);
+      return isRec(parsed) ? recOf(parsed) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function putChannel(path        , body         , label        )                {
+    if (!token()) throw new Error("未启用云同步(缺 token)");
+    const res = await ports.http(path, {
+      method: "PUT",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(body),
+    });
+    if (res.status === 401) throw new Error("密码错误");
+    if (!res.ok) throw new Error("推送" + label + "失败: " + res.status);
+    return recOf(await res.json());
+  }
+
+  async function deleteChannel(path        , label        )                {
+    if (!token()) throw new Error("未启用云同步(缺 token)");
+    const res = await ports.http(path, { method: "DELETE", headers: authHeaders() });
+    if (res.status === 401) throw new Error("密码错误");
+    if (!res.ok) throw new Error("删除" + label + "失败: " + res.status);
+    try {
+      return recOf(await res.json());
+    } catch (e) {
+      return {};
+    }
+  }
+
+  // ── push counter (KV quota watch) ──
+
+  function incrPushCount()         {
+    const today = new Date(now()).toISOString().slice(0, 10);
+    const prevDay = storage.getItem(PUSH_COUNT_DAY_KEY);
+    let n = parseInt(storage.getItem(PUSH_COUNT_KEY) || "0", 10) || 0;
+    if (prevDay !== today) {
+      n = 0;
+      storage.setItem(PUSH_COUNT_DAY_KEY, today);
+    }
+    n += 1;
+    storage.setItem(PUSH_COUNT_KEY, String(n));
+    if (n === PUSH_DAILY_WARN) emit("warn", { reason: "kv-quota", today: today, count: n });
+    return n;
+  }
+
+  // ── device id (the metering bucket, shared by chat and chars merges) ──
+
+  function chatDeviceId()         {
+    let id = storage.getItem(CHAT_DEVICE_ID_KEY);
+    if (!id) {
+      id = "dev_" + now().toString(36) + ports.random().toString(36).slice(2, 8);
+      try {
+        storage.setItem(CHAT_DEVICE_ID_KEY, id);
+      } catch (e) {
+        /* a per-call id is still usable; it just loses the stable bucket */
+      }
+    }
+    return id;
+  }
+
+  // ── remote-apply suppression ──
+
+  /**
+   * Run `fn` with writes suppressed from re-marking the chat channel dirty. Nested calls are
+   * counted: the realtime module may apply an event inside a merge the sync engine started.
+   */
+  async function withRemoteApply   (fn                      )             {
+    flags.depth++;
+    flags.chat = true;
+    try {
+      return await fn();
+    } finally {
+      flags.depth = Math.max(0, flags.depth - 1);
+      if (flags.depth === 0) flags.chat = false;
+    }
+  }
+
+  // ── exclusion registry ( consulted by the main blob, chat and chars channels) ──
+
+  function normKind(kind        )         {
+    return kind === "session" ? "session" : "role";
+  }
+
+  function entryId(kind        , key        )         {
+    return normKind(kind) + ":" + key;
+  }
+
+  function getRegistry()       {
+    const parsed = readJSONObj(EXCLUDE_KEY, {});
+    const entries = parsed["entries"];
+    if (isRec(entries)) return { entries: recOf(entries) };
+    // Legacy flat shape { roles, sessions } migrates to per-entry records stamped ts=1, so any new
+    // operation wins the LWW comparison immediately.
+    const migrated       = {};
+    const roles = arrOf(parsed["roles"]);
+    for (let i = 0; i < roles.length; i++) {
+      const k = roles[i];
+      if (typeof k === "string" && k) migrated[entryId("role", k)] = { kind: "role", key: k, state: "excluded", ts: 1 };
+    }
+    const sessions = arrOf(parsed["sessions"]);
+    for (let i = 0; i < sessions.length; i++) {
+      const k = sessions[i];
+      if (typeof k === "string" && k) migrated[entryId("session", k)] = { kind: "session", key: k, state: "excluded", ts: 1 };
+    }
+    return { entries: migrated };
+  }
+
+  function setRegistry(reg      )       {
+    storage.setItem(EXCLUDE_KEY, JSON.stringify({ entries: isRec(reg["entries"]) ? recOf(reg["entries"]) : {} }));
+  }
+
+  function registryEntries(reg      )       {
+    const entries = reg["entries"];
+    return isRec(entries) ? recOf(entries) : {};
+  }
+
+  /** Downstream callers still consume the flat { roles, sessions } view; only excluded counts. */
+  function getExcluded()                                          {
+    const entries = registryEntries(getRegistry());
+    const roles           = [];
+    const sessions           = [];
+    const ids = keysOf(entries);
+    for (let i = 0; i < ids.length; i++) {
+      const entry = recOf(entries[ids[i]]);
+      if (strOf(entry["state"]) !== "excluded") continue;
+      const key = entry["key"];
+      if (typeof key !== "string" || !key) continue;
+      if (entry["kind"] === "session") sessions.push(key);
+      else roles.push(key);
+    }
+    return { roles: roles, sessions: sessions };
+  }
+
+  function addExclusion(kind        , key        )       {
+    if (!key) return;
+    const reg = getRegistry();
+    const entries = registryEntries(reg);
+    entries[entryId(kind, key)] = { kind: normKind(kind), key: key, state: "excluded", ts: now() };
+    setRegistry({ entries: entries });
+  }
+
+  function removeExclusion(kind        , key        )       {
+    if (!key) return;
+    const reg = getRegistry();
+    const entries = registryEntries(reg);
+    // The entry is kept and flipped to "restored" with a fresh timestamp: only that lets a restore
+    // override an older exclusion made on another device.
+    entries[entryId(kind, key)] = { kind: normKind(kind), key: key, state: "restored", ts: now() };
+    setRegistry({ entries: entries });
+  }
+
+  function mergeRegistries(a      , b      )       {
+    const ea = registryEntries(a);
+    const eb = registryEntries(b);
+    const out       = {};
+    const ids = new Set        ();
+    keysOf(ea).forEach((k) => ids.add(k));
+    keysOf(eb).forEach((k) => ids.add(k));
+    ids.forEach((id) => {
+      const x = ea[id];
+      const y = eb[id];
+      const xOk = isRec(x) && typeof recOf(x)["ts"] === "number";
+      const yOk = isRec(y) && typeof recOf(y)["ts"] === "number";
+      if (xOk && yOk) out[id] = numOf(recOf(y)["ts"]) >= numOf(recOf(x)["ts"]) ? y : x;
+      else out[id] = xOk ? x : y;
+    });
+    return { entries: out };
+  }
+
+  // ── per-channel bookkeeping readers (lock-free storage reads shared by merge/conflict/channels) ──
+
+  function getChatSessions()       {
+    return readJSONObj("cfw_chat_session_v1", {});
+  }
+
+  function getChatSlotMeta()       {
+    return readJSONObj(CHAT_SLOT_META_KEY, {});
+  }
+
+  function getChatTomb()       {
+    return readJSONObj(CHAT_TOMB_KEY, {});
+  }
+
+  function getChatSynced()       {
+    return readJSONObj(CHAT_SYNCED_KEY, {});
+  }
+
+  function getConvMetaMap()       {
+    return readJSONObj(CHAT_CONV_META_KEY, {});
+  }
+
+  function getCharsMeta()       {
+    return readJSONObj(CHARS_META_KEY, {});
+  }
+
+  function getCharsTomb()       {
+    return readJSONObj(CHARS_TOMB_KEY, {});
+  }
+
+  function getCharsSynced()       {
+    return readJSONObj(CHARS_SYNCED_KEY, {});
+  }
+
+  // ── the shared-loop factory ──
+
+  function makeChannelLoop(opts                                                     )              {
+    let timer          = null;
+    let running = false;
+    let queued = false;
+    function schedule(job                        )       {
+      timer = timers.set(function () {
+        timer = null;
+        void run(job);
+      }, REQUEUE_MS);
+    }
+    async function run   (job                  )                         {
+      if (running) {
+        queued = true;
+        return undefined;
+      }
+      running = true;
+      try {
+        return await job();
+      } finally {
+        running = false;
+        if (queued) {
+          queued = false;
+          schedule(opts.job);
+        }
+      }
+    }
+    return {
+      debounceMs: opts.debounceMs,
+      markDirty()       {
+        if (opts.debounceMs <= 0) return;
+        if (timer) timers.clear(timer);
+        timer = timers.set(function () {
+          timer = null;
+          void run(opts.job);
+        }, opts.debounceMs);
+      },
+      cancelTimer()       {
+        if (timer) {
+          timers.clear(timer);
+          timer = null;
+        }
+      },
+      run: run,
+    };
+  }
+
+  return {
+    ports: ports,
+    storage: storage,
+    timers: timers,
+    now: now,
+    SYNC_ENABLED_KEY: SYNC_ENABLED_KEY,
+    LAST_PUSH_KEY: LAST_PUSH_KEY,
+    LAST_PULL_KEY: LAST_PULL_KEY,
+    INCLUDE_CHAT_KEY: INCLUDE_CHAT_KEY,
+    PAUSE_KEY: PAUSE_KEY,
+    PUSH_COUNT_KEY: PUSH_COUNT_KEY,
+    PUSH_COUNT_DAY_KEY: PUSH_COUNT_DAY_KEY,
+    PUSH_DAILY_WARN: PUSH_DAILY_WARN,
+    EXCLUDE_KEY: EXCLUDE_KEY,
+    CHARS_DB: CHARS_DB,
+    LAST_EXCLUDE_PUSH_KEY: LAST_EXCLUDE_PUSH_KEY,
+    LAST_EXCLUDE_PULL_KEY: LAST_EXCLUDE_PULL_KEY,
+    CHAT_SLOT_META_KEY: CHAT_SLOT_META_KEY,
+    CHAT_TOMB_KEY: CHAT_TOMB_KEY,
+    CHAT_CONV_META_KEY: CHAT_CONV_META_KEY,
+    CHAT_SYNCED_KEY: CHAT_SYNCED_KEY,
+    CHAT_CONFLICTS_KEY: CHAT_CONFLICTS_KEY,
+    LAST_CHAT_PUSH_KEY: LAST_CHAT_PUSH_KEY,
+    LAST_CHAT_PULL_KEY: LAST_CHAT_PULL_KEY,
+    CHAT_DEVICE_ID_KEY: CHAT_DEVICE_ID_KEY,
+    CHAT_EVENTS_SEQ_KEY: CHAT_EVENTS_SEQ_KEY,
+    CHAT_EVENTS_QUEUE_KEY: CHAT_EVENTS_QUEUE_KEY,
+    CHAT_REALTIME_KEY: CHAT_REALTIME_KEY,
+    CHARS_SYNCED_KEY: CHARS_SYNCED_KEY,
+    CHAT_DIRTY_KEYS: CHAT_DIRTY_KEYS,
+    CHARS_META_KEY: CHARS_META_KEY,
+    CHARS_TOMB_KEY: CHARS_TOMB_KEY,
+    LAST_CHARS_PUSH_KEY: LAST_CHARS_PUSH_KEY,
+    LAST_CHARS_PULL_KEY: LAST_CHARS_PULL_KEY,
+    CHARS_DIRTY_KEYS: CHARS_DIRTY_KEYS,
+    MAIN_BLOB_PATH: MAIN_BLOB_PATH,
+    COST_PATH: COST_PATH,
+    EXCLUDE_PATH: EXCLUDE_PATH,
+    CHAT_PATH: CHAT_PATH,
+    CHARS_PATH: CHARS_PATH,
+    CHAT_EVENTS_PATH: CHAT_EVENTS_PATH,
+    lsSet: lsSet,
+    writeChatSessions: writeChatSessions,
+    lsInt: lsInt,
+    hashStr: hashStr,
+    readJSONArr: readJSONArr,
+    readJSONObj: readJSONObj,
+    token: token,
+    authHeaders: authHeaders,
+    syncEnabled: syncEnabled,
+    setSyncEnabled: setSyncEnabled,
+    includeChat: includeChat,
+    setIncludeChat: setIncludeChat,
+    isPaused: isPaused,
+    pause: pause,
+    resume: resume,
+    onStatus: onStatus,
+    emit: emit,
+    getChannel: getChannel,
+    putChannel: putChannel,
+    deleteChannel: deleteChannel,
+    incrPushCount: incrPushCount,
+    chatDeviceId: chatDeviceId,
+    flags: flags,
+    withRemoteApply: withRemoteApply,
+    normKind: normKind,
+    entryId: entryId,
+    getRegistry: getRegistry,
+    setRegistry: setRegistry,
+    registryEntries: registryEntries,
+    getExcluded: getExcluded,
+    addExclusion: addExclusion,
+    removeExclusion: removeExclusion,
+    mergeRegistries: mergeRegistries,
+    getChatSessions: getChatSessions,
+    getChatSlotMeta: getChatSlotMeta,
+    getChatTomb: getChatTomb,
+    getChatSynced: getChatSynced,
+    getConvMetaMap: getConvMetaMap,
+    getCharsMeta: getCharsMeta,
+    getCharsTomb: getCharsTomb,
+    getCharsSynced: getCharsSynced,
+    makeChannelLoop: makeChannelLoop,
+  };
+}
+
+/** Everything the sync fragments share; each fragment receives this one object. */
+
+/**
+ * Main-blob channel of the sync engine: the localStorage allow-list, whole-blob dump and restore,
+ * the exclusion filter on the outbound blob, the debounced push loop, the startup pull and the
+ * local backup file (export/import).
+ *
+ * The allow-list tables are the load-bearing part. `LS_EXPLICIT` is the *entire* list of keys the
+ * main blob carries — there is no fallback sweep — and `PROTECTED` doubles as the restore guard,
+ * so a device-local key such as the auth token or the hand-picked theme survives every pull. The
+ * registry keys ride the strongly authenticated blob on purpose: one account, one set of keys.
+ *
+ * Restore semantics worth keeping in mind: cards and chat left the blob when their channels landed,
+ * so a restore skips both rather than letting a stale whole-blob copy overwrite the merged per-id
+ * result, and the deleted props database is never resurrected by old blobs.
+ * @module services/data/sync-upload
+ */
+                                                        
+
+
+                                                               
+
+/** Public surface of the main-blob channel; the host facade forwards to these. */
+                                
+                    
+                           
+                                     
+                                 
+                                                            
+                                                                               
+                              
+                                              
+                                    
+                                    
+                      
+ 
+
+function createUploadChannel(ctx             )                {
+  const storage = ctx.storage;
+  const timers = ctx.timers;
+  const ports            = ctx.ports;
+
+  /**
+   * Exact keys carried by the main blob. This list is the whole allow-list: {@link collectLS}
+   * takes "listed here" plus "matching a prefix", with no fallback sweep, so a key added nowhere is
+   * never synced and nothing reports it.
+   */
+  const LS_EXPLICIT           = [
+    "cfw_thinking",
+    "cfw_prior_summary_by_conv_v1", "cfw_summary_enabled", "cfw_summary_trigger", "cfw_summary_keep",
+    "tavern_active_scene_v1", "tavern_aff_pending_v1",
+    "cfw_prompt_presets_v1", "cfw_skills_v1", "cfw_skills_enabled_v1", "tavern_multi_agent_mode_v1",
+    "tavern_lorebook_v1",
+    "cfw_mode", "cfw_model", "cfw_use_builtin", "cfw_history_enabled",
+    "cfw_prompt_enabled", "cfw_custom_prompt_v1",
+    "cfw_byo_provider_public_v1", "cfw_custom_pricing_v1",
+    "cfw_providers_public_v3",
+    // Channel registries are account-scoped since 2026-11-13: one account, one set of keys. They
+    // ride the strongly authenticated main blob, so a key only ever lands in the user's own KV.
+    "cfw_providers_v3",
+    // Image channels follow the same rule. A channel pointing at a local ComfyUI simply fails to
+    // connect on other devices; it does not affect the rest of the list.
+    "cfw_image_channels_v1",
+    "cfw_char_caps_v1",
+    "cfw_ma_delegate_v1", "cfw_ma_meeting_v1", "cfw_ma_invite_v1",
+    "cfw_ma_meeting_max_v1", "cfw_ma_meeting_rounds_v1", "cfw_ma_ctx_msgs_v1",
+  ];
+
+  /** Prefix families (multi-instance keys), matched after the exact list. */
+  const LS_PREFIXES           = ["tavern_aff_triggered_", "cfw_summary_"];
+
+  /**
+   * Keys that must never ride the blob. Only the prefix loop and the restore guard consult this at
+   * runtime, but the list is also the written record of intent: adding a device-local key here is
+   * how you say "this belongs to one machine" before someone adds it to the allow-list above.
+   */
+  const PROTECTED           = [
+    "cfw_auth_token_v1",
+    // Appearance is per-device. Listing it here also protects it during restore: older blobs still
+    // carry these keys, and removing them from the allow-list alone would not stop a restore from
+    // overwriting a hand-picked theme.
+    "cfw_theme_v1", "cfw_theme_accent_v1", "cfw_ui_overrides_v1",
+    "cfw_chat_protect_v1",
+    "cfw_byo_provider_v1",
+    "cfw_byo_providers_v2",
+    "cfw_app_fx_rich_v1",
+    "cfw_mem_idle_release_v1",
+    ctx.SYNC_ENABLED_KEY, ctx.LAST_PUSH_KEY, ctx.LAST_PULL_KEY,
+    ctx.INCLUDE_CHAT_KEY, ctx.PAUSE_KEY, ctx.PUSH_COUNT_KEY, ctx.PUSH_COUNT_DAY_KEY,
+    "cfw_cost_log_v1",
+    "cfw_sync_last_cost_push_v1",
+    "cfw_sync_last_cost_pull_v1",
+    // The device id is the metering bucket. Sharing one across devices under-counts every total.
+    "cfw_device_id_v1",
+    ctx.EXCLUDE_KEY,
+    ctx.LAST_EXCLUDE_PUSH_KEY, ctx.LAST_EXCLUDE_PULL_KEY,
+    "cfw_dev_mode_v1", "cfw_dev_hud_v1", "cfw_dev_notes_v1", "cfw_dev_overrides_v1",
+    "cfw_dev_debug_v1", "cfw_dev_force_comply_v1", "cfw_dev_stream_probe_v1", "cfw_dev_io_record_v1",
+    ctx.LAST_CHAT_PUSH_KEY, ctx.LAST_CHAT_PULL_KEY,
+    "cfw_ui_assets_v1",
+    "cfw_chat_session_v1",
+    "cfw_chat_slot_meta_v1",
+    "cfw_chat_tomb_v1",
+    "cfw_conv_meta_v1",
+    "cfw_chat_synced_v1",
+    "cfw_chat_conflicts_v1",
+    "cfw_conv_active_v1",
+    ctx.CHARS_META_KEY, ctx.CHARS_TOMB_KEY,
+    ctx.LAST_CHARS_PUSH_KEY, ctx.LAST_CHARS_PULL_KEY,
+    ctx.CHAT_EVENTS_SEQ_KEY, ctx.CHAT_EVENTS_QUEUE_KEY, "cfw_chat_events_pending_v1", ctx.CHAT_REALTIME_KEY, ctx.CHARS_SYNCED_KEY,
+  ];
+
+  /**
+   * Databases carried by the main blob. Empty on purpose: cards moved to their own channel and the
+   * props database no longer exists. The loops below stay because that is where a future database
+   * gets added.
+   */
+  const IDB_NAMES           = [];
 
   // ── main blob: localStorage ──
 
@@ -576,98 +1166,6 @@ function createSync(ports           ) {
     }
   }
 
-  // ── exclusion registry ──
-
-  function normKind(kind        )         {
-    return kind === "session" ? "session" : "role";
-  }
-
-  function entryId(kind        , key        )         {
-    return normKind(kind) + ":" + key;
-  }
-
-  function getRegistry()       {
-    const parsed = readJSONObj(EXCLUDE_KEY, {});
-    const entries = parsed["entries"];
-    if (isRec(entries)) return { entries: recOf(entries) };
-    // Legacy flat shape { roles, sessions } migrates to per-entry records stamped ts=1, so any new
-    // operation wins the LWW comparison immediately.
-    const migrated       = {};
-    const roles = arrOf(parsed["roles"]);
-    for (let i = 0; i < roles.length; i++) {
-      const k = roles[i];
-      if (typeof k === "string" && k) migrated[entryId("role", k)] = { kind: "role", key: k, state: "excluded", ts: 1 };
-    }
-    const sessions = arrOf(parsed["sessions"]);
-    for (let i = 0; i < sessions.length; i++) {
-      const k = sessions[i];
-      if (typeof k === "string" && k) migrated[entryId("session", k)] = { kind: "session", key: k, state: "excluded", ts: 1 };
-    }
-    return { entries: migrated };
-  }
-
-  function setRegistry(reg      )       {
-    storage.setItem(EXCLUDE_KEY, JSON.stringify({ entries: isRec(reg["entries"]) ? recOf(reg["entries"]) : {} }));
-  }
-
-  function registryEntries(reg      )       {
-    const entries = reg["entries"];
-    return isRec(entries) ? recOf(entries) : {};
-  }
-
-  /** Downstream callers still consume the flat { roles, sessions } view; only excluded counts. */
-  function getExcluded()                                          {
-    const entries = registryEntries(getRegistry());
-    const roles           = [];
-    const sessions           = [];
-    const ids = keysOf(entries);
-    for (let i = 0; i < ids.length; i++) {
-      const entry = recOf(entries[ids[i]]);
-      if (strOf(entry["state"]) !== "excluded") continue;
-      const key = entry["key"];
-      if (typeof key !== "string" || !key) continue;
-      if (entry["kind"] === "session") sessions.push(key);
-      else roles.push(key);
-    }
-    return { roles: roles, sessions: sessions };
-  }
-
-  function addExclusion(kind        , key        )       {
-    if (!key) return;
-    const reg = getRegistry();
-    const entries = registryEntries(reg);
-    entries[entryId(kind, key)] = { kind: normKind(kind), key: key, state: "excluded", ts: now() };
-    setRegistry({ entries: entries });
-  }
-
-  function removeExclusion(kind        , key        )       {
-    if (!key) return;
-    const reg = getRegistry();
-    const entries = registryEntries(reg);
-    // The entry is kept and flipped to "restored" with a fresh timestamp: only that lets a restore
-    // override an older exclusion made on another device.
-    entries[entryId(kind, key)] = { kind: normKind(kind), key: key, state: "restored", ts: now() };
-    setRegistry({ entries: entries });
-  }
-
-  function mergeRegistries(a      , b      )       {
-    const ea = registryEntries(a);
-    const eb = registryEntries(b);
-    const out       = {};
-    const ids = new Set        ();
-    keysOf(ea).forEach((k) => ids.add(k));
-    keysOf(eb).forEach((k) => ids.add(k));
-    ids.forEach((id) => {
-      const x = ea[id];
-      const y = eb[id];
-      const xOk = isRec(x) && typeof recOf(x)["ts"] === "number";
-      const yOk = isRec(y) && typeof recOf(y)["ts"] === "number";
-      if (xOk && yOk) out[id] = numOf(recOf(y)["ts"]) >= numOf(recOf(x)["ts"]) ? y : x;
-      else out[id] = xOk ? x : y;
-    });
-    return { entries: out };
-  }
-
   // ── main blob: dump / restore ──
 
   async function dumpAll(opts                             )                {
@@ -675,8 +1173,8 @@ function createSync(ports           ) {
     const idb       = {};
     for (let i = 0; i < IDB_NAMES.length; i++) idb[IDB_NAMES[i]] = await ports.idb.dump(IDB_NAMES[i]);
     // Cards stay out of the blob by default; a local backup must not lose them, hence the opt-in.
-    if (opts && opts.includeChars) idb[CHARS_DB] = await ports.idb.dump(CHARS_DB);
-    return applyExclusionsToBlob({ version: 1, savedAt: now(), localStorage: ls, indexedDB: idb });
+    if (opts && opts.includeChars) idb[ctx.CHARS_DB] = await ports.idb.dump(ctx.CHARS_DB);
+    return applyExclusionsToBlob({ version: 1, savedAt: ctx.now(), localStorage: ls, indexedDB: idb });
   }
 
   async function restoreAll(blob         , opts                           )                   {
@@ -686,13 +1184,13 @@ function createSync(ports           ) {
     // them, so restoring must skip both: otherwise the stale whole-blob copy overwrites the merged
     // per-id result.
     const allowChars = !!(opts && opts.allowChars);
-    const ex = getExcluded();
+    const ex = ctx.getExcluded();
     let keepRoles             = [];
     const keepSlots       = {};
     const keepAffLS       = {};
     if (ex.roles.length) {
       try {
-        keepRoles = await ports.idb.readByIds(CHARS_DB, ex.roles);
+        keepRoles = await ports.idb.readByIds(ctx.CHARS_DB, ex.roles);
       } catch (e) {
         /* nothing to preserve */
       }
@@ -705,7 +1203,7 @@ function createSync(ports           ) {
     const slotKeys = Array.from(new Set        (ex.sessions.concat(ex.roles)));
     if (slotKeys.length) {
       try {
-        const sessions = readJSONObj("cfw_chat_session_v1", {});
+        const sessions = ctx.readJSONObj("cfw_chat_session_v1", {});
         for (let i = 0; i < slotKeys.length; i++) {
           const k = slotKeys[i];
           if (Object.prototype.hasOwnProperty.call(sessions, k)) keepSlots[k] = sessions[k];
@@ -722,7 +1220,7 @@ function createSync(ports           ) {
       const names = keysOf(cloudIdb);
       for (let i = 0; i < names.length; i++) {
         const n = names[i];
-        if (n === CHARS_DB && !allowChars) continue;
+        if (n === ctx.CHARS_DB && !allowChars) continue;
         // The props database was deleted from the product. Old blobs still contain it, and
         // restoring would recreate it — deleted data coming back to life.
         if (n === "tavern_props_v1") continue;
@@ -731,7 +1229,7 @@ function createSync(ports           ) {
     }
     if (keepRoles.length) {
       try {
-        await ports.idb.putItems(CHARS_DB, keepRoles);
+        await ports.idb.putItems(ctx.CHARS_DB, keepRoles);
       } catch (e) {
         /* best-effort: an excluded card that cannot be re-put is still excluded from the cloud */
       }
@@ -739,7 +1237,7 @@ function createSync(ports           ) {
     const keptSlotKeys = keysOf(keepSlots);
     if (keptSlotKeys.length) {
       try {
-        const sessions = readJSONObj("cfw_chat_session_v1", {});
+        const sessions = ctx.readJSONObj("cfw_chat_session_v1", {});
         for (let i = 0; i < keptSlotKeys.length; i++) sessions[keptSlotKeys[i]] = keepSlots[keptSlotKeys[i]];
         storage.setItem("cfw_chat_session_v1", JSON.stringify(sessions));
       } catch (e) {
@@ -762,7 +1260,7 @@ function createSync(ports           ) {
    * device", so the filter runs on the push side only; the local copy is untouched.
    */
   function applyExclusionsToBlob(blob      )       {
-    const ex = getExcluded();
+    const ex = ctx.getExcluded();
     if (!ex.roles.length && !ex.sessions.length) return blob;
     // recOf returns a copy, so every mutation below is written back onto the blob. Mutating the
     // copy and dropping it silently uploads the excluded entity — the filter is the only thing
@@ -770,7 +1268,7 @@ function createSync(ports           ) {
     const idbRaw = blob["indexedDB"];
     if (ex.roles.length && isRec(idbRaw)) {
       const idbOut = recOf(idbRaw);
-      const dbObj = recOf(idbOut[CHARS_DB]);
+      const dbObj = recOf(idbOut[ctx.CHARS_DB]);
       const stores = keysOf(dbObj);
       for (let i = 0; i < stores.length; i++) {
         const sn = stores[i];
@@ -782,7 +1280,7 @@ function createSync(ports           ) {
           return !(ex.roles.indexOf(strOf(rec["id"])) >= 0 || ex.roles.indexOf(strOf(rec["cardId"])) >= 0);
         });
       }
-      idbOut[CHARS_DB] = dbObj;
+      idbOut[ctx.CHARS_DB] = dbObj;
       blob["indexedDB"] = idbOut;
     }
     const lsRaw = blob["localStorage"];
@@ -811,130 +1309,156 @@ function createSync(ports           ) {
     return blob;
   }
 
-  // ── HTTP ──
-
-  async function requestJson(path        , init           )                   {
-    if (!token()) throw new Error("未启用云同步（缺 token）");
-    const res = await ports.http(path, init);
-    if (res.status === 401) throw new Error("密码错误");
-    if (!res.ok) throw new Error("请求失败: " + res.status);
-    return res.json();
-  }
-
-  async function getChannel(path        , label        )                       {
-    if (!token()) throw new Error("未启用云同步(缺 token)");
-    const res = await ports.http(path, { headers: authHeaders() });
-    if (res.status === 401) throw new Error("密码错误");
-    if (!res.ok) throw new Error("拉取" + label + "失败: " + res.status);
-    const text = await res.text();
-    if (!text || text === "null") return null;
-    try {
-      const parsed = JSON.parse(text);
-      return isRec(parsed) ? recOf(parsed) : null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  async function putChannel(path        , body         , label        )                {
-    if (!token()) throw new Error("未启用云同步(缺 token)");
-    const res = await ports.http(path, {
-      method: "PUT",
-      headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify(body),
-    });
-    if (res.status === 401) throw new Error("密码错误");
-    if (!res.ok) throw new Error("推送" + label + "失败: " + res.status);
-    return recOf(await res.json());
-  }
-
-  async function deleteChannel(path        , label        )                {
-    if (!token()) throw new Error("未启用云同步(缺 token)");
-    const res = await ports.http(path, { method: "DELETE", headers: authHeaders() });
-    if (res.status === 401) throw new Error("密码错误");
-    if (!res.ok) throw new Error("删除" + label + "失败: " + res.status);
-    try {
-      return recOf(await res.json());
-    } catch (e) {
-      return {};
-    }
-  }
+  // ── main blob KV wrappers ──
 
   function pullFromKV()                       {
-    return getChannel(MAIN_BLOB_PATH, "");
+    return ctx.getChannel(ctx.MAIN_BLOB_PATH, "");
   }
 
   function pushToKV(blob      )                {
-    return putChannel(MAIN_BLOB_PATH, blob, "");
-  }
-
-  // ── push counter (KV quota watch) ──
-
-  function incrPushCount()         {
-    const today = new Date(now()).toISOString().slice(0, 10);
-    const prevDay = storage.getItem(PUSH_COUNT_DAY_KEY);
-    let n = parseInt(storage.getItem(PUSH_COUNT_KEY) || "0", 10) || 0;
-    if (prevDay !== today) {
-      n = 0;
-      storage.setItem(PUSH_COUNT_DAY_KEY, today);
-    }
-    n += 1;
-    storage.setItem(PUSH_COUNT_KEY, String(n));
-    if (n === PUSH_DAILY_WARN) emit("warn", { reason: "kv-quota", today: today, count: n });
-    return n;
+    return ctx.putChannel(ctx.MAIN_BLOB_PATH, blob, "");
   }
 
   // ── main blob: debounced push ──
 
-  async function doPush()                {
-    if (pushing) {
-      pendingPush = true;
-      return;
-    }
-    pushing = true;
-    emit("syncing");
+  const loop              = ctx.makeChannelLoop({ debounceMs: 30000, job: runPush });
+
+  async function runPush()                {
+    ctx.emit("syncing");
     try {
       const blob = await dumpAll();
       const res = await pushToKV(blob);
-      const savedAt = numOf(res["savedAt"]) || now();
-      storage.setItem(LAST_PUSH_KEY, String(savedAt));
+      const savedAt = numOf(res["savedAt"]) || ctx.now();
+      storage.setItem(ctx.LAST_PUSH_KEY, String(savedAt));
       // Advance the pull stamp too, or the next startup drags back what was just pushed.
-      storage.setItem(LAST_PULL_KEY, String(savedAt));
-      const pushN = incrPushCount();
-      emit("synced", Object.assign({}, res, { pushCount: pushN }));
+      storage.setItem(ctx.LAST_PULL_KEY, String(savedAt));
+      const pushN = ctx.incrPushCount();
+      ctx.emit("synced", Object.assign({}, res, { pushCount: pushN }));
     } catch (e) {
-      emit("error", e);
-    } finally {
-      pushing = false;
-      if (pendingPush) {
-        pendingPush = false;
-        timers.set(() => {
-          doPush();
-        }, 1500);
-      }
+      ctx.emit("error", e);
     }
   }
 
   function markDirty()       {
-    if (!syncEnabled() || !token()) return;
-    if (isPaused()) return;
-    if (pushTimer) timers.clear(pushTimer);
+    if (!ctx.syncEnabled() || !ctx.token()) return;
+    if (ctx.isPaused()) return;
     // 30s, not 3s: the whole blob is one KV write and the free tier allows 1000/day.
-    pushTimer = timers.set(() => {
-      pushTimer = null;
-      doPush();
-    }, 30000);
+    loop.markDirty();
   }
 
   async function pushNow()                {
-    if (pushTimer) {
-      timers.clear(pushTimer);
-      pushTimer = null;
-    }
-    await doPush();
+    loop.cancelTimer();
+    await loop.run(runPush);
   }
 
-  // ── cost channel (/sync/cost) ──
+  // ── startup ──
+
+  async function pullOnStartup()                {
+    if (!ctx.syncEnabled() || !ctx.token()) return;
+    ctx.emit("syncing");
+    try {
+      const remote = await pullFromKV();
+      if (!remote) {
+        // Empty cloud means first enablement: seed it from this device rather than starting blank.
+        ctx.emit("synced", { firstPush: true });
+        await pushNow();
+        return;
+      }
+      const lastPull = parseInt(storage.getItem(ctx.LAST_PULL_KEY) || "0", 10) || 0;
+      const remoteAt = numOf(remote["savedAt"]);
+      if (remoteAt > lastPull) {
+        await restoreAll(remote);
+        storage.setItem(ctx.LAST_PULL_KEY, String(remoteAt));
+        ctx.emit("restored", { savedAt: remoteAt });
+        // A reload is the only reliable way to make the app re-read state it already loaded.
+        timers.set(() => {
+          ports.reloadPage();
+        }, 600);
+      } else {
+        ctx.emit("synced");
+      }
+    } catch (e) {
+      ctx.emit("error", e);
+    }
+  }
+
+  // ── local file backup ──
+
+  async function exportJSON()                {
+    const blob = await dumpAll({ includeChars: true });
+    const text = JSON.stringify(blob, null, 2);
+    const name = "tavern-backup-" + new Date(ctx.now()).toISOString().slice(0, 10) + ".json";
+    const result = await ports.saveText(text, name);
+    if (!result["ok"]) ports.toast(strOf(result["error"]) || "未写盘");
+    return result;
+  }
+
+  /** Resolves with the parsed blob; restores cards too, because a local import is a full backup. */
+  async function importJSONText(text        )                {
+    const blob = JSON.parse(text);
+    await restoreAll(blob, { allowChars: true });
+    return recOf(blob);
+  }
+
+  // ── dirty classification (the storage router calls this per same-tab write) ──
+
+  function isListedKey(key        )          {
+    if (PROTECTED.indexOf(key) >= 0) return false;
+    if (LS_EXPLICIT.indexOf(key) >= 0) return true;
+    for (let i = 0; i < LS_PREFIXES.length; i++) {
+      if (key.indexOf(LS_PREFIXES[i]) === 0) return true;
+    }
+    return false;
+  }
+
+  /** Cross-tab storage events route on this: any non-protected key re-marks the main blob. */
+  function isProtected(key        )          {
+    return PROTECTED.indexOf(key) >= 0;
+  }
+
+  return {
+    markDirty: markDirty,
+    pushNow: pushNow,
+    pullFromKV: pullFromKV,
+    pullOnStartup: pullOnStartup,
+    dumpAll: dumpAll,
+    restoreAll: restoreAll,
+    exportJSON: exportJSON,
+    importJSONText: importJSONText,
+    isListedKey: isListedKey,
+    isProtected: isProtected,
+    cancelTimer: loop.cancelTimer,
+  };
+}
+
+/**
+ * Cost channel (/sync/cost): the per-device usage ledger and its push loop.
+ *
+ * This is the one channel that ignores the master sync switch — money is not a per-device
+ * preference, so cost syncs for any signed-in user. Merging happens on the worker (the push
+ * response carries the whole merged log) and locally through the day×device max merge owned by the
+ * merge engine; landing that response is what makes the local view converge without a pull.
+ * @module services/data/sync-cost
+ */
+                                   
+
+
+                                                               
+                                                
+
+/** Public surface of the cost channel; the host facade forwards to these. */
+                              
+                        
+                               
+                                     
+                      
+ 
+
+function createCostChannel(ctx             , merge             )              {
+  const storage = ctx.storage;
+  const ports = ctx.ports;
+
+  const loop              = ctx.makeChannelLoop({ debounceMs: 10000, job: runCostPush });
 
   function getLocalCostLog()       {
     try {
@@ -954,6 +1478,185 @@ function createSync(ports           ) {
       /* quota: the next message re-marks the channel dirty */
     }
   }
+
+  function pullCostFromKV()                       {
+    return ctx.getChannel(ctx.COST_PATH, "费用");
+  }
+
+  function pushCostToKV(log      )                {
+    return ctx.putChannel(ctx.COST_PATH, log, "费用");
+  }
+
+  function refreshCostUi()       {
+    const ui = ports.costUi();
+    if (!ui) return;
+    try {
+      if (typeof ui.refreshTopbar === "function") ui.refreshTopbar();
+      if (typeof ui.refreshSettings === "function") ui.refreshSettings();
+    } catch (e) {
+      /* UI refresh is optional */
+    }
+  }
+
+  /** Cost syncs whenever a token exists: money is not a per-device preference. */
+  async function pullCostOnStartup()                {
+    if (!ctx.token()) return;
+    try {
+      const remote = await pullCostFromKV();
+      if (!remote) return;
+      const merged = merge.mergeCostLogs(getLocalCostLog(), remote);
+      setLocalCostLog(merged);
+      storage.setItem("cfw_sync_last_cost_pull_v1", String(ctx.now()));
+      refreshCostUi();
+      ctx.emit("cost-synced", { source: "pull" });
+    } catch (e) {
+      ctx.emit("cost-error", e);
+    }
+  }
+
+  async function runCostPush()                {
+    try {
+      const local = getLocalCostLog();
+      const res = await pushCostToKV(local);
+      storage.setItem("cfw_sync_last_cost_push_v1", String(numOf(res["savedAt"]) || ctx.now()));
+      // The worker answers with the merged whole log, including buckets pushed by other devices
+      // moments earlier; landing it here is what makes the local view converge without a pull.
+      const mergedRemote = res["merged"];
+      if (isRec(mergedRemote)) {
+        setLocalCostLog(merge.mergeCostLogs(local, recOf(mergedRemote)));
+        refreshCostUi();
+      }
+      ctx.incrPushCount();
+      ctx.emit("cost-synced", Object.assign({}, res, { source: "push" }));
+    } catch (e) {
+      ctx.emit("cost-error", e);
+    }
+  }
+
+  function markCostDirty()       {
+    if (!ctx.token()) return;
+    if (ctx.isPaused()) return;
+    // 10s, half the main blob's window: a cost row is small and the user expects the number to
+    // settle quickly, but each push still costs a KV write.
+    loop.markDirty();
+  }
+
+  async function pushCostNow()                {
+    loop.cancelTimer();
+    await loop.run(runCostPush);
+  }
+
+  return {
+    markCostDirty: markCostDirty,
+    pushCostNow: pushCostNow,
+    pullCostOnStartup: pullCostOnStartup,
+    cancelTimer: loop.cancelTimer,
+  };
+}
+
+/**
+ * Exclusion channel (/sync/exclude): pushes the per-entity exclusion registry so other devices
+ * honour a "clear the cloud, keep this device" decision.
+ *
+ * The registry itself (read, migrate, merge, add/remove) lives in the shared context because the
+ * main-blob filter and the chat/chars merges consult it on every round; this fragment owns only
+ * the network side. There is no debounce timer here — exclusions are rare user actions, so every
+ * change pushes immediately.
+ * @module services/data/sync-exclude
+ */
+                                   
+
+
+                                                               
+
+/** Public surface of the exclusion channel; the host facade forwards to these. */
+                                 
+                                        
+                                  
+ 
+
+function createExcludeChannel(ctx             )                 {
+  const storage = ctx.storage;
+
+  // debounceMs 0 = no debounce timer; the loop still provides the inflight lock and the retry.
+  const loop              = ctx.makeChannelLoop({ debounceMs: 0, job: runExcludePush });
+
+  function pullExcludeFromKV()                       {
+    return ctx.getChannel(ctx.EXCLUDE_PATH, "排除清单");
+  }
+
+  function pushExcludeToKV(reg      )                {
+    return ctx.putChannel(ctx.EXCLUDE_PATH, reg, "排除清单");
+  }
+
+  async function pullExcludeOnStartup()                {
+    if (!ctx.syncEnabled() || !ctx.token()) return;
+    try {
+      const remote = await pullExcludeFromKV();
+      if (!remote) return;
+      ctx.setRegistry(ctx.mergeRegistries(ctx.getRegistry(), remote));
+      storage.setItem(ctx.LAST_EXCLUDE_PULL_KEY, String(ctx.now()));
+      ctx.emit("exclude-synced", { source: "pull" });
+    } catch (e) {
+      ctx.emit("exclude-error", e);
+    }
+  }
+
+  async function runExcludePush()                {
+    try {
+      const local = ctx.getRegistry();
+      const res = await pushExcludeToKV(local);
+      const merged = res["merged"];
+      if (isRec(merged)) ctx.setRegistry(ctx.mergeRegistries(local, recOf(merged)));
+      storage.setItem(ctx.LAST_EXCLUDE_PUSH_KEY, String(numOf(res["savedAt"]) || ctx.now()));
+      ctx.incrPushCount();
+      ctx.emit("exclude-synced", { source: "push" });
+    } catch (e) {
+      ctx.emit("exclude-error", e);
+    }
+  }
+
+  async function pushExcludeNow()                {
+    await loop.run(runExcludePush);
+  }
+
+  return {
+    pullExcludeOnStartup: pullExcludeOnStartup,
+    pushExcludeNow: pushExcludeNow,
+  };
+}
+
+/**
+ * Merge algorithms of the sync engine: the cost ledger's day×device max merge, the chat slot
+ * three-way merge with its baseline and tombstone resolution, and the character-card merge shell
+ * that delegates to the char-sync-merge module.
+ *
+ * This fragment is decision-only — it reads local state through the context and returns merged
+ * structures; landing them on local storage belongs to the channel fragments. The chat merge's
+ * decision tree is kept as one function on purpose: tombstone check, empty-slot rule, one-sided
+ * slots and the hash-baseline comparison form a single ordered judgment, and the clock guard
+ * (a local slot untouched since the last sync may fast-forward only when the remote meta is
+ * genuinely newer) lives in its `base === lHash` branch.
+ * @module services/data/sync-merge
+ */
+                                                                          
+
+
+                                                  
+
+/** Public surface of the merge engine; the host facade and the channel fragments call these. */
+                              
+                                        
+                                                 
+                                          
+                                                                         
+                                                    
+ 
+
+function createMergeEngine(ctx             )              {
+  const ports = ctx.ports;
+
+  // ── cost: pure merges over the day×device ledger ──
 
   /**
    * Normalise one day. Days used to be flat `{cost, requests, prompt, completion}`; they are now
@@ -1027,148 +1730,14 @@ function createSync(ports           ) {
     return out;
   }
 
-  function pullCostFromKV()                       {
-    return getChannel(COST_PATH, "费用");
+  // ── chat: per-slot three-way merge ──
+
+  function slotMetaOf(meta      , updatedAt        )       {
+    return {
+      updatedAt: typeof updatedAt === "number" && updatedAt >= 0 ? updatedAt : ctx.now(),
+      deviceId: strOf(meta["deviceId"]) || ctx.chatDeviceId(),
+    };
   }
-
-  function pushCostToKV(log      )                {
-    return putChannel(COST_PATH, log, "费用");
-  }
-
-  function refreshCostUi()       {
-    const ui = ports.costUi();
-    if (!ui) return;
-    try {
-      if (typeof ui.refreshTopbar === "function") ui.refreshTopbar();
-      if (typeof ui.refreshSettings === "function") ui.refreshSettings();
-    } catch (e) {
-      /* UI refresh is optional */
-    }
-  }
-
-  /** Cost syncs whenever a token exists: money is not a per-device preference. */
-  async function pullCostOnStartup()                {
-    if (!token()) return;
-    try {
-      const remote = await pullCostFromKV();
-      if (!remote) return;
-      const merged = mergeCostLogs(getLocalCostLog(), remote);
-      setLocalCostLog(merged);
-      storage.setItem("cfw_sync_last_cost_pull_v1", String(now()));
-      refreshCostUi();
-      emit("cost-synced", { source: "pull" });
-    } catch (e) {
-      emit("cost-error", e);
-    }
-  }
-
-  async function doCostPush()                {
-    if (costPushing) {
-      pendingCostPush = true;
-      return;
-    }
-    costPushing = true;
-    try {
-      const local = getLocalCostLog();
-      const res = await pushCostToKV(local);
-      storage.setItem("cfw_sync_last_cost_push_v1", String(numOf(res["savedAt"]) || now()));
-      // The worker answers with the merged whole log, including buckets pushed by other devices
-      // moments earlier; landing it here is what makes the local view converge without a pull.
-      const mergedRemote = res["merged"];
-      if (isRec(mergedRemote)) {
-        setLocalCostLog(mergeCostLogs(local, recOf(mergedRemote)));
-        refreshCostUi();
-      }
-      incrPushCount();
-      emit("cost-synced", Object.assign({}, res, { source: "push" }));
-    } catch (e) {
-      emit("cost-error", e);
-    } finally {
-      costPushing = false;
-      if (pendingCostPush) {
-        pendingCostPush = false;
-        timers.set(() => {
-          doCostPush();
-        }, 1500);
-      }
-    }
-  }
-
-  function markCostDirty()       {
-    if (!token()) return;
-    if (isPaused()) return;
-    if (costPushTimer) timers.clear(costPushTimer);
-    // 10s, half the main blob's window: a cost row is small and the user expects the number to
-    // settle quickly, but each push still costs a KV write.
-    costPushTimer = timers.set(() => {
-      costPushTimer = null;
-      doCostPush();
-    }, 10000);
-  }
-
-  async function pushCostNow()                {
-    if (costPushTimer) {
-      timers.clear(costPushTimer);
-      costPushTimer = null;
-    }
-    await doCostPush();
-  }
-
-  // ── exclusion channel (/sync/exclude) ──
-
-  function pullExcludeFromKV()                       {
-    return getChannel(EXCLUDE_PATH, "排除清单");
-  }
-
-  function pushExcludeToKV(reg      )                {
-    return putChannel(EXCLUDE_PATH, reg, "排除清单");
-  }
-
-  async function pullExcludeOnStartup()                {
-    if (!syncEnabled() || !token()) return;
-    try {
-      const remote = await pullExcludeFromKV();
-      if (!remote) return;
-      setRegistry(mergeRegistries(getRegistry(), remote));
-      storage.setItem(LAST_EXCLUDE_PULL_KEY, String(now()));
-      emit("exclude-synced", { source: "pull" });
-    } catch (e) {
-      emit("exclude-error", e);
-    }
-  }
-
-  async function doExcludePush()                {
-    if (excludePushing) {
-      pendingExcludePush = true;
-      return;
-    }
-    excludePushing = true;
-    try {
-      const local = getRegistry();
-      const res = await pushExcludeToKV(local);
-      const merged = res["merged"];
-      if (isRec(merged)) setRegistry(mergeRegistries(local, recOf(merged)));
-      storage.setItem(LAST_EXCLUDE_PUSH_KEY, String(numOf(res["savedAt"]) || now()));
-      incrPushCount();
-      emit("exclude-synced", { source: "push" });
-    } catch (e) {
-      emit("exclude-error", e);
-    } finally {
-      excludePushing = false;
-      if (pendingExcludePush) {
-        pendingExcludePush = false;
-        timers.set(() => {
-          doExcludePush();
-        }, 1500);
-      }
-    }
-  }
-
-  async function pushExcludeNow()                {
-    await doExcludePush();
-  }
-
-  // ── chat channel (/sync/chat) ──
 
   /**
    * Per-slot merge with a three-way baseline. Each slot carries updatedAt + deviceId, and
@@ -1179,132 +1748,12 @@ function createSync(ports           ) {
    * Deletion is a tombstone, resolved by deletedAt against updatedAt, so an edit after a delete
    * resurrects the conversation.
    */
-  function chatDeviceId()         {
-    let id = storage.getItem(CHAT_DEVICE_ID_KEY);
-    if (!id) {
-      id = "dev_" + now().toString(36) + ports.random().toString(36).slice(2, 8);
-      try {
-        storage.setItem(CHAT_DEVICE_ID_KEY, id);
-      } catch (e) {
-        /* a per-call id is still usable; it just loses the stable bucket */
-      }
-    }
-    return id;
-  }
-
-  function getChatSessions()       {
-    return readJSONObj("cfw_chat_session_v1", {});
-  }
-
-  function getChatSlotMeta()       {
-    return readJSONObj(CHAT_SLOT_META_KEY, {});
-  }
-
-  function getChatTomb()       {
-    return readJSONObj(CHAT_TOMB_KEY, {});
-  }
-
-  function getChatSynced()       {
-    return readJSONObj(CHAT_SYNCED_KEY, {});
-  }
-
-  function getConvMetaMap()       {
-    return readJSONObj(CHAT_CONV_META_KEY, {});
-  }
-
-  function getChatConflicts()         {
-    return readJSONArr(CHAT_CONFLICTS_KEY).map((entry) => recOf(entry));
-  }
-
-  /**
-   * Run `fn` with writes suppressed from re-marking the chat channel dirty. Nested calls are
-   * counted: the realtime module may apply an event inside a merge the sync engine started.
-   */
-  async function withRemoteApply   (fn                      )             {
-    remoteApplyDepth++;
-    applyingRemoteChat = true;
-    try {
-      return await fn();
-    } finally {
-      remoteApplyDepth = Math.max(0, remoteApplyDepth - 1);
-      if (remoteApplyDepth === 0) applyingRemoteChat = false;
-    }
-  }
-
-  function isExcludedSession(convId        )          {
-    try {
-      const ex = getExcluded();
-      return ex.sessions.indexOf(convId) >= 0 || ex.roles.indexOf(convId) >= 0;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /**
-   * Record a conflict the realtime channel stumbled on. Same storage shape as the merge path, so
-   * the panel needs only one reader; an existing entry for the slot is replaced, not appended.
-   */
-  function setChatConflict(slotKey        , localMsgs           , remoteMsgs           , remoteUpdatedAt         )       {
-    const localArr = Array.isArray(localMsgs) ? localMsgs : [];
-    const remoteArr = Array.isArray(remoteMsgs) ? remoteMsgs : [];
-    const conflict       = {
-      slotKey: slotKey,
-      localMsgs: localArr,
-      remoteMsgs: remoteArr,
-      localUpdatedAt: now(),
-      remoteUpdatedAt: numOf(remoteUpdatedAt) || now(),
-      localCount: localArr.length,
-      remoteCount: remoteArr.length,
-    };
-    const merged = getChatConflicts();
-    const index = merged.findIndex((p) => strOf(p["slotKey"]) === slotKey);
-    if (index >= 0) merged[index] = conflict;
-    else merged.push(conflict);
-    storage.setItem(CHAT_CONFLICTS_KEY, JSON.stringify(merged));
-    emit("chat-conflict", { conflicts: [conflict] });
-    ports.dispatch("chat-conflict", { conflicts: [conflict] });
-    return conflict;
-  }
-
-  function buildLocalChatBlob()       {
-    const sessions = getChatSessions();
-    const slotMeta = getChatSlotMeta();
-    const tomb = getChatTomb();
-    const convMeta = getConvMetaMap();
-    const ex = getExcluded();
-    const excluded = new Set        (ex.sessions.concat(ex.roles));
-    const slots       = {};
-    const msgs       = {};
-    const stamp = now();
-    const ids = keysOf(sessions);
-    for (let i = 0; i < ids.length; i++) {
-      const k = ids[i];
-      if (excluded.has(k)) continue;
-      const arr = sessions[k];
-      // An empty slot is not a delete signal, and uploading it would wipe a non-empty conversation
-      // on the other device. Deletion travels as a tombstone only.
-      if (!Array.isArray(arr) || arr.length === 0) continue;
-      const meta = recOf(slotMeta[k]);
-      const updatedAt = typeof meta["updatedAt"] === "number" ? numOf(meta["updatedAt"]) : stamp;
-      slots[k] = { updatedAt: updatedAt, deviceId: strOf(meta["deviceId"]) || chatDeviceId(), hash: hashStr(JSON.stringify(arr)) };
-      msgs[k] = arr;
-    }
-    return { slots: slots, msgs: msgs, tombstones: tomb, convMeta: convMeta };
-  }
-
-  function slotMetaOf(meta      , updatedAt        )       {
-    return {
-      updatedAt: typeof updatedAt === "number" && updatedAt >= 0 ? updatedAt : now(),
-      deviceId: strOf(meta["deviceId"]) || chatDeviceId(),
-    };
-  }
-
   function mergeChatSessions(remote         )             {
-    const localSessions = getChatSessions();
-    const localMeta = getChatSlotMeta();
-    const localTomb = getChatTomb();
-    const localConv = getConvMetaMap();
-    const synced = getChatSynced();
+    const localSessions = ctx.getChatSessions();
+    const localMeta = ctx.getChatSlotMeta();
+    const localTomb = ctx.getChatTomb();
+    const localConv = ctx.getConvMetaMap();
+    const synced = ctx.getChatSynced();
     const r = recOf(remote);
     const rSlots = recOf(r["slots"]);
     const rMsgs = recOf(r["msgs"]);
@@ -1326,7 +1775,7 @@ function createSync(ports           ) {
     const conflicts                 = [];
     // An excluded slot neither merges nor uploads: "clear the cloud, keep this device" depends on
     // both halves.
-    const excluded = new Set        (getExcluded().sessions);
+    const excluded = new Set        (ctx.getExcluded().sessions);
     const slotKeys = new Set        ();
     keysOf(localSessions).forEach((k) => slotKeys.add(k));
     keysOf(rSlots).forEach((k) => slotKeys.add(k));
@@ -1341,8 +1790,8 @@ function createSync(ports           ) {
       const rUpd = typeof rMeta["updatedAt"] === "number" ? numOf(rMeta["updatedAt"]) : remoteArr ? 0 : -1;
       const baseRaw = recOf(synced[k])["hash"];
       const base = typeof baseRaw === "string" ? baseRaw : null;
-      const lHash = localArr ? hashStr(JSON.stringify(localArr)) : null;
-      const rHash = remoteArr ? hashStr(JSON.stringify(remoteArr)) : strOf(rMeta["hash"]) || null;
+      const lHash = localArr ? ctx.hashStr(JSON.stringify(localArr)) : null;
+      const rHash = remoteArr ? ctx.hashStr(JSON.stringify(remoteArr)) : strOf(rMeta["hash"]) || null;
 
       const tomb = outTomb[k];
       if (isRec(tomb)) {
@@ -1357,7 +1806,7 @@ function createSync(ports           ) {
       const rEmpty = remoteArr !== null && remoteArr.length === 0;
       if (lEmpty && remoteArr && !rEmpty) {
         outSessions[k] = remoteArr;
-        outMeta[k] = { updatedAt: rUpd >= 0 ? rUpd : now(), deviceId: strOf(rMeta["deviceId"]) };
+        outMeta[k] = { updatedAt: rUpd >= 0 ? rUpd : ctx.now(), deviceId: strOf(rMeta["deviceId"]) };
         return;
       }
       if (rEmpty && localArr && !lEmpty) {
@@ -1372,7 +1821,7 @@ function createSync(ports           ) {
       }
       if (!localArr && remoteArr) {
         outSessions[k] = remoteArr;
-        outMeta[k] = { updatedAt: rUpd >= 0 ? rUpd : now(), deviceId: strOf(rMeta["deviceId"]) };
+        outMeta[k] = { updatedAt: rUpd >= 0 ? rUpd : ctx.now(), deviceId: strOf(rMeta["deviceId"]) };
         return;
       }
       if (!localArr || !remoteArr) return;
@@ -1389,7 +1838,7 @@ function createSync(ports           ) {
         // cloud and have it silently poured back here, losing messages.
         if (rUpd > lUpd) {
           outSessions[k] = remoteArr;
-          outMeta[k] = { updatedAt: rUpd >= 0 ? rUpd : now(), deviceId: strOf(rMeta["deviceId"]) };
+          outMeta[k] = { updatedAt: rUpd >= 0 ? rUpd : ctx.now(), deviceId: strOf(rMeta["deviceId"]) };
           return;
         }
         outSessions[k] = localArr;
@@ -1427,17 +1876,308 @@ function createSync(ports           ) {
   /** Order-independent fingerprint of the whole slot set; detects "did the merge change anything". */
   function chatSessionsSig(sessions      )         {
     const keys = keysOf(sessions).sort();
-    return keys.map((k) => k + ":" + hashStr(JSON.stringify(sessions[k]))).join("|");
+    return keys.map((k) => k + ":" + ctx.hashStr(JSON.stringify(sessions[k]))).join("|");
+  }
+
+  // ── chars: local read and the merge shell over the char-sync-merge module ──
+
+  async function readLocalChars()                                                       {
+    const dumped = await ports.idb.dump(ctx.CHARS_DB);
+    const data = recOf(dumped);
+    return { chars: arrOf(data["chars"]), affections: arrOf(data["affections"]) };
+  }
+
+  async function mergeChars(remote         )                       {
+    const local = await readLocalChars();
+    const charMerge = ports.charMerge();
+    if (!charMerge || typeof charMerge.mergeCharsState !== "function") throw new Error("角色卡合并模块未加载");
+    const merged = recOf(
+      charMerge.mergeCharsState({
+        localCards: local.chars,
+        localAffections: local.affections,
+        localMeta: ctx.getCharsMeta(),
+        localTomb: ctx.getCharsTomb(),
+        remote: remote,
+        synced: ctx.getCharsSynced(),
+        excluded: new Set        (ctx.getExcluded().roles),
+        deviceId: ctx.chatDeviceId(),
+        hashFn: ctx.hashStr,
+        now: ctx.now(),
+      }),
+    );
+    return {
+      cards: recOf(merged["cards"]),
+      meta: recOf(merged["meta"]),
+      affections: recOf(merged["affections"]),
+      tomb: recOf(merged["tomb"]),
+      synced: recOf(merged["synced"]),
+      conflicts: arrOf(merged["conflicts"]),
+    };
+  }
+
+  return {
+    mergeCostLogs: mergeCostLogs,
+    mergeChatSessions: mergeChatSessions,
+    chatSessionsSig: chatSessionsSig,
+    readLocalChars: readLocalChars,
+    mergeChars: mergeChars,
+  };
+}
+
+/**
+ * Chat conflict lifecycle: the one conflict table both merge paths write, the realtime hook that
+ * records a conflict it stumbled on, and the three-way user resolution (local / remote / fork).
+ *
+ * Same storage shape for both writers is the invariant: the panel has exactly one reader. A
+ * resolution ends by scheduling a chat push so the chosen version reaches the other devices; the
+ * push dependency arrives as an injected callback because the chat channel is built after this
+ * engine and must not depend on it in the other direction.
+ * @module services/data/sync-conflict
+ */
+                                   
+
+
+                                                  
+
+/** Injected dependency: fire-and-forget chat push, wired by the host after the chat channel exists. */
+                               
+                           
+ 
+
+/** Public surface of the conflict engine; the host facade forwards to these. */
+                                 
+                             
+                                                                                                                
+                                                                    
+ 
+
+function createConflictEngine(ctx             , deps              )                 {
+  const storage = ctx.storage;
+  const ports = ctx.ports;
+
+  function getChatConflicts()         {
+    return ctx.readJSONArr(ctx.CHAT_CONFLICTS_KEY).map((entry) => recOf(entry));
+  }
+
+  /**
+   * Record a conflict the realtime channel stumbled on. Same storage shape as the merge path, so
+   * the panel needs only one reader; an existing entry for the slot is replaced, not appended.
+   */
+  function setChatConflict(slotKey        , localMsgs           , remoteMsgs           , remoteUpdatedAt         )       {
+    const localArr = Array.isArray(localMsgs) ? localMsgs : [];
+    const remoteArr = Array.isArray(remoteMsgs) ? remoteMsgs : [];
+    const conflict       = {
+      slotKey: slotKey,
+      localMsgs: localArr,
+      remoteMsgs: remoteArr,
+      localUpdatedAt: ctx.now(),
+      remoteUpdatedAt: numOf(remoteUpdatedAt) || ctx.now(),
+      localCount: localArr.length,
+      remoteCount: remoteArr.length,
+    };
+    const merged = getChatConflicts();
+    const index = merged.findIndex((p) => strOf(p["slotKey"]) === slotKey);
+    if (index >= 0) merged[index] = conflict;
+    else merged.push(conflict);
+    storage.setItem(ctx.CHAT_CONFLICTS_KEY, JSON.stringify(merged));
+    ctx.emit("chat-conflict", { conflicts: [conflict] });
+    ports.dispatch("chat-conflict", { conflicts: [conflict] });
+    return conflict;
+  }
+
+  /** resolution = "local" | "remote" | "fork"; returns false when the slot has no open conflict. */
+  function resolveChatConflict(slotKey        , resolution        )          {
+    const conflicts = getChatConflicts();
+    const conflict = conflicts.find((x) => strOf(x["slotKey"]) === slotKey);
+    if (!conflict) return false;
+    ctx.flags.chat = true;
+    try {
+      const sessions = ctx.getChatSessions();
+      const meta = ctx.getChatSlotMeta();
+      const stamp = ctx.now();
+      const remoteMsgs = arrOf(conflict["remoteMsgs"]);
+      const localMsgs = arrOf(conflict["localMsgs"]);
+      if (resolution === "remote") {
+        sessions[slotKey] = remoteMsgs;
+        meta[slotKey] = { updatedAt: stamp, deviceId: ctx.chatDeviceId() };
+      } else if (resolution === "fork") {
+        // Slot keys are flat conversation ids with no prefix, and a fork must be a legal one too:
+        // anything not starting with c_ is invisible to the sidebar.
+        const forkKey = "c_" + stamp.toString(36) + "_" + ports.random().toString(36).slice(2, 6);
+        sessions[slotKey] = localMsgs;
+        sessions[forkKey] = remoteMsgs;
+        meta[slotKey] = { updatedAt: stamp, deviceId: ctx.chatDeviceId() };
+        meta[forkKey] = { updatedAt: stamp, deviceId: ctx.chatDeviceId() };
+        const convMeta = ctx.getConvMetaMap();
+        convMeta[forkKey] = {
+          name: "云端版本 " + new Date(stamp).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+          createdAt: stamp,
+        };
+        storage.setItem(ctx.CHAT_CONV_META_KEY, JSON.stringify(convMeta));
+      } else {
+        sessions[slotKey] = localMsgs;
+        meta[slotKey] = { updatedAt: stamp, deviceId: ctx.chatDeviceId() };
+      }
+      // Direct write on purpose: this map came from the hot-window read above, so replacing the
+      // whole mirror with it would drop the archived prefix. The facade path is for maps that are
+      // already complete (the merge snapshot).
+      storage.setItem("cfw_chat_session_v1", JSON.stringify(sessions));
+      storage.setItem(ctx.CHAT_SLOT_META_KEY, JSON.stringify(meta));
+      const synced = ctx.getChatSynced();
+      synced[slotKey] = { hash: ctx.hashStr(JSON.stringify(sessions[slotKey])), syncedAt: stamp };
+      storage.setItem(ctx.CHAT_SYNCED_KEY, JSON.stringify(synced));
+      const rest = conflicts.filter((x) => strOf(x["slotKey"]) !== slotKey);
+      if (rest.length) storage.setItem(ctx.CHAT_CONFLICTS_KEY, JSON.stringify(rest));
+      else storage.removeItem(ctx.CHAT_CONFLICTS_KEY);
+    } finally {
+      ctx.flags.chat = false;
+    }
+    deps.scheduleChatPush();
+    ctx.emit("chat-conflict-resolved", { slotKey: slotKey, resolution: resolution });
+    return true;
+  }
+
+  return {
+    getChatConflicts: getChatConflicts,
+    setChatConflict: setChatConflict,
+    resolveChatConflict: resolveChatConflict,
+  };
+}
+
+/**
+ * Tombstone writes for the character channel: saving a card bumps its meta and clears any
+ * tombstone, deleting a card writes the tombstone and withdraws the meta.
+ *
+ * Kept as its own fragment because the meta/tombstone exclusion is a semantic pair, not two
+ * incidental writes: a delete has to travel to other devices (a stale copy must not resurrect the
+ * card), and a save must retract a pending tombstone or the merge would weigh "deleted here" against
+ * "updated there" instead of trusting the newer intent. The chat channel's tombstone *resolution*
+ * (deletedAt versus updatedAt, with resurrection) lives in the merge engine's decision tree; only
+ * the writes belong here.
+ * @module services/data/sync-tombstone
+ */
+                                   
+                                                  
+
+/** Public surface of the tombstone engine; the host facade forwards to these. */
+                                  
+                                 
+                             
+ 
+
+function createTombstoneEngine(ctx             )                  {
+  const storage = ctx.storage;
+
+  /** Called by the character store after every save; the write itself marks the channel dirty. */
+  function bumpCharMeta(id        )       {
+    if (!id) return;
+    const meta = ctx.getCharsMeta();
+    meta[id] = { updatedAt: ctx.now(), deviceId: ctx.chatDeviceId() };
+    const tomb = ctx.getCharsTomb();
+    if (tomb[id]) {
+      delete tomb[id];
+      storage.setItem(ctx.CHARS_TOMB_KEY, JSON.stringify(tomb));
+    }
+    storage.setItem(ctx.CHARS_META_KEY, JSON.stringify(meta));
+  }
+
+  function tombChar(id        )       {
+    if (!id) return;
+    const tomb = ctx.getCharsTomb();
+    tomb[id] = { deletedAt: ctx.now(), deviceId: ctx.chatDeviceId() };
+    const meta = ctx.getCharsMeta();
+    if (meta[id]) {
+      delete meta[id];
+      storage.setItem(ctx.CHARS_META_KEY, JSON.stringify(meta));
+    }
+    storage.setItem(ctx.CHARS_TOMB_KEY, JSON.stringify(tomb));
+  }
+
+  return {
+    bumpCharMeta: bumpCharMeta,
+    tombChar: tombChar,
+  };
+}
+
+/**
+ * Chat channel (/sync/chat): the outbound slot blob, the merge landing path, the debounced push
+ * with its in-flight divergence guard, and both pull variants (realtime catch-up first, full
+ * snapshot second).
+ *
+ * Two decisions here carry data-loss risk if diluted, so they stay verbatim: an empty message
+ * array is never an upload (deletion travels as a tombstone only), and a push whose local content
+ * moved while the request was in flight must not land the response baseline — landing it would
+ * fabricate a conflict and drop whatever the user typed meanwhile. Writes performed while landing
+ * a remote merge go through the context's suppression flags so they do not re-mark this channel
+ * dirty.
+ * @module services/data/sync-chat
+ */
+                                                           
+
+
+                                                               
+                                                
+                                                      
+
+/** Public surface of the chat channel; the host facade forwards to these. */
+                              
+                        
+                                     
+                                     
+                                                              
+                                             
+                      
+ 
+
+function createChatChannel(ctx             , merge             , conflict                )              {
+  const storage = ctx.storage;
+  const ports = ctx.ports;
+
+  const loop              = ctx.makeChannelLoop({ debounceMs: 30000, job: runChatPush });
+
+  function isExcludedSession(convId        )          {
+    try {
+      const ex = ctx.getExcluded();
+      return ex.sessions.indexOf(convId) >= 0 || ex.roles.indexOf(convId) >= 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function buildLocalChatBlob()       {
+    const sessions = ctx.getChatSessions();
+    const slotMeta = ctx.getChatSlotMeta();
+    const tomb = ctx.getChatTomb();
+    const convMeta = ctx.getConvMetaMap();
+    const ex = ctx.getExcluded();
+    const excluded = new Set        (ex.sessions.concat(ex.roles));
+    const slots       = {};
+    const msgs       = {};
+    const stamp = ctx.now();
+    const ids = keysOf(sessions);
+    for (let i = 0; i < ids.length; i++) {
+      const k = ids[i];
+      if (excluded.has(k)) continue;
+      const arr = sessions[k];
+      // An empty slot is not a delete signal, and uploading it would wipe a non-empty conversation
+      // on the other device. Deletion travels as a tombstone only.
+      if (!Array.isArray(arr) || arr.length === 0) continue;
+      const meta = recOf(slotMeta[k]);
+      const updatedAt = typeof meta["updatedAt"] === "number" ? numOf(meta["updatedAt"]) : stamp;
+      slots[k] = { updatedAt: updatedAt, deviceId: strOf(meta["deviceId"]) || ctx.chatDeviceId(), hash: ctx.hashStr(JSON.stringify(arr)) };
+      msgs[k] = arr;
+    }
+    return { slots: slots, msgs: msgs, tombstones: tomb, convMeta: convMeta };
   }
 
   function applyMergedChatToLocal(m            )       {
-    const prevSynced = getChatSynced();
-    const prevSig = chatSessionsSig(getChatSessions());
-    applyingRemoteChat = true;
+    const prevSynced = ctx.getChatSynced();
+    const prevSig = merge.chatSessionsSig(ctx.getChatSessions());
+    ctx.flags.chat = true;
     try {
-      storage.setItem("cfw_chat_session_v1", JSON.stringify(m.sessions));
-      storage.setItem(CHAT_SLOT_META_KEY, JSON.stringify(m.slotMeta));
-      storage.setItem(CHAT_TOMB_KEY, JSON.stringify(m.tomb));
+      ctx.writeChatSessions(m.sessions, "sync-merge");
+      storage.setItem(ctx.CHAT_SLOT_META_KEY, JSON.stringify(m.slotMeta));
+      storage.setItem(ctx.CHAT_TOMB_KEY, JSON.stringify(m.tomb));
       // Conversation names merge as a union on the server and cannot be deleted there, so a
       // removed conversation leaves a ghost row ("no messages yet") in the sidebar. Dropping any
       // name whose conversation is gone removes exactly the ghosts; local empty slots keep theirs.
@@ -1447,14 +2187,14 @@ function createSync(ports           ) {
       });
       // Every device names its own main conversation c_main_<deviceId>, so a merged foreign one
       // shows up as a second, unexplained row. Renaming it is display-only and reversible.
-      const myId = chatDeviceId();
+      const myId = ctx.chatDeviceId();
       keysOf(convMeta).forEach((k) => {
         if (k.indexOf("c_main_") !== 0 || k === "c_main_" + myId) return;
         const meta = recOf(convMeta[k]);
         if (!strOf(meta["name"]) || strOf(meta["name"]) === "主对话") meta["name"] = "主对话 · 其他设备";
         convMeta[k] = meta;
       });
-      storage.setItem(CHAT_CONV_META_KEY, JSON.stringify(convMeta));
+      storage.setItem(ctx.CHAT_CONV_META_KEY, JSON.stringify(convMeta));
       const conflictKeys = new Set        ();
       (m.conflicts || []).forEach((c) => conflictKeys.add(c.slotKey));
       const synced       = {};
@@ -1465,13 +2205,13 @@ function createSync(ports           ) {
           if (prevSynced[k]) synced[k] = prevSynced[k];
           return;
         }
-        synced[k] = { hash: hashStr(JSON.stringify(m.sessions[k])), syncedAt: now() };
+        synced[k] = { hash: ctx.hashStr(JSON.stringify(m.sessions[k])), syncedAt: ctx.now() };
       });
-      storage.setItem(CHAT_SYNCED_KEY, JSON.stringify(synced));
+      storage.setItem(ctx.CHAT_SYNCED_KEY, JSON.stringify(synced));
       if (m.conflicts && m.conflicts.length) {
         // Conflicts are merged per slot: replacing the whole list dropped unresolved conflicts of
         // other conversations.
-        const merged = getChatConflicts();
+        const merged = conflict.getChatConflicts();
         let hasNew = false;
         m.conflicts.forEach((c) => {
           const index = merged.findIndex((p) => strOf(p["slotKey"]) === c.slotKey);
@@ -1481,45 +2221,36 @@ function createSync(ports           ) {
             hasNew = true;
           }
         });
-        storage.setItem(CHAT_CONFLICTS_KEY, JSON.stringify(merged));
+        storage.setItem(ctx.CHAT_CONFLICTS_KEY, JSON.stringify(merged));
         if (hasNew) {
-          emit("chat-conflict", { conflicts: m.conflicts });
+          ctx.emit("chat-conflict", { conflicts: m.conflicts });
           return;
         }
         // Every conflict was already known: the user has seen the panel, so do not pop it again.
       } else {
-        storage.removeItem(CHAT_CONFLICTS_KEY);
+        storage.removeItem(ctx.CHAT_CONFLICTS_KEY);
       }
     } finally {
-      applyingRemoteChat = false;
+      ctx.flags.chat = false;
     }
     if (m.conflicts && m.conflicts.length) {
-      emit("chat-conflict", { conflicts: m.conflicts });
+      ctx.emit("chat-conflict", { conflicts: m.conflicts });
       return;
     }
     // A merge that added or updated another device's conversation used to be invisible until the
     // next reload; the change event is what lets the UI offer a refresh.
-    if (chatSessionsSig(m.sessions) !== prevSig) emit("chat-merged", { changed: true });
+    if (merge.chatSessionsSig(m.sessions) !== prevSig) ctx.emit("chat-merged", { changed: true });
   }
 
   function pullChatFromKV()                       {
-    return getChannel(CHAT_PATH, "聊天");
+    return ctx.getChannel(ctx.CHAT_PATH, "聊天");
   }
 
   function pushChatToKV(blob      )                {
-    return putChannel(CHAT_PATH, blob, "聊天");
+    return ctx.putChannel(ctx.CHAT_PATH, blob, "聊天");
   }
 
-  async function doChatPush()                      {
-    // Returns a result instead of undefined: the "sync now" button has to tell "pushed" from
-    // "pushed nothing", and a silent return once reported a no-op as success.
-    if (!includeChat()) return { skipped: "chat-off" };
-    if (!syncEnabled() || !token()) return { skipped: "sync-off" };
-    if (chatPushing) {
-      pendingChatPush = true;
-      return { skipped: "inflight" };
-    }
-    chatPushing = true;
+  async function runChatPush()                      {
     try {
       const blob = buildLocalChatBlob();
       // Remember each slot's hash at push time: if the local content changed while the request was
@@ -1532,14 +2263,14 @@ function createSync(ports           ) {
         pushedHashes[k] = strOf(recOf(slots[k])["hash"]);
       });
       const res = await pushChatToKV(blob);
-      storage.setItem(LAST_CHAT_PUSH_KEY, String(numOf(res["savedAt"]) || now()));
+      storage.setItem(ctx.LAST_CHAT_PUSH_KEY, String(numOf(res["savedAt"]) || ctx.now()));
       let diverged = false;
       try {
-        const current = getChatSessions();
+        const current = ctx.getChatSessions();
         const pushedKeys = Object.keys(pushedHashes);
         for (let i = 0; i < pushedKeys.length; i++) {
           const arr = current[pushedKeys[i]];
-          const h = Array.isArray(arr) ? hashStr(JSON.stringify(arr)) : null;
+          const h = Array.isArray(arr) ? ctx.hashStr(JSON.stringify(arr)) : null;
           if (h !== pushedHashes[pushedKeys[i]]) {
             diverged = true;
             break;
@@ -1564,59 +2295,54 @@ function createSync(ports           ) {
         // Diverged: leave the baseline alone; the next debounced push carries the newer snapshot
         // and converges.
       } else {
-        applyingRemoteChat = true;
+        ctx.flags.chat = true;
         try {
-          const synced = getChatSynced();
+          const synced = ctx.getChatSynced();
           const msgKeys = keysOf(recOf(blob["msgs"]));
           for (let i = 0; i < msgKeys.length; i++) {
             const k = msgKeys[i];
-            synced[k] = { hash: strOf(recOf(slots[k])["hash"]), syncedAt: now() };
+            synced[k] = { hash: strOf(recOf(slots[k])["hash"]), syncedAt: ctx.now() };
           }
-          storage.setItem(CHAT_SYNCED_KEY, JSON.stringify(synced));
+          storage.setItem(ctx.CHAT_SYNCED_KEY, JSON.stringify(synced));
         } finally {
-          applyingRemoteChat = false;
+          ctx.flags.chat = false;
         }
       }
-      incrPushCount();
-      emit("chat-synced", { source: "push" });
+      ctx.incrPushCount();
+      ctx.emit("chat-synced", { source: "push" });
       return { ok: true, slots: keysOf(slots).length, savedAt: numOf(res["savedAt"]) || null };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      emit("chat-error", e);
+      ctx.emit("chat-error", e);
       return { error: message };
-    } finally {
-      chatPushing = false;
-      if (pendingChatPush) {
-        pendingChatPush = false;
-        timers.set(() => {
-          doChatPush();
-        }, 1500);
-      }
     }
+  }
+
+  async function doChatPush()                      {
+    // Returns a result instead of undefined: the "sync now" button has to tell "pushed" from
+    // "pushed nothing", and a silent return once reported a no-op as success.
+    if (!ctx.includeChat()) return { skipped: "chat-off" };
+    if (!ctx.syncEnabled() || !ctx.token()) return { skipped: "sync-off" };
+    const result = await loop.run(runChatPush);
+    if (result === undefined) return { skipped: "inflight" };
+    return result;
   }
 
   function markChatDirty()       {
-    if (!syncEnabled() || !token() || !includeChat()) return;
-    if (isPaused() || applyingRemoteChat) return;
-    if (chatPushTimer) timers.clear(chatPushTimer);
-    chatPushTimer = timers.set(() => {
-      chatPushTimer = null;
-      doChatPush();
-    }, 30000);
+    if (!ctx.syncEnabled() || !ctx.token() || !ctx.includeChat()) return;
+    if (ctx.isPaused() || ctx.flags.chat) return;
+    loop.markDirty();
   }
 
   async function pushChatNow()                      {
-    if (chatPushTimer) {
-      timers.clear(chatPushTimer);
-      chatPushTimer = null;
-    }
+    loop.cancelTimer();
     return await doChatPush();
   }
 
   /** Pull one round without pushing; callable at any time, unlike the startup variant. */
   async function pullChatNow(opts                     )                      {
-    if (!includeChat()) return { skipped: "chat-off" };
-    if (!syncEnabled() || !token()) return { skipped: "sync-off" };
+    if (!ctx.includeChat()) return { skipped: "chat-off" };
+    if (!ctx.syncEnabled() || !ctx.token()) return { skipped: "sync-off" };
     // The realtime channel is the cheap path; the full 3-way snapshot is for resets and explicit
     // full pulls. Falling back matters: if events are unavailable the caller must still get data,
     // not a fake success.
@@ -1634,19 +2360,19 @@ function createSync(ports           ) {
     try {
       const remote = await pullChatFromKV();
       if (!remote) return { ok: true, empty: true };
-      applyMergedChatToLocal(mergeChatSessions(remote));
-      storage.setItem(LAST_CHAT_PULL_KEY, String(now()));
-      emit("chat-synced", { source: "pull" });
+      applyMergedChatToLocal(merge.mergeChatSessions(remote));
+      storage.setItem(ctx.LAST_CHAT_PULL_KEY, String(ctx.now()));
+      ctx.emit("chat-synced", { source: "pull" });
       return { ok: true, pulled: true };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      emit("chat-error", e);
+      ctx.emit("chat-error", e);
       return { error: message };
     }
   }
 
   async function pullChatOnStartup()                {
-    if (!syncEnabled() || !token() || !includeChat()) return;
+    if (!ctx.syncEnabled() || !ctx.token() || !ctx.includeChat()) return;
     try {
       const remote = await pullChatFromKV();
       if (!remote) {
@@ -1657,120 +2383,73 @@ function createSync(ports           ) {
         }
         return;
       }
-      applyMergedChatToLocal(mergeChatSessions(remote));
-      storage.setItem(LAST_CHAT_PULL_KEY, String(now()));
-      emit("chat-synced", { source: "pull" });
+      applyMergedChatToLocal(merge.mergeChatSessions(remote));
+      storage.setItem(ctx.LAST_CHAT_PULL_KEY, String(ctx.now()));
+      ctx.emit("chat-synced", { source: "pull" });
       try {
         await pushChatNow();
       } catch (e) {
         /* the push is opportunistic: the merge already landed */
       }
     } catch (e) {
-      emit("chat-error", e);
+      ctx.emit("chat-error", e);
     }
   }
 
-  /** resolution = "local" | "remote" | "fork"; returns false when the slot has no open conflict. */
-  function resolveChatConflict(slotKey        , resolution        )          {
-    const conflicts = getChatConflicts();
-    const conflict = conflicts.find((x) => strOf(x["slotKey"]) === slotKey);
-    if (!conflict) return false;
-    applyingRemoteChat = true;
-    try {
-      const sessions = getChatSessions();
-      const meta = getChatSlotMeta();
-      const stamp = now();
-      const remoteMsgs = arrOf(conflict["remoteMsgs"]);
-      const localMsgs = arrOf(conflict["localMsgs"]);
-      if (resolution === "remote") {
-        sessions[slotKey] = remoteMsgs;
-        meta[slotKey] = { updatedAt: stamp, deviceId: chatDeviceId() };
-      } else if (resolution === "fork") {
-        // Slot keys are flat conversation ids with no prefix, and a fork must be a legal one too:
-        // anything not starting with c_ is invisible to the sidebar.
-        const forkKey = "c_" + stamp.toString(36) + "_" + ports.random().toString(36).slice(2, 6);
-        sessions[slotKey] = localMsgs;
-        sessions[forkKey] = remoteMsgs;
-        meta[slotKey] = { updatedAt: stamp, deviceId: chatDeviceId() };
-        meta[forkKey] = { updatedAt: stamp, deviceId: chatDeviceId() };
-        const convMeta = getConvMetaMap();
-        convMeta[forkKey] = {
-          name: "云端版本 " + new Date(stamp).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }),
-          createdAt: stamp,
-        };
-        storage.setItem(CHAT_CONV_META_KEY, JSON.stringify(convMeta));
-      } else {
-        sessions[slotKey] = localMsgs;
-        meta[slotKey] = { updatedAt: stamp, deviceId: chatDeviceId() };
-      }
-      storage.setItem("cfw_chat_session_v1", JSON.stringify(sessions));
-      storage.setItem(CHAT_SLOT_META_KEY, JSON.stringify(meta));
-      const synced = getChatSynced();
-      synced[slotKey] = { hash: hashStr(JSON.stringify(sessions[slotKey])), syncedAt: stamp };
-      storage.setItem(CHAT_SYNCED_KEY, JSON.stringify(synced));
-      const rest = conflicts.filter((x) => strOf(x["slotKey"]) !== slotKey);
-      if (rest.length) storage.setItem(CHAT_CONFLICTS_KEY, JSON.stringify(rest));
-      else storage.removeItem(CHAT_CONFLICTS_KEY);
-    } finally {
-      applyingRemoteChat = false;
-    }
-    const push = pushChatNow();
-    if (push && typeof push.then === "function") push.catch(() => {});
-    emit("chat-conflict-resolved", { slotKey: slotKey, resolution: resolution });
-    return true;
-  }
+  return {
+    markChatDirty: markChatDirty,
+    pushChatNow: pushChatNow,
+    pullChatOnStartup: pullChatOnStartup,
+    pullChatNow: pullChatNow,
+    isExcludedSession: isExcludedSession,
+    cancelTimer: loop.cancelTimer,
+  };
+}
 
-  // ── character channel (/sync/chars) ──
+/**
+ * Character channel (/sync/chars): the legacy IndexedDB-plus-KV path for character cards.
+ *
+ * Decision 2026-11-28 (unified storage): the character cards moved to the D1 `chars` table, so a
+ * client that reads and writes through the data plane no longer needs this channel — D1 *is* the
+ * sync. The endpoint stays live anyway: clients shipped before the move only know this path, and
+ * their cards must keep travelling until they upgrade. Nothing here is fed by the new path (the
+ * character wiring no longer marks the channel dirty), so the blob only ever holds what those
+ * legacy clients put there. Retire the whole channel — endpoint, the two settings buttons and the
+ * main blob's `indexedDB.tavern_chars_v2` exclusion — once no pre-2026-11-28 client is expected to
+ * sync; half-retiring it would strand those cards silently.
+ *
+ * The merge itself is delegated (char-sync-merge module, invoked by the merge engine); landing the
+ * merged result replaces both IndexedDB stores wholesale, which is what keeps deletions propagated:
+ * a card absent from the merged set must disappear locally too.
+ * @module services/data/sync-chars
+ */
+                                                
 
-  function getCharsMeta()       {
-    return readJSONObj(CHARS_META_KEY, {});
-  }
 
-  function getCharsTomb()       {
-    return readJSONObj(CHARS_TOMB_KEY, {});
-  }
+                                                               
+                                                
 
-  function getCharsSynced()       {
-    return readJSONObj(CHARS_SYNCED_KEY, {});
-  }
+/** Public surface of the chars channel; the host facade forwards to these. */
+                               
+                         
+                                
+                                      
+                      
+ 
 
-  /** Called by the character store after every save; the write itself marks the channel dirty. */
-  function bumpCharMeta(id        )       {
-    if (!id) return;
-    const meta = getCharsMeta();
-    meta[id] = { updatedAt: now(), deviceId: chatDeviceId() };
-    const tomb = getCharsTomb();
-    if (tomb[id]) {
-      delete tomb[id];
-      storage.setItem(CHARS_TOMB_KEY, JSON.stringify(tomb));
-    }
-    storage.setItem(CHARS_META_KEY, JSON.stringify(meta));
-  }
+function createCharsChannel(ctx             , merge             )               {
+  const storage = ctx.storage;
+  const ports = ctx.ports;
+  const timers = ctx.timers;
 
-  function tombChar(id        )       {
-    if (!id) return;
-    const tomb = getCharsTomb();
-    tomb[id] = { deletedAt: now(), deviceId: chatDeviceId() };
-    const meta = getCharsMeta();
-    if (meta[id]) {
-      delete meta[id];
-      storage.setItem(CHARS_META_KEY, JSON.stringify(meta));
-    }
-    storage.setItem(CHARS_TOMB_KEY, JSON.stringify(tomb));
-  }
-
-  async function readLocalChars()                                                       {
-    const dumped = await ports.idb.dump(CHARS_DB);
-    const data = recOf(dumped);
-    return { chars: arrOf(data["chars"]), affections: arrOf(data["affections"]) };
-  }
+  const loop              = ctx.makeChannelLoop({ debounceMs: 30000, job: runCharsPush });
 
   async function buildLocalCharsBlob()                {
-    const local = await readLocalChars();
-    const meta = getCharsMeta();
-    const tomb = getCharsTomb();
-    const excluded = new Set        (getExcluded().roles);
-    const stamp = now();
+    const local = await merge.readLocalChars();
+    const meta = ctx.getCharsMeta();
+    const tomb = ctx.getCharsTomb();
+    const excluded = new Set        (ctx.getExcluded().roles);
+    const stamp = ctx.now();
     const cards       = {};
     const outMeta       = {};
     const affections       = {};
@@ -1782,8 +2461,8 @@ function createSync(ports           ) {
       cards[id] = local.chars[i];
       outMeta[id] = {
         updatedAt: typeof m["updatedAt"] === "number" ? numOf(m["updatedAt"]) : stamp,
-        deviceId: strOf(m["deviceId"]) || chatDeviceId(),
-        hash: hashStr(JSON.stringify(card)),
+        deviceId: strOf(m["deviceId"]) || ctx.chatDeviceId(),
+        hash: ctx.hashStr(JSON.stringify(card)),
       };
     }
     for (let i = 0; i < local.affections.length; i++) {
@@ -1798,36 +2477,8 @@ function createSync(ports           ) {
     return { cards: cards, meta: outMeta, affections: affections, tombstones: tomb };
   }
 
-  async function mergeChars(remote         )                       {
-    const local = await readLocalChars();
-    const merge = ports.charMerge();
-    if (!merge || typeof merge.mergeCharsState !== "function") throw new Error("角色卡合并模块未加载");
-    const merged = recOf(
-      merge.mergeCharsState({
-        localCards: local.chars,
-        localAffections: local.affections,
-        localMeta: getCharsMeta(),
-        localTomb: getCharsTomb(),
-        remote: remote,
-        synced: getCharsSynced(),
-        excluded: new Set        (getExcluded().roles),
-        deviceId: chatDeviceId(),
-        hashFn: hashStr,
-        now: now(),
-      })
-    );
-    return {
-      cards: recOf(merged["cards"]),
-      meta: recOf(merged["meta"]),
-      affections: recOf(merged["affections"]),
-      tomb: recOf(merged["tomb"]),
-      synced: recOf(merged["synced"]),
-      conflicts: arrOf(merged["conflicts"]),
-    };
-  }
-
   async function applyMergedCharsToLocal(m             )                {
-    applyingRemoteChars = true;
+    ctx.flags.chars = true;
     try {
       const cardIds = keysOf(m.cards);
       const cards            = [];
@@ -1840,12 +2491,12 @@ function createSync(ports           ) {
       }
       // Both stores are replaced wholesale, which is what keeps deletions propagated: a card absent
       // from the merged set must disappear locally too.
-      await ports.idb.restore(CHARS_DB, { chars: cards, affections: affections });
-      storage.setItem(CHARS_META_KEY, JSON.stringify(m.meta));
-      storage.setItem(CHARS_TOMB_KEY, JSON.stringify(m.tomb));
-      storage.setItem(CHARS_SYNCED_KEY, JSON.stringify(m.synced));
+      await ports.idb.restore(ctx.CHARS_DB, { chars: cards, affections: affections });
+      storage.setItem(ctx.CHARS_META_KEY, JSON.stringify(m.meta));
+      storage.setItem(ctx.CHARS_TOMB_KEY, JSON.stringify(m.tomb));
+      storage.setItem(ctx.CHARS_SYNCED_KEY, JSON.stringify(m.synced));
     } finally {
-      applyingRemoteChars = false;
+      ctx.flags.chars = false;
     }
     try {
       const store = ports.character();
@@ -1854,77 +2505,57 @@ function createSync(ports           ) {
       /* the panel refreshes on its own next open */
     }
     if (m.conflicts.length) {
-      emit("chars-conflict", { conflicts: m.conflicts });
+      ctx.emit("chars-conflict", { conflicts: m.conflicts });
       ports.dispatch("chars-conflict", { conflicts: m.conflicts });
     }
   }
 
   function pullCharsFromKV()                       {
-    return getChannel(CHARS_PATH, "角色卡");
+    return ctx.getChannel(ctx.CHARS_PATH, "角色卡");
   }
 
   function pushCharsToKV(blob      )                {
-    return putChannel(CHARS_PATH, blob, "角色卡");
+    return ctx.putChannel(ctx.CHARS_PATH, blob, "角色卡");
   }
 
-  async function doCharsPush()                {
-    if (charsPushing) {
-      pendingCharsPush = true;
-      return;
-    }
-    charsPushing = true;
+  async function runCharsPush()                {
     try {
       const blob = await buildLocalCharsBlob();
       const res = await pushCharsToKV(blob);
-      storage.setItem(LAST_CHARS_PUSH_KEY, String(numOf(res["savedAt"]) || now()));
+      storage.setItem(ctx.LAST_CHARS_PUSH_KEY, String(numOf(res["savedAt"]) || ctx.now()));
       const mergedRemote = res["merged"];
       if (isRec(mergedRemote)) {
-        const merged = await mergeChars(mergedRemote);
+        const merged = await merge.mergeChars(mergedRemote);
         await applyMergedCharsToLocal(merged);
         // A conflict copy was just written locally; pushing again publishes it as a normal card
         // instead of leaving the user with data only this device can see.
         if (merged.conflicts.length) {
           timers.set(() => {
             const next = pushCharsNow();
-            if (next && typeof next.then === "function") next.catch(() => {});
+            if (next && typeof next.then === "function") next.catch(function () {});
           }, 1200);
         }
       }
-      incrPushCount();
-      emit("chars-synced", { source: "push" });
+      ctx.incrPushCount();
+      ctx.emit("chars-synced", { source: "push" });
     } catch (e) {
-      emit("chars-error", e);
-    } finally {
-      charsPushing = false;
-      if (pendingCharsPush) {
-        pendingCharsPush = false;
-        timers.set(() => {
-          doCharsPush();
-        }, 1500);
-      }
+      ctx.emit("chars-error", e);
     }
   }
 
   function markCharsDirty()       {
-    if (!syncEnabled() || !token()) return;
-    if (isPaused() || applyingRemoteChars) return;
-    if (charsPushTimer) timers.clear(charsPushTimer);
-    charsPushTimer = timers.set(() => {
-      charsPushTimer = null;
-      doCharsPush();
-    }, 30000);
+    if (!ctx.syncEnabled() || !ctx.token()) return;
+    if (ctx.isPaused() || ctx.flags.chars) return;
+    loop.markDirty();
   }
 
   async function pushCharsNow()                {
-    if (charsPushTimer) {
-      timers.clear(charsPushTimer);
-      charsPushTimer = null;
-    }
-    await doCharsPush();
+    loop.cancelTimer();
+    await loop.run(runCharsPush);
   }
 
   async function pullCharsOnStartup()                {
-    if (!syncEnabled() || !token()) return;
+    if (!ctx.syncEnabled() || !ctx.token()) return;
     try {
       const remote = await pullCharsFromKV();
       if (!remote) {
@@ -1935,14 +2566,14 @@ function createSync(ports           ) {
         }
         return;
       }
-      const merged = await mergeChars(remote);
+      const merged = await merge.mergeChars(remote);
       await applyMergedCharsToLocal(merged);
-      storage.setItem(LAST_CHARS_PULL_KEY, String(now()));
-      emit("chars-synced", { source: "pull" });
+      storage.setItem(ctx.LAST_CHARS_PULL_KEY, String(ctx.now()));
+      ctx.emit("chars-synced", { source: "pull" });
       if (merged.conflicts.length) {
         timers.set(() => {
           const next = pushCharsNow();
-          if (next && typeof next.then === "function") next.catch(() => {});
+          if (next && typeof next.then === "function") next.catch(function () {});
         }, 1200);
       } else {
         try {
@@ -1952,34 +2583,96 @@ function createSync(ports           ) {
         }
       }
     } catch (e) {
-      emit("chars-error", e);
+      ctx.emit("chars-error", e);
     }
   }
+
+  return {
+    markCharsDirty: markCharsDirty,
+    pushCharsNow: pushCharsNow,
+    pullCharsOnStartup: pullCharsOnStartup,
+    cancelTimer: loop.cancelTimer,
+  };
+}
+
+/**
+ * Cross-channel orchestration of the sync engine: the status snapshot, the cloud-wipe sequence,
+ * the per-entity wipe/restore, the startup composition, the desktop flush hook, the storage-write
+ * router and the one-shot flag migration.
+ *
+ * This fragment owns nothing persistent; every operation routes into the channel factories built
+ * before it. The routing (`noteStorageWrite`) is the seam the storage monkey-patch in the wiring
+ * drives: chat and chars bookkeeping keys belong to their own channels (suppressed while a remote
+ * merge is landing), listed keys schedule the main blob, and everything else is ignored so a new
+ * device-local key cannot accidentally cause writes.
+ * @module services/data/sync-lifecycle
+ */
+                                   
+
+                                                  
+                                                   
+                                               
+                                                     
+                                               
+                                                 
+
+/** The channels the orchestrator routes into; built by the host before this factory runs. */
+                               
+                        
+                    
+                          
+                    
+                      
+ 
+
+/** Public surface of the orchestrator; the host facade forwards to these. */
+                                   
+                             
+                                    
+                                    
+                                    
+                                     
+                                       
+                                          
+                                                            
+                                                               
+                    
+                             
+                   
+                                      
+                                       
+                                             
+                        
+ 
+
+function createLifecycle(ctx             , channels              )                   {
+  const storage = ctx.storage;
+  const ports = ctx.ports;
 
   // ── cloud deletion ──
 
   function deleteMainFromKV()                {
-    return deleteChannel(MAIN_BLOB_PATH, "");
+    return ctx.deleteChannel(ctx.MAIN_BLOB_PATH, "");
   }
 
   function deleteCostFromKV()                {
-    return deleteChannel(COST_PATH, "费用");
+    return ctx.deleteChannel(ctx.COST_PATH, "费用");
   }
 
   function deleteChatFromKV()                {
-    return deleteChannel(CHAT_PATH, "聊天");
+    return ctx.deleteChannel(ctx.CHAT_PATH, "聊天");
   }
 
   function deleteCharsFromKV()                {
-    return deleteChannel(CHARS_PATH, "角色卡");
+    return ctx.deleteChannel(ctx.CHARS_PATH, "角色卡");
   }
 
   function deleteChatEventsFromKV()                {
-    return deleteChannel(CHAT_EVENTS_PATH, "实时事件");
+    return ctx.deleteChannel(ctx.CHAT_EVENTS_PATH, "实时事件");
   }
 
   function deleteExcludeFromKV()                {
-    return deleteChannel(EXCLUDE_PATH, "排除清单");
+    return ctx.deleteChannel(ctx.EXCLUDE_PATH, "排除清单");
   }
 
   /**
@@ -1988,25 +2681,13 @@ function createSync(ports           ) {
    * anyway, so the button would have done nothing.
    */
   async function wipeCloud()                {
-    if (!syncEnabled() || !token()) throw new Error("未启用云同步");
+    if (!ctx.syncEnabled() || !ctx.token()) throw new Error("未启用云同步");
     // Cancel pending pushes first, or a timer fires right after the wipe and restores the cloud.
-    if (pushTimer) {
-      timers.clear(pushTimer);
-      pushTimer = null;
-    }
-    if (costPushTimer) {
-      timers.clear(costPushTimer);
-      costPushTimer = null;
-    }
-    if (chatPushTimer) {
-      timers.clear(chatPushTimer);
-      chatPushTimer = null;
-    }
-    if (charsPushTimer) {
-      timers.clear(charsPushTimer);
-      charsPushTimer = null;
-    }
-    emit("syncing");
+    channels.upload.cancelTimer();
+    channels.cost.cancelTimer();
+    channels.chat.cancelTimer();
+    channels.chars.cancelTimer();
+    ctx.emit("syncing");
     const main = await deleteMainFromKV();
     // Each channel is a separate KV key; one failure must not block the rest.
     let cost              = null;
@@ -2039,44 +2720,44 @@ function createSync(ports           ) {
     } catch (e) {
       /* reported as null */
     }
-    storage.removeItem(LAST_PUSH_KEY);
-    storage.removeItem(LAST_PULL_KEY);
+    storage.removeItem(ctx.LAST_PUSH_KEY);
+    storage.removeItem(ctx.LAST_PULL_KEY);
     storage.removeItem("cfw_sync_last_cost_push_v1");
     storage.removeItem("cfw_sync_last_cost_pull_v1");
-    storage.removeItem(LAST_CHAT_PUSH_KEY);
-    storage.removeItem(LAST_CHAT_PULL_KEY);
-    storage.removeItem(LAST_CHARS_PUSH_KEY);
-    storage.removeItem(LAST_CHARS_PULL_KEY);
-    storage.removeItem(LAST_EXCLUDE_PUSH_KEY);
-    storage.removeItem(LAST_EXCLUDE_PULL_KEY);
-    storage.removeItem(CHAT_EVENTS_SEQ_KEY);
-    storage.removeItem(CHAT_EVENTS_QUEUE_KEY);
+    storage.removeItem(ctx.LAST_CHAT_PUSH_KEY);
+    storage.removeItem(ctx.LAST_CHAT_PULL_KEY);
+    storage.removeItem(ctx.LAST_CHARS_PUSH_KEY);
+    storage.removeItem(ctx.LAST_CHARS_PULL_KEY);
+    storage.removeItem(ctx.LAST_EXCLUDE_PUSH_KEY);
+    storage.removeItem(ctx.LAST_EXCLUDE_PULL_KEY);
+    storage.removeItem(ctx.CHAT_EVENTS_SEQ_KEY);
+    storage.removeItem(ctx.CHAT_EVENTS_QUEUE_KEY);
     const pushed = { main: false, cost: false, chat: false, chars: false };
     try {
-      await pushNow();
+      await channels.upload.pushNow();
       pushed.main = true;
     } catch (e) {
       /* left false */
     }
     try {
-      await pushCostNow();
+      await channels.cost.pushCostNow();
       pushed.cost = true;
     } catch (e) {
       /* left false */
     }
     try {
-      await pushChatNow();
+      await channels.chat.pushChatNow();
       pushed.chat = true;
     } catch (e) {
       /* left false */
     }
     try {
-      await pushCharsNow();
+      await channels.chars.pushCharsNow();
       pushed.chars = true;
     } catch (e) {
       /* left false */
     }
-    emit("wiped", { main: main, cost: cost, chat: chat, chars: chars, exclude: exclude, events: events, overwritten: true });
+    ctx.emit("wiped", { main: main, cost: cost, chat: chat, chars: chars, exclude: exclude, events: events, overwritten: true });
     return { main: main, cost: cost, chat: chat, chars: chars, exclude: exclude, events: events, pushed: pushed };
   }
 
@@ -2087,83 +2768,34 @@ function createSync(ports           ) {
    * next merge brought it back.
    */
   async function wipeCloudEntity(kind        , key        )                {
-    if (!syncEnabled() || !token()) throw new Error("未启用云同步");
-    addExclusion(kind, key);
-    await pushExcludeNow();
-    await pushNow();
-    if (kind === "session") await pushChatNow();
-    else await pushCharsNow();
-    emit("entity-wiped", { kind: kind, key: key });
+    if (!ctx.syncEnabled() || !ctx.token()) throw new Error("未启用云同步");
+    ctx.addExclusion(kind, key);
+    await channels.exclude.pushExcludeNow();
+    await channels.upload.pushNow();
+    if (kind === "session") await channels.chat.pushChatNow();
+    else await channels.chars.pushCharsNow();
+    ctx.emit("entity-wiped", { kind: kind, key: key });
     return { kind: kind, key: key };
   }
 
   async function restoreCloudEntity(kind        , key        )                {
-    if (!syncEnabled() || !token()) throw new Error("未启用云同步");
-    removeExclusion(kind, key);
-    await pushExcludeNow();
-    await pushNow();
-    if (kind === "session") await pushChatNow();
-    else await pushCharsNow();
-    emit("entity-restored", { kind: kind, key: key });
+    if (!ctx.syncEnabled() || !ctx.token()) throw new Error("未启用云同步");
+    ctx.removeExclusion(kind, key);
+    await channels.exclude.pushExcludeNow();
+    await channels.upload.pushNow();
+    if (kind === "session") await channels.chat.pushChatNow();
+    else await channels.chars.pushCharsNow();
+    ctx.emit("entity-restored", { kind: kind, key: key });
     return { kind: kind, key: key };
-  }
-
-  // ── startup ──
-
-  async function pullOnStartup()                {
-    if (!syncEnabled() || !token()) return;
-    emit("syncing");
-    try {
-      const remote = await pullFromKV();
-      if (!remote) {
-        // Empty cloud means first enablement: seed it from this device rather than starting blank.
-        emit("synced", { firstPush: true });
-        await pushNow();
-        return;
-      }
-      const lastPull = parseInt(storage.getItem(LAST_PULL_KEY) || "0", 10) || 0;
-      const remoteAt = numOf(remote["savedAt"]);
-      if (remoteAt > lastPull) {
-        await restoreAll(remote);
-        storage.setItem(LAST_PULL_KEY, String(remoteAt));
-        emit("restored", { savedAt: remoteAt });
-        // A reload is the only reliable way to make the app re-read state it already loaded.
-        timers.set(() => {
-          ports.reloadPage();
-        }, 600);
-      } else {
-        emit("synced");
-      }
-    } catch (e) {
-      emit("error", e);
-    }
-  }
-
-  // ── local file backup ──
-
-  async function exportJSON()                {
-    const blob = await dumpAll({ includeChars: true });
-    const text = JSON.stringify(blob, null, 2);
-    const name = "tavern-backup-" + new Date(now()).toISOString().slice(0, 10) + ".json";
-    const result = await ports.saveText(text, name);
-    if (!result["ok"]) ports.toast(strOf(result["error"]) || "未写盘");
-    return result;
-  }
-
-  /** Resolves with the parsed blob; restores cards too, because a local import is a full backup. */
-  async function importJSONText(text        )                {
-    const blob = JSON.parse(text);
-    await restoreAll(blob, { allowChars: true });
-    return recOf(blob);
   }
 
   // ── status ──
 
   function getStatus()       {
-    const lastPush = lsInt(LAST_PUSH_KEY);
-    const lastPull = lsInt(LAST_PULL_KEY);
-    const lastChatPush = lsInt(LAST_CHAT_PUSH_KEY);
-    const lastChatPull = lsInt(LAST_CHAT_PULL_KEY);
+    const lastPush = ctx.lsInt(ctx.LAST_PUSH_KEY);
+    const lastPull = ctx.lsInt(ctx.LAST_PULL_KEY);
+    const lastChatPush = ctx.lsInt(ctx.LAST_CHAT_PUSH_KEY);
+    const lastChatPull = ctx.lsInt(ctx.LAST_CHAT_PULL_KEY);
     const lastSyncAt = Math.max(lastPush, lastPull, lastChatPush, lastChatPull);
     let realtimeStatus              = null;
     try {
@@ -2175,10 +2807,10 @@ function createSync(ports           ) {
     const rtState = realtimeStatus ? strOf(realtimeStatus["state"]) : "";
     const state = rtState === "reconnecting" ? "syncing" : rtState === "error" ? "error" : "synced";
     return {
-      enabled: syncEnabled(),
-      hasToken: !!token(),
-      paused: isPaused(),
-      includeChat: includeChat(),
+      enabled: ctx.syncEnabled(),
+      hasToken: !!ctx.token(),
+      paused: ctx.isPaused(),
+      includeChat: ctx.includeChat(),
       lastPush: lastPush,
       lastPull: lastPull,
       lastPushAt: lastChatPush || lastPush || 0,
@@ -2188,8 +2820,8 @@ function createSync(ports           ) {
       busy: false,
       error: realtimeStatus ? strOf(realtimeStatus["error"]) : "",
       realtime: realtimeStatus,
-      pushCount: lsInt(PUSH_COUNT_KEY),
-      pushCountDay: storage.getItem(PUSH_COUNT_DAY_KEY) || "",
+      pushCount: ctx.lsInt(ctx.PUSH_COUNT_KEY),
+      pushCountDay: storage.getItem(ctx.PUSH_COUNT_DAY_KEY) || "",
     };
   }
 
@@ -2201,37 +2833,28 @@ function createSync(ports           ) {
    * right after its pull so other devices see this machine's buckets.
    */
   async function bootstrap()                {
-    if (!token()) return;
-    if (syncEnabled()) {
-      await pullExcludeOnStartup();
-      pullOnStartup();
-      pullCharsOnStartup();
+    if (!ctx.token()) return;
+    if (ctx.syncEnabled()) {
+      await channels.exclude.pullExcludeOnStartup();
+      channels.upload.pullOnStartup();
+      channels.chars.pullCharsOnStartup();
     }
-    pullCostOnStartup().then(() => {
-      const next = pushCostNow();
-      if (next && typeof next.then === "function") next.catch(() => {});
+    channels.cost.pullCostOnStartup().then(() => {
+      const next = channels.cost.pushCostNow();
+      if (next && typeof next.then === "function") next.catch(function () {});
     });
   }
 
   /** Desktop shell exit hook: flush every channel before the process goes away. */
   function flushAll()       {
-    const pushes = [pushNow(), pushChatNow(), pushCharsNow()];
+    const pushes = [channels.upload.pushNow(), channels.chat.pushChatNow(), channels.chars.pushCharsNow()];
     for (let i = 0; i < pushes.length; i++) {
       const p = pushes[i];
-      if (p && typeof p.then === "function") p.catch(() => {});
+      if (p && typeof p.then === "function") p.catch(function () {});
     }
   }
 
-  // ── dirty classification (called by the storage monkey-patch) ──
-
-  function isListedKey(key        )          {
-    if (PROTECTED.indexOf(key) >= 0) return false;
-    if (LS_EXPLICIT.indexOf(key) >= 0) return true;
-    for (let i = 0; i < LS_PREFIXES.length; i++) {
-      if (key.indexOf(LS_PREFIXES[i]) === 0) return true;
-    }
-    return false;
-  }
+  // ── storage-write routing (driven by the wiring's same-tab monkey-patch) ──
 
   /**
    * Route one same-tab storage write to the channel that owns it. Chat and character bookkeeping
@@ -2239,15 +2862,15 @@ function createSync(ports           ) {
    * rest is ignored, so a new device-local key cannot accidentally cause writes.
    */
   function noteStorageWrite(key        )       {
-    if (CHAT_DIRTY_KEYS.indexOf(key) >= 0) {
-      if (!applyingRemoteChat) markChatDirty();
+    if (ctx.CHAT_DIRTY_KEYS.indexOf(key) >= 0) {
+      if (!ctx.flags.chat) channels.chat.markChatDirty();
       return;
     }
-    if (CHARS_DIRTY_KEYS.indexOf(key) >= 0) {
-      if (!applyingRemoteChars) markCharsDirty();
+    if (ctx.CHARS_DIRTY_KEYS.indexOf(key) >= 0) {
+      if (!ctx.flags.chars) channels.chars.markCharsDirty();
       return;
     }
-    if (isListedKey(key)) markDirty();
+    if (channels.upload.isListedKey(key)) channels.upload.markDirty();
   }
 
   function noteStorageRemove(key        )       {
@@ -2256,12 +2879,12 @@ function createSync(ports           ) {
 
   /** Another tab wrote: the storage event carries no payload, so any non-protected key counts. */
   function noteStorageEvent(key               )       {
-    if (!key || PROTECTED.indexOf(key) >= 0) return;
-    markDirty();
+    if (!key || channels.upload.isProtected(key)) return;
+    channels.upload.markDirty();
   }
 
   function getDeviceId()         {
-    return chatDeviceId();
+    return ctx.chatDeviceId();
   }
 
   function migrateSyncFlagsV2()       {
@@ -2269,29 +2892,18 @@ function createSync(ports           ) {
       if (storage.getItem("cfw_sync_flags_v2") === "1") return;
       // Both switches were removed from the UI; chat now follows the master switch. Users who once
       // turned them off are set back to "sync everything" once, which can only add pulls.
-      if (storage.getItem(INCLUDE_CHAT_KEY) === "0") storage.setItem(INCLUDE_CHAT_KEY, "1");
-      if (storage.getItem(CHAT_REALTIME_KEY) === "0") storage.setItem(CHAT_REALTIME_KEY, "1");
+      if (storage.getItem(ctx.INCLUDE_CHAT_KEY) === "0") storage.setItem(ctx.INCLUDE_CHAT_KEY, "1");
+      if (storage.getItem(ctx.CHAT_REALTIME_KEY) === "0") storage.setItem(ctx.CHAT_REALTIME_KEY, "1");
       storage.setItem("cfw_sync_flags_v2", "1");
     } catch (e) {
       /* storage unavailable: the migration simply runs again next session */
     }
   }
 
+  // Runs once at createSync time, exactly where the pre-split engine called it.
   migrateSyncFlagsV2();
 
   return {
-    // main blob
-    markDirty: markDirty,
-    pushNow: pushNow,
-    pullFromKV: pullFromKV,
-    pullOnStartup: pullOnStartup,
-    dumpAll: dumpAll,
-    restoreAll: restoreAll,
-    // cost channel
-    markCostDirty: markCostDirty,
-    pushCostNow: pushCostNow,
-    pullCostOnStartup: pullCostOnStartup,
-    // cloud deletion
     wipeCloud: wipeCloud,
     deleteMainFromKV: deleteMainFromKV,
     deleteCostFromKV: deleteCostFromKV,
@@ -2299,66 +2911,27 @@ function createSync(ports           ) {
     deleteCharsFromKV: deleteCharsFromKV,
     deleteExcludeFromKV: deleteExcludeFromKV,
     deleteChatEventsFromKV: deleteChatEventsFromKV,
-    // per-entity exclusion
     wipeCloudEntity: wipeCloudEntity,
     restoreCloudEntity: restoreCloudEntity,
-    getExcluded: getExcluded,
-    addExclusion: addExclusion,
-    removeExclusion: removeExclusion,
-    // exclusion channel
-    pullExcludeOnStartup: pullExcludeOnStartup,
-    pushExcludeNow: pushExcludeNow,
-    getRegistry: getRegistry,
-    // chat channel
-    markChatDirty: markChatDirty,
-    pushChatNow: pushChatNow,
-    pullChatOnStartup: pullChatOnStartup,
-    pullChatNow: pullChatNow,
-    mergeChatSessions: mergeChatSessions,
-    getChatConflicts: getChatConflicts,
-    resolveChatConflict: resolveChatConflict,
-    withRemoteApply: withRemoteApply,
-    isExcludedSession: isExcludedSession,
-    setChatConflict: setChatConflict,
-    getChatSlotMeta: getChatSlotMeta,
-    getChatTomb: getChatTomb,
-    getConvMetaMap: getConvMetaMap,
-    getChatSynced: getChatSynced,
-    getDeviceId: getDeviceId,
-    authHeaders: authHeaders,
-    hashChat: hashStr,
-    // character channel
-    markCharsDirty: markCharsDirty,
-    pushCharsNow: pushCharsNow,
-    pullCharsOnStartup: pullCharsOnStartup,
-    bumpCharMeta: bumpCharMeta,
-    tombChar: tombChar,
-    // backup
-    exportJSON: exportJSON,
-    importJSONText: importJSONText,
-    // switches
-    syncEnabled: syncEnabled,
-    setSyncEnabled: setSyncEnabled,
-    includeChat: includeChat,
-    setIncludeChat: setIncludeChat,
-    isPaused: isPaused,
-    pause: pause,
-    resume: resume,
-    // status
-    onStatus: onStatus,
     getStatus: getStatus,
-    // lifecycle
     bootstrap: bootstrap,
     flushAll: flushAll,
     noteStorageWrite: noteStorageWrite,
     noteStorageRemove: noteStorageRemove,
     noteStorageEvent: noteStorageEvent,
+    getDeviceId: getDeviceId,
   };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/data/sync.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/data/sync.ts; this file owns the
 // frozen global name, the platform surface (localStorage, fetch, timers, IndexedDB, the DOM event
 // bus, page reload, file save) and the seven sibling modules the engine calls back into.
+//
+// T4-A: the adapter is a runtime plugin injecting `transport` and `db`. Two consequences:
+//  - HTTP goes through the transport port (core/ports.ts) instead of a bare `fetch`; the port
+//    answers status + text, so this adapter rebuilds the `json()` shape the engine's port declares.
+//  - Every timer and listener this file creates is tracked here and its inverse is returned to the
+//    container, so `unmount` leaves no patch, no listener and no pending debounce behind.
 //
 // Two things here are not obvious and must stay here rather than in the engine:
 //  - The same-tab storage monkey-patch. A storage event only crosses tabs, so a write made by this
@@ -2367,43 +2940,8 @@ function createSync(ports           ) {
 //  - The desktop-shell flush hook. The Rust side emits it and then waits ~1.2s before quitting;
 //    the wiring is the only place that knows the event name.
 (function () {
-  var storage = {
-    get length() {
-      try {
-        return window.localStorage.length;
-      } catch (e) {
-        return 0;
-      }
-    },
-    key: function (i) {
-      try {
-        return window.localStorage.key(i);
-      } catch (e) {
-        return null;
-      }
-    },
-    getItem: function (k) {
-      try {
-        return window.localStorage.getItem(k);
-      } catch (e) {
-        return null;
-      }
-    },
-    setItem: function (k, v) {
-      try {
-        window.localStorage.setItem(k, String(v));
-      } catch (e) {
-        /* quota or private mode: the next write retries */
-      }
-    },
-    removeItem: function (k) {
-      try {
-        window.localStorage.removeItem(k);
-      } catch (e) {
-        /* nothing to recover */
-      }
-    },
-  };
+  "use strict";
+  var HOST = (typeof window !== "undefined" && window.runtimeCore && window.runtimeCore.host) || null;
 
   // Opening a database can block on an upgrade (another tab holds an older version). The engine
   // must never wait forever, so a blocked or upgrading open resolves to null and the caller skips
@@ -2439,371 +2977,525 @@ function createSync(ports           ) {
     return out;
   }
 
-  var idb = {
-    dump: function (name) {
-      return openDB(name).then(function (db) {
-        if (!db) return null;
-        var names = storeNames(db);
-        var out = {};
-        var chain = Promise.resolve();
-        names.forEach(function (storeName) {
-          chain = chain.then(function () {
-            return new Promise(function (resolve) {
-              var tx = db.transaction(storeName, "readonly");
-              var req = tx.objectStore(storeName).getAll();
-              req.onsuccess = function () {
-                resolve(req.result || []);
-              };
-              req.onerror = function () {
-                resolve([]);
-              };
-            }).then(function (items) {
-              out[storeName] = items;
-            });
-          });
-        });
-        return chain.then(function () {
-          try {
-            db.close();
-          } catch (e) {
-            /* already closed */
-          }
-          return out;
-        });
-      });
-    },
-    restore: function (name, data) {
-      return openDB(name).then(function (db) {
-        if (!db) return undefined;
-        var names = storeNames(db);
-        var chain = Promise.resolve();
-        names.forEach(function (storeName) {
-          var items = data && data[storeName];
-          if (!Array.isArray(items)) return;
-          chain = chain.then(function () {
-            return new Promise(function (resolve) {
-              var tx = db.transaction(storeName, "readwrite");
-              var store = tx.objectStore(storeName);
-              store.clear();
-              for (var i = 0; i < items.length; i++) {
-                try {
-                  store.put(items[i]);
-                } catch (e) {
-                  /* one bad record must not abort the whole store */
-                }
-              }
-              tx.oncomplete = function () {
-                resolve();
-              };
-              tx.onerror = function () {
-                resolve();
-              };
-              tx.onabort = function () {
-                resolve();
-              };
-            });
-          });
-        });
-        return chain.then(function () {
-          try {
-            db.close();
-          } catch (e) {
-            /* already closed */
-          }
-        });
-      });
-    },
-    readByIds: function (name, ids) {
-      if (!ids || !ids.length) return Promise.resolve([]);
-      return openDB(name).then(function (db) {
-        if (!db) return [];
-        var names = storeNames(db);
-        var out = [];
-        var chain = Promise.resolve();
-        names.forEach(function (storeName) {
-          chain = chain.then(function () {
-            return new Promise(function (resolve) {
-              var tx = db.transaction(storeName, "readonly");
-              var req = tx.objectStore(storeName).getAll();
-              req.onsuccess = function () {
-                resolve(req.result || []);
-              };
-              req.onerror = function () {
-                resolve([]);
-              };
-            }).then(function (items) {
-              for (var i = 0; i < items.length; i++) {
-                var it = items[i];
-                if (!it) continue;
-                // The cards store is keyed by id, the affections store by cardId; both are matched
-                // against the same role id.
-                if (ids.indexOf(it.id) >= 0 || ids.indexOf(it.cardId) >= 0) out.push({ store: storeName, item: it });
-              }
-            });
-          });
-        });
-        return chain.then(function () {
-          try {
-            db.close();
-          } catch (e) {
-            /* already closed */
-          }
-          return out;
-        });
-      });
-    },
-    putItems: function (name, entries) {
-      if (!entries || !entries.length) return Promise.resolve();
-      return openDB(name).then(function (db) {
-        if (!db) return undefined;
-        var byStore = {};
-        for (var i = 0; i < entries.length; i++) {
-          var e = entries[i];
-          if (!byStore[e.store]) byStore[e.store] = [];
-          byStore[e.store].push(e.item);
-        }
-        var chain = Promise.resolve();
-        Object.keys(byStore).forEach(function (storeName) {
-          chain = chain.then(function () {
-            if (!db.objectStoreNames.contains(storeName)) return undefined;
-            return new Promise(function (resolve) {
-              var tx = db.transaction(storeName, "readwrite");
-              var store = tx.objectStore(storeName);
-              for (var j = 0; j < byStore[storeName].length; j++) {
-                try {
-                  store.put(byStore[storeName][j]);
-                } catch (e) {
-                  /* one bad record must not abort the store */
-                }
-              }
-              tx.oncomplete = function () {
-                resolve();
-              };
-              tx.onerror = function () {
-                resolve();
-              };
-              tx.onabort = function () {
-                resolve();
-              };
-            });
-          });
-        });
-        return chain.then(function () {
-          try {
-            db.close();
-          } catch (e) {
-            /* already closed */
-          }
-        });
-      });
-    },
-  };
+  function apply(ctx) {
+    if (window.syncSvc) return function () {};
+    var transport = ctx && typeof ctx.get === "function" ? ctx.get("transport") : null;
+    var timersSeen = new Set();
+    var listeners = [];
 
-  var sync = createSync({
-    storage: storage,
-    http: function (url, init) {
-      return window.fetch(url, init || {});
-    },
-    timers: {
+    var storage = {
+      get length() {
+        try {
+          return window.localStorage.length;
+        } catch (e) {
+          return 0;
+        }
+      },
+      key: function (i) {
+        try {
+          return window.localStorage.key(i);
+        } catch (e) {
+          return null;
+        }
+      },
+      getItem: function (k) {
+        try {
+          return window.localStorage.getItem(k);
+        } catch (e) {
+          return null;
+        }
+      },
+      setItem: function (k, v) {
+        try {
+          window.localStorage.setItem(k, String(v));
+        } catch (e) {
+          /* quota or private mode: the next write retries */
+        }
+      },
+      removeItem: function (k) {
+        try {
+          window.localStorage.removeItem(k);
+        } catch (e) {
+          /* nothing to recover */
+        }
+      },
+    };
+
+    var idb = {
+      dump: function (name) {
+        return openDB(name).then(function (db) {
+          if (!db) return null;
+          var names = storeNames(db);
+          var out = {};
+          var chain = Promise.resolve();
+          names.forEach(function (storeName) {
+            chain = chain.then(function () {
+              return new Promise(function (resolve) {
+                var tx = db.transaction(storeName, "readonly");
+                var req = tx.objectStore(storeName).getAll();
+                req.onsuccess = function () {
+                  resolve(req.result || []);
+                };
+                req.onerror = function () {
+                  resolve([]);
+                };
+              }).then(function (items) {
+                out[storeName] = items;
+              });
+            });
+          });
+          return chain.then(function () {
+            try {
+              db.close();
+            } catch (e) {
+              /* already closed */
+            }
+            return out;
+          });
+        });
+      },
+      restore: function (name, data) {
+        return openDB(name).then(function (db) {
+          if (!db) return undefined;
+          var names = storeNames(db);
+          var chain = Promise.resolve();
+          names.forEach(function (storeName) {
+            var items = data && data[storeName];
+            if (!Array.isArray(items)) return;
+            chain = chain.then(function () {
+              return new Promise(function (resolve) {
+                var tx = db.transaction(storeName, "readwrite");
+                var store = tx.objectStore(storeName);
+                store.clear();
+                for (var i = 0; i < items.length; i++) {
+                  try {
+                    store.put(items[i]);
+                  } catch (e) {
+                    /* one bad record must not abort the whole store */
+                  }
+                }
+                tx.oncomplete = function () {
+                  resolve();
+                };
+                tx.onerror = function () {
+                  resolve();
+                };
+                tx.onabort = function () {
+                  resolve();
+                };
+              });
+            });
+          });
+          return chain.then(function () {
+            try {
+              db.close();
+            } catch (e) {
+              /* already closed */
+            }
+          });
+        });
+      },
+      readByIds: function (name, ids) {
+        if (!ids || !ids.length) return Promise.resolve([]);
+        return openDB(name).then(function (db) {
+          if (!db) return [];
+          var names = storeNames(db);
+          var out = [];
+          var chain = Promise.resolve();
+          names.forEach(function (storeName) {
+            chain = chain.then(function () {
+              return new Promise(function (resolve) {
+                var tx = db.transaction(storeName, "readonly");
+                var req = tx.objectStore(storeName).getAll();
+                req.onsuccess = function () {
+                  resolve(req.result || []);
+                };
+                req.onerror = function () {
+                  resolve([]);
+                };
+              }).then(function (items) {
+                for (var i = 0; i < items.length; i++) {
+                  var it = items[i];
+                  if (!it) continue;
+                  // The cards store is keyed by id, the affections store by cardId; both are matched
+                  // against the same role id.
+                  if (ids.indexOf(it.id) >= 0 || ids.indexOf(it.cardId) >= 0) out.push({ store: storeName, item: it });
+                }
+              });
+            });
+          });
+          return chain.then(function () {
+            try {
+              db.close();
+            } catch (e) {
+              /* already closed */
+            }
+            return out;
+          });
+        });
+      },
+      putItems: function (name, entries) {
+        if (!entries || !entries.length) return Promise.resolve();
+        return openDB(name).then(function (db) {
+          if (!db) return undefined;
+          var byStore = {};
+          for (var i = 0; i < entries.length; i++) {
+            var e = entries[i];
+            if (!byStore[e.store]) byStore[e.store] = [];
+            byStore[e.store].push(e.item);
+          }
+          var chain = Promise.resolve();
+          Object.keys(byStore).forEach(function (storeName) {
+            chain = chain.then(function () {
+              if (!db.objectStoreNames.contains(storeName)) return undefined;
+              return new Promise(function (resolve) {
+                var tx = db.transaction(storeName, "readwrite");
+                var store = tx.objectStore(storeName);
+                for (var j = 0; j < byStore[storeName].length; j++) {
+                  try {
+                    store.put(byStore[storeName][j]);
+                  } catch (e) {
+                    /* one bad record must not abort the store */
+                  }
+                }
+                tx.oncomplete = function () {
+                  resolve();
+                };
+                tx.onerror = function () {
+                  resolve();
+                };
+                tx.onabort = function () {
+                  resolve();
+                };
+              });
+            });
+          });
+          return chain.then(function () {
+            try {
+              db.close();
+            } catch (e) {
+              /* already closed */
+            }
+          });
+        });
+      },
+    };
+
+    // One timer port, tracked: the engine's debounces are the only thing that would outlive an
+    // unmounted sync channel, and a pending push firing after teardown would write into a page that
+    // no longer owns it.
+    var timers = {
       set: function (fn, ms) {
-        return window.setTimeout(fn, ms);
+        var handle = window.setTimeout(function () {
+          timersSeen.delete(handle);
+          try {
+            fn();
+          } catch (e) {
+            /* the engine's callback owns its own failures */
+          }
+        }, ms);
+        timersSeen.add(handle);
+        return handle;
       },
       clear: function (handle) {
-        if (handle != null) window.clearTimeout(handle);
+        if (handle != null) {
+          timersSeen.delete(handle);
+          window.clearTimeout(handle);
+        }
       },
-    },
-    now: function () {
-      return Date.now();
-    },
-    random: function () {
-      return Math.random();
-    },
-    token: function () {
-      var auth = window.__auth;
-      return (auth && auth.getToken && auth.getToken()) || "";
-    },
-    idb: idb,
-    dispatch: function (name, detail) {
-      try {
-        window.dispatchEvent(new CustomEvent(name, { detail: detail || {} }));
-      } catch (e) {
-        /* no listener, no harm */
-      }
-    },
-    reloadPage: function () {
-      try {
-        window.location.reload();
-      } catch (e) {
-        /* nothing else to try */
-      }
-    },
-    saveText: function (text, name) {
-      var shell = window.__saveFile;
-      // The desktop/mobile shell writes the file itself: an Android WebView ignores <a download>,
-      // so the browser path silently did nothing there.
-      if (shell && typeof shell.saveTextFile === "function") {
-        return shell.saveTextFile(text, name).then(
-          function (r) {
-            return r || { ok: false };
+    };
+
+    // TransportPort answers text only; the engine's HttpPort also promises json(). One read of the
+    // body feeds whichever the caller asks for — the engine never asks for both.
+    function transportHttp(req) {
+      return transport.send(req).then(function (res) {
+        var body = null;
+        return {
+          status: res.status,
+          ok: !!res.ok,
+          text: function () {
+            if (body === null) body = res.text();
+            return body;
           },
-          function (e) {
-            return { ok: false, error: String((e && e.message) || e) };
-          }
-        );
-      }
-      try {
-        var file = new Blob([text], { type: "application/json" });
-        var url = URL.createObjectURL(file);
-        var a = document.createElement("a");
-        a.href = url;
-        a.download = name;
-        a.click();
-        window.setTimeout(function () {
-          URL.revokeObjectURL(url);
-        }, 1000);
-        return Promise.resolve({ ok: true, mode: "browser", filename: name });
-      } catch (e) {
-        return Promise.resolve({ ok: false, error: String((e && e.message) || e) });
-      }
-    },
-    toast: function (message) {
-      try {
-        var feedback = window.__feedback;
-        if (feedback && feedback.toast) feedback.toast(message, 2600);
-      } catch (e) {
-        /* feedback is a nicety */
-      }
-    },
-    providerMerge: function () {
-      return window.__providerMerge || null;
-    },
-    providers: function () {
-      return window.__providers || null;
-    },
-    costUi: function () {
-      var api = window.hostApi;
-      return (api && api.cost) || null;
-    },
-    realtime: function () {
-      return window.__chatRealtime || null;
-    },
-    charMerge: function () {
-      return window.__charSyncMerge || null;
-    },
-    character: function () {
-      return window.__character || null;
-    },
-  });
-
-  // Local file import needs a FileReader, which the engine deliberately cannot reach.
-  function importFile(file) {
-    return new Promise(function (resolve, reject) {
-      var reader = new FileReader();
-      reader.onload = function () {
-        sync.importJSONText(String(reader.result)).then(resolve, reject);
-      };
-      reader.onerror = function () {
-        reject(reader.error);
-      };
-      reader.readAsText(file);
-    });
-  }
-
-  window.__sync = {
-    markDirty: sync.markDirty,
-    pushNow: sync.pushNow,
-    pullFromKV: sync.pullFromKV,
-    pullOnStartup: sync.pullOnStartup,
-    markCostDirty: sync.markCostDirty,
-    pushCostNow: sync.pushCostNow,
-    pullCostOnStartup: sync.pullCostOnStartup,
-    wipeCloud: sync.wipeCloud,
-    deleteMainFromKV: sync.deleteMainFromKV,
-    deleteCostFromKV: sync.deleteCostFromKV,
-    deleteChatFromKV: sync.deleteChatFromKV,
-    deleteCharsFromKV: sync.deleteCharsFromKV,
-    deleteExcludeFromKV: sync.deleteExcludeFromKV,
-    deleteChatEventsFromKV: sync.deleteChatEventsFromKV,
-    wipeCloudEntity: sync.wipeCloudEntity,
-    restoreCloudEntity: sync.restoreCloudEntity,
-    getExcluded: sync.getExcluded,
-    addExclusion: sync.addExclusion,
-    removeExclusion: sync.removeExclusion,
-    pullExcludeOnStartup: sync.pullExcludeOnStartup,
-    pushExcludeNow: sync.pushExcludeNow,
-    getRegistry: sync.getRegistry,
-    markChatDirty: sync.markChatDirty,
-    pushChatNow: sync.pushChatNow,
-    pullChatOnStartup: sync.pullChatOnStartup,
-    pullChatNow: sync.pullChatNow,
-    mergeChatSessions: sync.mergeChatSessions,
-    getChatConflicts: sync.getChatConflicts,
-    resolveChatConflict: sync.resolveChatConflict,
-    withRemoteApply: sync.withRemoteApply,
-    isExcludedSession: sync.isExcludedSession,
-    setChatConflict: sync.setChatConflict,
-    getChatSlotMeta: sync.getChatSlotMeta,
-    getChatTomb: sync.getChatTomb,
-    getConvMetaMap: sync.getConvMetaMap,
-    getChatSynced: sync.getChatSynced,
-    getDeviceId: sync.getDeviceId,
-    authHeaders: sync.authHeaders,
-    hashChat: sync.hashChat,
-    markCharsDirty: sync.markCharsDirty,
-    pushCharsNow: sync.pushCharsNow,
-    pullCharsOnStartup: sync.pullCharsOnStartup,
-    bumpCharMeta: sync.bumpCharMeta,
-    tombChar: sync.tombChar,
-    exportJSON: sync.exportJSON,
-    importJSON: importFile,
-    syncEnabled: sync.syncEnabled,
-    setSyncEnabled: sync.setSyncEnabled,
-    includeChat: sync.includeChat,
-    setIncludeChat: sync.setIncludeChat,
-    isPaused: sync.isPaused,
-    pause: sync.pause,
-    resume: sync.resume,
-    dumpAll: sync.dumpAll,
-    restoreAll: sync.restoreAll,
-    onStatus: sync.onStatus,
-    getStatus: sync.getStatus,
-  };
-
-  // Same-tab writes: the storage event only crosses tabs, so monkey-patch the two mutators. This is
-  // what lets cards, presets, history and cost sync without touching any other file.
-  try {
-    var realSetItem = Storage.prototype.setItem;
-    var realRemoveItem = Storage.prototype.removeItem;
-    Storage.prototype.setItem = function (k, v) {
-      realSetItem.call(this, k, v);
-      if (this === window.localStorage) sync.noteStorageWrite(String(k));
-    };
-    Storage.prototype.removeItem = function (k) {
-      realRemoveItem.call(this, k);
-      if (this === window.localStorage) sync.noteStorageRemove(String(k));
-    };
-  } catch (e) {
-    /* a frozen Storage prototype leaves the cross-tab path working; same-tab auto-sync degrades */
-  }
-
-  window.addEventListener("storage", function (e) {
-    sync.noteStorageEvent(e ? e.key : null);
-  });
-
-  // The desktop shell emits this from the tray "quit" and window-close paths, then waits ~1.2s.
-  try {
-    var tauri = window.__TAURI__;
-    var events = tauri && tauri.event;
-    if (events && typeof events.listen === "function") {
-      events.listen("app-flush-now", function () {
-        sync.flushAll();
+          json: function () {
+            if (body === null) body = res.text();
+            return body.then(function (text) {
+              try {
+                return JSON.parse(text);
+              } catch (e) {
+                return null;
+              }
+            });
+          },
+        };
       });
     }
-  } catch (e) {
-    /* plain web: the event never fires */
+
+    var sync = createSync({
+      storage: storage,
+      http: transport && typeof transport.send === "function"
+        ? function (url, init) {
+          var i = init || {};
+          return transportHttp({ method: i.method || "GET", url: url, headers: i.headers, body: i.body });
+        }
+        : function (url, init) {
+          return window.fetch(url, init || {});
+        },
+      timers: timers,
+      now: function () {
+        return Date.now();
+      },
+      random: function () {
+        return Math.random();
+      },
+      token: function () {
+        var auth = window.authSvc;
+        return (auth && auth.getToken && auth.getToken()) || "";
+      },
+      idb: idb,
+      dispatch: function (name, detail) {
+        try {
+          window.dispatchEvent(new CustomEvent(name, { detail: detail || {} }));
+        } catch (e) {
+          /* no listener, no harm */
+        }
+      },
+      reloadPage: function () {
+        try {
+          window.location.reload();
+        } catch (e) {
+          /* nothing else to try */
+        }
+      },
+      saveText: function (text, name) {
+        var shell = window.saveFileSvc;
+        // The desktop/mobile shell writes the file itself: an Android WebView ignores <a download>,
+        // so the browser path silently did nothing there.
+        if (shell && typeof shell.saveTextFile === "function") {
+          return shell.saveTextFile(text, name).then(
+            function (r) {
+              return r || { ok: false };
+            },
+            function (e) {
+              return { ok: false, error: String((e && e.message) || e) };
+            }
+          );
+        }
+        try {
+          var file = new Blob([text], { type: "application/json" });
+          var url = URL.createObjectURL(file);
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = name;
+          a.click();
+          window.setTimeout(function () {
+            URL.revokeObjectURL(url);
+          }, 1000);
+          return Promise.resolve({ ok: true, mode: "browser", filename: name });
+        } catch (e) {
+          return Promise.resolve({ ok: false, error: String((e && e.message) || e) });
+        }
+      },
+      toast: function (message) {
+        try {
+          var feedback = window.feedbackSvc;
+          if (feedback && feedback.toast) feedback.toast(message, 2600);
+        } catch (e) {
+          /* feedback is a nicety */
+        }
+      },
+      providerMerge: function () {
+        return window.__providerMerge || null;
+      },
+      providers: function () {
+        return window.providersSvc || null;
+      },
+      costUi: function () {
+        var api = window.hostApi;
+        return (api && api.cost) || null;
+      },
+      realtime: function () {
+        return window.chatRealtimeSvc || null;
+      },
+      charMerge: function () {
+        return window.charSyncMerge || null;
+      },
+      character: function () {
+        return window.characterSvc || null;
+      },
+      // T4-A: the chat merge/pull applies its whole-map result through the session store, so the
+      // in-memory full-array mirror and the hot window move together. Late-bound: the store is
+      // created by the chat shell, which loads after this file.
+      sessions: function () {
+        return window.sessionStoreSvc || null;
+      },
+    });
+
+    // Local file import needs a FileReader, which the engine deliberately cannot reach.
+    function importFile(file) {
+      return new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function () {
+          sync.importJSONText(String(reader.result)).then(resolve, reject);
+        };
+        reader.onerror = function () {
+          reject(reader.error);
+        };
+        reader.readAsText(file);
+      });
+    }
+
+    var api = {
+      markDirty: sync.markDirty,
+      pushNow: sync.pushNow,
+      pullFromKV: sync.pullFromKV,
+      pullOnStartup: sync.pullOnStartup,
+      markCostDirty: sync.markCostDirty,
+      pushCostNow: sync.pushCostNow,
+      pullCostOnStartup: sync.pullCostOnStartup,
+      wipeCloud: sync.wipeCloud,
+      deleteMainFromKV: sync.deleteMainFromKV,
+      deleteCostFromKV: sync.deleteCostFromKV,
+      deleteChatFromKV: sync.deleteChatFromKV,
+      deleteCharsFromKV: sync.deleteCharsFromKV,
+      deleteExcludeFromKV: sync.deleteExcludeFromKV,
+      deleteChatEventsFromKV: sync.deleteChatEventsFromKV,
+      wipeCloudEntity: sync.wipeCloudEntity,
+      restoreCloudEntity: sync.restoreCloudEntity,
+      getExcluded: sync.getExcluded,
+      addExclusion: sync.addExclusion,
+      removeExclusion: sync.removeExclusion,
+      pullExcludeOnStartup: sync.pullExcludeOnStartup,
+      pushExcludeNow: sync.pushExcludeNow,
+      getRegistry: sync.getRegistry,
+      markChatDirty: sync.markChatDirty,
+      pushChatNow: sync.pushChatNow,
+      pullChatOnStartup: sync.pullChatOnStartup,
+      pullChatNow: sync.pullChatNow,
+      mergeChatSessions: sync.mergeChatSessions,
+      getChatConflicts: sync.getChatConflicts,
+      resolveChatConflict: sync.resolveChatConflict,
+      withRemoteApply: sync.withRemoteApply,
+      isExcludedSession: sync.isExcludedSession,
+      setChatConflict: sync.setChatConflict,
+      getChatSlotMeta: sync.getChatSlotMeta,
+      getChatTomb: sync.getChatTomb,
+      getConvMetaMap: sync.getConvMetaMap,
+      getChatSynced: sync.getChatSynced,
+      getDeviceId: sync.getDeviceId,
+      authHeaders: sync.authHeaders,
+      hashChat: sync.hashChat,
+      markCharsDirty: sync.markCharsDirty,
+      pushCharsNow: sync.pushCharsNow,
+      pullCharsOnStartup: sync.pullCharsOnStartup,
+      bumpCharMeta: sync.bumpCharMeta,
+      tombChar: sync.tombChar,
+      exportJSON: sync.exportJSON,
+      importJSON: importFile,
+      syncEnabled: sync.syncEnabled,
+      setSyncEnabled: sync.setSyncEnabled,
+      includeChat: sync.includeChat,
+      setIncludeChat: sync.setIncludeChat,
+      isPaused: sync.isPaused,
+      pause: sync.pause,
+      resume: sync.resume,
+      dumpAll: sync.dumpAll,
+      restoreAll: sync.restoreAll,
+      onStatus: sync.onStatus,
+      getStatus: sync.getStatus,
+    };
+    window.syncSvc = api;
+
+    // Same-tab writes: the storage event only crosses tabs, so monkey-patch the two mutators. This
+    // is what lets cards, presets, history and cost sync without touching any other file. The
+    // originals are captured once and restored verbatim on teardown.
+    var realSetItem = null;
+    var realRemoveItem = null;
+    try {
+      realSetItem = Storage.prototype.setItem;
+      realRemoveItem = Storage.prototype.removeItem;
+      Storage.prototype.setItem = function (k, v) {
+        realSetItem.call(this, k, v);
+        if (this === window.localStorage) sync.noteStorageWrite(String(k));
+      };
+      Storage.prototype.removeItem = function (k) {
+        realRemoveItem.call(this, k);
+        if (this === window.localStorage) sync.noteStorageRemove(String(k));
+      };
+    } catch (e) {
+      /* a frozen Storage prototype leaves the cross-tab path working; same-tab auto-sync degrades */
+    }
+
+    function on(target, type, fn) {
+      if (!target || typeof target.addEventListener !== "function") return;
+      target.addEventListener(type, fn);
+      listeners.push(function () {
+        try {
+          target.removeEventListener(type, fn);
+        } catch (e) {
+          /* target gone */
+        }
+      });
+    }
+
+    on(window, "storage", function (e) {
+      sync.noteStorageEvent(e ? e.key : null);
+    });
+
+    // The desktop shell emits this from the tray "quit" and window-close paths, then waits ~1.2s.
+    var unlisten = null;
+    try {
+      var listen = window.tauriSvc ? window.tauriSvc.listen : null;
+      if (listen) {
+        var ret = listen("app-flush-now", function () {
+          sync.flushAll();
+        });
+        // Tauri v2 resolves an unlisten function; an older bridge may return null.
+        if (ret && typeof ret.then === "function") {
+          ret.then(function (fn) {
+            if (typeof fn === "function") unlisten = fn;
+          }, function () {});
+        }
+      }
+    } catch (e) {
+      /* plain web: the event never fires */
+    }
+
+    sync.bootstrap();
+
+    return function dispose() {
+      for (var i = listeners.length - 1; i >= 0; i--) {
+        try { listeners[i](); } catch (e) { /* one listener failing must not stop teardown */ }
+      }
+      listeners.length = 0;
+      var pending = Array.from(timersSeen);
+      timersSeen.clear();
+      for (var t = 0; t < pending.length; t++) {
+        try { window.clearTimeout(pending[t]); } catch (e) { /* already fired */ }
+      }
+      if (realSetItem) {
+        try { Storage.prototype.setItem = realSetItem; } catch (e) { /* frozen again */ }
+      }
+      if (realRemoveItem) {
+        try { Storage.prototype.removeItem = realRemoveItem; } catch (e) { /* frozen again */ }
+      }
+      if (typeof unlisten === "function") {
+        try { unlisten(); } catch (e) { /* shell already closed */ }
+        unlisten = null;
+      }
+      if (window.syncSvc === api) {
+        try { delete window.syncSvc; } catch (e) { window.syncSvc = undefined; }
+      }
+    };
   }
 
-  sync.bootstrap();
+  var mod = { name: "sync", inject: ["transport", "db"], apply: apply };
+  if (HOST) {
+    HOST.define("sync", mod);
+    HOST.start("sync");
+    return;
+  }
+  apply({ get: function () { return null; } });
 })();
 
 globalThis.recOf = recOf;

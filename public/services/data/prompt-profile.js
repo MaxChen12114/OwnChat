@@ -48,7 +48,7 @@
                                                                     
                                                                            
                                      
-                                                                           
+                                                                            
                                       
  
 
@@ -80,6 +80,7 @@
                                               
                                                
                                               
+                                                
  
 
 // Storage keys: values are byte-identical to the old code; changing one is changing the contract.
@@ -91,6 +92,10 @@ const LS_NEUTRAL_ID = "cfw_neutral_id_v1";
 const LS_STATE_LAYER = "cfw_state_layer_v1";
 const LS_WEB_SEARCH = "cfw_web_search_v1";
 const LS_WEB_SEARCH_DEEP = "cfw_web_search_deep_v1";
+// DeepSeek full-kit toggles, written by the model-API settings card. Server-side built-in tools are
+// only mounted on the DeepSeek channel; every other provider ignores the payload.
+const LS_DS_READ_URL = "cfw_deepseek_read_url_v1";
+const LS_DS_SAFETY = "cfw_deepseek_safety_v1";
 const LS_GEN_PARAMS = "cfw_gen_params_v1";
 const LS_CHAR_CAPS = "cfw_char_caps_v1";
 
@@ -321,6 +326,16 @@ function createPromptProfile(ports                    )                   {
     return { webSearch: true, webSearchDeep: read(LS_WEB_SEARCH_DEEP) === "1" };
   }
 
+  // 2026-11-25: server-side built-in tools (read_url / safety_check) from the DeepSeek kit card.
+  // The field is omitted entirely unless at least one toggle is on, so non-DeepSeek channels and
+  // old deployments see no change at all.
+  function deepseekKitPayload()                          {
+    const readUrl = read(LS_DS_READ_URL) === "1";
+    const safety = read(LS_DS_SAFETY) === "1";
+    if (!readUrl && !safety) return {};
+    return { deepseekKit: { readUrl: readUrl, safetyCheck: safety } };
+  }
+
   return {
     baseIdsList: baseIdsList,
     customIdsList: customIdsList,
@@ -339,10 +354,11 @@ function createPromptProfile(ports                    )                   {
     neutralIdPayload: neutralIdPayload,
     stateLayerPayload: stateLayerPayload,
     webSearchPayload: webSearchPayload,
+    deepseekKitPayload: deepseekKitPayload,
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract names
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract names
 // (both `__promptProfile` and `__charCaps`). The implementation lives in
 // services/data/prompt-profile.ts, so every window bridge, every `document` lookup and the
 // alert/prompt dialogs are here — the old code inlined them inside `create()`.
@@ -363,7 +379,7 @@ function createPromptProfile(ports                    )                   {
 
   function activeCard() {
     try {
-      var c = window.__character && window.__character.getActiveCard && window.__character.getActiveCard();
+      var c = window.characterSvc && window.characterSvc.getActiveCard && window.characterSvc.getActiveCard();
       if (c && c.id) return { id: c.id, name: c.name };
     } catch (e) {}
     return null;

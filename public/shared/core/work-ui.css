@@ -1,0 +1,307 @@
+/* public/shared/core/work-ui.css — 六个工作页(write/coding/flow/audio/council/studio)的控件原语层
+   ──────────────────────────────────────────────────────────────────────────────
+   第一版被所有者否掉的原因：给六页 body 套了 Daygo 的窗口径向渐变，整页被洗成「玩具配色」。
+   这一版的原则是「像代码台一样克制」：平底色 + --panel 面板 + 1px hairline + 主站同款控件。
+
+   所有几何/状态逐字对齐 public/styles-controls.css：
+     · 控件 34px 高、9px 圆角、中性覆盖底 rgba(127,127,127,.08)、hover rgba(127,127,127,.13)
+     · 边框 var(--border)、hover var(--border-hi)
+     · 焦点 3px var(--ac-soft) 环；active scale(.98)；disabled opacity .45
+     · motion fast 100ms / base 160ms；缓动 cubic-bezier(.2,.7,.3,1) / (.25,.8,.25,1)
+     · 主按钮 = var(--ac) 实底 + var(--ac-contrast) 字、600 字重；每页只留一个
+
+   本层只管跨页同形的东西：顶栏 54px、品牌 15/700、按钮、输入、卡片 10px、chip/focus。
+   页面私有的结构尺寸留在各自 <style> / styles.css。载入顺序：theme.css → 页面样式 → 本文件。
+   本文件不含任何渐变、发光或装饰性阴影。
+*/
+
+/* ── 几何令牌（主站控件层同值） ─────────────────────────────────────────────── */
+:root {
+  /* 顶栏 54px 含 1px 底部分隔线（studio 外层块自动多 1px，内层取 53） */
+  --work-topbar-h: 54px;
+  --work-card-r: 10px;
+  --work-pop-r: 12px;
+
+  --ctl-h: 34px;
+  --ctl-r: 9px;
+  --ctl-fill-quiet: rgba(127, 127, 127, .08);
+  --ctl-fill-hover: rgba(127, 127, 127, .13);
+  --ctl-motion-fast: 100ms;
+  --ctl-motion-base: 160ms;
+  --ctl-ease-out: cubic-bezier(.2, .7, .3, 1);
+  --ctl-ease-glide: cubic-bezier(.25, .8, .25, 1);
+
+  /* studio/audio 的 body 都写 font-family:var(--sans)，studio 此前从未定义该变量，
+     整页回落到衬线字体；共享层补上，六页同一套字栈。 */
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI Emoji", system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* ── 顶栏：54px（含 hairline）+ 品牌 15/700 + 12px muted 副题 ───────────────── */
+.topbar {
+  min-height: var(--work-topbar-h);
+  border-bottom: 1px solid var(--border);
+}
+.topbar-main {
+  min-height: calc(var(--work-topbar-h) - 1px);
+}
+.brand,
+.brand .h1,
+.brand-txt .h1,
+.topbar .title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: .01em;
+}
+.brand small,
+.brand .sub,
+.brand-txt .sub,
+.topbar .title small {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.brand-mark {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ctl-r);
+  background: var(--ac-soft);
+  color: var(--ac);
+  box-shadow: none;
+}
+.brand-mark svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ── 次按钮：中性覆盖底 + 1px hairline；hover 只加深一档；active scale(.98) ── */
+.btn,
+.top-btn,
+.top-link,
+.top-icon-btn,
+.back,
+.icon-btn,
+.fb-btn {
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--ctl-h);
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--ctl-r);
+  background: var(--ctl-fill-quiet);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: none;
+  transition:
+    background-color var(--ctl-motion-fast) var(--ctl-ease-out),
+    border-color var(--ctl-motion-fast) var(--ctl-ease-out),
+    color var(--ctl-motion-fast) var(--ctl-ease-out),
+    box-shadow var(--ctl-motion-base) var(--ctl-ease-out),
+    transform var(--ctl-motion-fast) var(--ctl-ease-glide);
+}
+.top-link,
+.top-icon-btn,
+.back,
+.icon-btn,
+.fb-btn {
+  display: inline-flex;
+}
+.btn:hover:not(:disabled),
+.btn:hover:not([disabled]),
+.top-btn:hover,
+.top-link:hover,
+.top-icon-btn:hover,
+.back:hover,
+.icon-btn:hover,
+.fb-btn:hover:not(:disabled) {
+  background: var(--ctl-fill-hover);
+  border-color: var(--border-hi);
+  color: var(--text);
+}
+.btn:active:not(:disabled),
+.top-btn:active,
+.top-link:active,
+.top-icon-btn:active,
+.back:active,
+.icon-btn:active,
+.fb-btn:active:not(:disabled) {
+  transform: scale(.98);
+}
+.btn:disabled,
+.btn[disabled],
+.top-btn:disabled,
+.top-link[aria-disabled="true"],
+.top-icon-btn:disabled,
+.icon-btn:disabled,
+.fb-btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.btn svg,
+.top-btn svg,
+.top-link svg,
+.top-icon-btn svg,
+.back svg,
+.icon-btn svg,
+.fb-btn svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.topbar .btn.icon,
+.topbar .top-icon-btn.icon {
+  width: var(--ctl-h);
+  flex: 0 0 auto;
+  padding: 0;
+}
+
+/* ── 主按钮：每页只允许一个；实底 accent，不做渐变/发光 ─────────────────────── */
+.btn.primary {
+  border-color: var(--ac);
+  background: var(--ac);
+  color: var(--ac-contrast);
+  font-weight: 600;
+  box-shadow: none;
+}
+.btn.primary:hover:not(:disabled) {
+  border-color: var(--ac-strong);
+  background: var(--ac-strong);
+  color: var(--ac-contrast);
+  filter: none;
+}
+
+/* ── 输入 / 下拉：34px + 9px + 1px hairline + 3px accent 焦点环 ──────────────── */
+.sel,
+.proj-sel,
+.ai-sel,
+.input,
+.textarea,
+.doc-title,
+.spec-text,
+#aiPrompt,
+#pick,
+.modal-field input,
+.modal-field select,
+.fld input,
+.fld textarea,
+.nd-field input,
+.nd-field select,
+.nd-field textarea {
+  box-sizing: border-box;
+  border: 1px solid var(--input-border, var(--border));
+  border-radius: var(--ctl-r);
+  background: var(--input-bg, var(--panel2));
+  color: var(--text);
+  font-family: inherit;
+  box-shadow: none;
+  transition:
+    border-color var(--ctl-motion-fast) var(--ctl-ease-out),
+    box-shadow var(--ctl-motion-base) var(--ctl-ease-out);
+}
+.sel,
+.proj-sel,
+.ai-sel,
+.modal-field input,
+.modal-field select {
+  height: var(--ctl-h);
+  padding: 0 10px;
+}
+.sel:focus,
+.proj-sel:focus,
+.ai-sel:focus,
+.input:focus,
+.textarea:focus,
+.doc-title:focus,
+.spec-text:focus,
+#aiPrompt:focus,
+#pick:focus,
+.modal-field input:focus,
+.modal-field select:focus,
+.fld input:focus,
+.fld textarea:focus,
+.nd-field input:focus,
+.nd-field select:focus,
+.nd-field textarea:focus {
+  outline: none;
+  border-color: var(--ac);
+  box-shadow: 0 0 0 3px var(--ac-soft);
+}
+
+/* ── 卡片 / 面板：10px + hairline + 无阴影（代码台同款） ────────────────────── */
+.card,
+.art-card {
+  border: 1px solid var(--border);
+  border-radius: var(--work-card-r);
+  background: var(--panel);
+  box-shadow: none;
+}
+
+/* ── 状态 chip：胶囊 + hairline；accent 只落在胶囊上 ───────────────────────── */
+#kind,
+.badge,
+.art-count {
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-pill, 999px);
+  background: var(--ac-soft);
+  color: var(--ac-strong);
+  box-shadow: none;
+}
+
+/* ── 焦点可见：主站同款 3px accent 环 ──────────────────────────────────────── */
+.btn:focus-visible,
+.top-btn:focus-visible,
+.top-link:focus-visible,
+.top-icon-btn:focus-visible,
+.back:focus-visible,
+.icon-btn:focus-visible,
+.fb-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ac-soft);
+  border-color: var(--ac);
+}
+
+/* ── 动效收敛：只允许颜色/边框变化与 active scale ───────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .top-btn,
+  .top-link,
+  .top-icon-btn,
+  .back,
+  .icon-btn,
+  .fb-btn,
+  .sel,
+  .proj-sel,
+  .ai-sel,
+  .input,
+  .textarea,
+  .doc-title,
+  .spec-text,
+  #aiPrompt,
+  #pick {
+    transition: none !important;
+  }
+  .btn:active,
+  .top-btn:active,
+  .top-link:active,
+  .top-icon-btn:active,
+  .back:active,
+  .icon-btn:active,
+  .fb-btn:active {
+    transform: none;
+  }
+}

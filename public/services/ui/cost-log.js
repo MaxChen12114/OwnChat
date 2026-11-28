@@ -274,14 +274,27 @@ function costDailyListHtml(aggregate                  )         {
 }
 
 /**
- * The card shell that is inserted into the settings slot.
- * @returns HTML for the card body, including the summary and list containers and the three buttons.
- *   The copy is user-visible text and is not translated by comment-cleanup passes.
+ * The card's title fragment (icon + label). 2026-11-28: the single costCardHtml() string was split
+ * into title/desc/extra so the wiring can feed cardShell.createCardShell — assembled output is
+ * byte-identical to the old one-string card (h4/p/extra in the same order). The copy is
+ * user-visible text and is not translated by comment-cleanup passes.
+ * @returns The `<h4>` inner HTML.
  */
-function costCardHtml()         {
+function costCardTitle()         {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h3"/></svg>用量与费用日志';
+}
+
+/** @returns The `<p>` inner HTML under the title. */
+function costCardDesc()         {
+  return '快速档按 token 实时计费（默认走 DeepSeek 官方，渠道见「设置→模型 API」）；免费档也记录每次 API 调用的 token 用量（费用为 0）。记录在本地（LS <code>cfw_cost_log_v1</code>），开启云同步后按设备分桶跨设备合并。';
+}
+
+/**
+ * @returns The body markup between the description and the card end: the summary and list
+ *   containers and the three buttons.
+ */
+function costCardExtra()         {
   return (
-    '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h3"/></svg>用量与费用日志（API 调用）</h4>' +
-    '<p>快速档按 token 实时计费（默认走 DeepSeek 官方，渠道见「设置→模型 API」）；免费档也记录 token 用量（费用为 0）。记录在本地（LS <code>cfw_cost_log_v1</code>），开启云同步后按设备分桶跨设备合并。</p>' +
     '<div id="costSummary" class="cost-summary"></div>' +
     '<div id="costDailyList" class="cost-daily"></div>' +
     '<div class="rowline" style="margin-top:10px;"><div></div><div class="btns">' +
@@ -301,7 +314,7 @@ function costLogJson(log         )         {
   return JSON.stringify(log, null, 2);
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/cost-log.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/cost-log.ts; this file owns the
 // slot mount, the card insertion, the three buttons, the clipboard/confirm dialogs and every host
 // read (the cost facade, the sync facade, localStorage). All folding and markup live in the engine.
 //
@@ -344,14 +357,26 @@ function costLogJson(log         )         {
   }
 
   function mount() {
-    var slot = window.slotRegistry.pick("setCostSlot");
-    if (slot) window.slotRegistry.claim({ cardId: "costSummary", slotId: "setCostSlot" });
-    if (!slot || document.getElementById("costSummary")) return;
-    var card = document.createElement("div");
-    card.className = "card";
-    card.id = "costLogCard";
-    card.innerHTML = costCardHtml();
-    slot.appendChild(card);
+    // 2026-11-28 card-shell batch 2: shell + declareCard. The old mount probe sat on the inner
+    // costSummary div while the card element already carried id costLogCard — declaring under the
+    // card id moves the probe onto the card, and the summary/daily-list ids stay untouched (the
+    // render pass still fills them by document id). The card copy comes from the split
+    // costCardTitle/Desc/Extra fragments (services/ui/cost-log.ts), byte-identical to the old
+    // one-string costCardHtml().
+    window.slotRegistry.declareCard({
+      id: "costLogCard",
+      slotId: "setCostSlot",
+      build: function (slot) {
+        var shell = window.cardShell.createCardShell({
+          id: "costLogCard",
+          title: costCardTitle(),
+          desc: costCardDesc(),
+          extra: costCardExtra()
+        });
+        slot.appendChild(shell.card);
+        return shell.card;
+      }
+    });
   }
 
   function wireExport() {
@@ -387,7 +412,7 @@ function costLogJson(log         )         {
     var btn = document.getElementById("costSyncNowBtn");
     if (!btn) return;
     btn.addEventListener("click", async function () {
-      var sync = window.__sync;
+      var sync = window.syncSvc;
       if (!sync || !sync.pushCostNow) { alert("云同步模块未就绪"); return; }
       var status = (sync.getStatus && sync.getStatus()) || {};
       if (!status.hasToken) { alert("请先在设置里启用云同步（需密码）后再同步费用"); return; }
@@ -432,6 +457,8 @@ globalThis.costDayIsMulti = costDayIsMulti;
 globalThis.costLogAggregate = costLogAggregate;
 globalThis.costSummaryHtml = costSummaryHtml;
 globalThis.costDailyListHtml = costDailyListHtml;
-globalThis.costCardHtml = costCardHtml;
+globalThis.costCardTitle = costCardTitle;
+globalThis.costCardDesc = costCardDesc;
+globalThis.costCardExtra = costCardExtra;
 globalThis.costLogJson = costLogJson;
 })();

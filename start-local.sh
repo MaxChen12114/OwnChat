@@ -1,19 +1,17 @@
 #!/usr/bin/env bash
-# OwnChat 本机服务（方案 C）—— 与 start-local.cmd 等价。用法：bash start-local.sh
+# OwnChat local host - no Cloudflare, no domain. Usage: bash start-local.sh
 set -e
 cd "$(dirname "$0")"
-if ! command -v node >/dev/null 2>&1; then
-  echo "[需要 Node.js 18+] 请先安装：https://nodejs.org/zh-cn  （装完重新运行）"
+major=$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo 0)
+if [ "$major" -lt 24 ]; then
+  echo "[需要 Node.js 24+] 请先安装：https://nodejs.org/zh-cn"
   exit 1
 fi
-if [ ! -f .dev.vars ]; then
-  if [ -f .dev.vars.example ]; then
-    cp .dev.vars.example .dev.vars
-    echo "已生成 .dev.vars —— 请填上 NVIDIA_API_KEY= 后重新运行：${PWD}/.dev.vars"
-    exit 0
-  fi
-  echo "缺少 .dev.vars.example"; exit 1
+if [ ! -f .dev.vars ] && [ -f .dev.vars.example ]; then
+  cp .dev.vars.example .dev.vars
+  echo "已生成 .dev.vars —— 请填入模型 Key 后重新运行。"
+  exit 0
 fi
-echo "服务地址将是 http://127.0.0.1:8787 （Ctrl-C 停止）"
-echo "桌面壳里填这个地址，或点启动页的「填入本机地址」按钮。"
-exec npx --yes wrangler dev --port 8787
+echo "本机宿主：http://127.0.0.1:8787 （Ctrl-C 停止）"
+echo "首次启动会生成 admin-password.txt，路径在下面的日志里；用它登录。"
+exec node server/local.mjs --port 8787

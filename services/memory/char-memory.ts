@@ -5,85 +5,47 @@
  * this module owns what the character chose to write down:
  *
  *   - Scratchpad (KV): a card-scoped key-value store behind `char_db_get` / `char_db_set` /
- *     `char_db_delete`, so a character can keep facts, progress and checklists. Keys are prefixed
- *     with the card id, so one card can never read another's.
- *   - Knowledge base (KB): card-scoped documents in IndexedDB with a trigram inverted index,
- *     ranked by BM25-lite. Hits are injected before a request (app.js takes the top-K for the
+ *     `char_db_delete`, so a character can keep facts, progress and checklists. Rows live in
+ *     `char_kv` under the card id, so one card can never read another's.
+ *   - Knowledge base (KB): card-scoped documents in `kb_docs`/`kb_chunks`, ranked by the storage
+ *     layer's FTS5 (`kb_fts`). Hits are injected before a request (app.js takes the top-K for the
  *     current speaker and appends them to extraSystemPrompts); `kb_search` / `kb_read` dig deeper
- *     on demand.
+ *     on demand. Entity links live in `entities` (kind='kb', ref_id = chunk id).
  *
- * IndexedDB is reached through a structural interface rather than the DOM lib, because this
- * module is compiled without DOM types: the wiring layer hands over the real `indexedDB`, the
- * tests an in-memory stub. `IDBKeyRange.bound` arrives as the `keyRangeBound` port, and every
- * cross-module call (host app, active card, UI refresh, alert) is a port too. The v1 import UI
- * (file picker + FileReader) is pure browser glue and lives in the wiring layer, the same split
- * as the vector loader in core.ts.
+ * Storage moved from six IndexedDB stores to those five tables (T3-A). The hand-rolled trigram
+ * inverted index and the local BM25-lite scorer retired with it: `kb_fts` + `bm25()` rank, and
+ * `queryTerms()` (services/memory/core.ts, published as `window.queryTerms`) supplies the 3-code-point
+ * windows the trigram tokenizer can answer plus the 2-character windows it cannot. The retrieval
+ * strategy itself is untouched: lexical leg → entity leg → RRF at 1/(60+rank) → top-K, then the
+ * injection block capped by count and length from the shared settings table.
+ *
+ * Ports: `db` is the unified DbPort (core/db.ts); `hostApp` is the one-shot model call used by
+ * entity extraction (a best-effort enrichment, never a prerequisite for an import); `activeCard`,
+ * `settings`, `uiRefresh` and `alertMsg` are the same environment reads as before. The v1 import UI
+ * (file picker + FileReader) is browser glue and stays in the wiring layer.
  *
  * Design choices worth keeping:
- *   - Everything stays local: a knowledge base is not necessarily small, so localStorage (2 MB)
- *     is out, and nothing here is cloud-synced.
- *   - One posting record per token key: a query touches only the few dozen keys it needs, so
- *     memory use stays flat as the library grows.
- *   - Chinese has to match substrings, hence character trigrams (lowercased word tokens for
- *     Latin and digits) plus BM25 ranking.
- *   - The lexical leg is separable: adding a vector leg and RRF fusion later needs no data
- *     migration.
- *   - Writes only follow an explicit user action (ask-gated): v1 gives the agent no write access
- *     to the KB, only read tools.
- *   - Chunks are ~500 chars with overlap; injection is capped by count and length (INJECT_*).
+ *   - Writes only follow an explicit user action (ask-gated): the agent may read the KB, never write.
+ *   - Chunks are ~500 chars with overlap; document + chunks + entity links are one transaction, so a
+ *     half-imported document (whose later chunks are unreachable) cannot exist.
+ *   - document ids are `<cardId-independent>` `kb_<base36>`; chunk ids are `<docId>#<ord>`, which is
+ *     also what `entities.ref_id` points at.
  *
- * Equivalence lock: test/char-memory.test.mjs.
+ * Equivalence locks: test/char-memory.test.mjs (behaviour) and test/char-memory-sql.test.mjs
+ * (storage base + migration).
  * @module services/memory/char-memory
  */
 
+import type { DbPort, DbRow } from "../../core/db";
 
-/** Minimal IndexedDB request shape; a real request and the test stub both satisfy it. */
-export interface IdbRequest {
-  result: unknown;
-  onsuccess: ((e?: unknown) => void) | null;
-  onerror: ((e?: unknown) => void) | null;
-  error?: unknown;
-}
-
-export interface IdbObjectStore {
-  get(key: unknown): IdbRequest;
-  getAll(key?: unknown): IdbRequest;
-  put(value: unknown): IdbRequest;
-  delete(key: unknown): IdbRequest;
-  index(name: string): { getAll(key: unknown): IdbRequest };
-}
-
-export interface IdbTx {
-  objectStore(name: string): IdbObjectStore;
-  oncomplete: ((e?: unknown) => void) | null;
-  onerror: ((e?: unknown) => void) | null;
-  onabort: ((e?: unknown) => void) | null;
-  error?: unknown;
-}
-
-export interface IdbConn {
-  objectStoreNames: { contains(name: string): boolean };
-  transaction(stores: string | string[], mode: "readonly" | "readwrite"): IdbTx;
-}
-
-/** Connection shape during the upgrade, when stores and indexes are created. */
-export interface IdbUpgradeConn extends IdbConn {
-  createObjectStore(name: string, opts?: { keyPath?: string }): {
-    createIndex(name: string, key: string, opts?: { unique: boolean }): unknown;
-  };
-}
-
-export interface IdbOpenReq {
-  result: IdbUpgradeConn;
-  onupgradeneeded: ((e?: unknown) => void) | null;
-  onsuccess: ((e?: unknown) => void) | null;
-  onerror: ((e?: unknown) => void) | null;
-  error?: unknown;
-}
-
-export interface IdbFactory {
-  open(name: string, version: number): IdbOpenReq;
-}
+// Separate emit products bridged on window: `dbSearchSql` (tooling/l0/wiring/db-search.js, boot #16) owns the
+// surface SQL and the limit clamp; `queryTerms` is published by services/memory/core.ts (boot #54).
+// char-memory loads at boot #53, so both are resolved per call, never at load.
+declare const dbSearchSql: Pick<
+  typeof import("../../lib/db-search"),
+  "buildSearchQuery" | "clampSearchLimit" | "ftsPhrase" | "likePattern"
+>;
+declare const queryTerms: (q: unknown) => { fts: string[]; like: string[] };
 
 export interface HostAppLike {
   oneShot?(o: { system: string; user: string; timeoutMs?: number }): Promise<unknown>;
@@ -95,14 +57,22 @@ export interface ActiveCardLike {
   [key: string]: unknown;
 }
 
+/** The two injection limits owned by services/memory/config.ts. */
+export interface CharMemoryLimits {
+  injectMaxChunks: number;
+  injectMaxChars: number;
+}
+
 /** Environment ports: injected by the wiring layer in the browser, by stubs in tests. */
 export interface CharMemoryPorts {
-  idb(): IdbFactory | null;
-  keyRangeBound(a: string, b: string): unknown;
+  /** Unified storage port (core/db.ts). */
+  db: DbPort;
   /** Host app bridge, used for the one-shot entity-extraction call. */
   hostApp(): HostAppLike | null;
   /** The card that is currently speaking (read through the character service). */
   activeCard(): ActiveCardLike | null;
+  /** Injection limits from the shared memory settings table. */
+  settings(): CharMemoryLimits;
   /** Refresh hook for the memory panel UI. */
   uiRefresh(): void;
   alertMsg(msg: string): void;
@@ -118,41 +88,14 @@ export interface KbHit {
   viaEntity: boolean;
 }
 
-
-const DB = "cfw_char_memory_v1";
-const ST_KV = "kv", ST_DOCS = "docs", ST_CHUNKS = "chunks", ST_POSTINGS = "postings", ST_META = "meta";
-// Entity index (the KB's lightweight graph): one record per entity, holding the chunks it was
-// seen in. A local-search-only take on LightRAG: no community clustering, just entity → chunks.
-const ST_ENTS = "ents";
+/** Legacy IndexedDB database the wiring migrates from; kept here for diagnostics (`_db`). */
+const LEGACY_DB = "cfw_char_memory_v1";
 const CHUNK_SIZE = 500, CHUNK_OVERLAP = 60;
-const INJECT_MAX_CHUNKS = 3, INJECT_MAX_CHARS = 1200;
 
+// The kb surface columns as `src/data-api.js` selects them: chunk + its document title.
+const KB_COLS = "c.id, c.doc_id, c.cid, c.chunk, c.offset, c.ord, d.title";
 
-// Trigram tokenizer: CJK runs of two characters are stored whole so short queries still hit;
-// Latin and digits become lowercased word tokens.
-const CJK = /[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/;
-export function tokenize(text: unknown): Map<string, number> {
-  const s = String(text || "");
-  const tf = new Map<string, number>();
-  const bump = function (k: string): void { tf.set(k, (tf.get(k) || 0) + 1); };
-  const run: string[] = [];
-  const flushRun = function (): void {
-    if (run.length >= 3) { for (let i = 0; i + 3 <= run.length; i++) bump("3:" + run.slice(i, i + 3).join("")); }
-    else if (run.length === 2) bump("3:" + run.join(""));
-    run.length = 0;
-  };
-  let latin = "";
-  const flushLatin = function (): void { if (latin.length >= 2) bump("w:" + latin); latin = ""; };
-  for (const ch of s) {
-    if (CJK.test(ch)) { flushLatin(); run.push(ch); continue; }
-    flushRun();
-    if (/[A-Za-z0-9_]/.test(ch)) { latin += ch.toLowerCase(); continue; }
-    flushLatin();
-  }
-  flushRun(); flushLatin();
-  return tf;
-}
-
+/** Split a document into overlapping chunks on the nearest paragraph/sentence boundary. */
 export function chunkText(text: unknown): string[] {
   const s = String(text || "");
   const out: string[] = [];
@@ -189,75 +132,27 @@ function arrOf(v: unknown): unknown[] {
   return Array.isArray(v) ? v : [];
 }
 
+function strOf(v: unknown): string { return typeof v === "string" ? v : ""; }
+function numOf(v: unknown): number { return typeof v === "number" ? v : 0; }
+
 
 export function createCharMemory(ports: CharMemoryPorts) {
-  let _dbPromise: Promise<IdbConn> | null = null; // one cached connection: opening per operation leaked handles
-  function open(): Promise<IdbConn> {
-    if (_dbPromise) return _dbPromise;
-    _dbPromise = new Promise<IdbConn>(function (resolve, reject) {
-      try {
-        const f = ports.idb();
-        if (!f) throw new Error("IndexedDB 不可用");
-        const q = f.open(DB, 2);
-        q.onupgradeneeded = function () {
-          const d = q.result;
-          if (!d.objectStoreNames.contains(ST_KV)) d.createObjectStore(ST_KV, { keyPath: "k" });
-          if (!d.objectStoreNames.contains(ST_DOCS)) d.createObjectStore(ST_DOCS, { keyPath: "id" });
-          if (!d.objectStoreNames.contains(ST_CHUNKS)) d.createObjectStore(ST_CHUNKS, { keyPath: "id" });
-          if (!d.objectStoreNames.contains(ST_POSTINGS)) d.createObjectStore(ST_POSTINGS, { keyPath: "key" });
-          if (!d.objectStoreNames.contains(ST_META)) d.createObjectStore(ST_META, { keyPath: "k" });
-          if (!d.objectStoreNames.contains(ST_ENTS)) {
-            const se = d.createObjectStore(ST_ENTS, { keyPath: "k" });
-            se.createIndex("cid", "cid", { unique: false });
-          }
-        };
-        q.onsuccess = function () { resolve(q.result); };
-        q.onerror = function () { reject(q.error); };
-      } catch (e) { reject(e); }
-    }).catch(function (e) { _dbPromise = null; throw e; }); // a failed open resets the cache so the next call retries
-    return _dbPromise;
-  }
-  const reqP = (r: IdbRequest) => new Promise<unknown>(function (resolve, reject) {
-    r.onsuccess = function () { resolve(r.result); };
-    r.onerror = function () { reject(r.error); };
-  });
-  // Reads resolve on the request itself: the read-only transaction ends on its own, so nothing
-  // depends on oncomplete ordering.
-  function readReq(db: IdbConn, store: string, fn: (s: IdbObjectStore) => IdbRequest): Promise<unknown> {
-    return new Promise(function (resolve, reject) {
-      let p: IdbRequest;
-      try { p = fn(db.transaction(store, "readonly").objectStore(store)); } catch (e) { reject(e); return; }
-      reqP(p).then(resolve, reject);
-    });
-  }
-  // Writes wait for the transaction to commit; in a read-then-write flow the next transaction
-  // would otherwise still see the previous value.
-  function writeTx(db: IdbConn, stores: string | string[], fn: (t: IdbTx) => void): Promise<boolean> {
-    return new Promise(function (resolve, reject) {
-      const t = db.transaction(Array.isArray(stores) ? stores : [stores], "readwrite");
-      try { fn(t); } catch (e) { reject(e); return; }
-      t.oncomplete = function () { resolve(true); };
-      t.onerror = function () { reject(t.error); };
-      t.onabort = function () { reject(t.error || new Error("tx aborted")); };
-    });
-  }
-  const idbKey = (cardId: unknown, key: unknown) => String(cardId || "") + "::" + String(key || "");
   const newId = (p: string) => p + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  const rangeDoc = (docId: string) => ports.keyRangeBound(docId + "#", docId + "#\uffff");
+
+  /** Document row → the record shape callers have always seen (`cardId`/`addedAt` are the old names). */
+  function docOf(row: DbRow): Record<string, unknown> {
+    return { id: strOf(row.id), cardId: strOf(row.cid), title: strOf(row.title), chars: numOf(row.chars), addedAt: numOf(row.ts) };
+  }
 
   async function listDocs(cardId: unknown): Promise<Array<Record<string, unknown>>> {
-    const db = await open();
-    const all = arrOf(await readReq(db, ST_DOCS, (s) => s.getAll()));
-    return all
-      .filter(function (d) { const r = recOf(d); return d && r.cardId === String(cardId); })
-      .map(recOf)
-      .sort(function (a, b) { return Number(b.addedAt || 0) - Number(a.addedAt || 0); });
+    const cid = String(cardId || "");
+    if (!cid) return [];
+    const res = await ports.db.exec("SELECT id, cid, title, chars, ts FROM kb_docs WHERE cid = ? ORDER BY ts DESC, id ASC", [cid]);
+    return res.rows.map(docOf);
   }
 
-  // Indexing an import: document + chunks + postings (one record per token, read-modify-write).
-  // Entity extraction costs one model call per document: pull the names a reader might search
-  // for, then attach each to the chunks where it occurs verbatim. The query side stays pure
-  // string matching, so no model runs there.
+  // Entity extraction costs one model call per document: pull the names a reader might search for.
+  // The query side stays pure string matching (`entities` lookup), so no model runs there.
   const ENT_SYSTEM = [
     "Extract the key ENTITIES a reader might later search for in this document: people, places, organizations,",
     "named rules/policies, key objects, and important concepts.",
@@ -284,207 +179,171 @@ export function createCharMemory(ports: CharMemoryPorts) {
     } catch (e) { return []; }
   }
 
-  // Attach each entity to the chunks whose text contains it verbatim.
-  async function linkEntities(db: IdbConn, cardId: string, docId: string, chunks: Array<{ id: string; text: string }>, ents: Array<{ name: string; kind: string }>): Promise<number> {
-    if (!ents.length) return 0;
-    let linked = 0;
-    for (const e of ents) {
-      const ids = chunks.filter(function (c) { return c.text.indexOf(e.name) >= 0; }).map(function (c) { return c.id; });
-      if (!ids.length) continue;
-      const k = String(cardId) + "::" + e.name;
-      await writeTx(db, ST_ENTS, function (t) {
-        const os = t.objectStore(ST_ENTS);
-        const r = os.get(k);
-        r.onsuccess = function () {
-          const curRec = recOf(r.result);
-          const cur: Record<string, unknown> = r.result ? curRec : { k: k, cid: String(cardId), name: e.name, kind: e.kind, docIds: [], chunkIds: [] };
-          cur.kind = e.kind || cur.kind;
-          const d0 = arrOf(cur.docIds);
-          const c0 = arrOf(cur.chunkIds);
-          cur.docIds = Array.from(new Set(d0.concat([docId])));
-          cur.chunkIds = Array.from(new Set(c0.concat(ids)));
-          os.put(cur);
-        };
-      });
-      linked++;
+  /**
+   * Lexical leg: FTS5 ranking over this card's chunks. The MATCH argument is the OR of the query's
+   * 3-code-point windows (a whole-sentence phrase would need a literal substring of a chunk). When
+   * the query has no window at all — fewer than three code points total — the storage layer's LIKE
+   * fallback answers instead. When windows exist but the index finds nothing, one OR'd LIKE statement
+   * probes the 2-character windows a trigram index cannot serve.
+   */
+  async function lexChunks(cid: string, q: string, limit: number): Promise<DbRow[]> {
+    const terms = queryTerms(q);
+    if (!terms.fts.length) return await ports.db.search("kb", { cid: cid }, q, limit);
+    const built = dbSearchSql.buildSearchQuery("kb", { cid: cid }, terms.fts[0], limit);
+    const expr = terms.fts.map(function (t) { return dbSearchSql.ftsPhrase(t); }).join(" OR ");
+    const res = await ports.db.exec(built.sql, [expr, built.scope, built.limit]);
+    if (res.rows.length || !terms.like.length) return res.rows;
+    const patterns = terms.like.map(function (t) { return dbSearchSql.likePattern(t); });
+    const sql = "SELECT " + KB_COLS + " FROM kb_chunks c JOIN kb_docs d ON d.id = c.doc_id WHERE c.cid = ? AND ("
+      + patterns.map(function () { return "c.chunk LIKE ? ESCAPE '\\'"; }).join(" OR ")
+      + ") ORDER BY c.ord DESC LIMIT ?";
+    const params: unknown[] = [cid, ...patterns, built.limit];
+    const like = await ports.db.exec(sql, params);
+    return like.rows;
+  }
+
+  /** Entity leg: entity names of this card that occur verbatim in the query point at their chunks. */
+  async function entityChunkIds(cid: string, q: string): Promise<string[]> {
+    const res = await ports.db.exec("SELECT name, ref_id FROM entities WHERE cid = ? AND kind = 'kb' ORDER BY name ASC, ref_id ASC", [cid]);
+    const out: string[] = [];
+    const seen: Record<string, number> = {};
+    for (const row of res.rows) {
+      const name = strOf(row.name);
+      if (name.length < 2 || q.indexOf(name) < 0) continue;
+      const id = strOf(row.ref_id);
+      if (!id || seen[id]) continue;
+      seen[id] = 1;
+      out.push(id);
     }
-    return linked;
+    return out;
+  }
+
+  /** Chunk rows for ids the lexical leg did not carry (entity-only hits), scoped to the card. */
+  async function chunksByIds(cid: string, ids: string[]): Promise<DbRow[]> {
+    const capped = ids.slice(0, 50);
+    if (!capped.length) return [];
+    const sql = "SELECT " + KB_COLS + " FROM kb_chunks c JOIN kb_docs d ON d.id = c.doc_id WHERE c.cid = ? AND c.id IN ("
+      + capped.map(function () { return "?"; }).join(",") + ")";
+    const res = await ports.db.exec(sql, [cid].concat(capped));
+    return res.rows;
   }
 
   async function importText(cardId: unknown, title: unknown, text: unknown, src: unknown): Promise<{ ok: boolean; docId: string; chunks: number; chars: number; entities: number }> {
+    // `src` (paste / file) stays in the signature for callers; kb_docs has no provenance column and
+    // the old doc record's `src` had no reader either (nothing displayed or filtered on it).
     const clean = String(text || "").replace(/\r\n?/g, "\n").trim();
     if (!cardId) throw new Error("缺少 cardId");
     if (!clean) throw new Error("正文为空");
-    const db = await open();
+    const cid = String(cardId);
     const docId = newId("kb");
-    const doc = { id: docId, cardId: String(cardId), title: String(title || "未命名").slice(0, 120), src: String(src || "paste").slice(0, 60), addedAt: Date.now(), chars: clean.length };
+    const now = Date.now();
+    const docTitle = String(title || "未命名").slice(0, 120);
     const pieces = chunkText(clean);
-    const chunks = pieces.map(function (piece, ord) { return { id: docId + "#" + ord, docId: docId, cardId: doc.cardId, ord: ord, text: piece, len: piece.length }; });
-    await writeTx(db, [ST_DOCS, ST_CHUNKS], function (t) {
-      t.objectStore(ST_DOCS).put(doc);
-      const cs = t.objectStore(ST_CHUNKS);
-      for (const c of chunks) cs.put(c);
-    });
-    // Postings: aggregate this document's term frequencies in memory first, then one read-modify-write per key.
-    const byKey = new Map<string, Array<[string, number, number]>>();
-    for (const c of chunks) {
-      for (const [k, n] of tokenize(c.text)) {
-        if (!byKey.has(k)) byKey.set(k, []);
-        byKey.get(k).push([c.id, n, c.len]);
+    const chunks: Array<{ id: string; text: string; ord: number; offset: number }> = [];
+    let from = 0;
+    for (let ord = 0; ord < pieces.length; ord++) {
+      const piece = pieces[ord];
+      const at = clean.indexOf(piece, from);
+      const offset = at >= 0 ? at : from;
+      from = offset + 1;
+      chunks.push({ id: docId + "#" + ord, text: piece, ord: ord, offset: offset });
+    }
+    // Best effort: a failed extraction still imports the document and keeps the lexical leg; only
+    // the extra entity recall is lost. It runs before the transaction because it is a model call and
+    // the transaction body must stay synchronous (collect-then-commit).
+    let ents: Array<{ name: string; kind: string }> = [];
+    try { ents = await extractEntities(docTitle, clean); } catch (e) { ents = []; }
+    let linked = 0;
+    // Document + chunks + entity links in ONE transaction: chunks are what `kb_fts` indexes, so a
+    // partial write would leave a document whose tail is silently unreachable.
+    await ports.db.transaction(function (tx) {
+      tx.exec("INSERT INTO kb_docs (id, cid, title, size, chars, ts) VALUES (?,?,?,?,?,?)",
+        [docId, cid, docTitle, clean.length, clean.length, now]);
+      for (const c of chunks) {
+        tx.exec("INSERT INTO kb_chunks (id, doc_id, cid, chunk, offset, ord) VALUES (?,?,?,?,?,?)",
+          [c.id, docId, cid, c.text, c.offset, c.ord]);
       }
-    }
-    for (const [k, entries] of byKey) {
-      await writeTx(db, ST_POSTINGS, function (t) {
-        const os = t.objectStore(ST_POSTINGS);
-        const r = os.get(k);
-        r.onsuccess = function () {
-          const rr = recOf(r.result);
-          const cur = (r.result && Array.isArray(rr.entries)) ? rr.entries : [];
-          os.put({ key: k, entries: cur.concat(entries) });
-        };
-      });
-    }
-    await writeTx(db, ST_META, function (t) {
-      const m = t.objectStore(ST_META);
-      const r = m.get("stats");
-      r.onsuccess = function () {
-        const rr = recOf(r.result);
-        const st0 = (r.result && rr.v && typeof rr.v === "object" && !Array.isArray(rr.v)) ? recOf(rr.v) : { nChunks: 0, totalLen: 0 };
-        const st = { nChunks: Number(st0.nChunks || 0), totalLen: Number(st0.totalLen || 0) };
-        st.nChunks += chunks.length;
-        for (const c of chunks) st.totalLen += (c.len || 0);
-        m.put({ k: "stats", v: st });
-      };
+      for (const e of ents) {
+        const ids = chunks.filter(function (c) { return c.text.indexOf(e.name) >= 0; }).map(function (c) { return c.id; });
+        if (!ids.length) continue;
+        for (const id of ids) {
+          tx.exec("INSERT OR IGNORE INTO entities (cid, name, kind, ref_id) VALUES (?,?,?,?)", [cid, e.name, "kb", id]);
+        }
+        linked++;
+      }
+      return null;
     });
-    // Best effort: a failed extraction still leaves the document imported and searchable, only the extra recall is lost.
-    let ents = 0;
-    try {
-      const list = await extractEntities(doc.title, clean);
-      ents = await linkEntities(db, doc.cardId, docId, chunks, list);
-    } catch (e) { ents = 0; }
     try { ports.uiRefresh(); } catch (e) {}
-    return { ok: true, docId: docId, chunks: chunks.length, chars: doc.chars, entities: ents };
+    return { ok: true, docId: docId, chunks: chunks.length, chars: clean.length, entities: linked };
   }
 
-  /** Search this card's documents: tokens → postings → BM25-lite. */
+  /** Search this card's documents: FTS leg + entity leg → RRF → top-K. */
   async function search(cardId: unknown, query: unknown, topK?: unknown): Promise<KbHit[]> {
     const q = String(query || "").trim();
     const cid = String(cardId || "");
     if (!q || !cid) return [];
-    const db = await open();
     const docs = await listDocs(cid);
     if (!docs.length) return [];
-    const allowed = new Set(docs.map(function (d) { return String(d.id); }));
-    const statsRec = recOf(await readReq(db, ST_META, function (s) { return s.get("stats"); }));
-    const stats = (statsRec.v && typeof statsRec.v === "object" && !Array.isArray(statsRec.v)) ? recOf(statsRec.v) : { nChunks: 0, totalLen: 0 };
-    const nChunks = Number(stats.nChunks || 1);
-    const totalLen = Number(stats.totalLen || 0);
-    const avgLen = Math.max(1, totalLen / Math.max(1, nChunks));
-    const qtf = tokenize(q);
-    if (!qtf.size) return [];
-    const scores = new Map<unknown, number>();
-    let used = 0;
-    for (const [key, qn] of qtf) {
-      if (used++ >= 24) break; // 单次查询最多取 24 个倒排键（够用且省往返）
-      const pr = recOf(await readReq(db, ST_POSTINGS, function (s) { return s.get(key); }));
-      if (!pr || !Array.isArray(pr.entries)) continue;
-      const mine = arrOf(pr.entries).filter(function (e) {
-        const ee = Array.isArray(e) ? e : [];
-        return e && allowed.has(String(ee[0] || "").split("#")[0]);
-      });
-      if (!mine.length) continue;
-      const df = Math.max(1, mine.length);
-      const idf = Math.log(1 + ((nChunks || 1) - df + 0.5) / (df + 0.5));
-      for (const e of mine) {
-        const ee = Array.isArray(e) ? e : [];
-        const chunkId = ee[0], tf = Number(ee[1]) || 1, len = Number(ee[2]) || avgLen;
-        // BM25-lite (k1=1.2, b=0.75) with a mild query-side term-frequency boost: asking the same word again ranks higher.
-        const denom = tf + 1.2 * (0.25 + 0.75 * (len / avgLen));
-        const score = idf * ((tf * 2.2) / denom) * Math.min(3, qn);
-        scores.set(chunkId, (scores.get(chunkId) || 0) + score);
-      }
-    }
-    // Entity leg: entities of this card that appear in the query point at their chunks. Pure string
-    // work, and it recovers queries that share no token with the stored text.
-    let entChunkIds: unknown[] = [];
-    try {
-      const ents = arrOf(await readReq(db, ST_ENTS, function (s2) { return s2.index("cid").getAll(cid); }));
-      const hitEnts = ents.filter(function (e) { const r = recOf(e); return e && r.name && q.indexOf(String(r.name)) >= 0; });
-      const seen = new Set<unknown>();
-      for (const e of hitEnts) for (const id of arrOf(recOf(e).chunkIds)) if (!seen.has(id)) { seen.add(id); entChunkIds.push(id); }
-    } catch (e) { entChunkIds = []; }
-
-    if (!scores.size && !entChunkIds.length) return [];
-
+    const top = Math.max(1, Math.min(10, Number(topK) || 5));
+    // 3x top: RRF needs a little more than the final cut to fuse the two legs, and never less than
+    // the storage default of 8.
+    const lex = await lexChunks(cid, q, dbSearchSql.clampSearchLimit(Math.max(8, top * 3)));
+    const entIds = await entityChunkIds(cid, q);
+    if (!lex.length && !entIds.length) return [];
     // RRF fusion of the two legs: score = Σ 1/(60+rank).
-    const lexRanked = Array.from(scores.entries()).sort(function (a, b) { return b[1] - a[1]; }).map(function (x) { return x[0]; });
-    const merged = new Map<unknown, number>();
-    lexRanked.forEach(function (id, i) { merged.set(id, (merged.get(id) || 0) + 1 / (60 + i + 1)); });
-    entChunkIds.forEach(function (id, i) { merged.set(id, (merged.get(id) || 0) + 1 / (60 + i + 1)); });
-    const top = Array.from(merged.entries()).sort(function (a, b) { return b[1] - a[1]; }).slice(0, Math.max(1, Math.min(10, Number(topK) || 5)));
-    const byDoc = new Map<unknown, Record<string, unknown>>();
-    docs.forEach(function (d) { byDoc.set(d.id, d); });
+    const merged = new Map<string, number>();
+    lex.forEach(function (row, i) {
+      const id = strOf(row.id);
+      if (id) merged.set(id, (merged.get(id) || 0) + 1 / (60 + i + 1));
+    });
+    entIds.forEach(function (id, i) { merged.set(id, (merged.get(id) || 0) + 1 / (60 + i + 1)); });
+    const ranked = Array.from(merged.entries()).sort(function (a, b) { return b[1] - a[1]; }).slice(0, top);
+    const byId = new Map<string, DbRow>();
+    lex.forEach(function (row) { byId.set(strOf(row.id), row); });
+    const missing = ranked.map(function (x) { return x[0]; }).filter(function (id) { return !byId.has(id); });
+    if (missing.length) {
+      for (const row of await chunksByIds(cid, missing)) byId.set(strOf(row.id), row);
+    }
+    const entSet = new Set(entIds);
     const hits: KbHit[] = [];
-    for (const [chunkId, score] of top) {
-      const cRec = recOf(await readReq(db, ST_CHUNKS, function (s) { return s.get(chunkId); }));
-      if (!cRec.id) continue; // lazy tombstone: the chunk went away with its document
-      const d = byDoc.get(cRec.docId);
-      if (!d) continue;
-      hits.push({ title: d.title, docId: cRec.docId, chunkId: cRec.id, chunkOrd: cRec.ord, score: Math.round(score * 10000) / 10000, text: cRec.text, viaEntity: entChunkIds.indexOf(cRec.id) >= 0 });
+    for (const entry of ranked) {
+      const row = byId.get(entry[0]);
+      if (!row) continue; // the chunk went away between the legs; skip, never invent a hit
+      hits.push({
+        title: row.title,
+        docId: row.doc_id,
+        chunkId: row.id,
+        chunkOrd: row.ord,
+        score: Math.round(entry[1] * 10000) / 10000,
+        text: row.chunk,
+        viaEntity: entSet.has(entry[0]),
+      });
     }
     return hits;
   }
 
   async function getDocText(docId: unknown): Promise<{ doc: Record<string, unknown>; text: string } | null> {
-    const db = await open();
-    const d = recOf(await readReq(db, ST_DOCS, function (s) { return s.get(String(docId || "")); }));
-    if (!d.id) return null;
-    let chunks: Array<Record<string, unknown>> = [];
-    try { chunks = arrOf(await readReq(db, ST_CHUNKS, function (s) { return s.getAll(rangeDoc(String(d.id))); })).map(recOf); } catch (e) {}
-    chunks.sort(function (a, b) { return Number(a.ord || 0) - Number(b.ord || 0); });
-    return { doc: d, text: chunks.map(function (c) { return String(c.text || ""); }).join("") };
+    const id = String(docId || "");
+    if (!id) return null;
+    const doc = (await ports.db.exec("SELECT id, cid, title, chars, ts FROM kb_docs WHERE id = ?", [id])).rows[0];
+    if (!doc) return null;
+    const rows = (await ports.db.exec("SELECT chunk FROM kb_chunks WHERE doc_id = ? ORDER BY ord ASC", [id])).rows;
+    return { doc: docOf(doc), text: rows.map(function (c) { return strOf(c.chunk); }).join("") };
   }
 
   async function removeDoc(docId: unknown): Promise<{ ok: boolean; removedChunks: number }> {
-    const db = await open();
-    const chunks = arrOf(await readReq(db, ST_CHUNKS, function (s) { return s.getAll(rangeDoc(String(docId))); })).map(recOf);
-    await writeTx(db, [ST_DOCS, ST_CHUNKS], function (t) {
-      t.objectStore(ST_DOCS).delete(String(docId));
-      const cs = t.objectStore(ST_CHUNKS);
-      for (const c of chunks) cs.delete(c.id);
+    const id = String(docId || "");
+    if (!id) return { ok: false, removedChunks: 0 };
+    const rows = (await ports.db.exec("SELECT id FROM kb_chunks WHERE doc_id = ?", [id])).rows;
+    const ids = rows.map(function (r) { return strOf(r.id); }).filter(Boolean);
+    await ports.db.transaction(function (tx) {
+      for (const chunkId of ids) tx.exec("DELETE FROM entities WHERE kind = 'kb' AND ref_id = ?", [chunkId]);
+      tx.exec("DELETE FROM kb_chunks WHERE doc_id = ?", [id]);
+      tx.exec("DELETE FROM kb_docs WHERE id = ?", [id]);
+      return null;
     });
-    await writeTx(db, ST_META, function (t) {
-      const m = t.objectStore(ST_META);
-      const r = m.get("stats");
-      r.onsuccess = function () {
-        const rr = recOf(r.result);
-        const st0 = (r.result && rr.v && typeof rr.v === "object" && !Array.isArray(rr.v)) ? recOf(rr.v) : { nChunks: 0, totalLen: 0 };
-        const st = { nChunks: Number(st0.nChunks || 0), totalLen: Number(st0.totalLen || 0) };
-        st.nChunks = Math.max(0, st.nChunks - chunks.length);
-        for (const c of chunks) st.totalLen = Math.max(0, st.totalLen - Number(c.len || 0));
-        m.put({ k: "stats", v: st });
-      };
-    });
-    // Postings are tombstoned lazily: the entry stays and simply fails the chunk lookup in search().
-    // Only the keys this document touched are rewritten, which keeps the index from growing
-    // without bound; a key that is already gone is not an error.
-    const keys = new Set<string>();
-    for (const c of chunks) for (const k of tokenize(c.text).keys()) keys.add(k);
-    for (const k of keys) {
-      await writeTx(db, ST_POSTINGS, function (t) {
-        const os = t.objectStore(ST_POSTINGS);
-        const r = os.get(k);
-        r.onsuccess = function () {
-          const rr = recOf(r.result);
-          const cur = (r.result && Array.isArray(rr.entries))
-            ? arrOf(rr.entries).filter(function (e) { const ee = Array.isArray(e) ? e : []; return String(ee[0]).indexOf(String(docId) + "#") !== 0; })
-            : [];
-          if (cur.length) os.put({ key: k, entries: cur }); else os.delete(k);
-        };
-      });
-    }
     try { ports.uiRefresh(); } catch (e) {}
-    return { ok: true, removedChunks: chunks.length };
+    return { ok: true, removedChunks: ids.length };
   }
 
   /** Compose the "knowledge base hits" block for one card's request (app.js awaits it before sending). */
@@ -494,14 +353,21 @@ export function createCharMemory(ports: CharMemoryPorts) {
     if (!id) return "";
     const q = String(queryText || "").trim();
     if (q.length < 2) return "";
+    let limits: CharMemoryLimits;
+    try {
+      limits = ports.settings();
+    } catch (e) {
+      try { console.warn("[char-memory] 记忆配置端口不可用，本轮不注入知识库", e); } catch (_) {}
+      return "";
+    }
     let hits: KbHit[] = [];
-    try { hits = await search(id, q, INJECT_MAX_CHUNKS); } catch (e) { return ""; }
+    try { hits = await search(id, q, limits.injectMaxChunks); } catch (e) { return ""; }
     if (!hits.length) return "";
     let used = 0;
     const parts: string[] = [];
     for (const h of hits) {
       const piece = "〔" + String(h.title) + "·第" + (Number(h.chunkOrd) + 1) + "段〕" + String(h.text);
-      if (used + piece.length > INJECT_MAX_CHARS) break;
+      if (used + piece.length > limits.injectMaxChars) break;
       used += piece.length;
       parts.push(piece);
     }
@@ -523,7 +389,7 @@ export function createCharMemory(ports: CharMemoryPorts) {
     };
     reg.define({
       name: "char_db_set",
-      description: "把你（当前角色）的『小本子』里某个键写下来 —— 角色专属的本地键值库，用来记事实/进度/清单（别的角色看不到）。",
+      description: "把你（当前角色）的『小本子』里某个键写下来 —— 角色专属的键值库，用来记事实/进度/清单（别的角色看不到）。",
       parameters: { type: "object", properties: { key: { type: "string", description: "键名，如「项目进度」「用户偏好」" }, value: { type: "string", description: "内容（字符串；结构化数据请自己 JSON.stringify）" } }, required: ["key", "value"] },
       async run(args: unknown, ctx: unknown) {
         const cid = cardIdOf(ctx);
@@ -532,9 +398,11 @@ export function createCharMemory(ports: CharMemoryPorts) {
         const key = String(a.key || "").trim();
         if (!key) return { ok: false, error: "缺少 key" };
         const val = String(a.value == null ? "" : a.value);
-        const db = await open();
-        await writeTx(db, ST_KV, function (t) { t.objectStore(ST_KV).put({ k: idbKey(cid, key), cardId: cid, key: key, value: val, at: Date.now() }); });
-        return { ok: true, key: key, chars: val.length, note: "已记在你的小本子上（本地 IndexedDB，不进云）" };
+        await ports.db.exec(
+          "INSERT INTO char_kv (cid, key, value, ts) VALUES (?,?,?,?) ON CONFLICT(cid, key) DO UPDATE SET value = excluded.value, ts = excluded.ts",
+          [cid, key, val, Date.now()],
+        );
+        return { ok: true, key: key, chars: val.length, note: "已记在你的小本子上（角色专属，别的角色看不到）" };
       },
     });
     reg.define({
@@ -544,16 +412,14 @@ export function createCharMemory(ports: CharMemoryPorts) {
       async run(args: unknown, ctx: unknown) {
         const cid = cardIdOf(ctx);
         if (!cid) return { ok: false, error: "没有当前角色" };
-        const db = await open();
-        const a = (args && typeof args === "object") ? args : {};
-        const key = (a as { key?: unknown }).key;
+        const key = recOf(args).key;
         if (key) {
-          const rec = recOf(await readReq(db, ST_KV, function (s) { return s.get(idbKey(cid, key)); }));
-          if (!rec.k) return { ok: false, error: "没有这个键：" + String(key) };
-          return { ok: true, key: rec.key, value: rec.value, at: rec.at };
+          const rec = (await ports.db.exec("SELECT key, value, ts FROM char_kv WHERE cid = ? AND key = ?", [cid, String(key)])).rows[0];
+          if (!rec) return { ok: false, error: "没有这个键：" + String(key) };
+          return { ok: true, key: strOf(rec.key), value: strOf(rec.value), at: numOf(rec.ts) };
         }
-        const all = arrOf(await readReq(db, ST_KV, function (s) { return s.getAll(ports.keyRangeBound(cid + "::", cid + "::\uffff")); }));
-        return { ok: true, keys: all.map(function (r) { const rr = recOf(r); return { key: rr.key, chars: String(rr.value || "").length, at: rr.at }; }) };
+        const res = await ports.db.exec("SELECT key, LENGTH(value) AS chars, ts FROM char_kv WHERE cid = ? ORDER BY key ASC", [cid]);
+        return { ok: true, keys: res.rows.map(function (r) { return { key: strOf(r.key), chars: numOf(r.chars), at: numOf(r.ts) }; }) };
       },
     });
     reg.define({
@@ -565,8 +431,7 @@ export function createCharMemory(ports: CharMemoryPorts) {
         const cid = cardIdOf(ctx);
         if (!cid) return { ok: false, error: "没有当前角色" };
         const key = String(recOf(args).key || "").trim();
-        const db = await open();
-        await writeTx(db, ST_KV, function (t) { t.objectStore(ST_KV).delete(idbKey(cid, key)); });
+        await ports.db.exec("DELETE FROM char_kv WHERE cid = ? AND key = ?", [cid, key]);
         return { ok: true, deleted: key };
       },
     });
@@ -598,28 +463,56 @@ export function createCharMemory(ports: CharMemoryPorts) {
     });
   }
 
-  /** Card-deletion cascade: drop this card's documents, chunks, postings and scratchpad keys so
+  /** Card-deletion cascade: drop this card's documents, chunks, entity links and scratchpad keys so
    *  nothing is orphaned. Called from the character service's card cleanup. */
   async function removeCard(cardId: unknown): Promise<{ ok: boolean; docs?: number; kvKeys?: number; error?: string }> {
     const cid = String(cardId || "");
     if (!cid) return { ok: false, error: "缺少 cardId" };
-    let docs: Array<Record<string, unknown>> = [];
-    try { docs = await listDocs(cid); } catch (e) {}
-    for (const d of docs) { try { await removeDoc(d.id); } catch (e) {} }
-    const db = await open();
-    const kv = arrOf(await readReq(db, ST_KV, function (s) { return s.getAll(ports.keyRangeBound(cid + "::", cid + "::\uffff")); }));
-    await writeTx(db, ST_KV, function (t) { const os = t.objectStore(ST_KV); for (const r of kv) os.delete(recOf(r).k); });
-    return { ok: true, docs: docs.length, kvKeys: kv.length };
+    const docs = await listDocs(cid);
+    const kvRow = (await ports.db.exec("SELECT COUNT(*) AS n FROM char_kv WHERE cid = ?", [cid])).rows[0];
+    const kvKeys = kvRow ? numOf(kvRow.n) : 0;
+    await ports.db.transaction(function (tx) {
+      tx.exec("DELETE FROM entities WHERE cid = ?", [cid]);
+      tx.exec("DELETE FROM kb_chunks WHERE cid = ?", [cid]);
+      tx.exec("DELETE FROM kb_docs WHERE cid = ?", [cid]);
+      tx.exec("DELETE FROM char_kv WHERE cid = ?", [cid]);
+      return null;
+    });
+    try { ports.uiRefresh(); } catch (e) {}
+    return { ok: true, docs: docs.length, kvKeys: kvKeys };
   }
 
+  /** Entity graph (L4, the light version): which entities a character knows, with their chunks. */
   async function listEntities(cardId: unknown): Promise<unknown[]> {
-    const db = await open();
-    return arrOf(await readReq(db, ST_ENTS, function (s2) { return s2.index("cid").getAll(String(cardId || "")); }));
+    const cid = String(cardId || "");
+    if (!cid) return [];
+    const res = await ports.db.exec("SELECT name, kind, ref_id FROM entities WHERE cid = ? ORDER BY name ASC, ref_id ASC", [cid]);
+    const byName: Record<string, { k: string; cid: string; name: string; kind: string; docIds: string[]; chunkIds: string[] }> = {};
+    const order: string[] = [];
+    for (const row of res.rows) {
+      const name = strOf(row.name);
+      if (!name) continue;
+      let rec = byName[name];
+      if (!rec) {
+        rec = { k: cid + "::" + name, cid: cid, name: name, kind: strOf(row.kind), docIds: [], chunkIds: [] };
+        byName[name] = rec;
+        order.push(name);
+      }
+      const chunkId = strOf(row.ref_id);
+      if (chunkId && rec.chunkIds.indexOf(chunkId) < 0) {
+        rec.chunkIds.push(chunkId);
+        const docId = chunkId.split("#")[0];
+        if (docId && rec.docIds.indexOf(docId) < 0) rec.docIds.push(docId);
+      }
+    }
+    return order.map(function (name) { return byName[name]; });
   }
 
   return {
     defineTools, importText, listDocs, removeDoc, removeCard, search, getDocText, buildInjection,
     extractEntities, listEntities,
-    _db: DB,
+    // The legacy IndexedDB database name: the wiring's one-time migration reads it, and the value
+    // stays on the facade so a diagnostics surface can tell where a pre-migration install came from.
+    _db: LEGACY_DB,
   };
 }

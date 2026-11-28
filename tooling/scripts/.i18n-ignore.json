@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "note": "check-i18n.mjs 的分类清单。UI 覆盖率只统计 class=ui 的字符串；其余三类不计入分母，但仍在报告里列出规模。新增条目必须写明 reason：这张表是覆盖率可信度的一部分，随手加文件等于把缺口藏起来。",
+  "classes": {
+    "outOfScope": {
+      "reason": "本引擎（主文档的渲染后整串替换 + 目录 t()）根本看不到的界面：独立文档 / 独立应用 / 被 DOM 遍历显式跳过的开发者面板。它们不是「未翻译的缺口」，而是「不在这条链路上」。",
+      "files": [
+        "public/services/dev/console.js"
+      ],
+      "filePrefixes": [
+        "public/tools/"
+      ],
+      "linePatterns": []
+    },
+    "prompt": {
+      "reason": "发给模型的中文：工具描述 / schema 文案 / 环境上下文 / 技能文档。模型按中文理解，翻译它们会改变行为；要英文化属于「提示词工程」，不是 i18n。",
+      "files": [
+        "public/services/tools/agent/tools.js",
+        "public/services/agent/source-tools.js",
+        "public/services/agent/council-tools.js",
+        "public/services/agent/ambient-tools.js",
+        "public/services/agent/agent-local-tools.js",
+        "public/services/agent/job-tools.js",
+        "public/services/agent/env-context.js"
+      ],
+      "filePrefixes": [],
+      "linePatterns": []
+    },
+    "error": {
+      "reason": "诊断日志与内部异常：console.* 输出、throw 出去的内部错误、`[模块]` 前缀日志。用户不读它们（读的是 toast / 状态行），所以既不进覆盖率，也不该塞进翻译目录。",
+      "files": [
+        "public/services/conv/summary.js",
+        "public/services/chat/compact.js",
+        "public/services/memory/core.js",
+        "public/services/memory/auto-write.js"
+      ],
+      "filePrefixes": [],
+      "linePatterns": [
+        "console\\.(?:log|warn|error|info|debug)\\s*\\(",
+        "throw new Error\\(",
+        "\\bnew Error\\("
+      ],
+      "stringPatterns": [
+        "^\\[[a-z][a-z0-9_-]*\\]"
+      ]
+    }
+  },
+  "scanExclude": [
+    "public/shared/core/i18n-dict.js"
+  ],
+  "scanExcludeReason": "i18n-dict.js 是 legacy 字典本体（数据），不是 UI 源码。此前把它当源码扫描，等于让字典给自己的每个 key 记一次「已覆盖」，覆盖率虚高且 stale 检测失真。"
+}

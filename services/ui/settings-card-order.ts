@@ -18,17 +18,20 @@ export interface SettingsCardStep {
 /** The frozen order. Keep it byte-stable: the lock compares the mapping table against it. */
 export const SETTINGS_CARDS: readonly SettingsCardStep[] = [
   { id: "mountConvAutonameCard", why: "对话分类首屏（A34）" },
+  { id: "mountContextCard", why: "上下文压缩参数，与 context 服务的紧凑配置同源" },
+  { id: "mountMemoryCard", why: "角色记忆参数，与 memory 配置表同源（默认=旧行为）" },
   { id: "mountAuthCard", why: "账号页" },
   { id: "mountLocalHistoryCard", why: "常用：放账号页第一屏" },
   { id: "mountSyncCard", why: "同步卡跟在账号后" },
   { id: "mountTopbarCostCard", why: "费用卡在同步后" },
+  { id: "mountDeployCard", why: "部署卡跟在费用后：宿主级操作，回填 profile 会改「宿主是谁」，独立于对话与外观设置" },
   { id: "mountThemeCard", why: "外观分类首卡" },
   { id: "mountAmbientCard", why: "氛围音，全主题可用、不随解锁门显隐" },
   { id: "mountBackgroundCard", why: "背景图（外观分类）" },
-  { id: "mountMobileAppLayoutCard", why: "壳内布局卡" },
   { id: "mountDisplayCard", why: "字号/字体属于外观" },
   { id: "mountAppFxCard", why: "壳内特效档位（仅壳内出现）" },
   { id: "mountI18nCard", why: "界面语言" },
+  { id: "mountPanelToolsCard", why: "内容面板（GEO / 沙盘地址），外观分类尾卡" },
   { id: "mountNeutralCard", why: "锁定态准则，与底座卡互斥显隐" },
   { id: "mountStateLayerCard", why: "角色状态层开关把手" },
   { id: "mountWebSearchCard", why: "联网搜索（Worker 代查）" },
@@ -42,7 +45,9 @@ export const SETTINGS_CARDS: readonly SettingsCardStep[] = [
   { id: "mountPersonaCard", why: "Persona 卡（M1）" },
   { id: "mountPersonalizeCard", why: "Agent 个性化（独立分类）" },
   { id: "mountByoCard", why: "自定义直连归「模型 API」分类" },
+  { id: "mountDeepSeekKitCard", why: "DeepSeek 全家桶跟在渠道卡后——先有渠道/Key 状态才显示开关" },
   { id: "mountCustomPricingCard", why: "自定义定价跟在渠道卡后" },
+  { id: "mountDataBackupCard", why: "数据备份尾卡：全量导入会替换本机数据并刷新页面，放在最后挂载，避免与账号/同步卡的即时回填互相踩（也远离 T4-C 的部署卡插入点，合并只追加）" },
   { id: "mountGenParamsCard", why: "生成参数跟在定价卡后（同属模型 API）" },
 ];
 

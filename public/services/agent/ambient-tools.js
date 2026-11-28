@@ -121,7 +121,9 @@ function createAmbientTools(env            )                  {
   function extract(value         )                                              {
     const s = text(value);
     const actions                  = [];
+    let stripped = false;
     let clean = s.replace(AMBIENT_TAG_RE, function (whole        , deckRaw        , idRaw        , volRaw        ) {
+      stripped = true;
       const deck = AMBIENT_DECK_ALIAS[text(deckRaw).toLowerCase()] || "amb";
       const id = text(idRaw).trim();
       if (!id) return ""; // `[[amb:]]` — an empty shell, just strip it.
@@ -141,7 +143,10 @@ function createAmbientTools(env            )                  {
       actions.push({ deck: deck, id: rid, vol: parseVolume(volRaw), raw: whole });
       return "";
     });
-    if (!actions.length) return { clean: s, actions: actions };
+    // The early-out is keyed to the strip, not to the actions: an empty shell or an unrecognised
+    // track is removed but encodes no action, and the header contract is that such a tag still
+    // must not reach the bubble. Gating on `actions` here leaked the tag back out verbatim.
+    if (!stripped) return { clean: s, actions: actions };
     // Only once something was actually removed: clear the blank lines a standalone tag left behind,
     // without touching the normal line breaks of the body.
     clean = clean
@@ -249,7 +254,7 @@ function createAmbientTools(env            )                  {
   };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract names ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract names ──
 // The implementation moved to services/agent/ambient-tools.ts. The only port is the mixer handle, and
 // it is a function because theme.js may mount after this script. Two globals are bound here, exactly as
 // before: `__ambientTags` (the tag protocol used by the two reply paths) and `AmbientTools` (the tool

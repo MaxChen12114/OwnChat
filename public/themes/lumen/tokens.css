@@ -1,0 +1,554 @@
+/* public/themes/lumen/tokens.css — “流光”主题的明/暗 token 基质
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 逐字搬自 Daygo（https://github.com/Jwz-git/Daygo，MIT，Copyright (c) 2026 Jwz-git）
+ * 的 frontend/src/styles/tokens.light.css / tokens.dark.css；Daygo 自身又致谢
+ * Dayflow（MIT，Copyright (c) 2025 Jerry Liu）。
+ *
+ * 只改了选择器作用域：Daygo 的 :root 改成 html[data-theme="lumen"]，暗色改成
+ * html[data-theme="lumen"][data-scheme="dark"]，因此这些 --dg-* 令牌不会泄漏到
+ * minimal / glass / candle。几何量原本只在亮色文件里定义一次，这里保持原样；
+ * 暗色只覆盖颜色。文件底部的 bridge 把 OwnChat 旧 token 映射到这套基质，组件
+ * 继续用 --bg / --surface-* / --accent* 就会自动跟随流光主题。
+ */
+
+html[data-theme="lumen"] {
+  /*
+   * Drives native form controls, scrollbars and focus rings. Declaring it in
+   * CSS rather than from JS keeps the appearance switch to a single attribute
+   * write; see theme/index.ts.
+   */
+  color-scheme: light;
+
+  /* window — deepened focal points, wider hue range, richer chroma for better glass reveal */
+  --dg-window-bg: #fde7df;
+  /* A touch more inset so the primary glass slab reads as a deliberate floating
+     surface (larger corner radius below) rather than a bordered window. */
+  --dg-window-padding: 15px;
+  --dg-windows-titlebar-height: 36px;
+  --dg-titlebar-border: rgba(0, 0, 0, 0.08);
+  --dg-window-gradient: radial-gradient(circle 92vmax at 64% 100%, #ffe6cf 17%, #ffe6e0 33%, #d6e8ff 100%);
+
+  /* panel */
+  --dg-panel-fill: rgba(251, 251, 251, 0.58);
+  --dg-panel-border: rgba(255, 255, 255, 0.88);
+  --dg-panel-shadow: 0 4px 28px rgba(48, 34, 24, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  /* The primary glass slab. A generous radius is the single strongest cue that
+     the surface is an intentional floating material, not a chromeless window. */
+  --dg-panel-radius: 12px;
+
+  /* The opaque raised surface content sits on: a chart's centre disc, a modal
+     panel, the halo that punches a swatch out of its background. Opaque on
+     purpose — it must not sample the glass underneath it. */
+  --dg-surface: #fbf6f4;
+
+  /*
+   * Liquid-glass surfaces (.dg-panel, the rail selection, popovers). The tint,
+   * fallback, shadow and sheen are colour and differ per appearance; blur and
+   * saturation are geometry and live here only.
+   */
+  --dg-glass-tint: rgba(251, 251, 251, 0.58);
+  --dg-glass-fallback: #fbf6f4;
+  --dg-glass-shadow: 0 4px 28px rgba(48, 34, 24, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  /* Subtle upper-edge specular reflection along the panel rim. */
+  --dg-glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0) 24%);
+  --dg-glass-blur: 30px;
+  --dg-glass-saturation: 170%;
+  --dg-shadow-sm: 0 2px 8px rgba(48, 34, 24, 0.12);
+  --dg-shadow-lg: 0 20px 48px rgba(48, 34, 24, 0.16), 0 4px 12px rgba(48, 34, 24, 0.08);
+
+  /* text */
+  --dg-text-primary: #2c2a2e;
+  --dg-text-secondary: #5c5961;
+  --dg-text-tertiary: #6a6670;
+  --dg-text-muted: #726e77;
+
+  /* accent and controls */
+  --dg-accent: #f3854b;
+  --dg-accent-strong: #d9642c;
+  --dg-accent-text: #c85822;
+  --dg-accent-bg: rgba(243, 133, 75, 0.14);
+  --dg-focus-ring: rgba(243, 133, 75, 0.3);
+  --dg-control-fill: #ffd2b9;
+  --dg-control-fill-hover: #ffc6a6;
+  /* selected item in a secondary nav list: a whisper of the accent, not a block */
+  --dg-nav-active-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.48));
+  --dg-nav-active-text: #2c2a2e;
+  --dg-nav-active-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 3px rgba(48, 34, 24, 0.1);
+  --dg-danger: #d9432f;
+  --dg-danger-text: #be321f;
+  --dg-success: #2f7d57;
+  /* Plan "done": brighter than --dg-success so a finished block stands out. */
+  --dg-plan-done: #1fb860;
+  /* caution, one step below danger: plaintext-HTTP endpoints and the like */
+  --dg-warning: #9a6d14;
+  --dg-token-output: #467382;
+
+  /* hover wash shared by the rail and the settings nav */
+  --dg-hover-fill: rgba(120, 92, 74, 0.06);
+  --dg-hover-fill-strong: rgba(120, 92, 74, 0.1);
+
+  /* segmented-control track (→ segmentTrackFill) */
+  --dg-track-fill: #e7e6e5;
+  /* selected segment: solid, like the switch knob, so the label stays crisp */
+  --dg-segment-thumb: #ffffff;
+
+  /* header capsule controls (period nav, filter chips): a neutral grey
+     wash, with the selected chip inverted to solid label colour */
+  --dg-capsule-fill: rgba(118, 118, 128, 0.1);
+  --dg-capsule-hover: rgba(118, 118, 128, 0.17);
+  --dg-capsule-text: #3a3a3c;
+  --dg-capsule-selected-fill: #1d1d1f;
+  --dg-capsule-selected-text: #ffffff;
+  --dg-segment-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+
+  /* text fields, selects (→ inputFill / inputBorder) */
+  --dg-input-fill: rgba(255, 255, 255, 0.9);
+  --dg-input-fill-hover: #ffffff;
+  --dg-input-border: #e1e1e1;
+  /* Chevron drawn inside a <select>. The colour is baked into the SVG (a
+     background image cannot read currentColor), so it is redefined per theme. */
+  --dg-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' stroke='%237d7a84' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  /* switch (→ SwitchControl). Solid on purpose: a control this small must
+     render predictably over glass, not sample it. */
+  --dg-switch-track: #e4e4e4;
+  --dg-switch-track-hover: #dadada;
+  --dg-switch-knob: #ffffff;
+  --dg-switch-knob-shadow: 0 1px 2px rgba(28, 34, 45, 0.3), 0 0 0 0.5px rgba(28, 34, 45, 0.07);
+
+  /* Checkmark drawn inside a checked .dg-checkbox. Like the select chevron,
+     the colour is baked into the SVG; white reads on the accent in both
+     appearances, so no dark override is needed. */
+  --dg-checkbox-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='9' viewBox='0 0 9 9' fill='none'%3E%3Cpath d='M1.4 4.7 3.6 6.9 7.7 2.5' stroke='%23ffffff' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  /* chips (→ chipFill / chipBorder / chipText) */
+  --dg-chip-fill: rgba(255, 255, 255, 0.9);
+  --dg-chip-border: #e1e1e1;
+  --dg-chip-text: #333333;
+
+  /* buttons (→ primaryButton* / secondaryButton*) */
+  --dg-button-primary-fill: #d45f28;
+  --dg-button-primary-hover: #c2501d;
+  --dg-button-primary-border: #c55420;
+  --dg-button-primary-text: #ffffff;
+  --dg-button-primary-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26), 0 1px 2px rgba(160, 62, 20, 0.24);
+  --dg-button-secondary-fill: rgba(255, 255, 255, 0.84);
+  --dg-button-secondary-hover: #ffffff;
+  --dg-button-secondary-border: rgba(65, 58, 70, 0.16);
+  --dg-button-secondary-text: #4a4750;
+
+  /* failure surfaces (→ cardFailedFill) */
+  --dg-danger-fill: #ffece4;
+
+  /* sidebar rail */
+  --dg-rail-width: 80px;
+  --dg-rail-item-size: 62px;
+  --dg-rail-icon-size: 18px;
+  --dg-rail-selection-size: 33px;
+  --dg-rail-selection-radius: 10px;
+  --dg-rail-selection-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.48));
+  --dg-rail-selection-border: rgba(255, 255, 255, 0.65);
+  --dg-rail-selection-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 3px rgba(48, 34, 24, 0.12);
+  --dg-rail-label-size: 12px;
+  --dg-popover-fill: rgba(252, 248, 245, 0.92);
+  --dg-popover-shadow: 0 18px 44px rgba(80, 52, 36, 0.14), 0 2px 8px rgba(80, 52, 36, 0.08), 0 0 0 1px #e8e0de;
+
+  /* cards */
+  --dg-card-fill: rgba(255, 255, 255, 0.78);
+  --dg-card-border: rgba(96, 64, 44, 0.09);
+  /* The inset line is the card's specular top edge — the same implied
+     upper-left light as the panel rim, one level dimmer. A soft graded drop
+     lifts the card just clear of the surface behind it. */
+  --dg-card-shadow: 0 2px 10px rgba(48, 34, 24, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --dg-card-time: #7d7a84;
+  --dg-card-radius: 10px;
+
+  /* timeline */
+  --dg-timeline-time-width: 66px;
+  --dg-timeline-grid: rgba(0, 0, 0, 0.12);
+  --dg-timeline-grid-strong: rgba(0, 0, 0, 0.16);
+  --dg-timeline-card-fill: #ffffff;
+  --dg-timeline-card-border: rgba(72, 54, 42, 0.11);
+  --dg-timeline-activity-fill: var(--dg-timeline-card-fill);
+  --dg-timeline-card-hover: #ffffff;
+  --dg-timeline-card-selected: #ffffff;
+  --dg-timeline-activity-border: rgba(65, 58, 70, 0.13);
+  --dg-timeline-card-shadow: 0 1px 2px rgba(28, 34, 45, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  /* Hover lifts the card off the track; the bloom is what sells the height. */
+  --dg-timeline-card-shadow-hover: 0 8px 20px rgba(28, 34, 45, 0.12), 0 1px 2px rgba(28, 34, 45, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  --dg-timeline-inspector-fill: rgba(255, 255, 255, 0.6);
+  /* Inspector overview tiles and the day-goal panels (Dayflow sheet palette). */
+  --dg-inspector-tile-fill: rgba(255, 255, 255, 0.58);
+  --dg-inspector-tile-border: rgba(96, 64, 44, 0.07);
+  --dg-goal-focus: #628cff;
+  --dg-goal-focus-text: #4b74ea;
+  --dg-goal-distraction: #fa8282;
+  --dg-goal-distraction-text: #e8605b;
+  --dg-goal-box-fill: rgba(255, 255, 255, 0.5);
+  --dg-goal-box-border: #ebe3dd;
+  --dg-goal-wheel-fill: linear-gradient(180deg, #ebe6e4 0%, #fffdfc 28%, #fffdfc 72%, #ebe6e4 100%);
+  --dg-goal-wheel-dim: #b2ada9;
+  /* Meter: the shared progress-bar language (goal, plan, review, donut). */
+  --dg-meter-track: rgba(70, 48, 36, 0.06);
+  --dg-meter-track-shadow: inset 0 0 0 0.5px #e8dfd8, inset 0 1px 2px rgba(40, 30, 24, 0.07);
+  --dg-timeline-empty-fill: rgba(255, 255, 255, 0.2);
+  --dg-timeline-placeholder: rgba(95, 87, 100, 0.2);
+  --dg-timeline-processing-fill: rgba(103, 128, 177, 0.08);
+  --dg-timeline-processing-border: rgba(103, 128, 177, 0.16);
+  --dg-timeline-frame-fill: rgba(94, 84, 99, 0.055);
+
+  /* Timeline status cards (Dayflow's generatingGradient / pausedCardGradient,
+     DayflowTheme.swift, MIT): one shape for "generating", "recording now"
+     and "paused", laid over the solid panel colour. */
+  --dg-status-generating: linear-gradient(90deg, rgba(50, 135, 255, 0.55), rgba(255, 165, 153, 0.36));
+  --dg-status-generating-text: #ffffff;
+  --dg-status-paused: linear-gradient(90deg, #f7e6d5 13%, #dadee4 100%);
+  --dg-status-paused-text: #585e69;
+  --dg-status-paused-border: rgba(208, 208, 208, 0.6);
+
+  /* daily workflow */
+  --dg-daily-grid-line: #ebe6e3;
+  --dg-daily-cell-empty: rgba(152, 152, 152, 0.1);
+  --dg-daily-cell-border: transparent;
+  --dg-daily-distraction: #b8453d;
+  --dg-daily-distraction-track: #f3f3f3;
+  --dg-daily-footer-fill: #faf7f5;
+  /* weekly daily-timeline lane: recessed groove, hairline between abutting
+     runs of different categories, and the quiet idle hatch. */
+  --dg-daily-track-groove: inset 0 1px 2px rgba(28, 34, 45, 0.09), inset 0 -1px 0 rgba(255, 255, 255, 0.4);
+  --dg-daily-run-divider: rgba(255, 255, 255, 0.72);
+  --dg-daily-idle-fill: rgba(120, 120, 128, 0.09);
+  --dg-daily-idle-line: rgba(120, 120, 128, 0.30);
+
+  /* weekly summary */
+  --dg-weekly-focus: #628cff;
+  --dg-weekly-ring-track: rgba(242, 240, 240, 1);
+  --dg-weekly-ring-center: #ffffff;
+  --dg-weekly-ring-glow: rgba(99, 71, 56, 0.12);
+  --dg-weekly-summary-fill: #faf7f5;
+  --dg-weekly-bar-track: rgba(70, 63, 75, 0.07);
+  /* Eyebrow/tag chip: soft accent wash behind uppercase section labels. */
+  --dg-weekly-tag-fill: transparent;
+  --dg-weekly-tag-text: #d9682f;
+  --dg-weekly-series-1: #4f7ea8;
+  --dg-weekly-series-2: #e87848;
+  --dg-weekly-series-3: #4e8d75;
+  --dg-weekly-series-4: #7a6ea8;
+  --dg-weekly-series-5: #57949b;
+  --dg-weekly-series-6: #a8834f;
+
+  /* Dayflow weekly charts (WeeklyPalette in Weekly/WeeklyView.swift, MIT). */
+  --dg-wk-card-fill: rgba(255, 255, 255, 0.62);
+  --dg-wk-card-border: rgba(96, 64, 44, 0.1);
+  --dg-wk-title: #cf5e28;
+  --dg-wk-text: #2c2a2e;
+  --dg-wk-text-secondary: #5e5a61;
+  --dg-wk-text-muted: #756f6c;
+  --dg-wk-footer: #faf7f5;
+  --dg-wk-divider: rgba(96, 64, 44, 0.1);
+  --dg-wk-axis: rgba(90, 83, 76, 0.9);
+  --dg-wk-axis-soft: #c9c2bc;
+  --dg-wk-empty-cell: rgba(152, 152, 152, 0.1);
+  --dg-wk-solid: #ffffff;
+  --dg-wk-row-fill: #f2f2f2;
+  --dg-wk-tooltip: rgba(255, 255, 255, 0.96);
+  /* Dayflow's warm sankey washes are tuned for this light card. */
+  --dg-wk-sankey-underlay: 1;
+  --dg-wk-donut-shadow: rgba(99, 71, 56, 0.42);
+  --dg-wk-donut-contact: rgba(99, 71, 56, 0.24);
+
+  /* motion */
+  --dg-motion-fast: 100ms;
+  --dg-motion-base: 160ms;
+  --dg-motion-slow: 320ms;
+  /* True ease-out: quick departure, long silky settle with no overshoot. Drives
+     hover / press feedback, focus rings and depth changes — the closest a single
+     curve gets to a material coming to rest. (Previously this was
+     cubic-bezier(0.25, 0.1, 0.25, 1), i.e. the symmetric `ease` keyword, which
+     accelerates and decelerates equally and reads as generic.) */
+  --dg-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Long deceleration tail for entrances and press/release; the closest CSS
+     gets to a critically-damped spring. */
+  --dg-ease-glide: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* page geometry */
+  --dg-inspector-width: 363px;
+  --dg-inspector-gap: 12px;
+  --dg-settings-nav-width: 174px;
+  --dg-settings-content-max: 680px;
+  --dg-daily-content-max: 1320px;
+  --dg-weekly-content-max: 1120px;
+  --dg-page-padding: 28px;
+}
+
+html[data-theme="lumen"][data-scheme="dark"] {
+  color-scheme: dark;
+
+  --dg-window-bg: #31334a;
+  --dg-titlebar-border: rgba(255, 255, 255, 0.07);
+  --dg-window-gradient: linear-gradient(75deg, rgb(48, 60, 91) 21%, rgb(49, 51, 72) 53%, rgb(59, 41, 75) 105%);
+
+  --dg-panel-fill: linear-gradient(140deg, rgba(39, 41, 58, 0.82) 9%, rgba(30, 35, 48, 0.84) 80%);
+  --dg-panel-border: rgba(255, 255, 255, 0.1);
+  --dg-panel-shadow: 0 12px 36px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  /* Same role as in the light palette: the raised surface behind content,
+     kept a step above the glass panels so it still reads as lifted. */
+  --dg-surface: #272a3c;
+
+  /*
+   * Liquid-glass surfaces (.dg-panel, the rail selection, popovers). Colour
+   * half only — blur and saturation are geometry and stay in tokens.light.css.
+   */
+  --dg-glass-tint: rgba(39, 41, 58, 0.82);
+  --dg-glass-fallback: #272a3c;
+  --dg-glass-shadow: 0 12px 36px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --dg-glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 24%);
+  --dg-shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.36);
+  --dg-shadow-lg: 0 22px 54px rgba(0, 0, 0, 0.56), 0 4px 14px rgba(0, 0, 0, 0.32);
+
+  --dg-text-primary: #f5f5f7;
+  --dg-text-secondary: #d6d5de;
+  --dg-text-tertiary: #b3b2be;
+  --dg-text-muted: #9d9ca8;
+
+  --dg-accent: #f3854b;
+  --dg-accent-strong: #f77952;
+  --dg-accent-text: #ff9466;
+  --dg-accent-bg: rgba(243, 133, 75, 0.18);
+  --dg-focus-ring: rgba(243, 133, 75, 0.4);
+  --dg-control-fill: rgba(226, 160, 121, 0.32);
+  --dg-control-fill-hover: rgba(226, 160, 121, 0.44);
+  --dg-nav-active-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
+  --dg-nav-active-text: #ffffff;
+  --dg-nav-active-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1px 4px rgba(0, 0, 0, 0.24);
+  --dg-danger: #ff7053;
+  --dg-success: #46a758;
+  --dg-plan-done: #34d27a;
+  /* caution, one step below danger: plaintext-HTTP endpoints and the like */
+  --dg-warning: #e3b25e;
+  --dg-token-output: #7fb3c4;
+
+  --dg-hover-fill: rgba(255, 255, 255, 0.06);
+  --dg-hover-fill-strong: rgba(255, 255, 255, 0.1);
+
+  --dg-track-fill: rgba(0, 0, 0, 0.35);
+
+  --dg-capsule-fill: rgba(118, 118, 128, 0.24);
+  --dg-capsule-hover: rgba(118, 118, 128, 0.34);
+  --dg-capsule-text: #e5e5ea;
+  --dg-capsule-selected-fill: #f5f5f7;
+  --dg-capsule-selected-text: #1c1c1e;
+  --dg-segment-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 0.5px 0 rgba(255, 255, 255, 0.12);
+
+  --dg-input-fill: rgba(255, 255, 255, 0.08);
+  --dg-input-fill-hover: rgba(255, 255, 255, 0.12);
+  --dg-input-border: rgba(255, 255, 255, 0.14);
+  --dg-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' stroke='%23a7a5af' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  /* switch; the white knob and its checkmark sibling token are
+     appearance-independent and stay in tokens.light.css */
+  --dg-switch-track: #413f47;
+  --dg-switch-track-hover: #4a4852;
+  --dg-switch-knob-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+  /* a white thumb would swallow the light label text, so dark lifts one step */
+  --dg-segment-thumb: #4a4852;
+
+  --dg-chip-fill: rgba(255, 255, 255, 0.1);
+  --dg-chip-border: rgba(255, 255, 255, 0.15);
+  --dg-chip-text: #f5f5f7;
+
+  --dg-button-primary-fill: #d86535;
+  --dg-button-primary-hover: #e37242;
+  --dg-button-primary-border: #e8895e;
+  --dg-button-primary-text: #ffffff;
+  --dg-button-primary-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 3px rgba(0, 0, 0, 0.35);
+  --dg-button-secondary-fill: rgba(255, 255, 255, 0.08);
+  --dg-button-secondary-hover: rgba(255, 255, 255, 0.13);
+  --dg-button-secondary-border: rgba(255, 255, 255, 0.14);
+  --dg-button-secondary-text: #e0dfe8;
+
+  --dg-danger-fill: rgba(255, 89, 80, 0.2);
+  --dg-danger-text: #ff8589;
+  --dg-accent-fill: rgba(75, 141, 240, 0.16);
+
+  --dg-rail-selection-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.07));
+  --dg-rail-selection-border: rgba(255, 255, 255, 0.16);
+  --dg-rail-selection-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 2px 6px rgba(0, 0, 0, 0.24);
+  --dg-popover-fill: rgba(34, 37, 52, 0.94);
+  --dg-popover-shadow: 0 18px 44px rgba(0, 0, 0, 0.52), 0 0 0 1px rgba(255, 255, 255, 0.12);
+
+  --dg-card-fill: rgba(255, 255, 255, 0.065);
+  --dg-card-border: rgba(255, 255, 255, 0.09);
+  --dg-card-shadow: 0 2px 12px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --dg-card-time: #888693;
+
+  --dg-timeline-grid: rgba(255, 255, 255, 0.1);
+  --dg-timeline-grid-strong: rgba(255, 255, 255, 0.16);
+  --dg-timeline-card-fill: #262837;
+  --dg-timeline-card-border: rgba(255, 255, 255, 0.1);
+  --dg-timeline-activity-fill: #232329;
+  --dg-timeline-card-hover: #2b2b33;
+  --dg-timeline-card-selected: #26304a;
+  --dg-timeline-activity-border: rgba(255, 255, 255, 0.09);
+  --dg-timeline-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --dg-timeline-card-shadow-hover: 0 8px 20px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --dg-timeline-inspector-fill: rgba(34, 37, 54, 0.72);
+  --dg-inspector-tile-fill: rgba(255, 255, 255, 0.05);
+  --dg-inspector-tile-border: rgba(255, 255, 255, 0.07);
+  --dg-goal-focus: #3362e3;
+  --dg-goal-focus-text: #6fa8ff;
+  --dg-goal-distraction: #e55a3e;
+  --dg-goal-distraction-text: #ff7a5e;
+  --dg-goal-box-fill: rgba(0, 0, 0, 0.16);
+  --dg-goal-box-border: rgba(255, 255, 255, 0.08);
+  --dg-goal-wheel-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.09) 28%, rgba(255, 255, 255, 0.09) 72%, rgba(255, 255, 255, 0.02) 100%);
+  --dg-goal-wheel-dim: #85848c;
+  --dg-meter-track: rgba(255, 255, 255, 0.06);
+  --dg-meter-track-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08), inset 0 1px 2px rgba(0, 0, 0, 0.32);
+  --dg-timeline-empty-fill: rgba(0, 0, 0, 0.1);
+  --dg-timeline-placeholder: rgba(255, 255, 255, 0.13);
+  --dg-timeline-processing-fill: rgba(255, 255, 255, 0.04);
+  --dg-timeline-processing-border: rgba(255, 255, 255, 0.09);
+  --dg-timeline-frame-fill: rgba(255, 255, 255, 0.04);
+
+  --dg-status-generating: linear-gradient(90deg, rgba(50, 135, 255, 0.55), rgba(255, 165, 153, 0.36));
+  --dg-status-generating-text: #ffffff;
+  --dg-status-paused: linear-gradient(90deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08));
+  --dg-status-paused-text: #dddddd;
+  --dg-status-paused-border: rgba(153, 153, 153, 0.6);
+
+  --dg-daily-grid-line: rgba(255, 255, 255, 0.1);
+  --dg-daily-cell-empty: rgba(255, 255, 255, 0.07);
+  --dg-daily-cell-border: transparent;
+  --dg-daily-distraction: #ff8278;
+  --dg-daily-distraction-track: rgba(0, 0, 0, 0.22);
+  --dg-daily-footer-fill: rgba(255, 255, 255, 0.04);
+  /* weekly daily-timeline lane: recessed groove, hairline between abutting
+     runs of different categories, and the quiet idle hatch. */
+  --dg-daily-track-groove: inset 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+  --dg-daily-run-divider: rgba(18, 18, 21, 0.55);
+  --dg-daily-idle-fill: rgba(199, 199, 204, 0.10);
+  --dg-daily-idle-line: rgba(199, 199, 204, 0.34);
+
+  --dg-wk-card-fill: rgba(255, 255, 255, 0.05);
+  --dg-wk-card-border: rgba(255, 255, 255, 0.09);
+  --dg-wk-title: #ff9a64;
+  --dg-wk-text: #f5f5f7;
+  --dg-wk-text-secondary: #d6d5de;
+  --dg-wk-text-muted: #9d9ca8;
+  --dg-wk-footer: rgba(255, 255, 255, 0.035);
+  --dg-wk-divider: rgba(255, 255, 255, 0.09);
+  --dg-wk-axis: #dddddd;
+  --dg-wk-axis-soft: rgba(255, 255, 255, 0.25);
+  --dg-wk-empty-cell: rgba(255, 255, 255, 0.08);
+  --dg-wk-solid: #272a3c;
+  --dg-wk-row-fill: rgba(255, 255, 255, 0.08);
+  --dg-wk-tooltip: rgba(39, 42, 60, 0.96);
+  /* Dayflow's warm sankey washes read as grey haze on dark; keep a trace. */
+  --dg-wk-sankey-underlay: 0.28;
+  --dg-wk-donut-shadow: rgba(0, 0, 0, 0.6);
+  --dg-wk-donut-contact: rgba(0, 0, 0, 0.45);
+
+  --dg-weekly-focus: #59a6ff;
+  --dg-weekly-ring-track: rgba(255, 255, 255, 0.2);
+  --dg-weekly-ring-center: #2b2d44;
+  --dg-weekly-ring-glow: rgba(75, 141, 240, 0.22);
+  --dg-weekly-summary-fill: rgba(171, 168, 185, 0.2);
+  --dg-weekly-bar-track: rgba(255, 255, 255, 0.055);
+  /* Eyebrow/tag chip: soft accent wash behind uppercase section labels. */
+  --dg-weekly-tag-fill: transparent;
+  --dg-weekly-tag-text: #f77952;
+  --dg-weekly-series-1: #6d9bc3;
+  --dg-weekly-series-2: #f08a5d;
+  --dg-weekly-series-3: #69a58d;
+  --dg-weekly-series-4: #978bc3;
+  --dg-weekly-series-5: #71aab0;
+  --dg-weekly-series-6: #bea06e;
+}
+
+/* ── OwnChat legacy token bridge ───────────────────────────────────────────────
+ * Components keep reading the old names; these aliases point them at the Daygo
+ * substrate. A value that has no sensible Daygo equivalent (e.g. a blue accent
+ * gradient) is built from the accent tokens with color-mix, never from a new
+ * palette. */
+html[data-theme="lumen"] {
+  --bg: var(--dg-window-bg);
+  --code-surface: var(--dg-surface);
+  --code-border: var(--dg-card-border);
+  --code-text: var(--dg-text-primary);
+  --surface-2: var(--dg-glass-tint);
+  --surface-3: var(--dg-card-fill);
+  --border: var(--dg-card-border);
+  --border-soft: var(--dg-card-border);
+  --text: var(--dg-text-primary);
+  --muted: var(--dg-text-muted);
+  --accent: var(--dg-accent);
+  --accent-2: var(--dg-accent-strong);
+  --accent-3: var(--dg-accent-text);
+  --accent-soft: var(--dg-accent-bg);
+  --accent-border: color-mix(in srgb, var(--dg-accent) 45%, transparent);
+  --ac-strong: var(--dg-accent-strong);
+  --ac-soft: var(--dg-accent-bg);
+  --ac-contrast: #ffffff;
+  --bubble-ai: var(--dg-card-fill);
+  --bubble-user: var(--dg-control-fill);
+  --input-bg: var(--dg-input-fill);
+  --input-border: var(--dg-input-border);
+  --btn-bg: var(--dg-button-primary-fill);
+  --btn-bg-hover: var(--dg-button-primary-hover);
+  --focus-ring: var(--dg-focus-ring);
+  --danger: var(--dg-danger);
+  --ok: var(--dg-success);
+  --ag-surface: var(--dg-card-fill);
+  --ag-hover: var(--dg-hover-fill);
+  --ag-border: var(--dg-card-border);
+  --card: var(--dg-card-fill);
+  --card-2: var(--dg-surface);
+  --border-hi: color-mix(in srgb, var(--dg-card-border) 55%, var(--dg-text-primary));
+  --line: var(--dg-timeline-grid);
+  --grad: linear-gradient(135deg, var(--dg-accent), var(--dg-accent-strong));
+  --dg-accent-border: color-mix(in srgb, var(--dg-accent) 42%, transparent);
+  --dg-font-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+  --radius: 10px;
+  --radius-sm: 7px;
+  --radius-pill: 999px;
+  --muted-2: var(--dg-text-secondary);
+  --panel-seam: var(--dg-timeline-grid);
+  --ctl-fill: var(--dg-capsule-fill);
+  --ctl-fill-hover: var(--dg-capsule-hover);
+  /* Controls on the glass slab are a fill, not a chrome bar: without a hairline the
+     capsule wash reads as a borderless smudge (owner, 2026-11-26). A warm translucent
+     line is the same implied edge the cards use, one step stronger; hover doubles it.
+     --ctl-border-strong is the state-bearing outline for radios and switch tracks. */
+  --ctl-border: rgba(96, 64, 44, .16);
+  --ctl-border-hover: rgba(96, 64, 44, .28);
+  --ctl-border-strong: rgba(96, 64, 44, .38);
+  /* Text fields: a touch darker than --dg-input-border so the box edge survives the
+     near-white popover fill in the settings sheet. */
+  --ctl-field-border: rgba(96, 64, 44, .22);
+  --ctl-fg: var(--dg-capsule-text);
+  --ctl-fg-strong: var(--dg-text-primary);
+  --ctl-ring: var(--dg-focus-ring);
+  --ctl-fill-quiet: var(--dg-capsule-fill);
+  --seg-track: var(--dg-track-fill);
+  --seg-track-shadow: inset 0 0 0 1px var(--dg-input-border);
+  --seg-active-fill: var(--dg-segment-thumb);
+  --seg-active-fg: var(--dg-text-primary);
+  --seg-active-shadow: var(--dg-segment-thumb-shadow);
+  --ctl-motion-fast: var(--dg-motion-fast);
+  --ctl-motion-base: var(--dg-motion-base);
+  --ctl-ease-out: var(--dg-ease-out);
+  --ctl-ease-glide: var(--dg-ease-glide);
+}
+
+/* Dark appearance: the same three control outlines, mirrored to white. This block must stay
+   after the bridge above — `--ctl-border` is declared there unconditionally, so a dark value
+   inside the main dark palette block would be overwritten by the bridge. */
+html[data-theme="lumen"][data-scheme="dark"] {
+  --ctl-border: rgba(255, 255, 255, .16);
+  --ctl-border-hover: rgba(255, 255, 255, .28);
+  --ctl-border-strong: rgba(255, 255, 255, .38);
+  --ctl-field-border: rgba(255, 255, 255, .22);
+}

@@ -2,7 +2,7 @@
 /**
  * The two chat-page extras: dropping files into the composer, and the sync-conflict panel.
  *
- * **Attachments.** A text or code file becomes a structured attachment (`__attach`), not a paragraph
+ * **Attachments.** A text or code file becomes a structured attachment (`attachSvc`), not a paragraph
  * pasted into the input: the chip above the composer is removable, the full text rides on the message's
  * `files` field and is expanded into the payload only at send time. Anything past the character budget
  * is truncated — and the user is told, because the old build only put the count in a chip's `title`,
@@ -158,22 +158,20 @@ function createChatExtras()                {
 // ① 文件上传:读纯文本/代码文件,内容以代码块注入输入框,随下条消息发给 AI(完全不碰发送核心)
 // ② 多开聊天:同一角色的多条命名会话,列表式切换(底层走 window.hostApi.app 的会话槽 hooks)
 (function () {
-  if (window.__chatExtras) return;
-
   // 2026-11-15 服务层搬迁：判定与截断口径在 services/ui/chat-extras.ts，本文件只剩 DOM 与 FileReader。
   var svc = createChatExtras();
 
   function $(id) { return document.getElementById(id); }
-  var esc = window.__ownEscape.esc;
+  var esc = window.escapeSvc.esc;
   // 2026-11-11：aee803f 曾误删本文件里两处定义（扩展名表与 maxChars），导致 handleFiles 全线
   // ReferenceError。扩展名表已随 2026-11-15 搬迁进 services/ui/chat-extras.ts，这里只留 maxChars。
-  // 4.83: 阈值唯一真源在 attachments.js(__attach.ATT_MAX_CHARS),运行时读取防两处漂移
+  // 4.83: 阈值唯一真源在 attachments.js(attachSvc.ATT_MAX_CHARS),运行时读取防两处漂移
   function maxChars() {
-    try { return (window.__attach && window.__attach.ATT_MAX_CHARS) || 20000; } catch (e) { return 20000; }
+    try { return (window.attachSvc && window.attachSvc.ATT_MAX_CHARS) || 20000; } catch (e) { return 20000; }
   }
   // 4.83: 截断可见反馈 —— 旧版只写 chip 的 title 悬浮提示,手机端无 hover 完全看不到
   function toast(msg) {
-    try { if (window.__feedback && window.__feedback.toast) return window.__feedback.toast(msg, { ms: 4200 }); } catch (e) {}
+    try { if (window.feedbackSvc && window.feedbackSvc.toast) return window.feedbackSvc.toast(msg, { ms: 4200 }); } catch (e) {}
     alert(msg);
   }
 
@@ -186,12 +184,12 @@ function createChatExtras()                {
     });
   }
   // 2026-09-14 附件重构:文本文件不再往输入框塞一行中文摘要,改为结构化附件
-  // (window.__attach,见 attachments.js),输入框上方渲染可移除的文件 chip;
+  // (window.attachSvc,见 attachments.js),输入框上方渲染可移除的文件 chip;
   // 全文存在消息的 files 字段上随 session 持久化,发送时才展开进 payload。
   function handleFiles(files) {
     var list = Array.prototype.slice.call(files || []);
     if (!list.length) return;
-    var att = window.__attach;
+    var att = window.attachSvc;
     if (!att) { alert("附件模块未就绪,请刷新页面重试"); return; }
     var MAX = maxChars();
     var skipped = [], truncatedNames = [];
@@ -246,13 +244,13 @@ function createChatExtras()                {
       });
     });
   }
-  // 2026-09-14 附件重构:图片统一进 window.__attach
+  // 2026-09-14 附件重构:图片统一进 window.attachSvc
   // (dataURL 留内存供本轮渲染/发送,Blob 存 IndexedDB 供刷新后还原);待发缩略图条由 attachments.js 渲染。
   var MAX_IMAGES = 4;
   function handleComposerAttach(files) {
     var list = Array.prototype.slice.call(files || []);
     if (!list.length) return;
-    var att = window.__attach;
+    var att = window.attachSvc;
     if (!att) { alert("附件模块未就绪,请刷新页面重试"); return; }
     var imgs = list.filter(function (f) { return svc.isImageFile(f); });
     var others = list.filter(function (f) { return !svc.isImageFile(f); });
@@ -347,7 +345,7 @@ function createChatExtras()                {
     return svc.slotLabel(raw, slotKey);
   }
   function renderConflicts() {
-    var sync = window.__sync;
+    var sync = window.syncSvc;
     if (!cfList || !sync || !sync.getChatConflicts) return;
     var conflicts = sync.getChatConflicts() || [];
     if (!conflicts.length) { closeConflictModal(); if (_cfResolvedAny) { _cfResolvedAny = false; setTimeout(function () { location.reload(); }, 300); } return; }
@@ -367,7 +365,7 @@ function createChatExtras()                {
         b.className = "ce-btn" + (def[2] ? " ce-btn-primary" : "");
         b.textContent = def[0];
         b.addEventListener("click", function () {
-          try { window.__sync.resolveChatConflict(c.slotKey, def[1]); _cfResolvedAny = true; } catch (e) {}
+          try { window.syncSvc.resolveChatConflict(c.slotKey, def[1]); _cfResolvedAny = true; } catch (e) {}
           renderConflicts();
         });
         acts.appendChild(b);
@@ -380,7 +378,7 @@ function createChatExtras()                {
   // 2026-11-13: 「刷新查看」提示条已彻底移除（showMergedToast 与 #ceMergedToast 均已删除）。
   // 同步收口为自动后它不再承载任何待办；只剩冲突面板仍需要人裁决。
   function wireSyncConflicts() {
-    var sync = window.__sync;
+    var sync = window.syncSvc;
     if (!sync || sync.__ceConflictWired) return;
     if (sync.onStatus) {
       sync.__ceConflictWired = true;
@@ -399,10 +397,8 @@ function createChatExtras()                {
     wireComposerAttach();
     // 4.76: 等 sync.js 就绪后绑定聊天冲突事件(启动顺序不确定,轮询重试)
     var _cfTries = 0;
-    (function tryWireCf() { if (window.__sync) wireSyncConflicts(); else if (_cfTries++ < 15) setTimeout(tryWireCf, 1000); })();
+    (function tryWireCf() { if (window.syncSvc) wireSyncConflicts(); else if (_cfTries++ < 15) setTimeout(tryWireCf, 1000); })();
   }
-
-  window.__chatExtras = { openFilePicker: openFilePicker, openConflicts: openConflictPanel };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire);
   else wire();

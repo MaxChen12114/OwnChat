@@ -273,14 +273,27 @@ export function costDailyListHtml(aggregate: CostLogAggregate): string {
 }
 
 /**
- * The card shell that is inserted into the settings slot.
- * @returns HTML for the card body, including the summary and list containers and the three buttons.
- *   The copy is user-visible text and is not translated by comment-cleanup passes.
+ * The card's title fragment (icon + label). 2026-11-28: the single costCardHtml() string was split
+ * into title/desc/extra so the wiring can feed cardShell.createCardShell — assembled output is
+ * byte-identical to the old one-string card (h4/p/extra in the same order). The copy is
+ * user-visible text and is not translated by comment-cleanup passes.
+ * @returns The `<h4>` inner HTML.
  */
-export function costCardHtml(): string {
+export function costCardTitle(): string {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h3"/></svg>用量与费用日志';
+}
+
+/** @returns The `<p>` inner HTML under the title. */
+export function costCardDesc(): string {
+  return '快速档按 token 实时计费（默认走 DeepSeek 官方，渠道见「设置→模型 API」）；免费档也记录每次 API 调用的 token 用量（费用为 0）。记录在本地（LS <code>cfw_cost_log_v1</code>），开启云同步后按设备分桶跨设备合并。';
+}
+
+/**
+ * @returns The body markup between the description and the card end: the summary and list
+ *   containers and the three buttons.
+ */
+export function costCardExtra(): string {
   return (
-    '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h3"/></svg>用量与费用日志（API 调用）</h4>' +
-    '<p>快速档按 token 实时计费（默认走 DeepSeek 官方，渠道见「设置→模型 API」）；免费档也记录 token 用量（费用为 0）。记录在本地（LS <code>cfw_cost_log_v1</code>），开启云同步后按设备分桶跨设备合并。</p>' +
     '<div id="costSummary" class="cost-summary"></div>' +
     '<div id="costDailyList" class="cost-daily"></div>' +
     '<div class="rowline" style="margin-top:10px;"><div></div><div class="btns">' +

@@ -33,6 +33,7 @@ export interface PromptProfileLike {
   neutralIdPayload(): Record<string, unknown>;
   stateLayerPayload(): Record<string, unknown>;
   webSearchPayload(): Record<string, unknown>;
+  deepseekKitPayload?(): Record<string, unknown>;
 }
 
 /** Snapshot passed into agentBody, field for field the old `__request.agentBody(s)` argument. */
@@ -55,6 +56,56 @@ export interface AgentBodySnapshot {
 export interface RequestPorts {
   /** Reply style: the old read was localStorage["cfw_reply_style_v1"] || "default", falling back to "default" on failure. */
   replyStyle(): string;
+}
+
+/** Snapshot for one compaction call. The model fields follow the send-path snapshot rules: a BYO
+ *  channel's own model wins over the top-bar selection; mode/providerId ride along so the worker
+ *  routes the summary through the same channel the user is actually chatting with. */
+export interface SummarizeSnapshot {
+  messages?: unknown;
+  priorSummary?: unknown;
+  characterName?: unknown;
+  customProvider?: unknown;
+  mode?: unknown;
+  model?: unknown;
+  providerId?: unknown;
+}
+
+/** Read the BYO model, if the custom-provider snapshot carries one. */
+function byoModelOf(customProvider: unknown): string {
+  const cp = (customProvider && typeof customProvider === "object" && !Array.isArray(customProvider))
+    ? Object.fromEntries(Object.entries(customProvider))
+    : {};
+  const model = cp.model;
+  return typeof model === "string" ? model.trim() : "";
+}
+
+/**
+ * Body for `POST /api/summarize`.
+ *
+ * Field rules, all carried over from the old inline object:
+ *   - `messages` is always an array (the worker answers an empty summary for an empty one);
+ *   - `priorSummary` / `characterName` are strings, never undefined;
+ *   - `model` prefers the BYO channel's model and otherwise uses the top-bar selection — the same
+ *     precedence the chat request uses. `mode` and `providerId` let the worker resolve the channel
+ *     instead of falling back to its `fast` default;
+ *   - `customProvider` and `providerId` stay `undefined` when absent, so JSON serialisation drops
+ *     them and an old client body keeps its exact bytes.
+ * @param snapshot - the send-time snapshot collected by the app.
+ * @returns The request body.
+ */
+export function summarizeBody(snapshot: SummarizeSnapshot | null | undefined): Record<string, unknown> {
+  const s = snapshot || {};
+  const model = byoModelOf(s.customProvider) || (typeof s.model === "string" ? s.model.trim() : "");
+  return {
+    messages: Array.isArray(s.messages) ? s.messages : [],
+    priorSummary: typeof s.priorSummary === "string" ? s.priorSummary : "",
+    characterName: typeof s.characterName === "string" ? s.characterName : "",
+    customProvider: s.customProvider,
+    mode: typeof s.mode === "string" ? s.mode : undefined,
+    providerId: s.providerId,
+    model: model || undefined,
+  };
 }
 
 /**
@@ -103,6 +154,7 @@ export function agentBody(s: AgentBodySnapshot | null | undefined, ports: Reques
     ...prof.neutralIdPayload(),
     ...prof.stateLayerPayload(),
     ...prof.webSearchPayload(),
+    ...(prof.deepseekKitPayload ? prof.deepseekKitPayload() : {}),
     messages: s.messages,
   };
 }

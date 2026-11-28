@@ -1,0 +1,545 @@
+/* public/styles-chat-present.css — 聊天呈现轴（气泡 / 文档）
+ * ─────────────────────────────────────────────────────────────────────────────
+ * This is NOT a theme stylesheet. “哪个主题”和“聊天长什么样”是两个正交的维度：
+ *   data-theme        = 配色 / 材料（minimal / glass / lumen / candle）
+ *   data-chat-present = 气泡（bubble）或文档（doc）
+ * The appearance card exposes 跟随主题 / 气泡 / 文档; the native default is bubble for every
+ * theme except lumen, whose defining form is the document transcript.
+ *
+ * The document rules are ported from Daygo’s ChatBubble/ChatView (MIT © 2026 Jwz-git) and
+ * read --dg-* tokens. Lumen defines those tokens in themes/lumen/tokens.css; the other three
+ * themes expose a compatibility alias block in styles.css, so the same document layout works
+ * on any palette without a second copy.
+ */
+
+/* ── Transcript rhythm ─────────────────────────────────────────────────────── */
+html[data-chat-present="doc"] #history { padding: 22px 0 0; }
+html[data-chat-present="doc"] .chat { max-width: 780px; }
+html[data-chat-present="doc"] .row { margin: 16px 0; gap: 10px; }
+html[data-chat-present="doc"] .row.ai { align-items: flex-start; }
+
+/* ── Assistant: document, not a bubble ────────────────────────────────────── */
+html[data-chat-present="doc"] .row.ai:not(.side-right):not(.moderator) {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: 6px;
+  row-gap: 4px;
+  align-items: center;
+}
+html[data-chat-present="doc"] .row.ai:not(.side-right):not(.moderator) > .avatar {
+  grid-row: 1;
+  grid-column: 1;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--dg-accent) 14%, transparent);
+  color: var(--dg-accent-text);
+  font-size: 11px;
+  line-height: 1;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+}
+html[data-chat-present="doc"] .row.ai:not(.side-right):not(.moderator) > .avatar img { width: 100%; height: 100%; object-fit: cover; }
+html[data-chat-present="doc"] .row.ai:not(.side-right):not(.moderator) > .content { display: contents; }
+html[data-chat-present="doc"] .row.ai:not(.side-right):not(.moderator) .meta {
+  grid-row: 1;
+  grid-column: 2;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--dg-text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+html[data-chat-present="doc"] .row.ai:not(.side-right):not(.moderator) .reasoning-block,
+html[data-chat-present="doc"] .row.ai:not(.side-right):not(.moderator) .ags-wrap,
+html[data-chat-present="doc"] .row.ai:not(.side-right):not(.moderator) .bubble,
+html[data-chat-present="doc"] .row.ai:not(.side-right):not(.moderator) .stats {
+  grid-column: 1 / -1;
+}
+/* Any other child the engine appends to .content (message actions, image cards, tool-mode
+   wrappers) must span the row too — with display:contents on .content a 20px first column would
+   otherwise squeeze it into a vertical sliver. */
+html[data-chat-present="doc"] .row.ai:not(.side-right):not(.moderator) .content > *:not(.meta) {
+  grid-column: 1 / -1;
+}
+/* The engine appends .my-action-btns after the bubble. It must span the row, not inherit the
+   20px avatar column (that was the vertical icon strip bug). On hover-capable devices it also
+   follows Daygo's meta line and appears only when the row is inspected. */
+html[data-chat-present="doc"] .row .my-action-btns {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+@media (hover: hover) {
+  html[data-chat-present="doc"] .row .my-action-btns {
+    opacity: 0;
+    transition: opacity var(--dg-motion-base, 160ms) ease;
+  }
+  html[data-chat-present="doc"] .row:hover .my-action-btns,
+  html[data-chat-present="doc"] .row:focus-within .my-action-btns {
+    opacity: 1;
+  }
+}
+html[data-chat-present="doc"] .row.ai:not(.side-right):not(.moderator) .bubble {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  color: var(--dg-text-primary);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+/* Assistant head: the avatar may be a character image (character.js sets it as a background). */
+html[data-chat-present="doc"] .row.ai:not(.side-right):not(.moderator) .avatar.bot { background-color: color-mix(in srgb, var(--dg-accent) 14%, transparent); }
+
+/* ── Assistant markdown: Daygo's document typography ──────────────────────── */
+html[data-chat-present="doc"] .bubble .md-body { font-size: 14px; line-height: 1.65; color: var(--dg-text-primary); }
+html[data-chat-present="doc"] .bubble .md-body p { margin: 0 0 12px; }
+html[data-chat-present="doc"] .bubble .md-body > :last-child { margin-bottom: 0; }
+html[data-chat-present="doc"] .bubble .md-body h1,
+html[data-chat-present="doc"] .bubble .md-body h2,
+html[data-chat-present="doc"] .bubble .md-body h3,
+html[data-chat-present="doc"] .bubble .md-body h4 {
+  margin: 18px 0 8px;
+  color: var(--dg-text-primary);
+  font-weight: 600;
+  line-height: 1.3;
+}
+html[data-chat-present="doc"] .bubble .md-body h1 { font-size: 18px; }
+html[data-chat-present="doc"] .bubble .md-body h2 { font-size: 16px; }
+html[data-chat-present="doc"] .bubble .md-body h3 { font-size: 15px; }
+html[data-chat-present="doc"] .bubble .md-body h4 { font-size: 14px; }
+html[data-chat-present="doc"] .bubble .md-body strong { font-weight: 600; color: var(--dg-text-primary); }
+html[data-chat-present="doc"] .bubble .md-body ul,
+html[data-chat-present="doc"] .bubble .md-body ol { margin: 0 0 12px; padding-left: 22px; }
+html[data-chat-present="doc"] .bubble .md-body li { margin-bottom: 4px; }
+html[data-chat-present="doc"] .bubble .md-body li::marker { color: var(--dg-accent); }
+html[data-chat-present="doc"] .bubble .md-body ul ul { list-style: circle; }
+html[data-chat-present="doc"] .bubble .md-body a {
+  color: var(--dg-accent-text);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--dg-accent) 28%, transparent);
+}
+html[data-chat-present="doc"] .bubble .md-body a:hover { border-bottom-color: var(--dg-accent); }
+html[data-chat-present="doc"] .bubble .md-body blockquote {
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  border-left: 3px solid var(--dg-card-border);
+  color: var(--dg-text-secondary);
+}
+html[data-chat-present="doc"] .bubble .md-body hr { margin: 16px 0; border: none; border-top: 1px solid var(--dg-card-border); }
+html[data-chat-present="doc"] .bubble .md-body table {
+  width: 100%;
+  margin: 12px 0;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+html[data-chat-present="doc"] .bubble .md-body th,
+html[data-chat-present="doc"] .bubble .md-body td {
+  padding: 8px 12px;
+  border: 1px solid var(--dg-card-border);
+  text-align: left;
+}
+html[data-chat-present="doc"] .bubble .md-body th { background: var(--dg-track-fill); font-weight: 600; }
+html[data-chat-present="doc"] .bubble .md-body img { max-width: 100%; height: auto; border-radius: 8px; }
+html[data-chat-present="doc"] .bubble .md-body code:not(.hljs) {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--dg-track-fill);
+  color: var(--dg-accent-text);
+  font-size: 13px;
+  font-family: var(--dg-font-mono, ui-monospace, Menlo, Consolas, monospace);
+}
+
+/* Code blocks: Daygo's terminal surface. The markdown renderer emits <pre><code>. */
+html[data-chat-present="doc"] .bubble pre {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--code-border, var(--border));
+  border-radius: 10px;
+  /* Theme-aware paper surface: dark terminal only in dark schemes. The tokens are supplied by
+     styles.css and the lumen bridge; preferring them keeps this presentation layer theme-agnostic. */
+  background: var(--code-surface, color-mix(in srgb, var(--text) 6%, var(--bg)));
+  box-shadow: none;
+  color: var(--code-text, var(--text));
+  overflow-x: auto;
+}
+html[data-chat-present="doc"] .bubble pre code {
+  padding: 0;
+  background: none;
+  color: inherit;
+  font-family: var(--dg-font-mono, ui-monospace, Menlo, Consolas, monospace);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+/* ── Reasoning / process: secondary, collapsed unless the user opens it ───── */
+html[data-chat-present="doc"] .row .reasoning-block { margin: 0 0 6px; }
+html[data-chat-present="doc"] .row .reasoning-block summary {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  color: var(--dg-text-tertiary);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 24px;
+}
+html[data-chat-present="doc"] .row .reasoning-block summary:hover { color: var(--dg-text-secondary); }
+html[data-chat-present="doc"] .row .reasoning-block summary svg {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  vertical-align: 0;
+  opacity: 1;
+}
+html[data-chat-present="doc"] .row .reasoning-block .reasoning-text {
+  margin: 0;
+  padding: 4px 0 4px 22px;
+  border-left: 0;
+  color: var(--dg-text-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+/* Both presentations use the DSH process body; only the collapsed summary differs:
+   bubble gets the capsule, document gets the flat category row. */
+html .ags-panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+html .ags-panel .ags-bd { padding: 0; border-top: 0; }
+html .ags-panel.open .ags-bd {
+  max-height: min(400px, 50vh);
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
+  scrollbar-gutter: stable;
+}
+html .ags-rw { padding: 0; }
+html .ags-rw + .ags-rw { border-top: 0; margin-top: 0; }
+html .ags-round { display: none; }
+
+/* Bubble presentation keeps the capsule summary; document presentation follows DSH. */
+html[data-chat-present="bubble"] .ags-panel:not(.open) {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+html[data-chat-present="bubble"] .ags-panel:not(.open) .ags-hd {
+  min-height: 26px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--dg-capsule-fill);
+  color: var(--dg-text-tertiary);
+  font-size: 11px;
+}
+html[data-chat-present="bubble"] .ags-panel:not(.open) .ags-hd:hover {
+  background: var(--dg-capsule-hover);
+  color: var(--dg-text-secondary);
+}
+
+html[data-chat-present="doc"] .ags-wrap { gap: 0; margin: 0 0 8px; }
+html[data-chat-present="doc"] .ags-panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+html[data-chat-present="doc"] .ags-panel .ags-hd,
+html[data-chat-present="doc"] .ags-panel:not(.open) .ags-hd {
+  min-height: 24px;
+  height: 24px;
+  padding: 0;
+  gap: 6px;
+  border-radius: 0;
+  background: none;
+  color: var(--dg-text-tertiary);
+  font-size: 13px;
+}
+html[data-chat-present="doc"] .ags-panel .ags-hd:hover,
+html[data-chat-present="doc"] .ags-panel:not(.open) .ags-hd:hover {
+  background: none;
+  color: var(--dg-text-secondary);
+}
+html[data-chat-present="doc"] .ags-hico {
+  width: 16px;
+  height: 16px;
+  opacity: 1;
+  color: inherit;
+  animation: none !important;
+}
+html[data-chat-present="doc"] .ags-hico svg { width: 14px; height: 14px; }
+html[data-chat-present="doc"] .ags-panel .ags-htx { display: none; }
+html[data-chat-present="doc"] .ags-panel .ags-doc-sum {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 400;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+}
+html[data-chat-present="doc"] .ags-panel .ags-hnames,
+html[data-chat-present="doc"] .ags-panel .ags-hms { display: none; }
+html[data-chat-present="doc"] .ags-panel .ags-hchev { margin-left: auto; opacity: .45; color: inherit; }
+html[data-chat-present="doc"] .ags-panel .ags-hd:hover .ags-hchev { opacity: .85; }
+html[data-chat-present="doc"] .ags-panel[data-state="err"] .ags-hd,
+html[data-chat-present="doc"] .ags-panel[data-state="err"] .ags-hico { color: var(--dg-danger-text); }
+html[data-chat-present="doc"] .ags-panel .ags-bd { padding: 0; border-top: 0; }
+html[data-chat-present="doc"] .ags-panel.open .ags-bd {
+  max-height: min(400px, 50vh);
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
+  scrollbar-gutter: stable;
+}
+html[data-chat-present="doc"] .ags-rw { padding: 0; }
+html[data-chat-present="doc"] .ags-rw + .ags-rw { border-top: 0; margin-top: 0; }
+html[data-chat-present="doc"] .ags-round { display: none; }
+
+/* Expanded process rows: DeepSeek Harness's 24px disclosure grammar used by both chat modes. */
+html .ags-panel .ags-think { padding: 0; }
+html .ags-panel .ags-think-hd {
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  gap: 6px;
+  border-radius: 0;
+  color: var(--dg-text-tertiary);
+}
+html .ags-panel .ags-think-hd:hover { background: none; color: var(--dg-text-secondary); }
+html .ags-panel .ags-think-lb {
+  flex: none;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 1;
+  color: inherit;
+}
+html .ags-panel .ags-think-sum {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 24px;
+  color: var(--dg-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html .ags-panel .ags-think-sum::before {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 2px;
+  margin: 0 8px 2px 0;
+  border-radius: 1px;
+  background: currentColor;
+  vertical-align: middle;
+  opacity: .7;
+}
+html .ags-panel .ags-think-sum:empty::before { display: none; }
+html .ags-panel .ags-think-sum[data-streaming] {
+  mask-image: linear-gradient(to right, black calc(100% - 48px), transparent);
+}
+html .ags-panel .ags-think-hd .ags-caret { margin-left: 4px; opacity: .45; color: inherit; }
+html .ags-panel .ags-think-tx {
+  display: none;
+  max-height: 260px;
+  margin: 0;
+  padding: 4px 0 4px 22px;
+  border: 0;
+  color: var(--dg-text-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: auto;
+}
+html .ags-panel .ags-think.open .ags-think-tx { display: block; }
+
+html .ags-panel .ags-step { margin: 0; border-radius: 0; }
+html .ags-panel .ags-head {
+  min-height: 24px;
+  height: 24px;
+  padding: 0;
+  gap: 6px;
+  border-radius: 0;
+  color: var(--dg-text-tertiary);
+}
+html .ags-panel .ags-head:hover { background: none; color: var(--dg-text-secondary); }
+html .ags-panel .ags-ico {
+  width: 16px;
+  height: 16px;
+  opacity: 1;
+  color: inherit;
+  animation: none !important;
+}
+html .ags-panel .ags-ico svg { width: 14px; height: 14px; }
+html .ags-panel .ags-step[data-state="run"] .ags-ico,
+html .ags-panel .ags-step[data-state="done"] .ags-ico { color: inherit; animation: none; }
+html .ags-panel .ags-step[data-state="err"] .ags-ico,
+html .ags-panel .ags-step[data-state="err"] .ags-name,
+html .ags-panel .ags-step[data-state="err"] .ags-brief { color: var(--dg-danger-text); }
+html .ags-panel .ags-name {
+  flex: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  color: inherit;
+}
+html .ags-panel .ags-brief {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--dg-text-muted);
+}
+html .ags-panel .ags-brief:not(:empty)::before {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 2px;
+  margin: 0 8px 2px 0;
+  border-radius: 1px;
+  background: currentColor;
+  vertical-align: middle;
+  opacity: .7;
+}
+html .ags-panel .ags-meta { display: none; }
+html .ags-panel .ags-caret { margin-left: 4px; opacity: .45; color: inherit; }
+html .ags-panel .ags-body { padding: 4px 0 8px 22px; }
+html .ags-panel .ags-label { display: none; }
+html .ags-panel .ags-body pre {
+  max-height: 260px;
+  margin: 4px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--dg-card-border);
+  border-radius: 10px;
+  background: var(--dg-surface);
+  color: var(--dg-text-primary);
+  font: 12px/1.55 var(--dg-font-mono, ui-monospace, Menlo, Consolas, monospace);
+  white-space: pre-wrap;
+  overflow: auto;
+}
+html .ags-panel .ags-body pre code { border: 0; background: none; padding: 0; color: inherit; font: inherit; }
+html .ags-panel .ags-errtx { color: var(--dg-danger-text); }
+html .ags-preamble {
+  padding: 4px 0 4px 22px;
+  color: var(--dg-text-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+}
+html .ags-doc-preamble {
+  margin: 0 0 8px;
+  padding: 0;
+  color: var(--dg-text-primary);
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+/* ── User: right-aligned pill (no avatar, no role label) ──────────────────── */
+html[data-chat-present="doc"] .row.user { justify-content: flex-end; }
+html[data-chat-present="doc"] .row.user > .avatar,
+html[data-chat-present="doc"] .row.user .meta { display: none; }
+html[data-chat-present="doc"] .row.user .content {
+  max-width: 70%;
+  align-items: flex-end;
+  gap: 2px;
+}
+html[data-chat-present="doc"] .row.user .bubble.user {
+  width: fit-content;
+  max-width: 100%;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 18px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--dg-accent) 22%, transparent),
+    color-mix(in srgb, var(--dg-accent) 14%, transparent)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .08),
+    0 1px 2px rgba(0, 0, 0, .08);
+  color: var(--dg-text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+html[data-chat-present="doc"] .row.user .bubble.user a { color: var(--dg-accent-text); }
+
+/* ── Meta line: time / status / copy only on hover, like Daygo ────────────── */
+html[data-chat-present="doc"] .row .stats {
+  padding: 0 4px;
+  color: var(--dg-text-muted);
+  font-size: 10.5px;
+  line-height: 1.3;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity var(--dg-motion-base) ease, transform var(--dg-motion-base) ease;
+}
+html[data-chat-present="doc"] .row:hover .stats,
+html[data-chat-present="doc"] .row:focus-within .stats { opacity: 1; transform: none; }
+html[data-chat-present="doc"].hide-stats .row .stats { display: none !important; }
+
+/* ── Special rows keep their bubbles (fishbowl commentary / moderator) ────── */
+html[data-chat-present="doc"] .row.moderator .meta { color: var(--dg-accent-text); }
+html[data-chat-present="doc"] .row.moderator .bubble {
+  border-color: var(--dg-accent-border);
+  background: var(--dg-accent-bg);
+  color: var(--dg-accent-text);
+}
+html[data-chat-present="doc"] .row.ai.side-right .bubble {
+  border-color: var(--dg-card-border);
+  background: var(--dg-card-fill);
+  color: var(--dg-text-primary);
+}
+
+/* ── Welcome / empty transcript ───────────────────────────────────────────── */
+html[data-chat-present="doc"] #ownchatWelcome .ow-logo {
+  background: var(--dg-accent-bg);
+  color: var(--dg-accent-text);
+}
+html[data-chat-present="doc"] #ownchatWelcome .ow-title { color: var(--dg-text-primary); }
+html[data-chat-present="doc"] #ownchatWelcome .ow-sub { color: var(--dg-text-secondary); }
+html[data-chat-present="doc"] #ownchatWelcome .ow-card {
+  border: 1px solid var(--dg-card-border);
+  border-radius: 10px;
+  background: var(--dg-card-fill);
+  color: var(--dg-text-secondary);
+}
+html[data-chat-present="doc"] #ownchatWelcome .ow-card:hover {
+  border-color: var(--dg-accent);
+  background: var(--dg-control-fill);
+  color: var(--dg-text-primary);
+}
+html[data-chat-present="doc"] #ownchatWelcome .ow-card-ico { color: var(--dg-accent-text); }
+
+/* Choice chips injected by the choices service. */
+html[data-chat-present="doc"] .oc-chip {
+  border-color: var(--dg-card-border);
+  background: var(--dg-card-fill);
+  color: var(--dg-text-secondary);
+}
+html[data-chat-present="doc"] .oc-chip:hover {
+  border-color: var(--dg-accent);
+  background: var(--dg-control-fill);
+  color: var(--dg-text-primary);
+}

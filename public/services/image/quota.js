@@ -162,7 +162,7 @@ function createQuota(ports            )        {
   return { add, getToday, getLimit, setLimit, getRemaining, reset, onChange, snapshot };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/quota.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/quota.ts; this file owns the
 // frozen global name, localStorage, the fetch interception, the change event and the settings card.
 //
 // Two choices are deliberate:

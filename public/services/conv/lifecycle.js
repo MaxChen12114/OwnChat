@@ -101,6 +101,12 @@
                            
                                       
                                          
+                                                                                         
+                                       
+                                                                                                    
+                                      
+                                                                                         
+                                           
                             
                        
                          
@@ -235,6 +241,7 @@ function createLifecycle(ports                )                        {
       p.setSession([]);
       if (!memRestoreSlot(id) && p.historyEnabled()) restoreSessionIfEnabled();
     }
+    p.restoreSummary(id);
     p.renderSummaryChip();
     p.updateSpacer();
     p.scrollToBottom();
@@ -437,6 +444,10 @@ function createLifecycle(ports                )                        {
     } catch (e) {}
     p.writeChatTombstone(convId); // cross-device: without it the other device pulls it back
     p.recordConv(convId, null, "delete");
+    p.removeSummary(convId); // the compressed history of a deleted conversation must not linger
+    // Cold truth cascade (T3-D): events + messages + the summaries row. Best effort — a data
+    // plane that is offline must not block the local delete.
+    try { if (p.removeColdSession) p.removeColdSession(convId); } catch (e) {}
     // Also drop the conversation's agent workspace files, or they become unreadable orphans.
     p.agentWorkspaceRemove(convId);
     const meta = p.loadConvMeta();
@@ -472,7 +483,7 @@ function createLifecycle(ports                )                        {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the conversation lifecycle engine to its frozen
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the conversation lifecycle engine to its frozen
 // global name. Feature checks for cross-module calls (chat realtime, chat events, character cards,
 // agent workspace, agent steps) live here; conversation semantics live in the engine.
 (function () {

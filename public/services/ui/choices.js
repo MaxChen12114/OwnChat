@@ -116,7 +116,7 @@ function chScanSkip(
   return !autoScan || streaming || ocDone || !chFindBlock(raw);
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/choices.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/choices.ts; this file owns the
 // DOM: the stylesheet, the panel/chip construction, the send fallback chain, the bubble
 // TreeWalker strip and the mutation-observer scanning loop.
 //
@@ -125,11 +125,11 @@ function chScanSkip(
 // offer_choices tool or the pause exits call renderChoices explicitly; ③ anywhere —
 // parseAndRender(raw, opts) parses and renders in one step.
 //
-// The send fallback chain (2026-09-10): __app.sendOne first, then #sendBtn click, then a
+// The send fallback chain (2026-09-10): appSvc.sendOne first, then #sendBtn click, then a
 // synthetic Enter keydown last — a compose-into-#msg-then-press-Enter primary path broke on
 // mobile WebViews that swallow synthetic KeyboardEvents, and the 10ms gap allowed double sends.
 (function () {
-  if (window.__choices) return;
+  if (window.choicesSvc) return;
 
   var BAR_ID = "omniChoicesBar";
   var STYLE_ID = "omniChoicesStyle";
@@ -182,8 +182,8 @@ function chScanSkip(
   }
 
   function sendAsUser(text) {
-    if (window.__app && typeof window.__app.sendOne === "function") {
-      try { window.__app.sendOne({ text: text }); return; } catch (e) {}
+    if (window.appSvc && typeof window.appSvc.sendOne === "function") {
+      try { window.appSvc.sendOne({ text: text }); return; } catch (e) {}
     }
     var msg = $("msg");
     if (!msg) return;
@@ -400,7 +400,7 @@ function chScanSkip(
     if (msg) msg.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) clearChoices(); });
   }
 
-  window.__choices = api;
+  window.choicesSvc = api;
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire);
   else wire();

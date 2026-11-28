@@ -2,13 +2,13 @@
  * Retry policy for a failed single agent call: classify, budget, back off, and word the final error.
  *
  * The purest module in the chat domain — no window, no localStorage, no timers — so it needs no
- * ports at all: it exports plain functions and l0/wiring/retry.js binds the frozen `__retry` name
+ * ports at all: it exports plain functions and tooling/l0/wiring/retry.js binds the frozen `__retry` name
  * straight to them. The old IIFE's re-entry guard (`__retry.v===1` means skip) lives in the wiring
  * layer. Sending the request and driving the watchdogs still happen in app.js.
  *
  * Behaviour is 1:1 with the old file, function by function: the constant table, tag masking,
  * classify levels, the total-time gate on budget, exponential backoff with jitter, whyText and the
- * finalError wording. scripts/test-retry-policy.mjs and test/call-loop.test.mjs prove it.
+ * finalError wording. tooling/scripts/test-retry-policy.mjs and test/call-loop.test.mjs prove it.
  *
  * Sources kept from the migration notes:
  *   - DSH @deepseek-ai/dsh-llm retry-policy.js: maxRetries=5, backoff 500ms doubling to 10s, ±10%

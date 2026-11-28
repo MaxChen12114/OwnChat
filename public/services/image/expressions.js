@@ -146,12 +146,10 @@ function createExpressions(ports                 )              {
   return { generate, generateAll, list: EXPRESSION_PRESETS };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/expressions.ts; this file owns
-// the frozen global name, the chat-image edit call, the thumbnail strip and the settings card
-// (that UI has no other consumer, so it ships with the adapter).
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/expressions.ts; this file owns
+// the chat-image edit call, the thumbnail strip and the settings card (that UI has no other
+// consumer, so it ships with the adapter). The frozen global is retired; the engine is a factory.
 (function () {
-  if (window.__expressions) return;
-
   function setStatus(msg) {
     var el = document.getElementById("imgExprStatus");
     if (el) el.textContent = msg || "";
@@ -177,23 +175,19 @@ function createExpressions(ports                 )              {
 
   var expressions = createExpressions({
     hasEdit: function () {
-      return !!(window.__chatImage && typeof window.__chatImage.editImage === "function");
+      return !!(window.chatImageSvc && typeof window.chatImageSvc.editImage === "function");
     },
-    edit: function (arg) { return window.__chatImage.editImage(arg); },
+    edit: function (arg) { return window.chatImageSvc.editImage(arg); },
     activeCard: function () {
-      try { return (window.__character && window.__character.getActiveCard) ? window.__character.getActiveCard() : null; } catch (e) { return null; }
+      try { return (window.characterSvc && window.characterSvc.getActiveCard) ? window.characterSvc.getActiveCard() : null; } catch (e) { return null; }
     },
     status: setStatus,
     onResult: addResult
   });
 
-  window.__expressions = {
-    generate: expressions.generate, generateAll: expressions.generateAll, list: expressions.list
-  };
-
   function activeCharName() {
     try {
-      var c = window.__character && window.__character.getActiveCard ? window.__character.getActiveCard() : null;
+      var c = window.characterSvc && window.characterSvc.getActiveCard ? window.characterSvc.getActiveCard() : null;
       return (c && c.name) || "当前角色";
     } catch (e) { return "当前角色"; }
   }
@@ -215,36 +209,40 @@ function createExpressions(ports                 )              {
   }
 
   function injectCard() {
-    var settings = document.getElementById("settings");
-    if (!settings || document.getElementById("imgExprCard")) return;
-    // Mounted into the image slot explicitly. Falling back to the settings root was only for older
-    // pages whose markup lacked that slot: the card still showed, just at the bottom of the panel.
-    var slot = window.slotRegistry.pick("settingsImageSlot");
-    ensureStyles();
-    var card = document.createElement("div");
-    card.className = "card";
-    card.id = "imgExprCard";
-    var btns = expressions.list.map(function (e) { return '<button data-expr="' + e.key + '">' + e.key + "</button>"; }).join("");
-    card.innerHTML = [
-      '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.5 15c.8-1.2 2-2 3.5-2s2.7.8 3.5 2"/><circle cx="9" cy="9.5" r=".9"/><circle cx="15" cy="9.5" r=".9"/></svg>表情差分包</h4>',
-      '<p>基于当前角色的发图基准图，只改表情、其余（姿势/穿着/背景）不变。当前角色：<b id="imgExprWho"></b>。生成的图自动存入本地画廊。</p>',
-      '<div class="expr-btns">' + btns + '<button data-expr="__all__" style="font-weight:600;">生成全套</button></div>',
-      '<div id="imgExprStatus" style="font-size:12px;opacity:.75;min-height:16px;"></div>',
-      '<div class="expr-results" id="imgExprResults"></div>'
-    ].join("");
-    slot.appendChild(card);
-    var who = document.getElementById("imgExprWho");
-    if (who) who.textContent = activeCharName();
-    card.querySelectorAll(".expr-btns button").forEach(function (b) {
-      b.addEventListener("click", function () {
-        var k = b.getAttribute("data-expr");
-        if (k === "__all__") expressions.generateAll();
-        else expressions.generate(k);
-      });
-    });
-    window.addEventListener("character:changed", function () {
-      var w = document.getElementById("imgExprWho");
-      if (w) w.textContent = activeCharName();
+    // 2026-11-28 card-shell batch 2: shell + declareCard (the old guard checked #settings and its
+    // own id by hand; declareCard owns the mount-once probe and the root fallback). The wiring
+    // below is unchanged — it reads its controls by document id.
+    window.slotRegistry.declareCard({
+      id: "imgExprCard",
+      slotId: "settingsImageSlot",
+      build: function (slot) {
+        ensureStyles();
+        var btns = expressions.list.map(function (e) { return '<button data-expr="' + e.key + '">' + e.key + "</button>"; }).join("");
+        var shell = window.cardShell.createCardShell({
+          id: "imgExprCard",
+          title: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.5 15c.8-1.2 2-2 3.5-2s2.7.8 3.5 2"/><circle cx="9" cy="9.5" r=".9"/><circle cx="15" cy="9.5" r=".9"/></svg>表情差分包',
+          desc: '基于当前角色的发图基准图，只改表情、其余（姿势/穿着/背景）不变。当前角色：<b id="imgExprWho"></b>。生成的图自动存入本地画廊。',
+          extra: '<div class="expr-btns">' + btns + '<button data-expr="__all__" style="font-weight:600;">生成全套</button></div>'
+            + '<div id="imgExprStatus" style="font-size:12px;opacity:.75;min-height:16px;"></div>'
+            + '<div class="expr-results" id="imgExprResults"></div>'
+        });
+        var card = shell.card;
+        slot.appendChild(card);
+        var who = document.getElementById("imgExprWho");
+        if (who) who.textContent = activeCharName();
+        card.querySelectorAll(".expr-btns button").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var k = b.getAttribute("data-expr");
+            if (k === "__all__") expressions.generateAll();
+            else expressions.generate(k);
+          });
+        });
+        window.addEventListener("character:changed", function () {
+          var w = document.getElementById("imgExprWho");
+          if (w) w.textContent = activeCharName();
+        });
+        return card;
+      }
     });
   }
 

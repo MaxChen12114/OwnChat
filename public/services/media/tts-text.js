@@ -88,7 +88,7 @@ function createTtsText()             {
   };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // Text preparation before speaking (voice tags, parentheticals, emphasis, sentence splitting) lives
 // in services/media/tts-text.ts; what stays here is config, probing, synthesis and playback.
 // OwnChat local speech — GPT-SoVITS through the desktop shell's http_request proxy.
@@ -97,7 +97,7 @@ function createTtsText()             {
 // card moved to settings.js, so this file no longer injects it.
 // Requires the tray's "speech - start service" (127.0.0.1:9880) and the http_request command (4.68.0+).
 (function () {
-  if (window.__omniTTS) return;
+  if (window.omniTtsSvc) return;
 
   var LS = {
     ref: "cfw_tts_ref_audio_v1",
@@ -138,7 +138,7 @@ function createTtsText()             {
   }
   function setCurrentWeights(w) { try { lsSet(LS.weightsCur, JSON.stringify({ sovits: (w && w.sovits) || "", gpt: (w && w.gpt) || "" })); } catch (e) {} }
 
-  var inApp = !!(window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke);
+  var inApp = !!(window.tauriSvc && window.tauriSvc.available());
 
   // Native speech config cache: pulled once from Rust's tts_get_config at startup (and before
   // opening settings or a preview) as the single source of truth. Rust keeps it in the local SQLite
@@ -148,7 +148,7 @@ function createTtsText()             {
   async function refreshNativeCfg() {
     if (!inApp) return null;
     try {
-      nativeCfg = await window.__TAURI__.core.invoke("tts_get_config");
+      nativeCfg = await window.tauriSvc.invoke("tts_get_config");
     } catch (e) {
       nativeCfg = null;
       console.warn("[TTS] 读取原生配置失败,暂回退本地缓存", e);
@@ -185,7 +185,7 @@ function createTtsText()             {
   async function probeService() {
     if (!inApp) return false;
     try {
-      await window.__TAURI__.core.invoke("http_request", {
+      await window.tauriSvc.invoke("http_request", {
         method: "GET",
         url: "http://127.0.0.1:" + cfg().port + "/",
         headers: {},
@@ -228,7 +228,7 @@ function createTtsText()             {
       var aux = auxRefs.filter(function (p) { return p && p !== refAudioPath; });
       if (aux.length) payload.aux_ref_audio_paths = aux;
     }
-    var res = await window.__TAURI__.core.invoke("http_request", {
+    var res = await window.tauriSvc.invoke("http_request", {
       method: "POST",
       url: "http://127.0.0.1:" + c.port + "/tts",
       headers: { "Content-Type": "application/json" },
@@ -263,7 +263,7 @@ function createTtsText()             {
   // tts_dir. Desktop only.
   async function listInstalledModels() {
     if (!inApp) return { gpt: [], sovits: [] };
-    try { return await window.__TAURI__.core.invoke("tts_list_models"); }
+    try { return await window.tauriSvc.invoke("tts_list_models"); }
     catch (e) { return { gpt: [], sovits: [], error: String((e && e.message) || e) }; }
   }
   // Hot-swap to the given weight paths directly (no model-list write, no "current" bookkeeping),
@@ -275,7 +275,7 @@ function createTtsText()             {
     if (!sovits && !gpt) return { ok: false, reason: "未提供任何权重路径" };
     var base = "http://127.0.0.1:" + cfg().port;
     async function hit(path, wp) {
-      var res = await window.__TAURI__.core.invoke("http_request", {
+      var res = await window.tauriSvc.invoke("http_request", {
         method: "GET",
         url: base + path + "?weights_path=" + encodeURIComponent(wp),
         headers: {},
@@ -324,7 +324,7 @@ function createTtsText()             {
         streaming_mode: false,
       };
       if (c.promptText) payload.prompt_text = c.promptText;
-      var res = await window.__TAURI__.core.invoke("http_request", {
+      var res = await window.tauriSvc.invoke("http_request", {
         method: "POST",
         url: "http://127.0.0.1:" + c.port + "/tts",
         headers: { "Content-Type": "application/json" },
@@ -353,7 +353,7 @@ function createTtsText()             {
   // the user to update.
   async function pickFile() {
     if (!inApp) return null;
-    try { return await window.__TAURI__.core.invoke("tts_pick_file"); }
+    try { return await window.tauriSvc.invoke("tts_pick_file"); }
     catch (e) { console.warn("[TTS] 选择文件失败(可能是旧版 .exe 未含 tts_pick_file 命令)", e); return null; }
   }
 
@@ -364,10 +364,10 @@ function createTtsText()             {
   async function pickFiles() {
     if (!inApp) return [];
     try {
-      var arr = await window.__TAURI__.core.invoke("tts_pick_files");
+      var arr = await window.tauriSvc.invoke("tts_pick_files");
       return Array.isArray(arr) ? arr.filter(function (p) { return p && typeof p === "string"; }) : [];
     } catch (e) {
-      try { var p = await window.__TAURI__.core.invoke("tts_pick_file"); return p ? [p] : []; }
+      try { var p = await window.tauriSvc.invoke("tts_pick_file"); return p ? [p] : []; }
       catch (e2) { console.warn("[TTS] 多选文件失败(旧版 .exe 无 tts_pick_files/tts_pick_file)", e2); return []; }
     }
   }
@@ -468,6 +468,9 @@ function createTtsText()             {
     return queue;
   }
   function stop() {
+    // Also halt the cloud queue: the speak button and the panic path call this before autoSpeak,
+    // and leaving a cloud clip playing would overlap the next reply.
+    try { if (window.cloudTtsSvc) window.cloudTtsSvc.stop(); } catch (e) {}
     queue = Promise.resolve();
     if (curAudio) { try { curAudio.pause(); } catch (e) {} curAudio = null; }
     if (curWebSrc) { try { curWebSrc.stop(); } catch (e) {} curWebSrc = null; }
@@ -486,10 +489,21 @@ function createTtsText()             {
   // multi-emotion switcher was removed; a future TTS API that splits by emotion can branch inside
   // speak() on refAudioPath — the tag parsing stays in stripVoiceTags.
   function autoSpeak(text) {
+    // Cloud speech (2026-11-25): the settings card in the model-API category opts in per device.
+    // When on, the same speak button and auto-read path use the Worker proxy instead of the local
+    // GPT-SoVITS port; the local engine stays untouched for users who switch it back off.
+    try {
+      var cloud = window.cloudTtsSvc;
+      if (cloud && cloud.cfg().enabled) return cloud.speak(text);
+    } catch (e) {}
     return speak(text);
   }
 
-  window.__omniTTS = { speak: speak, stop: stop, cfg: cfg, refreshNativeCfg: refreshNativeCfg, probeService: probeService, isPlaying: isPlaying, whenIdle: whenIdle, synthWith: synthWith, enqueuePlay: enqueuePlay, splitSentences: splitSentences, cleanForSpeech: cleanForSpeech, getAuxRefs: getAuxRefs, setAuxRefs: setAuxRefs, listInstalledModels: listInstalledModels, switchWeights: switchWeights, getCurrentWeights: getCurrentWeights, applySavedWeights: ensureSavedWeights, warmup: warmup, pickFile: pickFile, pickFiles: pickFiles };
+  var omni = { speak: speak, stop: stop, cfg: cfg, refreshNativeCfg: refreshNativeCfg, probeService: probeService, isPlaying: isPlaying, whenIdle: whenIdle, synthWith: synthWith, enqueuePlay: enqueuePlay, splitSentences: splitSentences, cleanForSpeech: cleanForSpeech, getAuxRefs: getAuxRefs, setAuxRefs: setAuxRefs, listInstalledModels: listInstalledModels, switchWeights: switchWeights, getCurrentWeights: getCurrentWeights, applySavedWeights: ensureSavedWeights, warmup: warmup, pickFile: pickFile, pickFiles: pickFiles };
+  // Cloud speech (2026-11-25) is loaded before this file and exposed under a non-frozen name. Fold it
+  // into the single frozen handle so callers need only one speech object; no new window.__* is added.
+  try { if (window.cloudTtsSvc) omni.cloud = window.cloudTtsSvc; } catch (e) {}
+  window.omniTtsSvc = omni;
 
   // Voice/scene tag protocol — the single implementation since 2026-10-06.
   // Shape: `[key:value]`. A key is at most 8 characters and MUST NOT contain digits or commas; a
@@ -586,7 +600,9 @@ function createTtsText()             {
   // skipped. speak() queues internally, so clips never overlap.
   var autoTimer = null;
   function maybeAutoplay() {
-    if (!cfg().autoplay) return;
+    var cloudOn = false;
+    try { cloudOn = !!(window.cloudTtsSvc && window.cloudTtsSvc.cfg().enabled); } catch (e) {}
+    if (!cfg().autoplay && !cloudOn) return;
     clearTimeout(autoTimer);
     autoTimer = setTimeout(function () {
       var rows = document.querySelectorAll("#chat .row.ai");

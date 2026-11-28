@@ -54,7 +54,7 @@ export function parseToolMode(raw: string | null): ToolSendMode {
 }
 
 /**
- * Build the row model. `toolModePresent` means the policy runtime answered (window.__toolMode
+ * Build the row model. `toolModePresent` means the policy runtime answered (window.toolModeSvc
  * with v === 1, checked by the wiring at render time).
  * @param ports - storage access for the stored choice.
  * @param toolModePresent - whether the tool_search runtime is live this boot.

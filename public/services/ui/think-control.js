@@ -269,7 +269,7 @@ function thinkMenuPosition(
   return { top, left };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/think-control.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/think-control.ts; this file owns the
 // toggle button, the popup menu and every localStorage / provider read.
 //
 // The DOM contract is narrow on purpose: `#thinkToggle`, an optional `.think-label` inside it, and a
@@ -277,8 +277,8 @@ function thinkMenuPosition(
 // thinkRequestPayload / updateThinkToggleUI, so create() must work even when the toggle is absent
 // (sandboxed hosts and tests build the instance without one).
 //
-// Active-channel detection stays here because it reads two optional globals (`__byoProvider`,
-// `__providers`) whose shapes differ; the engine receives a plain {supports, style, model, allowed}.
+// Active-channel detection stays here because it reads two optional globals (`byoProviderSvc`,
+// `providersSvc`) whose shapes differ; the engine receives a plain {supports, style, model, allowed}.
 (function (global) {
   "use strict";
   if (global.__thinkControl) return;
@@ -295,7 +295,7 @@ function thinkMenuPosition(
   /** Active channel as capability input, or null when neither registry answers. */
   function readChannel(host) {
     try {
-      var byo = global.__byoProvider && global.__byoProvider.get ? global.__byoProvider.get() : null;
+      var byo = global.byoProviderSvc && global.byoProviderSvc.get ? global.byoProviderSvc.get() : null;
       if (byo) {
         return {
           supports: byo.supportsThinking,
@@ -304,7 +304,7 @@ function thinkMenuPosition(
           allowed: byo.effortValues,
         };
       }
-      var P = global.__providers;
+      var P = global.providersSvc;
       if (P && P.read) {
         var key = P.effectiveKey ? P.effectiveKey(host.getMode()) : null;
         var parsed = key && P.parseKey ? P.parseKey(key) : null;
@@ -369,8 +369,8 @@ function thinkMenuPosition(
         if (!toggleEl) return;
         var cap = capsNow();
         if (!cap.available) return; // Disabled button: offering dead levels would only confuse.
-        var isLight = (global.__theme && typeof global.__theme.is === "function")
-          ? global.__theme.is("light")
+        var isLight = (global.themeSvc && typeof global.themeSvc.is === "function")
+          ? global.themeSvc.is("light")
           : (lsGet(THEME_KEY) === "light");
         var menu = doc.createElement("div");
         menu.id = "thinkLevelMenu";

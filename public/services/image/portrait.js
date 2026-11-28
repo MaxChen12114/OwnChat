@@ -6,7 +6,7 @@
  *
  * Two things are deliberately kept apart here. Prompt composition is pure and lives below; the
  * image call and the base-image hand-off are ports, because both need modules that are classic
- * scripts (`__image` / `__chatImage`) and neither can be reached from a realm-neutral service.
+ * scripts (`imageStudioSvc` / `chatImageSvc`) and neither can be reached from a realm-neutral service.
  * The style preference is a port too, so the storage key stays with the wiring that owns
  * localStorage and the change event.
  *
@@ -21,21 +21,35 @@
  
 
 const PORTRAIT_STYLES                            = {
-  none: { label: "默认", tags: "" },
+  none: { label: "默认（不指定）", tags: "" },
   real: { label: "写实", tags: "写实风格 / photorealistic" },
-  anime: { label: "动漫·日系", tags: "现代日系动漫 / anime 插画风格" },
+  anime: { label: "动漫（现代日系）", tags: "现代日系动漫 / anime 插画风格" },
   soft: { label: "日系厚涂", tags: "日系厚涂 / Japanese semi-realistic painterly" },
-  webtoon: { label: "韩漫·网漫", tags: "韩漫 / Korean webtoon manhwa" },
-  uscomic: { label: "美漫·美式", tags: "美漫 / American comic" },
-  gufeng: { label: "中式·国风", tags: "中式国风插画 / Chinese gufeng ink painting" },
+  webtoon: { label: "韩漫（网漫）", tags: "韩漫 / Korean webtoon manhwa" },
+  uscomic: { label: "美漫（美式）", tags: "美漫 / American comic" },
+  gufeng: { label: "中式（国风）", tags: "中式国风插画 / Chinese gufeng ink painting" },
   fantasy: { label: "欧美奇幻厚涂", tags: "欧美奇幻厚涂 / Western fantasy concept art" },
   oil: { label: "古典油画", tags: "古典油画 / classical oil painting" },
   water: { label: "水彩", tags: "水彩插画 / watercolor painting" },
-  render3d: { label: "3D·皮克斯", tags: "3D 渲染 / Pixar Disney 3D render" },
-  chibi: { label: "Q版·萝系", tags: "Q 版萝系 / chibi" },
-  inkmanga: { label: "默白漫画", tags: "日式默白漫画 / black-and-white manga" },
+  render3d: { label: "3D（皮克斯渲染）", tags: "3D 渲染 / Pixar Disney 3D render" },
+  chibi: { label: "Q版（萌系）", tags: "Q 版萝系 / chibi" },
+  inkmanga: { label: "黑白漫画", tags: "日式默白漫画 / black-and-white manga" },
   cyber: { label: "赛博朋克", tags: "赛博朋克插画 / cyberpunk" }
 };
+
+/** One picker row; `key` is the stored value, `label` is the user-facing text. */
+                              
+                       
+                         
+ 
+
+/** The picker rows in table order. The settings cards render this, never a local copy. */
+function styleOptions()                {
+  const out                = [];
+  const keys = Object.keys(PORTRAIT_STYLES);
+  for (let i = 0; i < keys.length; i++) out.push({ key: keys[i], label: PORTRAIT_STYLES[keys[i]].label });
+  return out;
+}
 
 const DEFAULT_STYLE = "none";
 const ILLUSTRATION_WARNING = "这是一幅二维插画/手绘作品（绝对不是真人照片）。";
@@ -78,6 +92,8 @@ const STYLE_OPENER = "画风务必严格遵循：";
                              
                          
                                        
+                                                                                         
+                          
  
 
 function recOf(v         )                          {
@@ -197,18 +213,19 @@ function createPortrait(ports               )           {
     },
     getLastImage: function () {
       return lastImage;
-    }
+    },
+    styles: styleOptions
   };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/portrait.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/portrait.ts; this file owns the
 // frozen global name, the localStorage key, the style change event and the two image-module calls.
 //
 // The generation fallback (direct provider call when the workshop module is absent) lives here on
 // purpose: it reads the channel key, the auth token and the endpoint, none of which a
 // realm-neutral service should know about.
 (function () {
-  if (window.__portrait) return;
+  if (window.portraitSvc) return;
 
   function readLS(key) {
     try { return window.localStorage.getItem(key); } catch (e) { return null; }
@@ -219,7 +236,7 @@ function createPortrait(ports               )           {
     if (!key) return Promise.reject(new Error("请先在设置 → 模型 API → 图像渠道填写当前渠道的 Key"));
     var headers = { "Authorization": "Bearer " + key, "Content-Type": "application/json" };
     try {
-      var token = (window.__auth && window.__auth.getToken && window.__auth.getToken()) || readLS("cfw_auth_token_v1") || "";
+      var token = (window.authSvc && window.authSvc.getToken && window.authSvc.getToken()) || readLS("cfw_auth_token_v1") || "";
       if (token) headers["X-Sync-Token"] = token;
     } catch (e) {}
     return window.fetch("/img/v1/images/generations", {
@@ -245,11 +262,11 @@ function createPortrait(ports               )           {
       try { window.dispatchEvent(new window.CustomEvent("imagestyle:changed", { detail: { style: style } })); } catch (e) {}
     },
     activeCard: function () {
-      try { return (window.__character && window.__character.getActiveCard) ? window.__character.getActiveCard() : null; } catch (e) { return null; }
+      try { return (window.characterSvc && window.characterSvc.getActiveCard) ? window.characterSvc.getActiveCard() : null; } catch (e) { return null; }
     },
     generate: function (prompt) {
-      if (window.__image && typeof window.__image.generate === "function") {
-        return window.__image.generate({ prompt: prompt, n: 1, size: "768x1024" }).then(function (data) {
+      if (window.imageStudioSvc && typeof window.imageStudioSvc.generate === "function") {
+        return window.imageStudioSvc.generate({ prompt: prompt, n: 1, size: "768x1024" }).then(function (data) {
           var d = (data && data[0]) || null;
           if (!d) return null;
           return d.url || (d.b64_json ? "data:image/png;base64," + d.b64_json : null);
@@ -258,19 +275,20 @@ function createPortrait(ports               )           {
       return directGenerate(prompt);
     },
     setBaseImage: function (arg) {
-      if (!window.__chatImage || typeof window.__chatImage.setBaseImage !== "function") return Promise.resolve(false);
-      return Promise.resolve(window.__chatImage.setBaseImage(arg)).then(function () { return true; });
+      if (!window.chatImageSvc || typeof window.chatImageSvc.setBaseImage !== "function") return Promise.resolve(false);
+      return Promise.resolve(window.chatImageSvc.setBaseImage(arg)).then(function () { return true; });
     }
   });
 
-  window.__portrait = {
+  window.portraitSvc = {
     generateForActive: portrait.generateForActive, setAsBase: portrait.setAsBase,
     buildPrompt: portrait.buildPrompt, getStyle: portrait.getStyle, setStyle: portrait.setStyle,
-    getStyleTags: portrait.getStyleTags, getLastImage: portrait.getLastImage
+    getStyleTags: portrait.getStyleTags, getLastImage: portrait.getLastImage, styles: portrait.styles
   };
 })();
 
 globalThis.PORTRAIT_STYLES = PORTRAIT_STYLES;
+globalThis.styleOptions = styleOptions;
 globalThis.styleTagsFor = styleTagsFor;
 globalThis.subjectPhrase = subjectPhrase;
 globalThis.buildPromptFor = buildPromptFor;

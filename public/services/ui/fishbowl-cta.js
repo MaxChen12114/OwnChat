@@ -65,7 +65,7 @@ function isMultiFrom(
   }
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/fishbowl-cta.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/fishbowl-cta.ts; this file owns the
 // DOM lookups, the two literal guidance strings, the event listeners and the timed re-sync. Nothing
 // outside this file calls the engine, so it publishes no global — the row's only contract is the DOM
 // it already owns. The literal copy stays here because it is UI text, not comment language.
@@ -77,7 +77,7 @@ function isMultiFrom(
   var LS_MULTI = "tavern_multi_agent_mode_v1";
 
   function queryMulti() {
-    var m = window.__multi;
+    var m = window.multiSvc;
     if (!m || typeof m.isMulti !== "function") return undefined;
     return !!m.isMulti();
   }

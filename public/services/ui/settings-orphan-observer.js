@@ -94,7 +94,7 @@ function createOrphanObserver(ports             )            {
   return { run: run, sweep: sweep };
 }
 
-// Browser wiring (injected by l0/emit.mjs): element lookups, the MutationObserver and the
+// Browser wiring (injected by tooling/l0/emit.mjs): element lookups, the MutationObserver and the
 // click re-sweep; no frozen contract, the old inline script was an anonymous IIFE.
 (function () {
   var settings = document.getElementById("settings");

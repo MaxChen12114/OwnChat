@@ -1,0 +1,21 @@
+# SPIKE (2026-11-27): single-node compose draft for the Node-served OwnChat.
+# 127.0.0.1 binding is deliberate: this server has no rate limiting and proxies paid upstreams.
+# Change to "8787:8787" only on a trusted LAN, and set CHAT_PASSWORD.
+services:
+  ownchat:
+    build: .
+    image: ownchat-local:spike
+    ports:
+      - "127.0.0.1:8787:8787"
+    environment:
+      # Empty CHAT_PASSWORD means "no access gate"; /sync then rejects every request by design.
+      CHAT_PASSWORD: ${CHAT_PASSWORD:-}
+      CHAT_MODE: ${CHAT_MODE:-open}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      AMD_API_KEY: ${AMD_API_KEY:-}
+      EXA_API_KEY: ${EXA_API_KEY:-}
+      DEEPSEEK_SEARCH_API_KEY: ${DEEPSEEK_SEARCH_API_KEY:-}
+    volumes:
+      - ./.local-data:/data
+    restart: unless-stopped

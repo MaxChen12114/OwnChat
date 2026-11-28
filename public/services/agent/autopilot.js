@@ -91,9 +91,19 @@ function apStartPlan(
   return { ok: true, reason: "", mode, persistMode, stopFishbowl: false };
 }
 
+/** @returns the selected address mode; missing means the default dialogue mode. */
+function apAddressOf(raw         )         {
+  return raw == null ? "dialogue" : String(raw);
+}
+
+/** @returns the selected options frequency; missing means "only at forks". */
+function apChoicesOf(raw         )         {
+  return raw == null ? "fork" : String(raw);
+}
+
 /** @returns the address-mode instruction appended to the director prompt. */
 function apAddressContract(raw         )         {
-  const addr = raw == null ? "dialogue" : String(raw);
+  const addr = apAddressOf(raw);
   switch (addr) {
     case "immersive": return "用第二人称直接对“你”说话，可含动作 / 心理 / 场景旁白，旁白用 *…* 或（…）包裹（朗读自动跳过）";
     case "narration": return "用第三人称小说叙事推进剧情";
@@ -103,7 +113,7 @@ function apAddressContract(raw         )         {
 
 /** @returns the [options] rule, or an empty string when options are disabled. */
 function apChoicesRule(raw         )         {
-  const freq = raw == null ? "fork" : String(raw);
+  const freq = apChoicesOf(raw);
   if (freq === "off") return "";
   if (freq === "every") return "本段末尾追加 [选项] ①… ②…（2-4 条，每条一句走向）[/选项]";
   return "仅当出现 ≥2 个合理走向、需要我拍板方向时，本段末才追加 [选项]（2-4 条）[/选项]；连贯推进 / 高潮 / 动作中段不要给";
@@ -148,7 +158,7 @@ function apWrapReason(reason        , aborted         )         {
   return reason || (aborted ? "aborted" : "");
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/agent/autopilot.ts
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/agent/autopilot.ts
 // (mode gate, director prompt, exclusivity snapshot, caps and pacing); this file owns
 // localStorage, the send loop, TTS gating, choice chips and the frozen global facade.
 //
@@ -186,7 +196,7 @@ function apWrapReason(reason        , aborted         )         {
   function whoElseDriving() {
     let fbState = "";
     try {
-      const fb = window.__fishbowl && window.__fishbowl.getState && window.__fishbowl.getState();
+      const fb = window.fishbowlSvc && window.fishbowlSvc.getState && window.fishbowlSvc.getState();
       if (fb && typeof fb.state === "string") fbState = fb.state;
     } catch (e) {}
     let kernelActive = false;
@@ -207,8 +217,8 @@ function apWrapReason(reason        , aborted         )         {
 
   async function gateOnTts() {
     if (!apGateTts(ls(LS.gateTts))) return;
-    if (!window.__TAURI__) return;
-    const tts = window.__omniTTS;
+    if (!window.tauriSvc || !window.tauriSvc.has()) return;
+    const tts = window.omniTtsSvc;
     if (!tts) return;
     if (typeof tts.whenIdle === 'function') { await tts.whenIdle(); return; }
     for (let i = 0; i < 600 && !S._abort; i++) {
@@ -231,13 +241,13 @@ function apWrapReason(reason        , aborted         )         {
   function renderPauseExits() {
     let options = [];
     try {
-      const c = window.__choices;
+      const c = window.choicesSvc;
       options = (c && c.getLastOptions && c.getLastOptions()) || [];
       if (!options.length && c && c.parseChoices) options = (c.parseChoices(lastAiText()) || {}).options || [];
     } catch (e) {}
-    if (!window.__choices || !window.__choices.renderChoices) return;
+    if (!window.choicesSvc || !window.choicesSvc.renderChoices) return;
     try {
-      window.__choices.renderChoices(options, {
+      window.choicesSvc.renderChoices(options, {
         autoSend: false,
         metaActions: [
           { label: '▶ 继续', value: '__ap_continue__' },
@@ -285,7 +295,7 @@ function apWrapReason(reason        , aborted         )         {
     }
     S.endReason = apWrapReason(S.endReason, S._abort);
     S.state = 'ended';
-    try { window.__choices && window.__choices.clearChoices && window.__choices.clearChoices(); } catch (e) {}
+    try { window.choicesSvc && window.choicesSvc.clearChoices && window.choicesSvc.clearChoices(); } catch (e) {}
     emit();
   }
 
@@ -297,7 +307,7 @@ function apWrapReason(reason        , aborted         )         {
     const plan = apStartPlan(ls(LS.mode), whoElseDriving(), !!opts.autoStopOthers, false);
     if (!plan.ok) return { ok: false, reason: plan.reason };
     if (plan.persistMode) lsSet(LS.mode, plan.persistMode);
-    if (plan.stopFishbowl) { try { window.__fishbowl.stop(); } catch (e) {} }
+    if (plan.stopFishbowl) { try { window.fishbowlSvc.stop(); } catch (e) {} }
     S._abort = false; S.seg = 0; S.endReason = ''; S._nextUserText = null;
     S.state = 'running';
     emit();
@@ -320,7 +330,7 @@ function apWrapReason(reason        , aborted         )         {
     try { app() && app().abortCurrent && app().abortCurrent(true); } catch (e) {}
     try { window.__abortCurrent && window.__abortCurrent(); } catch (e) {}
     S.state = 'ended';
-    try { window.__choices && window.__choices.clearChoices && window.__choices.clearChoices(); } catch (e) {}
+    try { window.choicesSvc && window.choicesSvc.clearChoices && window.choicesSvc.clearChoices(); } catch (e) {}
     emit();
   }
   function setMode(mode) { lsSet(LS.mode, mode || ''); emit(); }
@@ -328,7 +338,7 @@ function apWrapReason(reason        , aborted         )         {
 
   function panic() {
     stop('panic');
-    try { window.__omniTTS && window.__omniTTS.stop && window.__omniTTS.stop(); } catch (e) {}
+    try { window.omniTtsSvc && window.omniTtsSvc.stop && window.omniTtsSvc.stop(); } catch (e) {}
     emit();
   }
   try {
@@ -337,7 +347,19 @@ function apWrapReason(reason        , aborted         )         {
     });
   } catch (e) {}
 
-  window.__autopilot = { start, pause, resume, stop, takeover, getState, setMode, onTick, panic };
+  // Settings-card bridge (non-frozen): the six keys and every default/clamp stay in the engine,
+  // so the card cannot disagree with the loop about what "unset" means.
+  window.autopilotCfg = {
+    LS: LS,
+    modeOf: apModeOf,
+    autoOf: apAuto,
+    addressOf: apAddressOf,
+    choicesOf: apChoicesOf,
+    maxSegments: apMaxSegments,
+    gateTts: apGateTts,
+    needsModeMigration: function (raw) { return raw === 'rp'; },
+  };
+  window.autopilotSvc = { start, pause, resume, stop, takeover, getState, setMode, onTick, panic };
 })();
 
 globalThis.AUTOPILOT_LS = AUTOPILOT_LS;
@@ -352,6 +374,8 @@ globalThis.apPacingMs = apPacingMs;
 globalThis.apGateTts = apGateTts;
 globalThis.apModeOf = apModeOf;
 globalThis.apStartPlan = apStartPlan;
+globalThis.apAddressOf = apAddressOf;
+globalThis.apChoicesOf = apChoicesOf;
 globalThis.apAddressContract = apAddressContract;
 globalThis.apChoicesRule = apChoicesRule;
 globalThis.apDirectorPrompt = apDirectorPrompt;

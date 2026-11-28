@@ -2,14 +2,14 @@
  * i18n-dict.js — 中英词典（公开版与私有版共用；只在用户启用英文时按需加载）
  * ─────────────────────────────────────────────────────────────────────────────
  * 键 = 界面上**最终渲染出来的整串文本**（不是源码里的 innerHTML 片段）——引擎按文本节点整串匹配。
- * 因为整串精确命中，用户内容/模型输出不会误翻；不够的走 __i18nPatterns 的插值规则。
- * 增量补翻译 = 只往这里加条目，不用改任何调用点。覆盖度用 `node scripts/check-i18n.mjs` 审计。
+ * 因为整串精确命中，用户内容/模型输出不会误翻；不够的走 i18nPatterns 的插值规则。
+ * 增量补翻译 = 只往这里加条目，不用改任何调用点。覆盖度用 `node tooling/scripts/check-i18n.mjs` 审计。
  * 术语表（与英文 README 对齐）：基座=base / 设定集=lorebook / 角色卡=character card /
  * 好感度=affinity / 多智能体=multi-agent / 氛围音=ambient audio / 指令模块=instruction module /
  * 云同步=cloud sync / 图像工坊=image studio / 提示词编辑器=prompt editor。
  */
 ;(function (g) {
-  g.__i18nDict = {
+  g.i18nDict = {
     // ══ 外壳：顶栏 / 侧栏 / 欢迎页 / 输入区（index.html） ══
     "面板": "Panel",
     "模式": "Mode",
@@ -192,7 +192,6 @@
     "提示词编辑器：编辑 / 导入 指令模块 / 角色 / 设定集的 JSON 资产(SillyTavern 兼容导入)": "Prompt editor: edit and import instruction modules, characters and lorebooks as JSON (SillyTavern-compatible)",
     "创作工坊:写故事 → 一键抽成角色卡 + 设定集(独立页,新标签打开)": "Story studio: write a story, then extract it into character cards + a lorebook in one click (opens in a new tab)",
     "文档式写作台:左大纲右正文,选中文字浮起 AI 续写 / 扩写 / 润色(独立页,新标签打开)": "Document-style writing desk: outline on the left, text on the right; select text to continue, expand or polish it with AI (opens in a new tab)",
-    "节点工作台:拖拽式可视化工作流(节点 = AI 工具 / GIS 处理 / 文本处理),不止于代码;洪都演示平台复用同一引擎(独立页,新标签打开)": "Node flow: drag-and-drop visual workflows (nodes for AI tools, GIS and text processing) — not just code (opens in a new tab)",
     "代码台:浏览器内轻量 IDE — 在线建项目存 IndexedDB、文件树管理、AI 生成/改写文件、一键导出 zip(独立页,新标签打开)": "Code workspace: a lightweight in-browser IDE — projects in IndexedDB, file tree, AI-generated or rewritten files, one-click zip export (opens in a new tab)",
     "音频工作台:文本朗读(粘贴/选文件 → GPT-SoVITS),后续含语音识别/导出/音色(独立页,新标签打开;需桌面 App + 本机语音服务)": "Audio lab: text-to-speech (paste text or pick a file → GPT-SoVITS) (opens in a new tab; needs the desktop app with a local voice service)",
     "角色形象 / 场景图 · 加载中…": "Character art / scene images · loading…",
@@ -206,7 +205,7 @@
     "确定": "OK",
     "取消": "Cancel",
     "访问码": "Access code",
-    "本地记忆": "Local memory",
+    "对话数据": "Chat data",
     "外观风格": "Appearance",
     "氛围音": "Ambient sound",
     "联网搜索": "Web search",
@@ -227,13 +226,25 @@
     "费用与记录": "Costs & logs",
     "API Key 只存本机，不同步。": "API keys stay on this device and are never synced.",
     "自定义直连 · API Key 只存本机": "Custom direct · API key stays on this device",
-    "发送时附带本机历史消息；不进云同步。": "Sends local message history with each request; not synced.",
-    "发送历史消息": "Send message history",
-    "追加自定义提示词": "Append custom prompt",
-    "历史消息越多越费 token；过长时清空对话。": "More history costs more tokens; clear it when it gets long.",
+    "对话会自动保存在本机，并随「云同步」同步；刷新或重开会自动恢复。":
+      "Chats are saved on this device automatically and follow \"Cloud sync\"; a refresh or restart restores them.",
+    "想清掉个别会话，到左栏「对话」里删；这里只保留清空全部会话的入口。":
+      "To remove individual chats, delete them from \"Chat\" in the left sidebar; this card only keeps the clear-all entry.",
+    "清空全部会话会删除本设备所有会话的对话记录与剧情摘要，并同步删除云端备份，不可撤销。":
+      "Clearing all chats deletes every conversation's messages and story summaries on this device, and the cloud backup too. This cannot be undone.",
     "同步到 Cloudflare KV，换浏览器或设备都能看到角色卡、指令模块、亲密度与费用日志。对话历史需勾选「同步聊天历史」；改动 30 秒内自动上传。不同步：访问码与同步状态。": "Sync to Cloudflare KV so character cards, prompt modules, affinity and cost logs follow you across browsers and devices. Chat history requires \"Sync chat history\"; changes upload within 30 seconds. Not synced: access code and sync status.",
     "云同步需要访问码。登录后请求自动带访问码；退出后以访客身份使用你自己的模型渠道与 API Key。": "Cloud sync requires an access code. Once signed in, requests carry it automatically; after signing out you browse as a guest using your own model channel and API key.",
     "访客模式 · 使用你自己的模型渠道与 API Key": "Guest mode · use your own model channel and API key",
+    // ── T3-E 数据备份卡（设置 → 账号 · 数据 · 同步） ──
+    "数据备份": "Data backup",
+    "把统一存储里的会话事件、消息、摘要、角色卡、记忆、知识库、工作区、附件与画廊打包成一个 ZIP。不含 API Key、界面设置与同步游标。导入会替换本机数据，并从事件日志重建消息索引。": "Packs the unified store (session events, messages, summaries, character cards, memory, knowledge base, workspace, attachments and gallery) into one ZIP. API keys, UI settings and sync cursors are excluded. Import replaces this device's data and rebuilds the message index from the event log.",
+    "一并导出本机热窗口（native_kv；自动跳过密钥、设置与同步游标命名空间）": "Include this device's hot-window cache (native_kv; secret, settings and sync-cursor namespaces are skipped automatically)",
+    "导入前请先导出一份当前备份。单表超过 50 万行或 200 MB 会直接拒绝（不做静默截断）；导入失败会回滚到导入前的数据。": "Export a current backup first. A table over 500,000 rows or 200 MB is refused outright (never truncated); a failed import rolls back to the pre-import data.",
+    "导入会用备份内容替换本机全部数据（会话、角色卡、记忆、知识库、工作区、附件、画廊），随后从事件日志重建消息索引并刷新页面。建议先导出一份当前数据。确定继续？": "Import replaces all local data (conversations, character cards, memory, knowledge base, workspace, attachments, gallery), then rebuilds the message index from the event log and reloads the page. Export the current data first. Continue?",
+    "导入并替换": "Import and replace",
+    "正在读取本机数据量…": "Reading local data size…",
+    "导入完成，正在刷新页面": "Import complete — reloading the page",
+    "已取消保存（未写盘）": "Save cancelled (nothing written)",
     // 2026-11-10: 统一主题弹窗 / AI 选项面板新增文案
     "知道了": "Got it",
     "AI 提供选项": "AI suggestions",
@@ -513,13 +524,13 @@
     "开启后发消息会带上本机历史上下文，AI 能记住你们说过的话。仅本设备（不进云同步）。":
       "When on, messages carry this device's history so the AI remembers what you said. This device only (not cloud-synced).",
     "记住本机对话（带上历史消息）": "Remember chats on this device (send history along)",
-    "清空对话": "Clear chats",
+    "清空全部会话": "Clear all chats",
     "记住自定义提示词（每次对话带上）": "Remember custom prompts (attach every time)",
     "网页自定义人物模板": "Custom persona template",
     "仅在顶栏切到「自定义」且当前无角色卡时生效（有卡时角色卡优先，本段不会发送）。适合补充你对 AI 行为的统一要求。仅本设备。":
       "Only applies when the top bar is set to Custom and no character card is active (a card takes precedence and this text is not sent). Good for standing instructions about how the AI should behave. This device only.",
-    "上方「追加自定义提示词」开关控制本内容是否实际发送。留空 = 不追加任何内容。":
-      "The “Append custom prompt” switch above controls whether this is actually sent. Empty = nothing appended.",
+    "这段只在上面开关关掉时发送；留空 = 不追加任何内容。":
+      "Sent only when the switch above is off; empty = nothing appended.",
     "输入自定义人物设定或全局指令…": "Enter a custom persona or global instructions…",
     "个性化": "Personalization",
     "Agent · 个性化": "Agent · Personalization",
@@ -602,7 +613,7 @@
       "Enter the value of your Cloudflare secret CHAT_PASSWORD. It is kept in this browser and signs you in next time.",
     "输入 Cloudflare Secret CHAT_PASSWORD 的值。": "Enter the value of your Cloudflare secret CHAT_PASSWORD.",
     "请先在上方打开「启用云同步」并输入密码,再点立即同步": "Turn on \"cloud sync\" above and enter your password, then press sync now.",
-    "对话历史未同步:勾选上方「同步聊天历史」后,对话才会跨设备共享 ·": "Chat history isn't synced: tick \"sync chat history\" above to share chats across devices ·",
+    "对话历史未同步，本次只上传了设置与资料 ·": "Chat history isn't synced; only settings and profile data were uploaded this time ·",
     "导入将覆盖本地所有数据（角色卡 / 历史 / 指令模块 / 费用日志）。确认？":
       "Importing overwrites all local data (character cards / history / instruction modules / cost log). Continue?",
     "退出登录会清除本地保存的密码 token，并关闭云同步和聊天保护。确认？":
@@ -678,7 +689,7 @@
       "Click a label to play, click again to stop; the highlighted one is playing. Browsers and phone WebViews stay silent until you first tap the page (autoplay rules).",
     "开启后 AI 会在合适时机往对话里\"发\"照片——自拍走基准图改图、场景/物品/宠物走文生图。消耗图像额度,":
       "When on, the AI \"sends\" photos into the chat at fitting moments — selfies edit the reference image, scenes/objects/pets are generated fresh. It spends image quota,",
-    "微信发图（AI 主动发照片）": "WeChat-style image sending (the AI sends photos itself)",
+    "微信发图": "WeChat-style image sending",
     "。生成的图自动存入本地画廊。": ". Generated images land in your local gallery.",
     "工坊/立绘/发图生成的图会自动收进本地相册（浏览器 IndexedDB，最多 60 张）。每张可一键：设为基准图 / 插入对话 / 再改一张 / 下载 / 删除，":
       "Images from the studio, character art and chat are collected into a local album (browser IndexedDB, up to 60). Each one offers: set as reference / insert into chat / edit again / download / delete,",
@@ -697,7 +708,7 @@
     "头像/立绘设置": "Avatar & character art",
     "角色头像（当前角色）": "Character avatar (current one)",
     "发图基准图": "Chat image reference",
-    "图像 API Key（Gitee）": "Image API key (Gitee)",
+    "图像 API Key": "Image API key",
     "图像渠道": "Image channels",
     "渠道是数据，Gitee 只是内置预设；可新增任意 OpenAI 兼容渠道，或本地 ComfyUI。Key 只存本设备，不进云同步。":
       "Channels are data: Gitee is only a built-in preset. Add any OpenAI-compatible endpoint or a local ComfyUI server. Keys stay on this device and are not synced.",
@@ -762,7 +773,7 @@
     "Gitee API Key": "Gitee API key",
     "可留空（本地端点）": "Optional (local endpoint)",
     "（先填模型列表）": "(fill in the model list first)",
-    "，需要单独的 Gitee API Key（LS": ", needs its own Gitee API key (LS",
+    "，需要单独的 Gitee API Key，": ", needs its own Gitee API key",
     "Gitee 免费图像额度每天约": "The Gitee free tier allows about",
     "张。": " images a day.",
     "；直连渠道与本地 ComfyUI 不计入。": "; direct channels and local ComfyUI are not counted.",
@@ -770,17 +781,23 @@
     "跳过验证": "Skip verification",
     "给助手定的 system 行为准则——语言口吻、事实与诚实、扮演与创作、代码与技术、排版格式。":
       "The standing system instructions for the assistant — tone, honesty, roleplay and creation, code and tech, formatting.",
-    "底座是 system 提示词的第一段，所有聊天都吃它——内置模型与自定义直连一样。":
-      "The base is the first block of the system prompt — every chat uses it, whether with built-in or custom-endpoint models.",
+    "基座提示词是 system 提示词的第一段，所有聊天都吃它——内置模型与自定义直连一样。这里选的是它的版本。":
+      "The base prompt is the first block of the system prompt — every chat uses it, whether with built-in or custom-endpoint models. Select its version here.",
     "生效。往那里放一个新文件、部署，这里自动多一项。": " Take effect. Drop a new file there and deploy; a new option shows up here.",
     "（Default = 排序第一份；想让某份当默认，就在它名字最前面加个数字）。切换后":
       " (Default = the first one sorted; to make another the default, prefix its name with a number). After switching,",
-    "生效（上游缓存前缀会重算一次）。往那里放一个新": " takes effect (the upstream cache prefix is recomputed once). Put a new",
+    "生效。往那里放一个新": " takes effect. Put a new",
+    "生效。两套目录各自记住选择，来回切不会丢；目录为空时使用默认档。":
+      " takes effect. Each directory remembers its own choice, so switching back and forth never loses it; an empty directory falls back to the default.",
     "，部署后这里自动多一项。锁定态走的是另一套「基础行为准则」（": " there and deploy; a new option shows up here. The locked state uses a separate \"basic conduct\" set (",
-    "解限底座（基座提示词版本）": "Unlocked base (base-prompt version)",
-    "下拉才会换。解限底座按厂商前缀自动匹配(glm → 2 号、gpt-oss/nemotron → 3 号、其它 → 1 号),新型号不用手配。自带 API 的直连在下面「自定义直连」卡,不受本卡影响。":
-      "the dropdown updates. The unlocked base auto-matches by vendor prefix (glm → #2, gpt-oss/nemotron → #3, others → #1), so new models need no setup. Custom endpoints live in the \"custom endpoint\" card below and ignore this card.",
+    "基座提示词": "Base prompt",
+    "下拉才会换。基座提示词按厂商前缀自动匹配(glm → 2 号、gpt-oss/nemotron → 3 号、其它 → 1 号),新型号不用手配。自带 API 的直连在下面「自定义直连」卡,不受本卡影响。":
+      "the dropdown updates. The base prompt auto-matches by vendor prefix (glm → #2, gpt-oss/nemotron → #3, others → #1), so new models need no setup. Custom endpoints live in the \"custom endpoint\" card below and ignore this card.",
     "决定 Agent 执行动作时的放行尺度(对齐成熟 agent 工具的做法)。": "Decides how freely the agent may act (in line with mature agent tools).",
+    "决定 Agent 执行动作时的放行尺度。": "Decides how freely the agent may act.",
+    // 工具档位下拉：只写档名，不带工具条数（条数随注册表变化，写死会过期）
+    "常用": "Common",
+    "全量": "Full",
     "内容尺度已改为跟随私人模式:解锁即固定拉满,锁定即关闭,不再有等级或开关(退出按钮在设置面板底部)。":
       "Content level now follows the private mode: unlocked = fully open, locked = off; no levels or switches anymore (the exit button is at the bottom of this panel).",
     "轮数决定一次回复能跑多少来回:读写多个文件、多轮检索这类任务要调大;太小会在中途被\"已达最大轮数\"截断。":
@@ -823,8 +840,8 @@
     "缺 description · 目录里只能靠名字触发": "Missing description · only triggerable by name",
     "含 1 个 reference · 不加载": "Contains 1 reference · not loaded",
     "默认基准（\"恢复默认\"回到的就是这些）：": "Built-in defaults (what \"restore defaults\" restores):",
-    "留空是推荐状态。开思考时 max_tokens 会被推理内容占用，设小了会出现正文被截断或空白 —— 写长文建议 8192。温度设 0 不等于更准，长对话会明显重复；若换模型后上游报错，回来清空或调低。":
-      "Blank is the recommended state. With thinking on, max_tokens is consumed by reasoning — too small and the body is cut off or empty (8192 is a good baseline for long writing). Temperature 0 is not \"more accurate\"; long chats repeat noticeably. If a new model errors upstream, come back and clear or lower it.",
+    "留空是推荐状态。开思考时 max_tokens 会被推理内容占用，设小了会出现正文被截断或空白 —— 写长文建议 8192。温度设 0 不等于更准，长对话会明显重复；若换模型后服务商报错，回来清空或调低。":
+      "Blank is the recommended state. With thinking on, max_tokens is consumed by reasoning — too small and the body is cut off or empty (8192 is a good baseline for long writing). Temperature 0 is not \"more accurate\"; long chats repeat noticeably. If a new model errors at the provider, come back and clear or lower it.",
     "温度 1.0（0~2）· max_tokens 不传时 非思考 8K / 思考 64K（DeepSeek 官方文档；免费档 NIM 为 vLLM 系，温度默认同为 1.0）。注意：":
       "Temperature 1.0 (range 0–2) · max_tokens defaults to 8K without thinking, 64K with (DeepSeek docs; the free NIM tier is vLLM-based, also 1.0 by default). Note:",
     "生成参数（Generation Params）": "Generation parameters",
@@ -859,7 +876,7 @@
     "API Key(本地 vLLM/ollama 可留空)": "API key (leave blank for local vLLM / ollama)",
     "填自带的 OpenAI 兼容端点(GPT/Qwen/GLM/Kimi/本地 vLLM 等)。现在可先拉取该端点真实模型列表再选择；拉不到也能手填。填了就":
       "Point OwnChat at your own OpenAI-compatible endpoint (GPT / Qwen / GLM / Kimi / local vLLM…). You can fetch its real model list, or type a model id by hand. Once set,",
-    "直连该端点，自定义模型仍吃解限底座。Key 当前仍": " requests go straight there and the base prompt still applies. The key currently lives",
+    "直连该端点，自定义模型仍吃基座提示词。Key 当前仍": " requests go straight there and the base prompt still applies. The key currently lives",
     "● 已启用自定义直连 · mock-model": "● Custom endpoint enabled · mock-model",
     "要带 token,关闭后聊天接口公开(任何扫到域名的人都能用你的余额)。":
       "requests must carry the token; with this off the chat API is public (anyone who finds the URL can spend your balance).",
@@ -931,8 +948,8 @@
     "你自己的 Worker": "your own Worker",
     "可选:开启后调用": "Optional: when on it calls",
     "图像工坊（生图/改图）调用": "Used by the image studio (generate / edit)",
-    "Skill 系统（技能）": "Skill system",
-    "全局画风（全站出图生效）": "Global art style (applies to every generation)",
+    "Skill 系统": "Skill system",
+    "全局画风": "Global art style",
     "角色立绘 → 发图基准图": "Character art → chat image reference",
     "当前角色基准图": "Current character reference",
     "微信发图基准图": "WeChat image reference",
@@ -943,7 +960,7 @@
     "。消耗 1 次图像额度，": ". Costs 1 image credit,",
     "。本站发图成功时按图片张数累加，": ". Counts up per image generated on this site,",
     "不再消耗当日额度": "no longer spends today's quota",
-    "图像额度计数（每日）": "Image quota counter (daily)",
+    "图像额度计数": "Image quota counter",
     "的画风，工坊手动文生图不受影响，仅本设备。": " style; manual generations in the studio are unaffected. This device only.",
     "，云端保存放下一步。": "; cloud storage comes later.",
     "每会话上限填 0 = 不限;冷却填 0 = 不限频。基准图用于\"自拍\"类发图把脸固定下来,场景/物品图不用基准图。":
@@ -1233,7 +1250,30 @@
     "计划模式：先出计划，不动手": "Plan mode: plan first, no actions",
     "宋体（Noto Serif）": "Serif (Noto Serif)",
     "开发工具 · 源码/产物检索": "Developer tools · Source/artifact search",
-    "本地语音（TTS，仅桌面版）": "Local voice (TTS, desktop only)",
+    "本地语音": "Local voice",
+    "DeepSeek 全家桶 · 云端语音": "DeepSeek Kit · cloud voice",
+    "DeepSeek 全家桶": "DeepSeek Kit",
+    "朗读引擎": "Reading engine",
+    "不朗读": "Off",
+    "云端": "Cloud",
+    "本地": "Local",
+    "服务端工具": "Server-side tools",
+    "读链接": "Read URL",
+    "安全校验": "Safety check",
+    "已切到云端语音": "Switched to cloud voice",
+    "已切到本地语音（桌面版需启动 GPT-SoVITS）": "Switched to local voice (start GPT-SoVITS on desktop)",
+    "朗读已关闭": "Reading off",
+    "已开启读链接": "Read URL on",
+    "已关闭读链接": "Read URL off",
+    "已开启安全校验": "Safety check on",
+    "已关闭安全校验": "Safety check off",
+    "用服务端 DeepSeek 语音合成把 AI 回复读出来，无需本机启动语音服务，网页版也能用。语音按量计费（约 ¥0.01/千字符），Key 只在你的 Worker 里。": "Read AI replies aloud with DeepSeek's server-side speech synthesis — no local voice service needed, works in the browser too. Billed per use (about ¥0.01 per 1K characters); the key stays in your Worker.",
+    "服务端未配置 DEEPSEEK_API_KEY，云端语音不可用。部署侧执行 wrangler secret put DEEPSEEK_API_KEY 后刷新本页。": "DEEPSEEK_API_KEY is not configured on the server, so cloud voice is unavailable. Run wrangler secret put DEEPSEEK_API_KEY on the deployment and reload.",
+    "自动朗读每条 AI 回复": "Read every AI reply aloud",
+    "音色": "Voice",
+    "开启后与「语音」分类的本地 GPT-SoVITS 同时可用，但同一句只会走一种；想用本地音色就关掉这里。朗读按钮在每条 AI 回复左下角。": "When enabled this works alongside local GPT-SoVITS in the Voice tab, but each sentence uses only one engine; turn this off to use the local voice. The speak button sits at the lower-left of every AI reply.",
+    "服务端未配置 DEEPSEEK_API_KEY": "DEEPSEEK_API_KEY is not configured on the server",
+    "服务端未配置": "Not configured on the server",
     "参考音频对应文字 (可留空)": "Reference audio transcript (optional)",
     "稳定音色 / 多参考（可选）": "Stable voice / multiple references (optional)",
     "Notion 风格，日/夜双态": "Notion style, light/dark",
@@ -1257,13 +1297,15 @@
     "私下小会（向角色私下征询，结论不进时间线）": "Private meeting (consult characters privately; conclusions stay out of the timeline)",
     "每次小会最多几位角色（每位都是一次独立计费调用）": "Max characters per meeting (each is a separately billed call)",
     "最大工具轮数(默认不限；填 1~1000 自设上限)": "Max tool rounds (unlimited by default; set 1–1000 for a cap)",
+    "留空 = 不限；填 1~1000 可自设一次回复的最大工具轮数。改完下一次开 Agent 生效。":
+      "Leave empty for no limit; set 1–1000 to cap the tool rounds in one reply. The change takes effect the next time Agent mode starts.",
     "该渠道模型支持思考（会补 reasoning 历史）": "This channel's models support thinking (reasoning history included)",
     "还没拉取过模型列表 · 点上面「拉取模型列表」（拉不到可手填）": "No model list fetched yet · click “Fetch model list” above (or type a model manually)",
     "API Key（本地 vLLM/ollama/LM Studio 可留空）": "API Key (can be empty for local vLLM/ollama/LM Studio)",
     "手填 .wav 路径,可一次多条(用 ; 或 | 分隔);或点「选择文件」多选": "Type .wav paths (separate multiple with ; or |), or click “Choose files”",
     "向左变慢、向右变快(1.00× 为模型原速)。觉得太快就拉到 0.85～0.9。": "Left is slower, right is faster (1.00× = model speed). If it feels too fast, set 0.85–0.9.",
     "Endpoint（/v1/chat/completions 全路径，或 /v1 base）": "Endpoint (full /v1/chat/completions path, or /v1 base)",
-    "用本机 GPT-SoVITS 把 AI 回复读出来。先在托盘「语音启动服务」，再填参考音频。": "Read AI replies aloud with local GPT-SoVITS. Start the voice service from the tray first, then fill in the reference audio.",
+    "用本机 GPT-SoVITS 把 AI 回复读出来，仅桌面版可用。先在托盘「语音启动服务」，再填参考音频。": "Read AI replies aloud with local GPT-SoVITS (desktop only). Start the voice service from the tray first, then fill in the reference audio.",
     "--artifacts 目录": "--artifacts directory",
     "聊天走哪个模型渠道，这里说了算。左侧选渠道（点击即切换），右侧看详情：拉取模型列表、": "The model channel used for chat is decided here. Pick a channel on the left (click to switch) and view details on the right: fetch the model list, ",
     "「预设渠道」的 Key 在服务端 Worker 里（本页只见状态）；「自定义渠道」可接任意 OpenAI 兼容端点（云厂商 / 本地 vLLM、ollama、LM Studio），Key 仅存本设备": "Preset channel keys live in the server-side Worker (this page only shows status); custom channels can point at any OpenAI-compatible endpoint (cloud vendors / local vLLM, ollama, LM Studio), and the Key is stored only on this device",
@@ -1384,7 +1426,7 @@
     "请求超时": "Request timed out",
     "单文件超过 5MB": "A single file exceeds 5 MB",
     "解压后总量超过 20MB": "Total size after extraction exceeds 20 MB",
-    "技能系统未就绪 (skills.js / window.__skills)": "Skill system not ready (skills.js / window.__skills)",
+    "技能系统未就绪 (skills.js / window.skillsSvc)": "Skill system not ready (skills.js / window.skillsSvc)",
     "已请求停止": "Stop requested",
     "工具出错": "Tool error",
     "小会结束，汇总中…": "Huddle ended; summarizing…",
@@ -1435,7 +1477,7 @@
     "嗯": "Mm.",
     "切换失败:": "Switch failed: ",
     // —— 语音卡拼接诊断串的常量片段：按审计抽取原样入册（源码 \n 转义在审计键里呈字母 n 伪影，
-    //    与既有「已清空全部辅助参考(原」等片段键同一口径）。运行时整串形态由 __i18nPatterns 的
+    //    与既有「已清空全部辅助参考(原」等片段键同一口径）。运行时整串形态由 i18nPatterns 的
     //    B6 规则翻译——整串 tr() 查不中片段键，片段键只喂审计、不参与运行时。
     "GPT-SoVITS 收到请求但合成失败了 —— 多半是当前所选底模和你的 GPT-SoVITS 核心版本不兼容(换回匹配的 .pth + .ckpt,或升级 GPT-SoVITS 核心再试)。nnapi_v2 原始报错:n": "GPT-SoVITS received the request but synthesis failed — most likely the selected base model doesn't match your GPT-SoVITS core (switch back to the matching .pth + .ckpt, or upgrade the GPT-SoVITS core and retry).\n\napi_v2 raw error:\n",
     "nn(同样的红字也会打印在你的 api_v2 控制台窗口里)": "\n\n(The same red text is printed in your api_v2 console window)",
@@ -1576,7 +1618,7 @@
     "（空内容）": "(empty)",
     "指令模块": "Instruction modules",
     "角色": "Characters",
-    "编辑每轮注入 system 的附加指令（解限底座之后的语调/任务约束层）。带仓库文件名的条目来自 src/prompts/presets/（库），你可以改名、改内容、停用或新建；点「从库重载」把库里新增的条目拉进来（同名会被库原文覆盖）。": "Edits extra instructions injected into system each round (the tone/task-constraint layer after the unlock base). Entries with a repo filename come from src/prompts/presets/ (the library) — rename, edit, disable or create new; \"Reload from library\" pulls in newly added ones (same-name entries get overwritten by the library text).",
+    "编辑每轮注入 system 的附加指令（基座提示词之后的语调/任务约束层）。带仓库文件名的条目来自 src/prompts/presets/（库），你可以改名、改内容、停用或新建；点「从库重载」把库里新增的条目拉进来（同名会被库原文覆盖）。": "Edits extra instructions injected into system each round (the tone/task-constraint layer after the base prompt). Entries with a repo filename come from src/prompts/presets/ (the library) — rename, edit, disable or create new; \"Reload from library\" pulls in newly added ones (same-name entries get overwritten by the library text).",
     "编辑角色卡的完整字段（身份/背景、场景、性格、说话方式、行为铁则、示例对话），支持导入 SillyTavern V2 卡与 PNG 卡。与左栏「角色卡」是同一份数据（都存本机 IndexedDB）：左栏负责快速切换，这里负责集中管理与导入导出。": "Edits the full fields of a character card (identity/background, scenario, personality, speaking style, hard rules, example dialog). Imports SillyTavern V2 and PNG cards. Same data as the left sidebar's \"Character cards\" (both in local IndexedDB): the sidebar switches quickly, this one is for central management and import/export.",
     "这里改的是本机数据（与左栏面板共用同一份），不会触发聊天。Esc 退出。": "Edits local data (shared with the left sidebar panel) and doesn't trigger a chat. Esc to exit.",
     "关闭(ESC)": "Close (ESC)",
@@ -1982,7 +2024,7 @@
     "先写点故事再排版": "Write a story first, then lay out",
     "没识别到段落": "No paragraphs recognized",
     "共": "Total ",
-    "段 · 给想配图的段落点「为这段配图」": " paragraphs · click \"Illustrate this paragraph\" on the ones you want illustrated",
+    "段 · 给想配图的段落点「为这段配图」，或点「全文配图」": " paragraphs · click \"Illustrate this paragraph\" on the ones you want, or \"Illustrate all\"",
     "已复制文字（图片请用「导出 HTML」保留）": "Text copied (keep images via \"Export HTML\")",
     "已复制文字": "Text copied",
     "复制失败，请手动选择": "Copy failed — select manually",
@@ -2000,15 +2042,13 @@
     "参与者": "Participants ",
     "发言": "Statements ",
     "场": " sessions",
-    "· 已看到彼此上一轮结论": "· each saw the others' last-round conclusions",
-    "· 各自独立作答": "· answering independently",
+    "看过彼此上一轮结论后补充": "builds on the last round's conclusions",
+    "各自独立作答": "each answers independently",
     "（这一位失败：": "(this one failed: ",
     "会商": "Council",
     "会议": "Meeting",
     "（未命名议题）": "(untitled topic)",
     "还没有议题。等一次召集。": "No topics yet. Waiting for a convening.",
-    "三方会商（ZCode / DSH / 主站）· 共用本机留言板": "Three-party council (ZCode / DSH / main app) · shared local message board",
-    "独立上下文 · 并行作答 · 结论回给主 agent": "Independent contexts · parallel answers · conclusions go back to the main agent",
     "没有进行中的讨论": "No discussion in progress",
     "本轮讨论结束 · 结论已回给主 agent": "This round ended · conclusions returned to the main agent",
     "未命名线程": "Untitled thread",
@@ -2049,7 +2089,6 @@
     "GeoJSON 输入 / 缓冲区 / 质心": "GeoJSON input / buffer / centroid",
     "酒馆 · AI 工具": "Tavern · AI tools",
     "代码 · 工具": "Code · tools",
-    "洪都 · GIS(占位)": "Hongdu · GIS (placeholder)",
     "— 手填一段文字,作为流程起点。": "— type a piece of text as the flow's starting point.",
     "占位,把上游文本嵌进你写的模板里。": "placeholder slots upstream text into your template.",
     "— 把输入发给模型产出文本,可选系统提示和模型。": "— sends the input to the model for text; system prompt and model optional.",
@@ -2110,7 +2149,7 @@
     "(全设备)": "(all devices)",
     "· 多设备": " · multi-device",
     "次 · in": " calls · in ",
-    "用量与费用日志（API 调用）": "Usage & cost log (API calls)",
+    "用量与费用日志": "Usage & cost log",
     "已导出到剪贴板": "Copied to clipboard",
     "确定清空所有费用日志？此操作不可恢复。n建议先导出备份。": "Clear all cost logs? This can't be undone.\nExport a backup first.",
     "请先在设置里启用云同步（需密码）后再同步费用": "Enable cloud sync (password required) in Settings before syncing costs",
@@ -2352,9 +2391,88 @@
     "质心": "Centroid",
     "(占位)求要素质心。正式版接 Turf.js centroid。": "(placeholder) computes the feature centroid. The release version wires in Turf.js centroid.",
     "质心点": "Centroid point",
+    // ══ T4-B：首次运行向导（管理员密码 / 模型 Key / 同步） ══
+    "首次设置": "First-time setup",
+    "管理员密码": "Admin password",
+    "使用本机密码": "Use local password",
+    "验证并保存": "Verify & save",
+    "宿主首次启动会自动生成密码，保存在数据目录的 admin-password.txt。": "The host generates a password on first start and keeps it in admin-password.txt inside the data folder.",
+    "模型 Key": "Model key",
+    "保存模型 Key": "Save model key",
+    "Key 只保存在本机（渠道注册表），不会写进仓库文件。": "The key stays on this machine (channel registry); it is never written into repo files.",
+    "服务地址（OpenAI 兼容端点）": "Service URL (OpenAI-compatible endpoint)",
+    "模型 id": "Model id",
+    "开启云同步（多设备）": "Enable cloud sync (multi-device)",
+    "只在本机用可以不开启；开启后设置与会话会推到宿主，下次启动生效。": "Not needed for single-machine use; when on, settings and chats are pushed to the host and take effect next start.",
+    "需要管理员密码": "Admin password required",
+    "已登录": "Signed in",
+    "未设置": "Not set",
+    "已开启": "On",
+    "请输入管理员密码": "Enter the admin password",
+    "正在验证…": "Verifying…",
+    "请填写 API Key": "Please enter an API key",
+    "API Key 太短，请检查是否复制完整": "That API key is too short — check the copy",
+    "API Key 里不能有空格": "The API key cannot contain spaces",
+    "服务地址要以 http:// 或 https:// 开头": "The service URL must start with http:// or https://",
+    "首次设置的模型": "Model from first-time setup",
+    "已保存，下一条消息就会用这个渠道": "Saved — the next message uses this channel",
+    "还没找到本机密码文件：宿主首次启动后会自动生成": "No local password file yet — the host creates one on its first start",
+    "已填入本机密码，点「验证并保存」继续": "Local password filled in — press Verify & save to continue",
+    "当前环境不支持读取本机密码": "This environment cannot read the local password",
+    "模型渠道注册表不可用，无法保存": "The channel registry is unavailable; cannot save",
+    "渠道创建失败": "Could not create the channel",
+    "宿主状态：检测中…": "Host status: checking…",
+
+    // —— T4-C 部署卡 / 首连三选一（services/ui/settings-deploy.ts + tooling/l0/wiring/settings-deploy.js）
+    "部署": "Deploy",
+    "把 OwnChat 部署到你自己的 Cloudflare Worker 或 VPS（Docker + Caddy TLS），完成后回填宿主 profile。": "Deploy OwnChat to your own Cloudflare Worker or VPS (Docker + Caddy TLS), then write the host profile back.",
+    "目标宿主": "Target host",
+    "预览命令": "Preview commands",
+    "开始部署": "Start deploy",
+    "回滚上次部署": "Roll back last deploy",
+    "确认并开始部署": "Confirm and start",
+    "部署执行器未加载（deployer.js）": "Deploy executor is not loaded (deployer.js)",
+    "当前 profile 不提供部署向导：需要已登录账号、桌面本机或自托管宿主。": "This profile does not offer the deploy wizard: sign in, or use the desktop / self-hosted host.",
+    "运行时 manifest 尚未加载": "Runtime manifest is not loaded yet",
+    "部署完成": "Deploy finished",
+    "verify 失败，已停止": "Verify failed — stopped",
+    "部署失败": "Deploy failed",
+    "执行中…": "Running…",
+    "回滚中…": "Rolling back…",
+    "回滚完成": "Rollback finished",
+    "回滚失败": "Rollback failed",
+    "没有可回滚的部署记录。": "No deploy run to roll back.",
+    "预览完成：确认后才会执行（secret 值显示为 ***）。": "Preview ready: nothing runs until you confirm (secret values show as ***).",
+    "部署包或输入不合法": "The pack or the inputs are invalid",
+    "检测到新宿主：先选哪边为准": "New host detected: choose which side wins",
+    "本机为准": "Keep this device",
+    "宿主为准": "Keep the host",
+    "合并": "Merge",
+    "备份模块未就绪": "Backup module is not ready",
+    "先自动备份": "Back up first",
+    "检测到新宿主：到 设置 → 部署 选择以本机为准 / 宿主为准 / 合并": "New host detected: open Settings → Deploy to keep this device, keep the host, or merge",
+    "备份模块（backupSvc）未就绪：继续不会自动备份。建议先到「设置 → 云同步」导出备份。": "The backup module (backupSvc) is not ready: continuing will not back anything up. Export a backup first via Settings → Cloud sync.",
+    "无法识别当前宿主（缺少 origin），首连选择暂不可用。": "This host cannot be identified (no origin), so the first-connect choice is unavailable.",
+    "保留本机设置与热窗口，下一次同步以本机为准上传；不会删除宿主上的角色卡与记忆（它们本来就在宿主存储里）。": "Keep this device's settings and hot window; the next sync uploads them. Character cards and memory on the host are not deleted (they live in host storage).",
+    "从宿主拉取设置与对话热窗口，覆盖本机这份；角色卡与记忆直接从宿主读取。": "Pull settings and the chat hot window from the host over this copy; character cards and memory are read from the host directly.",
+    "按较新时间合并两边热窗口，冲突不静默覆盖；动手前先自动备份。": "Merge both hot windows by newest time without silently overwriting conflicts; back up first.",
+    "已按本机为准：本机设置将覆盖云端热窗口。": "Kept this device: this device's settings will overwrite the cloud hot window.",
+    "已按合并处理：从宿主拉取并合并热窗口。": "Merged: pulled and merged the hot window from the host.",
+    "已按宿主为准：正在从宿主拉取。": "Kept the host: pulling from the host now.",
+    "已按本机为准（云同步未启用：只记录选择，未上传）。": "Kept this device (cloud sync is off: choice recorded, nothing uploaded).",
+    "已记录选择（云同步模块未就绪：没有执行拉取）。": "Choice recorded (cloud sync is not ready: nothing pulled).",
   };
 
-  g.__i18nPatterns = [
+  g.i18nPatterns = [
+    // T4-C 部署卡：动态拼接线（profile 行 / 确认标题 / 结果行）
+    [/^profile：(.+) · 能力：(.+)$/, "profile: $1 · capabilities: $2"],
+    [/^部署到 (.+)$/, "Deploy to $1"],
+    [/^已记录宿主 profile：(.+)$/, "Host profile recorded: $1"],
+    [/^部署包未发布或不可读：(.+)$/, "Deploy pack is missing or unreadable: $1"],
+    [/^回滚完成（(\d+) 步；跳过 (\d+) 步）。$/, "Rollback finished ($1 steps; $2 skipped)."],
+    [/^回滚失败：(.+)$/, "Rollback failed: $1"],
+    [/^部署异常：(.+)$/, "Deploy error: $1"],
+    [/^回滚异常：(.+)$/, "Rollback error: $1"],
     // 图像渠道列表标签
     [/^OpenAI 兼容 · 模型 (.+)$/, "OpenAI-compatible · model $1"],
     [/^本机 ComfyUI · (.+)$/, "Local ComfyUI · $1"],
@@ -2603,5 +2721,20 @@
     [/^循环处理：第 (\d+) 项 JS 出错$/, "Loop process: item #$1 JS error"],
     [/^JSON 提取：路径「(.+)」在第 (\d+) 段中断$/, "JSON extract: path \"$1\" broke at segment $2"],
     [/^GeoJSON 解析失败:(.*)$/, "GeoJSON parse failed: $1"],
+    // ══ T3-E：数据备份卡的动态状态行（计数/进度/文件路径） ══
+    [/^本机现有 (\d+) 张表 \/ (\d+) 行数据。$/, "$1 tables / $2 rows on this device."],
+    [/^读取本机数据量失败：(.*)$/, "Failed to read local data size: $1"],
+    [/^导出失败：(.*)$/, "Export failed: $1"],
+    [/^已导出 (\d+) 张表 \/ (\d+) 行（(.+) MB）→ (.*)$/, "Exported $1 tables / $2 rows ($3 MB) → $4"],
+    [/^已导出（有 (\d+) 条提示）：([\s\S]+)$/, "Exported with $1 warning(s): $2"],
+    [/^正在导入 (.+) …$/, "Importing $1…"],
+    [/^导入完成：(\d+) 行，重建 (\d+) 个会话 \/ (\d+) 条消息。正在刷新页面…$/, "Import complete: $1 rows, rebuilt $2 conversations / $3 messages. Reloading…"],
+    [/^导出中：(.*)（(\d+)\/(\d+)）$/, "Exporting:$1 ($2/$3)"],
+    [/^校验(.*)（(\d+)\/(\d+)）$/, "Validating$1 ($2/$3)"],
+    [/^统计(.*)（(\d+)\/(\d+)）$/, "Counting$1 ($2/$3)"],
+    [/^导入中(.*)（(\d+)\/(\d+)）$/, "Importing$1 ($2/$3)"],
+    [/^从事件日志重建消息索引（(\d+)\/(\d+)）$/, "Rebuilding the message index from events ($1/$2)"],
+    [/^回滚中(.*)（(\d+)\/(\d+)）$/, "Rolling back$1 ($2/$3)"],
+    [/^写盘失败：(.*)$/, "Write failed: $1"],
   ];
 })(typeof globalThis !== "undefined" ? globalThis : window);

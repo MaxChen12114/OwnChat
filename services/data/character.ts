@@ -5,7 +5,13 @@
  * Everything the browser owns arrives through {@link CharacterPorts}: the card store, key-value
  * storage, the change event, the uid clock and the best-effort hooks into sibling domains. This
  * file touches no `window`, `localStorage` or `document`; the adapter and the whole card panel
- * live in l0/wiring/character.js.
+ * live in tooling/l0/wiring/character.js.
+ *
+ * Storage is the unified `chars(id, name, data)` table behind the DbPort facade. Cards used to live
+ * in the IndexedDB stores `tavern_chars_v2/chars` + `/affections`; {@link createSqlCardStore} is the
+ * replacement adapter, {@link planCharsMigration} + {@link applyCharsMigration} are the one-time
+ * copy, and both stay here (not in the wiring) so the mapping is testable against SQLite without a
+ * browser.
  *
  * Cards are opaque records. Other writers (agent tools, studio) own fields this module knows
  * nothing about, so a save normalizes only the fields listed on {@link CharacterCard} and lets
@@ -26,18 +32,47 @@ export interface KvStorage {
 export type RawCard = Record<string, unknown>;
 
 /**
- * Card store port: two object stores in the browser (cards keyed by `id`, affections keyed by
- * `cardId`), an in-memory map in the tests. `cardId` is typed `unknown` because the id read back
- * from storage is whatever a previous writer put there.
+ * Card store port: one row per card plus the affection score that belongs to it. The browser
+ * adapter is SQL over the DbPort facade ({@link createSqlCardStore}); the tests use an in-memory
+ * map. `cardId` is typed `unknown` because the id read back from storage is whatever a previous
+ * writer put there.
  */
 export interface CardStore {
   all(): Promise<RawCard[]>;
   put(card: unknown): Promise<void>;
   remove(id: unknown): Promise<void>;
-  /** `null` when the card has no row yet; a non-numeric row also reads as `null`. */
+  /** `null` when the card has no score yet; a non-numeric value also reads as `null`. */
   getAffection(cardId: unknown): Promise<number | null>;
   putAffection(cardId: unknown, value: number): Promise<void>;
   removeAffection(cardId: unknown): Promise<void>;
+}
+
+/**
+ * The one statement surface the SQL card store needs. `window.dbSvc` (the DbPort facade) satisfies
+ * it structurally; the tests pass the same shape over the D1 shim. Rows are plain objects keyed by
+ * column name.
+ */
+export interface CardSqlPort {
+  exec(sql: string, params?: unknown[]): Promise<{ rows: unknown[] }>;
+}
+
+/** Knobs of {@link createSqlCardStore}. */
+export interface SqlCardStoreOptions {
+  /** Clock for the affection stamp. Defaults to `Date.now`. */
+  now?: () => number;
+  /** Called for a row whose `data` column is not a JSON object; the row is skipped, never guessed at. */
+  onCorruptRow?: (id: string, error: unknown) => void;
+}
+
+/** The one-time copy from the legacy IndexedDB stores, already mapped to the SQL shape. */
+export interface CharsMigrationPlan {
+  /** Cards as they will be written; ids are the legacy `u_<base36>` ones so active-id references survive. */
+  cards: RawCard[];
+  /** Scores that still have a card; orphaned scores are counted, not invented into ghost cards. */
+  affections: { cardId: string; value: number }[];
+  /** Rows dropped by the mapping rules: no id, or a score without a number. */
+  skippedCards: number;
+  skippedAffections: number;
 }
 
 /** Sibling-domain hooks. Every one of them is best-effort: the wiring layer swallows failures. */
@@ -172,11 +207,30 @@ const KEY_PENDING_EVENTS = "tavern_aff_pending_v1";
 /** Per-card set of already-fired thresholds, so a band only fires once. */
 const KEY_TRIGGERED_PREFIX = "tavern_aff_triggered_";
 const KEY_CHAR_CAPS = "cfw_char_caps_v1";
+/**
+ * Set once the legacy IndexedDB cards have been copied into the `chars` table. The value carries
+ * the counts so a support session can tell what happened; absence means "retry on next boot".
+ */
+export const CHARS_IDB_MIGRATED_KEY = "cfw_chars_idb_migrated_v1";
+
+/**
+ * Reserved top-level key inside `chars.data` for state that belongs to the row but is not card
+ * content. The schema has no affections table and `char_kv` is the user-visible notebook, so the
+ * score rides in the card's own row; reading strips the bag before anyone sees a card.
+ */
+const ROW_STATE_KEY = "__ownchat";
+/** Sub-key of the reserved bag holding `{value, updatedAt}` for the affection score. */
+const ROW_AFFECTION_KEY = "affection";
 
 /**
  * Budget for the V3 `assets` payload: entries are opaque blobs (often megabyte data URIs) that
  * ride inside the card row and into the cloud-sync payload. The budget is bytes-first; whatever
  * it drops is visible in the import report, which reads the kept count back from the saved card.
+ *
+ * Over the HTTP data plane the same row is also bounded by the request-body cap (`/api/data/exec`
+ * and `/api/data/tx`, 12 MiB), which this budget deliberately stays under: base64 URIs are ASCII,
+ * so 4M characters add at most ~4 MB to the JSON body plus the rest of the card. A larger card
+ * would need its assets moved out of the row, not a bigger budget.
  */
 const ASSET_MAX_COUNT = 40;
 const ASSET_MAX_URI_CHARS = 1_500_000;
@@ -263,6 +317,246 @@ export function parseAffectionTag(text: unknown): AffectionTag {
   const sign = hit[1] === "-" ? -1 : 1;
   const step = Math.min(50, Math.max(0, parseInt(hit[2], 10) || 0));
   return { delta: sign * step, stripped: text.replace(re, "").replace(/\s+$/, "") };
+}
+
+/**
+ * `chars.data` → its two halves: the card record as stored, and the reserved state bag (empty when
+ * the row never carried one). `null` means the column is not a JSON object — a corrupt row, which
+ * the caller reports instead of coercing.
+ */
+function splitRowData(text: unknown): { card: RawCard; state: Record<string, unknown> } | null {
+  if (typeof text !== "string" || text === "") return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    return null;
+  }
+  const card = cardRecOf(parsed);
+  if (card === null) return null;
+  const state = cardRecOf(card[ROW_STATE_KEY]) || {};
+  delete card[ROW_STATE_KEY];
+  return { card: card, state: state };
+}
+
+/**
+ * One card → its `chars` row. `id` and `name` are copied out of the JSON because the table indexes
+ * them; `data` keeps the whole record so fields this module does not own survive the round trip.
+ * A card without an id throws: the store could not address it, and the old keyPath rejected it too.
+ */
+export function charRowOf(card: unknown): { id: string; name: string; data: string } {
+  const rec = cardRecOf(card);
+  if (rec === null) throw new Error("character: card must be an object");
+  const id = cardStrOf(rec["id"]);
+  if (id === "") throw new Error("character: card has no id");
+  return { id: id, name: cardStrOf(rec["name"]), data: JSON.stringify(rec) };
+}
+
+/**
+ * SQL-backed {@link CardStore} over the unified `chars` table.
+ *
+ * Where the score lives: the schema has no affections table, and `char_kv` is the notebook the
+ * character can read and write through `char_db_*`, so a second row there would surface as a
+ * notebook entry. Keeping it in the card row's reserved bag makes a card one row and deletion one
+ * `DELETE`.
+ *
+ * Write shape: the port has no interactive transaction, so a write that must keep the bag reads the
+ * row first and then upserts. `putAffection` on a missing row is a documented no-op: the caller's
+ * active card is stale and `refresh()` drops it, while inventing a row here would show a ghost card
+ * in the panel. `all()` orders by id, which is the key order IndexedDB returned.
+ * @param port - `exec(sql, params)`; the DbPort facade is the production implementation.
+ * @param options - clock and the corrupt-row sink.
+ */
+export function createSqlCardStore(port: CardSqlPort, options?: SqlCardStoreOptions): CardStore {
+  if (!port || typeof port.exec !== "function") throw new Error("character: a SQL port is required");
+  const opts = options || {};
+  const clock = typeof opts.now === "function" ? opts.now : Date.now;
+  const onCorrupt = typeof opts.onCorruptRow === "function" ? opts.onCorruptRow : null;
+
+  /** Rows as the table holds them; `data` stays the raw text so a corrupt row can be reported. */
+  async function rows(sql: string, params?: unknown[]): Promise<{ id: string; name: string; data: unknown }[]> {
+    const res = await port.exec(sql, params);
+    const raw = res && Array.isArray(res.rows) ? res.rows : [];
+    const out: { id: string; name: string; data: unknown }[] = [];
+    for (let i = 0; i < raw.length; i++) {
+      const rec = cardRecOf(raw[i]);
+      if (rec === null) continue;
+      out.push({ id: cardStrOf(rec["id"]), name: cardStrOf(rec["name"]), data: rec["data"] });
+    }
+    return out;
+  }
+
+  async function rowOf(id: string): Promise<{ id: string; name: string; data: unknown } | null> {
+    const found = await rows("SELECT id, name, data FROM chars WHERE id = ?", [id]);
+    return found.length > 0 ? found[0] : null;
+  }
+
+  /** Read the bag, hand it to `mutate`, write the row back. No row means nothing to attach to. */
+  async function updateState(cardId: string, mutate: (state: Record<string, unknown>) => boolean): Promise<void> {
+    const row = await rowOf(cardId);
+    if (row === null) return;
+    const split = splitRowData(row.data);
+    const card = split !== null ? split.card : { id: row.id, name: row.name };
+    const state = split !== null ? split.state : {};
+    if (!mutate(state)) return;
+    if (Object.keys(state).length > 0) card[ROW_STATE_KEY] = state;
+    else delete card[ROW_STATE_KEY];
+    await port.exec("UPDATE chars SET data = ? WHERE id = ?", [JSON.stringify(card), cardId]);
+  }
+
+  return {
+    async all(): Promise<RawCard[]> {
+      const list = await rows("SELECT id, name, data FROM chars ORDER BY id");
+      const out: RawCard[] = [];
+      for (let i = 0; i < list.length; i++) {
+        const split = splitRowData(list[i].data);
+        if (split === null) {
+          if (onCorrupt !== null) onCorrupt(list[i].id, new Error("chars.data is not a JSON object"));
+          continue;
+        }
+        out.push(split.card);
+      }
+      return out;
+    },
+
+    async put(card: unknown): Promise<void> {
+      const row = charRowOf(card);
+      const existing = await rowOf(row.id);
+      const split = existing !== null ? splitRowData(existing.data) : null;
+      const rec = cardRecOf(card);
+      let data = row.data;
+      if (rec !== null && split !== null && Object.keys(split.state).length > 0) {
+        rec[ROW_STATE_KEY] = split.state;
+        data = JSON.stringify(rec);
+      }
+      await port.exec(
+        "INSERT INTO chars (id, name, data) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, data = excluded.data",
+        [row.id, row.name, data]
+      );
+    },
+
+    async remove(id: unknown): Promise<void> {
+      const cardId = cardStrOf(id);
+      if (cardId === "") return;
+      await port.exec("DELETE FROM chars WHERE id = ?", [cardId]);
+    },
+
+    async getAffection(cardId: unknown): Promise<number | null> {
+      const id = cardStrOf(cardId);
+      if (id === "") return null;
+      const row = await rowOf(id);
+      if (row === null) return null;
+      const split = splitRowData(row.data);
+      if (split === null) return null;
+      const aff = cardRecOf(split.state[ROW_AFFECTION_KEY]);
+      return aff !== null && typeof aff["value"] === "number" ? aff["value"] : null;
+    },
+
+    async putAffection(cardId: unknown, value: number): Promise<void> {
+      const id = cardStrOf(cardId);
+      if (id === "" || typeof value !== "number" || !isFinite(value)) return;
+      await updateState(id, function (state) {
+        state[ROW_AFFECTION_KEY] = { value: value, updatedAt: clock() };
+        return true;
+      });
+    },
+
+    async removeAffection(cardId: unknown): Promise<void> {
+      const id = cardStrOf(cardId);
+      if (id === "") return;
+      await updateState(id, function (state) {
+        if (!Object.prototype.hasOwnProperty.call(state, ROW_AFFECTION_KEY)) return false;
+        delete state[ROW_AFFECTION_KEY];
+        return true;
+      });
+    },
+  };
+}
+
+/**
+ * Map a legacy `tavern_chars_v2` dump onto the SQL shape without touching either store.
+ *
+ * Rules, each mirroring the old adapter: a card without a usable id is skipped (the old keyPath
+ * would have rejected it); a repeated id keeps the last occurrence (IndexedDB could not repeat it);
+ * a score whose card is gone is skipped and counted — the SQL row is the only place it could live,
+ * and a synthetic card would surface in the panel. The old rows' `updatedAt` stamps are dropped on
+ * purpose: they existed for the legacy last-writer-wins blob merge, which the SQL path does not run;
+ * the SQL store stamps its own on write.
+ * @param dump - `{cards, affections}` as the two stores returned them; anything else is empty.
+ * @returns The rows to write plus how many inputs the rules dropped, for the boot report.
+ */
+export function planCharsMigration(dump: unknown): CharsMigrationPlan {
+  const src = cardRecOf(dump) || {};
+  const rawCards = cardArrOf(src["cards"]);
+  const rawAffections = cardArrOf(src["affections"]);
+  const byId = new Map<string, RawCard>();
+  let skippedCards = 0;
+  for (let i = 0; i < rawCards.length; i++) {
+    const rec = cardRecOf(rawCards[i]);
+    const id = rec !== null ? cardStrOf(rec["id"]) : "";
+    if (rec === null || id === "") {
+      skippedCards++;
+      continue;
+    }
+    byId.set(id, rec);
+  }
+  const cards: RawCard[] = [];
+  byId.forEach(function (card) {
+    cards.push(card);
+  });
+  const affections: { cardId: string; value: number }[] = [];
+  const seen = new Set<string>();
+  let skippedAffections = 0;
+  for (let i = 0; i < rawAffections.length; i++) {
+    const rec = cardRecOf(rawAffections[i]);
+    const cardId = rec !== null ? cardStrOf(rec["cardId"]) : "";
+    const value = rec !== null ? rec["value"] : null;
+    if (cardId === "" || typeof value !== "number" || !isFinite(value) || !byId.has(cardId)) {
+      skippedAffections++;
+      continue;
+    }
+    if (seen.has(cardId)) {
+      skippedAffections++;
+      continue;
+    }
+    seen.add(cardId);
+    affections.push({ cardId: cardId, value: value });
+  }
+  return { cards: cards, affections: affections, skippedCards: skippedCards, skippedAffections: skippedAffections };
+}
+
+/**
+ * Write a migration plan and verify it read back. The caller may drop the legacy IndexedDB only
+ * after this resolves; a throw means the copy is incomplete and the old database must stay.
+ * Writing the same plan twice is safe (upsert), which is what makes a retry after a crash work.
+ * @throws When any planned card or score is not readable afterwards — the exact id is in the message.
+ */
+export async function applyCharsMigration(
+  store: CardStore,
+  plan: CharsMigrationPlan
+): Promise<{ cards: number; affections: number }> {
+  if (!store || typeof store.put !== "function") throw new Error("character: a card store is required");
+  const ids: string[] = [];
+  for (let i = 0; i < plan.cards.length; i++) {
+    ids.push(charRowOf(plan.cards[i]).id);
+    await store.put(plan.cards[i]);
+  }
+  for (let i = 0; i < plan.affections.length; i++) {
+    await store.putAffection(plan.affections[i].cardId, plan.affections[i].value);
+  }
+  const written = await store.all();
+  const have = new Set<string>();
+  for (let i = 0; i < written.length; i++) have.add(cardStrOf(written[i]["id"]));
+  for (let i = 0; i < ids.length; i++) {
+    if (!have.has(ids[i])) throw new Error("character: migration lost card " + ids[i]);
+  }
+  for (let i = 0; i < plan.affections.length; i++) {
+    const back = await store.getAffection(plan.affections[i].cardId);
+    if (back !== plan.affections[i].value) {
+      throw new Error("character: migration lost the affection of card " + plan.affections[i].cardId);
+    }
+  }
+  return { cards: ids.length, affections: plan.affections.length };
 }
 
 /**

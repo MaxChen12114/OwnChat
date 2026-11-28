@@ -2,144 +2,206 @@
 
 **English** | [中文](README.zh-CN.md)
 
-A self-hosted AI creation platform for roleplay, long-form writing, coding and image/voice work — deploy it to your own Cloudflare account and keep your data and API keys to yourself.
+[![License: MIT](https://img.shields.io/badge/license-MIT-2f6f4e?style=flat-square)](LICENSE)
+[![Cloudflare Workers](https://img.shields.io/badge/deploy-Cloudflare%20Workers-f38020?style=flat-square)](https://workers.cloudflare.com/)
+[![Tauri 2](https://img.shields.io/badge/desktop-Tauri%202-24a8c8?style=flat-square)](https://tauri.app/)
+[![Node 24+](https://img.shields.io/badge/node-24%2B-43853d?style=flat-square)](https://nodejs.org/)
+[![No telemetry](https://img.shields.io/badge/telemetry-none-6b7280?style=flat-square)](PRIVACY.md)
 
-![OwnChat · agent mode (glass theme)](docs/screenshots/chat-agent.en.png)
+![OwnChat welcome screen](docs/images/demo-welcome.en.gif)
 
-## Screenshots
+## Screens
 
-| Agent mode — tool calls, approvals, image replies (glass) | Multi-agent group chat (candle) | Settings |
-|---|---|---|
-| ![agent](docs/screenshots/chat-agent.en.png) | ![group](docs/screenshots/chat-group.en.png) | ![settings](docs/screenshots/settings.en.png) |
+![OwnChat screens](docs/images/demo-overview.en.png)
 
-## Features
+Six screens in one image: agent mode, group chat, messages, themes, writing and the phone layout. Click for the full size.
 
-- **Roleplay & multi-branch conversation** — character cards (SillyTavern V1/V2/V3 and PNG cards import/export), lorebooks, affinity tracking, group chat, multi-agent orchestration.
-- **Agent mode you can watch** — a tool-calling loop with a collapsible run panel in the chat (every tool, argument and result) plus a live console in the right sidebar; destructive actions ask for approval first, and the agent sends images into the conversation on its own.
-- **Multi-agent orchestration** — pull characters from different worlds into one group chat, hold a private meeting where characters answer off the record, or put a character on stage to reply directly in the timeline (as a sub-agent, the main agent can also delegate work under minimal permissions).
-- **WeChat-style photo messages** — the model can *send* photos mid-chat: selfies are re-rendered from the character's reference image so the face stays consistent, scenes are generated fresh. Replies can also arrive as multiple short bubbles, WeChat-style.
-- **Long-form writing & code collaboration** — a prompt-editor for reusable instruction modules, skills, and per-scene presets.
-- **Image & voice** — image generation through **your own image channels** (built-in Gitee AI proxy, any OpenAI-compatible endpoint, or a local ComfyUI); editing through the Gitee preset; character portraits; read any reply aloud with local TTS (GPT-SoVITS) in the desktop app.
-- **Ambient audio** — two independent decks (environment × music) with 30 bundled CC0 tracks; the model can direct them from roleplay context via hidden tags.
-- **Themes** — minimal / glass / candle, per-device.
-- **Self-hosted by design** — no vendor backend, no telemetry; your Worker, your KV, your keys.
+-----
 
-## Self-hosting (Cloudflare Workers)
+## Overview
 
-**Fastest path — the one-click deploy button.** It clones this repo into your own GitHub, provisions the KV namespace for you, and asks for the secrets while it sets the Worker up:
+OwnChat runs on your machine. The desktop app starts a local host on `127.0.0.1:8787`, loads the interface from resources inside the installer, and writes data to a SQLite database in the app's data folder. Roleplay, long-form writing, code collaboration, and image and voice work share one interface.
+
+It does not call a vendor backend and does not collect usage data. The same code deploys to Cloudflare Workers as your own site, or runs as a local web app through `node server/local.mjs`; all three paths share one interface and one data model.
+
+It has no multi-user or permission model. One deployment or one data folder serves one person; deploy separately to separate users.
+
+-----
+
+## Quick start
+
+| Path | Use it when | You need |
+| --- | --- | --- |
+| Desktop app | You want to use it | The Windows installer |
+| From source | You want to read or change the code | Node.js 24+ |
+| As a website | Others need access, or you want sync across networks | A Cloudflare account; the free tier is enough |
+
+### Desktop app
+
+The installer bundles the Node 24 runtime, the local host and every page asset.
+
+1. Download the latest installer from [Releases](https://github.com/MaxChen12114/OwnChat/releases/latest).
+2. Install and launch. The first-run wizard asks for an admin password and a model key; the sync switch is optional.
+3. The app starts its host on `127.0.0.1:8787` and writes data to the app data folder.
+
+The tray menu can change the data folder, open it, or point the app at a different host address. It checks for updates on launch. Only a Windows installer is published; macOS and Linux run the local host from source.
+
+### From source
+
+Requires Node.js 24+; the local host uses `node:sqlite`.
+
+```bash
+git clone https://github.com/MaxChen12114/OwnChat && cd OwnChat
+node server/local.mjs --port 8787
+```
+
+On Windows, `start-local.cmd` runs the same command.
+
+First launch writes `admin-password.txt` into the data folder (`.local-data/` by default) and prints its path; use it to sign in. Model keys live in `.dev.vars`, copied from `.dev.vars.example`; the file is git-ignored. To reach it from a phone on the same LAN, start with `--host 0.0.0.0` and open `http://<LAN-IP>:8787`. The data folder is the whole installation: moving it moves everything.
+
+### As a website
+
+Deployed to Cloudflare Workers, the site runs in your account, keeps data in your D1/KV, and syncs a phone and a desktop across networks. A deployment with no `CHAT_PASSWORD` is in guest mode: anyone with the address can use it, including the server-side model quota you configured.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/MaxChen12114/OwnChat)
 
-The values it asks for are described in `.dev.vars.example` (at minimum one model key; an access password is strongly recommended). Prefer the terminal, or already have a Workers setup? Then:
+The button clones the repo into your GitHub, creates KV and D1, and asks for the secrets. The deploy script applies the database migrations, so the first visit already uses the unified schema.
 
-Requirements: a Cloudflare account (free tier is fine) and Node.js 18+.
+<details>
+<summary>Deploy from the terminal</summary>
+
+Requires Node 24+ and a Cloudflare account:
 
 ```bash
 git clone https://github.com/<you>/OwnChat && cd OwnChat
 npm i -g wrangler && wrangler login
 
-# 1) create the KV namespace used for optional sync, then paste the printed id
-#    into wrangler.toml -> [[kv_namespaces]] id
+# KV: hot-window sync — paste the printed id into wrangler.toml
 wrangler kv namespace create TAVERN_SYNC
 
-# 2) server-side model keys (never committed; only the ones you use are required)
-wrangler secret put DEEPSEEK_API_KEY
-wrangler secret put NVIDIA_API_KEY
+# D1: message archive, cards, memory, workspace, attachments
+wrangler d1 create ownchat-events
+# paste the printed database_id into wrangler.toml -> [[d1_databases]] database_id
 
-# 3) deploy (the build step regenerates prompt registries + runs a syntax gate)
+# apply the schema, then set secrets
+wrangler d1 migrations apply TAVERN_EVENTS --remote
+wrangler secret put DEEPSEEK_API_KEY     # or NVIDIA_API_KEY — only what you use
+wrangler secret put CHAT_PASSWORD        # without it the site is guest mode
+
+# deploy; the build step regenerates prompt registries and runs a syntax gate
 wrangler deploy
 ```
 
-`wrangler deploy` prints your Worker URL. A custom domain is optional (Workers → your Worker → Settings → Domains & Routes).
+`wrangler deploy` prints the Worker URL; a custom domain is optional.
 
-## Run it on your own PC (no domain needed)
+</details>
 
-If `*.workers.dev` is unreachable where you are (it is, from mainland China) or you simply don't want to rent a domain, you can run the whole server on your own computer instead — same code, no Cloudflare account required:
+-----
 
-1. Install **Node.js 18+** ([nodejs.org](https://nodejs.org/en)).
-2. Download the source: the **Source code** archive on [Releases](https://github.com/MaxChen12114/OwnChat/releases/latest), or `git clone https://github.com/MaxChen12114/OwnChat`.
-3. In that folder, run **`start-local.cmd`** (Windows — double-click it) or **`bash start-local.sh`** (macOS / Linux). The first run creates `.dev.vars` and opens it — paste a model key (NVIDIA, or DeepSeek) and save.
-4. In the desktop app's setup page press **"Fill in the local address"** (or type `http://127.0.0.1:8787`) and Connect.
+## Features
 
-Notes:
+| | |
+| --- | --- |
+| Data plane | Chats, character cards, memory, knowledge bases, agent workspaces and attachments in one SQLite database (D1 when deployed); long conversations are compacted to the context budget and the original text stays in the event log for `history_search` |
+| Cross-device sync | Five channels merge by their own keys (chats by slot hash, cards by id, cost by day × device, exclusions by timestamp) with tombstone deletes; provider settings and keys sync with the account |
+| Models | The list is pulled from `/v1/models` and chosen in settings, so version ids are never hard-coded; DeepSeek official and an NVIDIA free tier are built in, and any OpenAI-compatible endpoint can be added; thinking levels map per model |
+| Backup | Settings → Data exports the whole store as a ZIP; importing rebuilds the search indexes from the event log, so a backup restores on another machine |
+| Roleplay | SillyTavern V1/V2/V3 and PNG character cards, lorebooks, affinity, multi-branch conversation |
+| Group chat | Several characters in one conversation; private meetings stay off the timeline; a character can reply inline; the main agent delegates to sub-agents and reclaims their permissions when the task ends |
+| Agent runs | Each tool call expands into a run panel with the tool name, arguments and result; the right sidebar console shows the current step; side-effecting calls ask for approval first |
+| Messages | The model can send images mid-conversation, with selfies re-rendered from the character reference; one reply can arrive as several short messages |
+| Writing and code | A prompt editor for instruction modules, skills and scene presets; syntax highlighting |
+| Image channels | The built-in Gitee AI preset, any OpenAI-compatible endpoint, or a local ComfyUI |
+| Voice | The desktop app reads replies aloud through a local GPT-SoVITS server; reference audio is a local path and is never uploaded |
+| Ambient audio | Independent environment and music decks with 30 bundled CC0 tracks; the model can switch them from roleplay context through hidden tags |
+| Phone | The same deployment switches to a single column and a capsule composer on a phone; the Android build connects to the host you configure |
 
-- The server lives only while that window is open — your PC must be on whenever you use the app.
-- To use it from your phone on the same network, start it with `npx wrangler dev --ip 0.0.0.0 --port 8787` and enter `http://<your-LAN-IP>:8787`.
-- Data is stored **per origin**: a local run and any cloud deployment are two separate datasets.
-- Cloud sync in a local run needs `CHAT_PASSWORD` set in `.dev.vars` (otherwise those routes answer 401).
-- No `npm install` needed — the build step only uses Node.
-- `npx wrangler dev` (or `npm run dev`) is also the plain local-development loop; secrets stay in `.dev.vars` (git-ignored).
+## Known limitations
 
-## Desktop & Android builds
+These are current boundaries of the product, not a task backlog.
 
-The Tauri 2 shell lives in `src-tauri/`. CI (`.github/workflows/tauri-build.yml`) builds the Windows installer and the Android APK on a version tag or manual dispatch (tags containing `-test` produce draft releases for testing).
+- **Only a Windows installer is published.** macOS and Linux run the local host from source.
+- **Cross-device sync needs a host both devices can reach.** A purely local run syncs only inside one LAN.
+- **Android is a thin client.** It loads the bundled interface but needs a reachable host; it cannot run the local Node host.
+- **Voice needs a separate local service.** Reading aloud requires a local GPT-SoVITS `api_v2` server (default `127.0.0.1:9880`); no model weights ship with the repository.
+- **Image editing requires the Gitee preset.** OpenAI-compatible endpoints and local ComfyUI only generate.
+- **Long conversations are compacted.** Messages beyond the context budget are summarized; the text stays searchable in the event log but no longer reaches the model context.
+- **One deployment serves one person.** There are no accounts or tenant isolation; deploy separately to separate users.
+- **Private mode ships a neutral base only.** The repository includes one neutral base as a fallback; the base actually used is supplied by whoever deploys it.
 
-**The shell is domain-neutral.** On first run it shows a local setup page where you enter your deployment URL — or let it run the server on your own PC (see above), or follow the built-in one-click deploy guide (~3 minutes) for newcomers. No rebuild is needed to point it at your own Worker; the app grants its local capabilities (file access under a chosen directory, command execution behind a native confirmation) to exactly the origin you configure, and only that one.
+## Repository layout
 
-Before publishing your *own* builds, or if you want a build that skips the setup page:
+| Path | Role |
+| --- | --- |
+| `public/` | Frontend pages, tool pages and emitted runtime assets |
+| `src/` | Cloudflare Worker: chat, sync, data plane and deploy API |
+| `server/` | Local Node host (bundled with the desktop app / self-host entry) |
+| `src-tauri/` | Tauri 2 desktop shell and packaging config |
+| `core/ lib/ services/` | Architecture layers: contracts / pure algorithms / platform services |
+| `tooling/` | Build and checks: `l0/` generators, `scripts/` gates, `bundles/` tool manifest, `boot.ts` |
+| `deploy/ migrations/` | Cloudflare / VPS templates and the unified SQL schema |
+| `docs/` | Public docs, demo images and brand assets |
 
-1. **(Optional) hard-code a default address.** In `src-tauri/tauri.conf.json`, set `app.windows[0].url` to `https://your-domain/?shell=android` (`shell=android` enables the mobile layout). Leave it out to use the setup page instead.
-2. **Generate your own signing key** for auto-updates:
+## Desktop and Android builds
+
+The Tauri 2 project lives in `src-tauri/`. CI (`.github/workflows/tauri-build.yml`) builds the Windows installer and the Android APK on a version tag or manual dispatch; tags containing `-test` produce draft releases.
+
+Desktop is self-contained: the installer bundles the interface, the local host and its Node 24 runtime. The page never navigates to a remote site; the host address only decides where API requests go, so switching hosts does not switch apps.
+
+Android loads the bundled interface and needs a reachable host, either your own deployment or a desktop host on the LAN.
+
+<details>
+<summary>Publishing your own builds</summary>
+
+1. Generate a signing key for updates:
+
    ```bash
    npx tauri signer generate -w ownchat.key
    ```
-   Put the private key into repository secrets `TAURI_SIGNING_PRIVATE_KEY` (+ `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) and the public key into `tauri.conf.json` → `plugins.updater.pubkey`; set `plugins.updater.endpoints` to your own releases feed.
-3. **Change the bundle identifier** (`identifier` in `tauri.conf.json`) if you want your builds to be a distinct app. Note it becomes the Android `applicationId`, so changing it later means a reinstall.
 
-## Two base folders
+   Put the private key into repository secrets `TAURI_SIGNING_PRIVATE_KEY` (plus `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if it has one), the public key into `tauri.conf.json` → `plugins.updater.pubkey`, and point `plugins.updater.endpoints` at your release feed.
 
-A **base prompt** is the first block of the system prompt — it shapes how the model behaves across the whole app. The repository ships **two folders**, and the top-bar button switches between them:
+2. Change `identifier` in `tauri.conf.json` to make your builds distinct. It becomes the Android `applicationId`, so changing it later means a reinstall.
 
-| Folder | Button state | What goes in |
+</details>
+
+## Base prompts
+
+A base is the first block of the system prompt and decides how the model behaves across the app. The repository splits bases by mode:
+
+| Folder | Mode | Contents |
 | --- | --- | --- |
-| `src/prompts/bases/` | Built-in | One general-purpose base ships here; your own regular prompts can live here too |
-| `src/prompts/custom/` | Custom | The one you keep for yourself — visible only in your own deployment |
+| `src/prompts/bases/unlocked/` | Unlocked | The base used in unlocked mode. One neutral base ships here; add your own file or folder |
+| `src/prompts/bases/locked/` | Locked | The behaviour rules used while locked, maintained with the repository |
 
-To add your own:
+Add one by putting a `.md` / `.txt` file, or a folder of them (one multi-file base), into the matching folder. The file or folder name becomes the id shown in **Settings → 对话 → 基座**; with several bases in a folder, pick the active one there.
 
-1. Put any `.md` / `.txt` file — or a folder of them (= one multi-file base) — into the folder you want.
-2. Deploy (the build step scans both folders; the file/folder name becomes the id shown in **Settings → 对话 → 基座**).
-3. With more than one base in a folder, pick the active one under **Settings → 对话 → 基座**; the top-bar button only switches folders. While `custom/` is empty the button won't switch to it (it shows a hint instead).
+A base is a payload, not a document: its bytes go into model requests unchanged. Keep LF; `.gitattributes` enforces it.
 
-> **Don't commit `custom/` to a public repository.** If you fork this project and push it publicly, add that folder to `.gitignore`.
+> Do not commit private prompt text to a public fork. Bases are plain files; keep your own in a private repository.
 
-> **What this repository does *not* provide.** Only the one general-purpose base in `bases/` — `custom/` ships empty. The project does not ship, review, or vouch for any other base text: people add their own, at their own responsibility, and are responsible for complying with the laws that apply to them and with the terms of whichever model provider they use.
+## Images and voice
 
-Base files are payloads, not documents — their bytes go straight into model requests (keep them LF; `.gitattributes` enforces it).
+Image channels are configured under **Settings → Model API → Image channels** and come in three kinds:
 
-Prompt libraries that ship with the repo are credited in `src/prompts/CREDITS.md`; bundled ambient audio in `public/assets/ambient/CREDITS.txt`.
+- **Gitee AI (built-in preset)** calls `ai.gitee.com` through the deployment's `/img/*` proxy and needs your own Gitee AI key. Text-to-image uses `z-image-turbo` (up to 2048×2048), editing uses `Qwen-Image-Edit-2511`, and image-to-video calls `Wan2_2-I2V-A14B` through Gitee's async task API. The free tier is around 100 images a day; the app keeps a local counter.
+- **OpenAI-compatible endpoints** are called directly from the browser with that channel's key; the provider must allow CORS. Generate only.
+- **Local ComfyUI** is called at `/prompt`, `/history` and `/view`; it must allow CORS and be reachable from the browser. Generate only; checkpoint and steps are set per channel.
 
-## Images & voice
+Channel settings and keys stay on the device and are not synced. On deployments with an access password, proxied image calls require signing in.
 
-**Images.** Image generation is configured as **channels** under **Settings → Model API → Image channels**. Three kinds are supported:
+Voice is desktop-only and needs a local [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) `api_v2` server; the tray menu can start it and auto-start it on login. Reference audio is a local file path and is never uploaded. `.ckpt` / `.pth` models are scanned and hot-swappable, and multiple reference clips are supported.
 
-- **Gitee AI (built-in preset)** — calls `ai.gitee.com` through the deployment's `/img/*` proxy. Bring your own Gitee AI key. Text-to-image uses `z-image-turbo` (up to 2048×2048), editing uses `Qwen-Image-Edit-2511`, and the agent's image-to-video tool uses `Wan2_2-I2V-A14B` through Gitee's async task API. The free tier is around 100 images/day; the app's local counter covers proxied calls.
-- **OpenAI-compatible endpoint** — called directly from your browser with that channel's own key. The provider must allow CORS. Generation only; editing is not available on custom channels yet.
-- **Local ComfyUI** — called directly at its `/prompt`, `/history` and `/view` endpoints. The server must allow CORS and be reachable from the browser. Generation only; set the checkpoint and steps per channel.
+## Privacy and license
 
-To add one, choose **+ Add image channel**, fill in the Base URL, key (if any) and model list, then **Save this channel**. Saving does not switch the active channel — click **Use this channel** when you want images to go there. The image workshop, character portraits, chat image paths and the studio page follow the active channel. Channel settings and keys stay on your device and are never synced. **Editing** currently requires the Gitee preset. On deployments that set an access password, proxied image APIs require being logged in, like the rest of the app.
-
-**Voice (desktop app only).** Reading replies aloud requires a local [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) `api_v2` server (default `127.0.0.1:9880`); the tray menu can start it and auto-start it on login. Reference audio is a **local file path** — it is never uploaded. `.ckpt` / `.pth` voice models are scanned and hot-swappable, and multiple reference clips are supported. The port lives in the app's local settings; there is no in-app UI for changing it yet.
-
-## Community resources
-
-Third-party projects that pair well with OwnChat. **Not affiliated with, not reviewed by, and not endorsed by this project** — and nothing below is copied into this repository:
-
-- **TTS backend** — this project integrates [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) (local `api_v2` `/tts`, default port 9880; voice cloning with hot-swappable weights; actively maintained). Other self-hostable Chinese voice-cloning options exist — [IndexTTS](https://github.com/index-tts/index-tts), [CosyVoice](https://github.com/FunAudioLLM/CosyVoice), [Chatterbox](https://github.com/resemble-ai/chatterbox), [F5-TTS](https://github.com/SWivid/F5-TTS) — but **their HTTP shapes differ (most are not OpenAI `/v1/audio/speech`; adapting is on you) and model-weight licenses vary (some are non-commercial)** — check each repository before integrating.
-- **[Spiritual-Spell-Red-Teaming](https://github.com/Goochbeater/Spiritual-Spell-Red-Teaming)** — a large community collection of red-teaming / jailbreak prompts for many LLMs (mostly Claude). **Read the warnings before you click:** it ships **no license**, it contains adult / NSFW-capable jailbreak prompts and collected vendor system prompts, and **its README embeds hidden prompt-injection text aimed at AI tools** — do not paste that README into an AI assistant or agent, read it with your own eyes only. If you use anything from it in your own deployment, that is your own responsibility: comply with the laws that apply to you and with each model provider's terms. (Consistent with this repository's policy, no-license third-party text is never copied into `src/prompts/` — link only.)
-
-Dropped into your own deployment and want it behind the top-bar button? This one clearly belongs on the "custom" side — put what you want under `src/prompts/custom/`, deploy, and switch the button to **Custom** (and keep that folder out of your public repository).
-
-## Privacy & License
-
-- Privacy policy: [PRIVACY.md](PRIVACY.md) — data stays on your machine / in your own Cloudflare account; no telemetry.
-- License: [MIT](LICENSE).
+- Privacy policy: [PRIVACY.md](PRIVACY.md)
+- License: [MIT](LICENSE)
 
 ## Conventions
 
-See [AGENTS.md](AGENTS.md) for architecture notes and development conventions. Two house rules worth knowing before you send a PR:
+Architecture notes and development conventions are in [AGENTS.md](AGENTS.md). Two rules before a PR:
 
-- **Commit messages and GitHub metadata (repo description, release notes, PR titles) are written in English.**
-- The prompt files under `src/prompts/bases/` and `src/prompts/custom/` are payloads, not documents — byte-exact text matters.
+- Commit messages and GitHub metadata (repo description, release notes, PR titles) are written in English.
+- Prompt files under `src/prompts/bases/` are payloads; their bytes must stay identical.
 
-Third-party credits: prompt libraries (`src/prompts/CREDITS.md`), ambient audio (`public/assets/ambient/CREDITS.txt`), and the wallpaper used in the screenshots (see README of `docs/`).
+Third-party credits: prompt libraries in `src/prompts/CREDITS.md`, ambient audio in `public/assets/ambient/CREDITS.txt`, demo image assets in the `docs/` README.

@@ -306,7 +306,7 @@ function timeoutFor(kind           , hasBase         )         {
   return hasBase ? 180000 : 300000;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/chat-text.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/chat-text.ts; this file owns the
 // settings storage, the photo bubble, the settings card and the call into the image module.
 //
 // The red line from the original stands: this never touches the image side's own files, and it
@@ -325,7 +325,7 @@ function timeoutFor(kind           , hasBase         )         {
 
   function slotKey() {
     try {
-      var c = window.__character && window.__character.getActiveCard && window.__character.getActiveCard();
+      var c = window.characterSvc && window.characterSvc.getActiveCard && window.characterSvc.getActiveCard();
       return c && c.id ? c.id : "__none__";
     } catch (e) { return "__none__"; }
   }
@@ -349,8 +349,8 @@ function timeoutFor(kind           , hasBase         )         {
 
   // Base image: the image module wins; the local map is the fallback for a page without it.
   function getBaseImage(charId) {
-    if (window.__chatImage && window.__chatImage.getBaseImage) {
-      try { return Promise.resolve(window.__chatImage.getBaseImage({ characterId: charId })); } catch (e) {}
+    if (window.chatImageSvc && window.chatImageSvc.getBaseImage) {
+      try { return Promise.resolve(window.chatImageSvc.getBaseImage({ characterId: charId })); } catch (e) {}
     }
     try {
       var o = JSON.parse(lsGet(LS_BASE, "{}"));
@@ -358,8 +358,8 @@ function timeoutFor(kind           , hasBase         )         {
     } catch (e) { return Promise.resolve(null); }
   }
   function setBaseImage(charId, imageUrl) {
-    if (window.__chatImage && window.__chatImage.setBaseImage) {
-      try { return Promise.resolve(window.__chatImage.setBaseImage({ characterId: charId, imageUrl: imageUrl })); } catch (e) {}
+    if (window.chatImageSvc && window.chatImageSvc.setBaseImage) {
+      try { return Promise.resolve(window.chatImageSvc.setBaseImage({ characterId: charId, imageUrl: imageUrl })); } catch (e) {}
     }
     try {
       var o = JSON.parse(lsGet(LS_BASE, "{}"));
@@ -375,8 +375,8 @@ function timeoutFor(kind           , hasBase         )         {
   }
 
   function callSendPhoto(charId, scenePrompt, baseImageUrl, kind) {
-    if (window.__chatImage && window.__chatImage.sendPhoto) {
-      return Promise.resolve(window.__chatImage.sendPhoto({ characterId: charId, scenePrompt: scenePrompt, baseImageUrl: baseImageUrl, kind: kind }));
+    if (window.chatImageSvc && window.chatImageSvc.sendPhoto) {
+      return Promise.resolve(window.chatImageSvc.sendPhoto({ characterId: charId, scenePrompt: scenePrompt, baseImageUrl: baseImageUrl, kind: kind }));
     }
     return new Promise(function (resolve) {
       setTimeout(function () { resolve({ imageUrl: mockImage(scenePrompt), taskId: "mock-" + Date.now() }); }, 1500);
@@ -411,7 +411,7 @@ function timeoutFor(kind           , hasBase         )         {
     content.appendChild(bubble);
     row.appendChild(avatar);
     row.appendChild(content);
-    try { if (window.__character && window.__character.decorateAiRow) window.__character.decorateAiRow(row, card); } catch (e) {}
+    try { if (window.characterSvc && window.characterSvc.decorateAiRow) window.characterSvc.decorateAiRow(row, card); } catch (e) {}
     if (afterRow && afterRow.parentNode === chat && afterRow.nextSibling) chat.insertBefore(row, afterRow.nextSibling);
     else if (spacer) chat.insertBefore(row, spacer);
     else chat.appendChild(row);
@@ -479,8 +479,8 @@ function timeoutFor(kind           , hasBase         )         {
   // Group orchestration and the fishbowl debate both run several characters in a row; the cooldown
   // would otherwise silence every one of them after the first.
   function inRapidMultiContext() {
-    try { if (window.__fishbowl && window.__fishbowl.getMode && window.__fishbowl.getMode()) return true; } catch (e) {}
-    try { if (window.__multi && window.__multi.isMulti && window.__multi.isMulti()) return true; } catch (e) {}
+    try { if (window.fishbowlSvc && window.fishbowlSvc.getMode && window.fishbowlSvc.getMode()) return true; } catch (e) {}
+    try { if (window.multiSvc && window.multiSvc.isMulti && window.multiSvc.isMulti()) return true; } catch (e) {}
     return false;
   }
 
@@ -488,7 +488,7 @@ function timeoutFor(kind           , hasBase         )         {
   function handleSignal(opts) {
     var o = opts || {};
     var scene = o.scene;
-    var card = o.card || (window.__character && window.__character.getActiveCard && window.__character.getActiveCard()) || null;
+    var card = o.card || (window.characterSvc && window.characterSvc.getActiveCard && window.characterSvc.getActiveCard()) || null;
     var afterRow = o.afterRow || null;
     var manual = !!o.manual;
     if (!scene) return;
@@ -562,21 +562,28 @@ function timeoutFor(kind           , hasBase         )         {
   }
 
   function mountCard() {
-    var slot = window.slotRegistry.pick("setImageChatSlot");
-    if (slot) window.slotRegistry.claim({ cardId: "ciEnableToggle", slotId: "setImageChatSlot" });
-    if (!slot || document.getElementById("ciEnableToggle")) return;
-    var card = document.createElement("div");
-    card.className = "card";
-    card.id = "chatImageCard";
-    card.innerHTML = '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M4 17.5l5-5 3.2 3.2 3.2-3.8 4.1 5"/></svg>微信发图（AI 主动发照片）</h4>'
-      + '<p>开启后 AI 会在合适时机往对话里"发"照片——自拍走基准图改图、场景/物品/宠物走文生图。消耗图像额度,<b>仅本设备</b>。</p>'
-      + '<div class="rowline"><div class="toggle"><input type="checkbox" id="ciEnableToggle"><label for="ciEnableToggle">启用微信发图</label></div><div class="btns"><button class="smallbtn" id="ciManualBtn">手动来一张</button></div></div>'
-      + '<div class="settings-grid-2"><label><span>冷却(秒)</span><input type="number" id="ciCooldown" min="0" max="600"></label><label><span>每会话上限</span><input type="number" id="ciCap" min="0" max="99"></label></div>'
-      + '<div class="rowline" style="align-items:center;gap:10px;margin-top:10px;"><div style="font-size:12px;color:var(--muted);flex:1;min-width:0;">当前角色基准图</div><div class="btns"><button class="smallbtn" id="ciBasePick" type="button">选择图片…</button></div><input type="file" id="ciBaseUpload" accept="image/*" style="display:none;"></div>'
-      + '<div id="ciBaseStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div>'
-      + '<div class="settings-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg><span>每会话上限填 0 = 不限;冷却填 0 = 不限频。基准图用于"自拍"类发图把脸固定下来,场景/物品图不用基准图。</span></div>';
-    slot.appendChild(card);
-    wireSettings();
+    // 2026-11-28 card-shell batch 2: shell + declareCard. The old mount probe sat on the inner
+    // ciEnableToggle while the card element already carried id chatImageCard — declaring under the
+    // card id moves the probe onto the card; the toggle/inputs keep their ids for wireSettings().
+    window.slotRegistry.declareCard({
+      id: "chatImageCard",
+      slotId: "setImageChatSlot",
+      build: function (slot) {
+        var shell = window.cardShell.createCardShell({
+          id: "chatImageCard",
+          title: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M4 17.5l5-5 3.2 3.2 3.2-3.8 4.1 5"/></svg>微信发图',
+          desc: '开启后 AI 会在合适时机往对话里"发"照片——自拍走基准图改图、场景/物品/宠物走文生图。消耗图像额度,<b>仅本设备</b>。',
+          extra: '<div class="rowline"><div class="toggle"><input type="checkbox" id="ciEnableToggle"><label for="ciEnableToggle">启用微信发图</label></div><div class="btns"><button class="smallbtn" id="ciManualBtn">手动来一张</button></div></div>'
+            + '<div class="settings-grid-2"><label><span>冷却(秒)</span><input type="number" id="ciCooldown" min="0" max="600"></label><label><span>每会话上限</span><input type="number" id="ciCap" min="0" max="99"></label></div>'
+            + '<div class="rowline" style="align-items:center;gap:10px;margin-top:10px;"><div style="font-size:12px;color:var(--muted);flex:1;min-width:0;">当前角色基准图</div><div class="btns"><button class="smallbtn" id="ciBasePick" type="button">选择图片…</button></div><input type="file" id="ciBaseUpload" accept="image/*" style="display:none;"></div>'
+            + '<div id="ciBaseStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div>',
+          tip: '每会话上限填 0 = 不限;冷却填 0 = 不限频。基准图用于"自拍"类发图把脸固定下来,场景/物品图不用基准图。'
+        });
+        slot.appendChild(shell.card);
+        wireSettings();
+        return shell.card;
+      }
+    });
   }
 
   function wireSettings() {
@@ -606,7 +613,7 @@ function timeoutFor(kind           , hasBase         )         {
     if (mq) mq.addEventListener("click", function () { requestManual(""); });
   }
 
-  window.__chatImageText = {
+  window.chatImageTextSvc = {
     getInjection: getInjection,
     extractSignal: extractSignal,
     stripSignalForDisplay: stripSignalForDisplay,

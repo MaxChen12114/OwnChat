@@ -120,13 +120,13 @@ function newestFirst(items             )              {
   return items.slice().sort((a, b) => b.ts - a.ts);
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/album.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/album.ts; this file owns the
 // IndexedDB store, the blob download, the fetch wrapper and the modal.
 //
 // Load order matters twice: this wrapper must be installed after image-cache (so a cache hit never
 // reaches it) and it must sit outside it, because a replayed generation should not re-enter the album.
 (function () {
-  if (window.__album) return;
+  if (window.imageAlbumSvc) return;
 
   var _db = null;
   var _seen = {};
@@ -204,7 +204,7 @@ function newestFirst(items             )              {
   function remove(id) { return idbDel(id).then(fire); }
   function clear() { _seen = {}; return idbClear().then(fire); }
 
-  window.__album = { add: add, list: list, remove: remove, clear: clear, open: openPanel };
+  window.imageAlbumSvc = { add: add, list: list, remove: remove, clear: clear, open: openPanel };
 
   function urlOf(input) { try { return typeof input === "string" ? input : ((input && input.url) || ""); } catch (e) { return ""; } }
 
@@ -262,7 +262,7 @@ function newestFirst(items             )              {
 
   function activeCharId() {
     try {
-      var c = window.__character && window.__character.getActiveCard && window.__character.getActiveCard();
+      var c = window.characterSvc && window.characterSvc.getActiveCard && window.characterSvc.getActiveCard();
       return (c && c.id) || "default";
     } catch (e) { return "default"; }
   }
@@ -293,9 +293,9 @@ function newestFirst(items             )              {
 
   async function setAsBase(it) {
     try {
-      if (!(window.__chatImage && window.__chatImage.setBaseImage)) { alert("发图模块未就绪"); return; }
+      if (!(window.chatImageSvc && window.chatImageSvc.setBaseImage)) { alert("发图模块未就绪"); return; }
       var dataUrl = await blobToDataUrl(it.blob);
-      await window.__chatImage.setBaseImage({ characterId: activeCharId(), imageUrl: dataUrl });
+      await window.chatImageSvc.setBaseImage({ characterId: activeCharId(), imageUrl: dataUrl });
       alert("已设为当前角色的发图基准图");
     } catch (e) { alert("失败:" + ((e && e.message) || e)); }
   }
@@ -304,9 +304,9 @@ function newestFirst(items             )              {
     var scene = window.prompt("把这张改成什么场景/动作？（保持同一人）", "换个场景");
     if (!scene) return;
     try {
-      if (!(window.__chatImage && window.__chatImage.sendPhoto)) { alert("发图模块未就绪"); return; }
+      if (!(window.chatImageSvc && window.chatImageSvc.sendPhoto)) { alert("发图模块未就绪"); return; }
       var dataUrl = await blobToDataUrl(it.blob);
-      var res = await window.__chatImage.sendPhoto({ characterId: activeCharId(), scenePrompt: scene, baseImageUrl: dataUrl });
+      var res = await window.chatImageSvc.sendPhoto({ characterId: activeCharId(), scenePrompt: scene, baseImageUrl: dataUrl });
       if (res && res.imageUrl) { await add({ url: res.imageUrl, prompt: scene }); renderGrid(); }
       else { alert("改图未返回结果"); }
     } catch (e) { alert("失败:" + ((e && e.message) || e)); }

@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>多智能体讨论区</title>
 <!-- 主题引导：与主站同一套键，必须在样式表之前 -->
 <script>
@@ -14,74 +14,177 @@
   if(s==="light"||s==="dark")document.documentElement.setAttribute("data-scheme",s);
 }catch(e){}})();
 </script>
-<link rel="stylesheet" href="/shared/core/theme.css">
+<link rel="stylesheet" href="/shared/core/theme.css?v=4">
 <style>
-  /* 多智能体讨论区（2026-11-09）
+  /* 多智能体讨论区（2026-11-27 版面重做）
      ──────────────────────────────────────────────────────────────────
-     为什么要有这一页：平台早就有 convene_meeting（每个参与者独立上下文、独立调用），
-     但它只把结论回给主 agent，界面上什么也看不见。于是 agent 找不到"讨论区"在哪，
-     就自己写一页 HTML，然后在一个上下文里把四个角都扮演掉 —— 自导自演。
-     这一页把「N 个独立 agent 各自发言」变成看得见的东西。
-
-     2026-11-09 第二版：**多场次**。
-     原来只有一个议题，第二场讨论会把第一场覆盖掉；而且三方会商（council）没地方看。
-     现在每一场是一个 session（会议 / 会商线程），顶部可以切换、可以回看。 */
+     旧版是一条条白底横线，读起来像结论展板：看不到“谁在回应谁”、看不到轮次推进、
+     也看不到每条发言的类型与依据。这一版把同一份数据排成讨论线程：
+       · 左 rail = 议题 + 场次状态 + 参与方（谁在说 / 已说 / 失败）
+       · 右 thread = 轮次分组 + 带头像/类型/时间/序号的发言卡 + 回复引用 + 依据 + 结论
+     数据仍由 window.__stage 写入，API 与字段保持兼容。 */
   :root{ --dim: var(--muted); --accent: var(--ac); }
+  *{box-sizing:border-box;}
   html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
-    font:12px/1.6 system-ui,"Microsoft YaHei",sans-serif;}
+    font:13px/1.6 system-ui,"Microsoft YaHei",sans-serif;}
   #wrap{display:flex;flex-direction:column;height:100%;}
-  header{padding:8px 12px 9px;border-bottom:1px solid var(--border);background:var(--panel);flex:none;}
-  #top{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
-  #pick{flex:0 1 auto;min-width:0;max-width:60%;font:inherit;font-size:11.5px;
-    padding:3px 6px;border-radius:6px;border:1px solid var(--border);
-    background:var(--input-bg,#fff);color:var(--text);}
-  #kind{flex:none;font-size:10px;padding:1px 6px;border-radius:20px;
-    background:var(--ac-soft);color:var(--accent);}
-  #topic{font-size:12.5px;font-weight:600;color:var(--text);margin:0 0 4px;white-space:pre-wrap;
-    max-height:84px;overflow:auto;}
-  #meta{color:var(--dim);font-size:10.5px;display:flex;gap:10px;flex-wrap:wrap;}
-  #meta b{color:var(--accent);font-weight:600;}
-  main{flex:1 1 auto;display:flex;min-height:0;}
-  #people{width:132px;flex:none;border-right:1px solid var(--border);padding:8px;overflow:auto;background:var(--panel);}
-  .p{display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:7px;margin-bottom:4px;
-    color:var(--dim);font-size:11.5px;}
+  /* 顶栏 54px：品牌 + 会话选择 + 类型 chip。议题/参与者/元信息都在左侧 rail。 */
+  header{display:flex;align-items:center;min-height:54px;padding:0 16px;
+    border-bottom:1px solid var(--border);background:var(--panel);flex:none;}
+  #top{display:flex;align-items:center;gap:8px;margin:0;min-width:0;flex:1;}
+  .brand-name{font-size:15px;font-weight:700;letter-spacing:.01em;white-space:nowrap;}
+  #pick{flex:0 1 auto;min-width:0;max-width:340px;font:inherit;font-size:13px;
+    height:34px;padding:0 10px;border-radius:9px;border:1px solid var(--input-border,var(--border));
+    background:var(--input-bg);color:var(--text);}
+  #kind{flex:none;height:22px;font-size:11px;line-height:20px;padding:0 8px;border-radius:999px;
+    border:1px solid var(--accent-border);background:var(--ac-soft);color:var(--ac-strong);}
+
+  main{flex:1 1 auto;display:flex;min-height:0;gap:12px;padding:12px;background:var(--bg);}
+
+  /* ── 左 rail：议题 / 场次状态 / 参与方 ───────────────────────────────── */
+  #rail{width:264px;flex:none;display:flex;flex-direction:column;min-height:0;overflow:auto;
+    border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--panel);}
+  .eyebrow{font-size:10.5px;font-weight:600;letter-spacing:.08em;color:var(--muted);
+    text-transform:uppercase;margin-bottom:6px;}
+  #topic{font-size:14px;font-weight:600;line-height:1.6;color:var(--text);margin:0 0 10px;
+    white-space:pre-wrap;word-break:break-word;}
+  #meta{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;}
+  .stat{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;
+    border:1px solid var(--border);border-radius:999px;background:var(--panel2);
+    color:var(--muted);font-size:10.5px;line-height:1;}
+  .stat b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;}
+  .people-title{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--muted);
+    padding:10px 0 6px;border-top:1px solid var(--border);}
+  #people{display:flex;flex-direction:column;gap:2px;}
+  .p{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:8px;
+    min-height:34px;padding:3px 6px;border-radius:8px;color:var(--muted);font-size:12px;}
   .p.on{background:var(--ac-soft);color:var(--text);}
-  .p .dot{width:7px;height:7px;border-radius:50%;background:var(--border);flex:none;}
-  .p.say .dot{background:var(--accent);box-shadow:0 0 0 3px var(--ac-soft);}
-  .p.done .dot{background:#4fa870;}
-  .p.err .dot{background:var(--danger);}
+  .p .ava{width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+    background:var(--panel2);border:1px solid var(--border);color:var(--ac-strong);
+    font-size:10.5px;font-weight:700;flex:none;}
   .p .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  #flow{flex:1 1 auto;overflow:auto;padding:10px 12px;}
-  .round{color:var(--dim);font-size:10.5px;margin:10px 0 6px;display:flex;align-items:center;gap:8px;}
+  .p .st{font-size:10px;line-height:1;color:var(--muted);white-space:nowrap;}
+  .p.say .st{color:var(--accent);}
+  .p.done .st{color:var(--ok);}
+  .p.err .st{color:var(--danger);}
+  .p.say .ava{border-color:var(--accent-border);background:var(--ac-soft);}
+  .p.err .ava{border-color:var(--danger);color:var(--danger);}
+  /* ── 右 thread：讨论线程 ────────────────────────────────────────────── */
+  #thread{flex:1 1 auto;min-width:0;min-height:0;display:flex;flex-direction:column;max-width:1080px;}
+  .thread-head{flex:none;display:flex;align-items:center;justify-content:space-between;
+    gap:12px;padding:0 4px 10px;}
+  .thread-title{font-size:13px;font-weight:600;color:var(--text);line-height:1.4;}
+  #threadCount{font-size:11px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums;}
+  #flow{position:relative;flex:1 1 auto;min-height:0;overflow:auto;padding:6px 6px 20px 30px;}
+  #flow::before{content:"";position:absolute;left:14px;top:14px;bottom:18px;width:1px;
+    background:var(--border);}
+  #flow:empty{display:none;}
+  #flow.is-empty::before{display:none;}
+
+  .round{display:flex;align-items:center;gap:8px;margin:16px 0 8px;max-width:920px;}
+  .round:first-child{margin-top:2px;}
+  .round-pill{flex:none;height:20px;padding:0 8px;border-radius:999px;background:var(--ac-soft);
+    border:1px solid var(--accent-border);color:var(--ac-strong);font-size:10.5px;line-height:18px;
+    font-weight:600;white-space:nowrap;}
+  .round-sub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .round:after{content:"";flex:1 1 auto;height:1px;background:var(--border);}
-  .msg{margin:0 0 10px;}
-  .who{font-size:11px;font-weight:600;color:var(--accent);margin-bottom:2px;}
-  .txt{white-space:pre-wrap;word-break:break-word;color:var(--text);font-size:12px;}
+
+  .msg{position:relative;display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;
+    margin:0 0 10px;max-width:960px;}
+  .ava{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+    background:var(--ac-soft);border:1px solid var(--accent-border);color:var(--ac-strong);
+    font-size:11px;font-weight:700;position:relative;z-index:1;flex:none;}
+  .card{min-width:0;border:1px solid var(--border);border-radius:10px;background:var(--panel);
+    padding:11px 13px;transition:border-color .12s ease,background-color .12s ease;}
+  .msg:hover .card{border-color:var(--border-hi);}
+  .msg-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;}
+  .who{font-size:12.5px;font-weight:600;color:var(--text);line-height:1.4;}
+  .kind-chip{flex:none;height:18px;padding:0 6px;border-radius:999px;border:1px solid var(--border);
+    color:var(--muted);font-size:10px;line-height:16px;white-space:nowrap;}
+  .kind-chip.k-idea,.kind-chip.k-proposal{border-color:var(--accent-border);color:var(--ac-strong);background:var(--ac-soft);}
+  .kind-chip.k-evidence{border-color:color-mix(in srgb, var(--ok) 45%, transparent);color:var(--ok);}
+  .kind-chip.k-ruling{border-color:var(--accent);color:var(--accent);font-weight:600;}
+  /* 立场：讨论有没有分歧，一眼可见。颜色只在文字/描边上，不做实底。 */
+  .stance{flex:none;height:18px;padding:0 6px;border-radius:999px;font-size:10px;line-height:16px;
+    border:1px solid var(--border);color:var(--muted);white-space:nowrap;font-weight:600;}
+  .stance.s-yes{color:var(--ok);border-color:color-mix(in srgb, var(--ok) 45%, transparent);}
+  .stance.s-no{color:var(--danger);border-color:color-mix(in srgb, var(--danger) 45%, transparent);}
+  .stance.s-cond{color:var(--ac-strong);border-color:var(--accent-border);background:var(--ac-soft);}
+  .seq{margin-left:auto;color:var(--muted);font-size:10.5px;white-space:nowrap;
+    font-variant-numeric:tabular-nums;}
+  .reply{margin:6px 0 7px;padding:5px 8px;border-left:2px solid var(--accent-border);
+    background:var(--panel2);border-radius:0 6px 6px 0;color:var(--muted);font-size:11px;line-height:1.55;}
+  .reply b{color:var(--text);font-weight:600;}
+  .txt{white-space:pre-wrap;word-break:break-word;color:var(--text);font-size:13px;line-height:1.75;}
+  .msg.err .card{border-color:color-mix(in srgb, var(--danger) 45%, var(--border));}
+  .msg.err .ava{border-color:var(--danger);color:var(--danger);background:transparent;}
   .msg.err .txt{color:var(--danger);}
-  .refs{color:var(--dim);font-size:10.5px;margin-top:2px;}
-  #empty{color:var(--dim);font-size:11.5px;padding:18px 4px;line-height:1.9;}
-  footer{flex:none;border-top:1px solid var(--border);padding:6px 12px;color:var(--dim);
-    font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--panel);}
+  .refs{margin-top:8px;padding-top:6px;border-top:1px dashed var(--border);
+    color:var(--muted);font-size:10.5px;line-height:1.6;display:flex;flex-wrap:wrap;gap:4px 10px;}
+  .refs-label{color:var(--muted);font-weight:600;letter-spacing:.04em;}
+  .refs code{font:10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    color:var(--text);background:var(--panel2);border:1px solid var(--border);border-radius:5px;
+    padding:0 5px;word-break:break-all;}
+  .conclusion{margin:14px 0 0 40px;border:1px solid var(--accent-border);border-radius:10px;
+    background:var(--ac-soft);padding:11px 13px;max-width:920px;}
+  .conclusion-h{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;
+    color:var(--ac-strong);margin-bottom:4px;}
+  .conclusion-t{font-size:12.5px;line-height:1.7;color:var(--text);white-space:pre-wrap;word-break:break-word;}
+
+  .empty-wrap{padding:18px 0 0 4px;}
+  .empty-card{max-width:560px;border:1px dashed var(--border);border-radius:10px;
+    padding:18px 20px;color:var(--muted);font-size:12.5px;line-height:1.85;background:var(--panel2);}
+  .empty-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;}
+
+  @media (max-width:760px){
+    header{padding:0 12px;}
+    #pick{max-width:46vw;}
+    main{flex-direction:column;gap:8px;padding:8px;}
+    #rail{width:auto;max-height:200px;padding:9px 12px;}
+    #topic{font-size:13px;margin-bottom:6px;}
+    #meta{margin-bottom:7px;}
+    .people-title{padding-top:7px;}
+    #people{flex-direction:row;flex-wrap:wrap;gap:5px 6px;max-height:96px;overflow:auto;}
+    .p{width:auto;min-height:26px;padding:2px 8px;grid-template-columns:18px auto auto;gap:5px;}
+    .p .ava{width:18px;height:18px;border-radius:5px;font-size:9px;}
+    .p .st{font-size:9px;}
+    .msg,.round,.conclusion{max-width:none;}
+    #flow{padding:4px 2px 16px 24px;}
+    #flow::before{left:11px;}
+    .msg{grid-template-columns:26px minmax(0,1fr);gap:8px;}
+    .ava{width:26px;height:26px;border-radius:8px;font-size:10px;}
+    .conclusion{margin-left:34px;}
+    .round-sub{display:none;}
+  }
 </style>
+<link rel="stylesheet" href="/shared/core/work-ui.css?v=4">
 </head>
 <body>
 <div id="wrap">
   <header>
     <div id="top">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 256 256" width="18" height="18" fill="currentColor" stroke="currentColor" stroke-width="14" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M252 128a60 60 0 0 1-102.43 42.43l-.49-.53l-59.86-67.59a36 36 0 1 0 0 51.38l3.08-3.48a12 12 0 1 1 18 15.91l-3.35 3.78l-.49.53a60 60 0 1 1 0-84.86l.49.53l59.86 67.59a36 36 0 1 0 0-51.38l-3.08 3.48a12 12 0 1 1-18-15.91l3.35-3.78l.49-.53A60 60 0 0 1 252 128"/></svg></span>
+      <span class="brand-name">多智能体</span>
       <select id="pick" title="切换讨论（历史都在，可回看）"></select>
       <span id="kind">会议</span>
     </div>
-    <p id="topic">还没有议题。等一次召集。</p>
-    <div id="meta"></div>
   </header>
   <main>
-    <div id="people"></div>
-    <div id="flow"><div id="empty">这里显示的是<b>多个彼此独立的 agent</b> 的发言：<br>
-      每人只拿到三样东西——<b>议题</b>、<b>自己的角色卡</b>、<b>自己知识库命中的段落</b>；<br>
-      看不到聊天记录，也看不到别人说了什么（第二轮才互评）。<br><br>
-      三方会商（council 线程）也会作为一类场次出现在这里。</div></div>
+    <aside id="rail">
+      <div class="eyebrow">议题</div>
+      <p id="topic">还没有议题。等一次召集。</p>
+      <div id="meta"></div>
+      <div class="people-title">参与方</div>
+      <div id="people"></div>
+    </aside>
+    <section id="thread">
+      <div class="thread-head">
+        <div class="thread-title">讨论记录</div>
+        <div id="threadCount"></div>
+      </div>
+      <div id="flow"></div>
+    </section>
   </main>
-  <footer id="foot">独立上下文 · 并行作答 · 结论回给主 agent</footer>
 </div>
 <script>
 (function(){
@@ -93,19 +196,42 @@
     topic: document.getElementById('topic'),
     meta: document.getElementById('meta'),
     people: document.getElementById('people'),
+    threadCount: document.getElementById('threadCount'),
     flow: document.getElementById('flow'),
-    empty: document.getElementById('empty'),
-    foot: document.getElementById('foot'),
   };
 
-  // sessions: [{ id, kind:'meeting'|'council', topic, rounds, curRound, participants:[{name,state}], msgs:[{round,who,text,err,refs}], at }]
+  // sessions: [{ id, kind:'meeting'|'council', topic, rounds, curRound, participants:[{name,state}],
+  //              msgs:[{round,who,kind,text,refs,err,idx,ts,reply_to}], conclusion, at }]
   var sessions = [];
   var curId = null;
 
-  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
   function cur(){ for (var i=0;i<sessions.length;i++) if (sessions[i].id===curId) return sessions[i]; return null; }
   function newId(){ return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
-  function fmtTime(ts){ var d=new Date(ts); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
+  function fmtTime(ts){
+    if (!ts) return '';
+    var d = new Date(ts); if (isNaN(d.getTime())) return '';
+    return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+  }
+  function initial(name){
+    var s = String(name || '?').trim();
+    var cp = s ? Array.from(s)[0] : '?';
+    return cp.toUpperCase();
+  }
+  function stateLabel(st){
+    if (st === 'say') return '发言中';
+    if (st === 'done') return '已发言';
+    if (st === 'err') return '失败';
+    return '等待';
+  }
+  function kindClass(kind){
+    var k = String(kind || '');
+    if (k === '提案') return 'k-proposal';
+    if (k === '意见') return 'k-idea';
+    if (k === '取证') return 'k-evidence';
+    if (k === '裁决') return 'k-ruling';
+    return '';
+  }
 
   function renderPick(){
     if (!sessions.length) { el.pick.innerHTML = '<option>（还没有讨论）</option>'; el.pick.disabled = true; return; }
@@ -117,36 +243,109 @@
   }
 
   function renderPeople(s){
-    if (!s || !s.participants.length) { el.people.innerHTML = '<div class="p" style="color:var(--dim)">（无参与者）</div>'; return; }
+    if (!s || !s.participants.length) { el.people.innerHTML = '<div class="p"><span></span><span class="nm">（无参与者）</span></div>'; return; }
     el.people.innerHTML = s.participants.map(function(p){
-      return '<div class="p' + (p.state ? ' ' + p.state : '') + '"><span class="dot"></span>' +
-             '<span class="nm">' + esc(p.name) + '</span></div>';
+      var st = p.state || '';
+      return '<div class="p' + (st ? ' ' + st : '') + '">' +
+             '<span class="ava">' + esc(initial(p.name)) + '</span>' +
+             '<span class="nm" title="' + esc(p.name) + '">' + esc(p.name) + '</span>' +
+             '<span class="st">' + esc(stateLabel(st)) + '</span></div>';
     }).join('');
   }
 
   function renderMeta(s){
     var said = s ? s.msgs.length : 0;
     var bits = [];
-    if (s && s.rounds) bits.push('轮次 <b>' + (s.curRound||0) + '/' + s.rounds + '</b>');
-    if (s) bits.push('参与者 <b>' + s.participants.length + '</b>');
-    bits.push('发言 <b>' + said + '</b>');
-    if (sessions.length > 1) bits.push('共 <b>' + sessions.length + '</b> 场');
-    el.meta.innerHTML = bits.join('<span style="opacity:.4"> · </span>');
+    if (s && s.rounds) bits.push('<span class="stat">轮次 <b>' + (s.curRound||0) + '/' + s.rounds + '</b></span>');
+    if (s) bits.push('<span class="stat">参与者 <b>' + s.participants.length + '</b></span>');
+    bits.push('<span class="stat">发言 <b>' + said + '</b></span>');
+    if (s && s.msgs.length) {
+      var count = { '赞成': 0, '反对': 0, '有条件': 0 };
+      s.msgs.forEach(function(m){ if (count[m.stance] != null) count[m.stance]++; });
+      if (count['赞成'] || count['反对'] || count['有条件']) {
+        bits.push('<span class="stat">立场 赞成 <b>' + count['赞成'] + '</b></span>');
+        bits.push('<span class="stat">反对 <b>' + count['反对'] + '</b></span>');
+        bits.push('<span class="stat">有条件 <b>' + count['有条件'] + '</b></span>');
+      }
+    }
+    if (sessions.length > 1) bits.push('<span class="stat">场次 <b>' + sessions.length + '</b></span>');
+    el.meta.innerHTML = bits.join('');
+  }
+
+  function kindChip(kind){
+    if (!kind) return '';
+    return '<span class="kind-chip ' + kindClass(kind) + '">' + esc(kind) + '</span>';
+  }
+
+  function stanceChip(stance){
+    if (!stance) return '';
+    var cls = stance === '赞成' ? 's-yes' : stance === '反对' ? 's-no' : stance === '有条件' ? 's-cond' : '';
+    return '<span class="stance ' + cls + '">' + esc(stance) + '</span>';
+  }
+
+  function msgHtml(m, i, byIdx){
+    var who = String(m.who || '?');
+    var seq = m.idx != null ? '#' + esc(m.idx) : '#' + (i + 1);
+    var time = fmtTime(m.ts);
+    var reply = '';
+    if (m.reply_to) {
+      var key = String(m.reply_to).split('#').pop();
+      var target = byIdx && byIdx[String(key)];
+      reply = '<div class="reply">回复 <b>' + esc(m.reply_to) + '</b>' +
+              (target && target !== who ? ' · ' + esc(target) : '') + '</div>';
+    }
+    var refs = '';
+    if (m.refs && m.refs.length) {
+      var list = m.refs.slice(0, 6).map(function(r){ return '<code>' + esc(r) + '</code>'; }).join('');
+      refs = '<div class="refs"><span class="refs-label">依据</span>' + list +
+             (m.refs.length > 6 ? '<span>还有 ' + (m.refs.length - 6) + ' 条</span>' : '') + '</div>';
+    }
+    return '<div class="msg' + (m.err ? ' err' : '') + '">' +
+             '<span class="ava" title="' + esc(who) + '">' + esc(initial(who)) + '</span>' +
+             '<div class="card">' +
+               '<div class="msg-head"><span class="who">' + esc(who) + '</span>' +
+                 stanceChip(m.stance) + kindChip(m.kind) +
+                 '<span class="seq">' + seq + (time ? ' · ' + esc(time) : '') + '</span></div>' +
+               reply +
+               '<div class="txt">' + esc(m.err ? ('（这一位失败：' + m.text + '）') : m.text) + '</div>' +
+               refs +
+             '</div>' +
+           '</div>';
+  }
+
+  function emptyHtml(){
+    return '<div class="empty-wrap"><div class="empty-card">' +
+      '<div class="empty-title">还没有讨论</div>' +
+      '主 agent 召集后，发言会实时出现在这里；上方可以切换历史场次。' +
+      '</div></div>';
   }
 
   function renderFlow(s){
-    if (!s || !s.msgs.length) { el.flow.innerHTML = ''; el.flow.appendChild(el.empty); return; }
+    if (!s || !s.msgs.length) {
+      el.flow.classList.add('is-empty');
+      el.flow.innerHTML = emptyHtml();
+      el.threadCount.textContent = '';
+      return;
+    }
+    el.flow.classList.remove('is-empty');
+    var byIdx = {};
+    s.msgs.forEach(function(m){ if (m.idx != null) byIdx[String(m.idx)] = String(m.who || ''); });
     var html = '', lastRound = null;
-    s.msgs.forEach(function(m){
+    s.msgs.forEach(function(m, i){
       if (m.round != null && m.round !== lastRound) {
         lastRound = m.round;
-        html += '<div class="round">第 ' + m.round + ' 轮' + (m.round > 1 ? ' · 已看到彼此上一轮结论' : ' · 各自独立作答') + '</div>';
+        html += '<div class="round"><span class="round-pill">第 ' + m.round + ' 轮</span>' +
+                '<span class="round-sub">' + (m.round > 1 ? '看过彼此上一轮结论后补充' : '各自独立作答') + '</span></div>';
       }
-      html += '<div class="msg' + (m.err ? ' err' : '') + '"><div class="who">' + esc(m.who) + '</div>' +
-              '<div class="txt">' + esc(m.err ? ('（这一位失败：' + m.text + '）') : m.text) + '</div>' +
-              (m.refs && m.refs.length ? '<div class="refs">↳ ' + esc(m.refs.join(' | ')) + '</div>' : '') + '</div>';
+      html += msgHtml(m, i, byIdx);
     });
+    if (s.conclusion) {
+      html += '<div class="conclusion"><div class="conclusion-h">讨论结束</div>' +
+              '<div class="conclusion-t">' + esc(s.conclusion) + '</div></div>';
+    }
     el.flow.innerHTML = html;
+    var speaking = s.participants.filter(function(p){ return p.state === 'say'; }).length;
+    el.threadCount.textContent = s.msgs.length + ' 条发言' + (speaking ? ' · ' + speaking + ' 人发言中' : '');
     el.flow.scrollTop = el.flow.scrollHeight;
   }
 
@@ -156,7 +355,6 @@
     el.kind.textContent = s ? (s.kind === 'council' ? '会商' : '会议') : '—';
     el.topic.textContent = s ? (s.topic || '（未命名议题）') : '还没有议题。等一次召集。';
     renderPeople(s); renderMeta(s); renderFlow(s);
-    if (s) el.foot.textContent = (s.kind === 'council' ? '三方会商（ZCode / DSH / 主站）· 共用本机留言板' : '独立上下文 · 并行作答 · 结论回给主 agent');
   }
 
   function touch(s){ s.at = Date.now(); renderAll(); }
@@ -166,7 +364,7 @@
     for (var i=0;i<sessions.length;i++) {
       if (sessions[i].kind === kind && sessions[i].key === key) return sessions[i];
     }
-    var s = Object.assign({ id: newId(), kind: kind, key: key, msgs: [], participants: [], rounds: 0, curRound: 0, at: Date.now() }, init || {});
+    var s = Object.assign({ id: newId(), kind: kind, key: key, msgs: [], participants: [], rounds: 0, curRound: 0, conclusion: '', at: Date.now() }, init || {});
     sessions.push(s);
     while (sessions.length > MAX) sessions.shift();
     return s;
@@ -183,13 +381,14 @@
       var topic = String(o.topic || '');
       var s = o.reuse ? findOrCreate('meeting', topic, { topic: topic }) : null;
       if (!s) {
-        s = { id: newId(), kind: 'meeting', key: topic, topic: topic, msgs: [], participants: [], rounds: 0, curRound: 0, at: Date.now() };
+        s = { id: newId(), kind: 'meeting', key: topic, topic: topic, msgs: [], participants: [], rounds: 0, curRound: 0, conclusion: '', at: Date.now() };
         sessions.push(s);
         while (sessions.length > MAX) sessions.shift();
       }
       s.topic = topic;
       s.rounds = Math.max(1, parseInt(o.rounds, 10) || 1);
       s.curRound = 0;
+      s.conclusion = '';
       s.participants = (o.participants || []).map(function(n){ return { name: String(n), state: '' }; });
       curId = s.id;
       touch(s);
@@ -211,19 +410,30 @@
       o = o || {};
       var s = cur(); if (!s) return { ok: false, error: '没有进行中的讨论' };
       var who = String(o.who || '?');
-      s.msgs.push({ round: s.curRound || 1, who: who, text: String(o.error || o.text || ''), err: !!o.error });
+      s.msgs.push({
+        round: s.curRound || 1, who: who,
+        kind: o.kind ? String(o.kind) : '',
+        stance: o.stance ? String(o.stance) : '',
+        text: String(o.error || o.text || ''),
+        err: !!o.error,
+        refs: o.refs || null,
+        idx: o.idx != null ? o.idx : null,
+        ts: o.ts || Date.now(),
+        reply_to: o.reply_to ? String(o.reply_to) : ''
+      });
       for (var i=0;i<s.participants.length;i++) if (s.participants[i].name === who) s.participants[i].state = o.error ? 'err' : 'done';
       touch(s);
       return { ok: true, said: s.msgs.length };
     },
     done: function(o){
       var s = cur(); if (!s) return { ok: false };
-      el.foot.textContent = (o && o.note) || '本轮讨论结束 · 结论已回给主 agent';
+      s.conclusion = (o && o.note) ? String(o.note) : '本轮讨论结束 · 结论已回给主 agent';
+      touch(s);
       return { ok: true };
     },
 
     /* 三方会商：把一条线程作为一类"场次"导入/刷新。
-       { thread, messages:[{who, kind, text, refs}] } —— 一条 thread 对应一场，多次导入是刷新不是新建。 */
+       { thread, messages:[{who, kind, text, refs, idx, ts, reply_to}] } —— 一条 thread 对应一场，多次导入是刷新不是新建。 */
     importCouncil: function(o){
       o = o || {};
       var thread = String(o.thread || '未命名线程');
@@ -231,13 +441,21 @@
       if (o.title) s.topic = String(o.title);
       s.participants = [];
       s.msgs = [];
+      s.conclusion = '';
       var seen = {};
       (o.messages || []).forEach(function(m){
         var who = String(m.who || m.from || '?');
-        var kind = String(m.kind || '');
         if (!seen[who]) { seen[who] = 1; s.participants.push({ name: who, state: 'done' }); }
-        s.msgs.push({ round: null, who: who + (kind ? ' · ' + kind : ''), text: String(m.text || m.body || ''),
-                      refs: m.refs || null, err: false });
+        s.msgs.push({
+          round: null, who: who,
+          kind: m.kind ? String(m.kind) : '',
+          text: String(m.text || m.body || ''),
+          refs: m.refs || null,
+          err: false,
+          idx: m.idx != null ? m.idx : null,
+          ts: m.ts || null,
+          reply_to: m.reply_to ? String(m.reply_to) : ''
+        });
       });
       s.rounds = 0; s.curRound = 0;
       curId = s.id;
@@ -263,6 +481,7 @@
   };
 
   renderPick();
+  renderAll();
   try {
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ __panel: 1, type: 'ready', data: { title: '多智能体讨论区' } }, '*');

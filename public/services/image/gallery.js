@@ -136,7 +136,7 @@ function downloadUrlOf(item             )         {
   return item.key ? item.url : "/img/dl?url=" + encodeURIComponent(item.src);
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/gallery.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/gallery.ts; this file owns the
 // localStorage list, the blob cache in IndexedDB, the workshop tab and the toast.
 //
 // The cloud gallery routes this module used to call are gone, so "favourite" is local-only. The
@@ -201,7 +201,7 @@ function downloadUrlOf(item             )         {
   }
   // Feedback goes through the shared toast when it is loaded; the fallback keeps a bare page usable.
   function toast(msg) {
-    if (window.__feedback && window.__feedback.toast) return window.__feedback.toast(msg, { ms: 2000 });
+    if (window.feedbackSvc && window.feedbackSvc.toast) return window.feedbackSvc.toast(msg, { ms: 2000 });
     try { var t = document.getElementById('galToast'); if (!t) { t = document.createElement('div'); t.id = 'galToast'; t.className = 'gal-toast'; document.body.appendChild(t); } t.textContent = msg; t.style.opacity = '1'; setTimeout(function () { t.style.opacity = '0'; }, 2000); } catch (e) {}
   }
 
@@ -338,7 +338,7 @@ function downloadUrlOf(item             )         {
   }
   function openInStudio(url) {
     try {
-      if (window.__image && window.__image.open) window.__image.open();
+      if (window.imageStudioSvc && window.imageStudioSvc.open) window.imageStudioSvc.open();
       var out = document.getElementById('imgOutput');
       if (out) { var im = document.createElement('img'); im.src = url; im.style.maxWidth = '100%'; out.innerHTML = ''; out.appendChild(im); }
       var p = document.getElementById('galPanel'); if (p) p.style.display = 'none';
@@ -350,17 +350,17 @@ function downloadUrlOf(item             )         {
   // workshop's open entry point and retrying a few times after startup is enough.
   function hookWorkshopOpen() {
     try {
-      if (window.__image && typeof window.__image.open === 'function' && !window.__image.__galHooked) {
-        var origOpen = window.__image.open;
-        window.__image.open = function () {
+      if (window.imageStudioSvc && typeof window.imageStudioSvc.open === 'function' && !window.imageStudioSvc.__galHooked) {
+        var origOpen = window.imageStudioSvc.open;
+        window.imageStudioSvc.open = function () {
           var r = origOpen.apply(this, arguments);
           setTimeout(ensureUI, 50);
           setTimeout(ensureUI, 400); // second pass in case the modal builds asynchronously
           return r;
         };
-        window.__image.__galHooked = true;
+        window.imageStudioSvc.__galHooked = true;
       }
-      return !!(window.__image && window.__image.__galHooked);
+      return !!(window.imageStudioSvc && window.imageStudioSvc.__galHooked);
     } catch (e) { return false; }
   }
   function watch() {
@@ -379,7 +379,7 @@ function downloadUrlOf(item             )         {
     open: function () {
       var b = document.getElementById('galToggleBtn');
       if (b) { b.click(); return; }
-      if (window.__image && window.__image.open) { window.__image.open(); setTimeout(function () { var b2 = document.getElementById('galToggleBtn'); if (b2) b2.click(); }, 300); }
+      if (window.imageStudioSvc && window.imageStudioSvc.open) { window.imageStudioSvc.open(); setTimeout(function () { var b2 = document.getElementById('galToggleBtn'); if (b2) b2.click(); }, 300); }
     }
   };
 

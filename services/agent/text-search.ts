@@ -7,7 +7,7 @@
  *
  * Literal matching is the default; regular expressions are opt-in and guarded (length cap,
  * nested-quantifier rejection, per-line failure fallback) because the pattern comes from the
- * model. Nothing here touches `window`, storage or the DOM; the adapter is l0/wiring/text-search.js.
+ * model. Nothing here touches `window`, storage or the DOM; the adapter is tooling/l0/wiring/text-search.js.
  * @module services/agent/text-search
  */
 

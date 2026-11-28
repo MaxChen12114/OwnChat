@@ -20,8 +20,10 @@ export interface CatNavInput {
   readonly items: readonly CatItem[];
   /** Developer mode switch (`cfw_dev_mode_v1`). */
   readonly devOn: boolean;
-  /** Whether a desktop/mobile shell is hosting the page (the voice tab needs native audio). */
+  /** Whether a desktop/mobile shell is hosting the page (native GPT-SoVITS needs it). */
   readonly isApp: boolean;
+  /** Whether cloud speech is loaded — the voice tab stays useful in the browser without a shell. */
+  readonly hasCloudTts: boolean;
   /** Last remembered category, `null` when never set. */
   readonly saved: string | null;
 }
@@ -45,7 +47,11 @@ export function planCatNav(input: CatNavInput): CatNavPlan {
   for (let i = 0; i < input.items.length; i++) {
     const item = input.items[i];
     if (item.devOnly && !input.devOn) hidden.push(item.cat);
-    else if (item.cat === "voice" && !input.isApp) hidden.push(item.cat);
+    // The voice tab used to be shell-only because local GPT-SoVITS needs native audio. Cloud speech
+    // (2026-11-25) runs through the Worker and works in the browser, so the tab is visible whenever
+    // either engine is available — otherwise the only speech setting in a web guest session would
+    // be buried in the model-API category.
+    else if (item.cat === "voice" && !input.isApp && !input.hasCloudTts) hidden.push(item.cat);
   }
   const visible = (cat: string): boolean => hidden.indexOf(cat) < 0;
   // 旧实现用 `items.find(cat === saved && 可见)`：保存的分类必须**当前存在于列表里**才算数，

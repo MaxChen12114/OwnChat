@@ -57,7 +57,7 @@ function createSkillTools(deps           )           {
     const args = recOf(input);
     const store = deps.skills();
     if (!store || typeof store.getByName !== "function") {
-      return { ok: false, error: "技能系统未就绪 (skills.js / window.__skills)" };
+      return { ok: false, error: "技能系统未就绪 (skills.js / window.skillsSvc)" };
     }
 
     try {

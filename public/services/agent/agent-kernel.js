@@ -140,8 +140,23 @@ function isRunning()          {
 
                            
               
+                                                                                                      
+                
                                                    
+                         
  
+
+/** Repairs stored calls from older turns by adding the required discriminant before a new request. */
+function normalizeToolCallTypes(calls         )             {
+  if (!Array.isArray(calls)) return [];
+  return calls.map((call) => {
+    if (call === null || typeof call !== "object" || Array.isArray(call)) return {};
+    const entry           = {};
+    for (const [key, value] of Object.entries(call)) entry[key] = value;
+    entry.type = typeof entry.type === "string" && entry.type ? entry.type : "function";
+    return entry;
+  });
+}
 
                                  
                
@@ -332,8 +347,9 @@ const runAgentLoop = async (opts                  )                             
 
       // The assistant turn carrying tool_calls must echo reasoning_content: DeepSeek 400s the next
       // request when a reasoning model's tool turn loses it. Content stays as returned; request
-      // assembly is what blanks it before sending.
-      const asstMsg              = { role: "assistant", content: res.content || "", tool_calls: toolCalls };
+      // assembly is what blanks it before sending. Same protocol family: every echoed call carries
+      // the OpenAI `type` discriminant, or the next request 422s on calls that omit it.
+      const asstMsg              = { role: "assistant", content: res.content || "", tool_calls: normalizeToolCallTypes(toolCalls) };
       if (res.reasoning_content) asstMsg.reasoning_content = res.reasoning_content;
       messages.push(asstMsg);
 
@@ -456,6 +472,11 @@ function summarizeToolResult(result         )         {
  * and is reused by request assembly and worker-side inbound sanitising, which is also why synthetic
  * results are spliced right after their assistant turn instead of appended: a dangling call in the
  * middle of a stored history is illegal order, not just untidy.
+ *
+ * Because request assembly runs this immediately before sending, it is also where echoed calls get
+ * their `type` discriminant repaired in place (`normalizeToolCallTypes`): stored calls from older
+ * turns may predate it, and a call without `type` 422s the next request. The repair is idempotent —
+ * a call that already carries a valid `type` is byte-identical after it.
  * @returns how many results were synthesised
  */
 function pairPendingToolCalls(messages               , note         )         {
@@ -467,6 +488,7 @@ function pairPendingToolCalls(messages               , note         )         {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
     if (!m || m.role !== "assistant" || !Array.isArray(m.tool_calls)) continue;
+    m.tool_calls = normalizeToolCallTypes(m.tool_calls);
     const missing = m.tool_calls.filter((c) => c && c.id && !answered.has(c.id));
     if (!missing.length) continue;
     const synth                = missing.map((c) => ({
@@ -485,8 +507,8 @@ function isRecord(value         )                                   {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen contract name ──
-// The implementation moved to services/agent/agent-kernel.ts; this file only republishes the four
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen contract name ──
+// The implementation moved to services/agent/agent-kernel.ts; this file only republishes the five
 // names as one object, which is the shape every existing caller reads. The dot-prefixed form is what
 // contract scanning measures — an alias through a local variable would report the name as dead.
 (function () {
@@ -495,11 +517,13 @@ function isRecord(value         )                                   {
     runAgentLoop: runAgentLoop,
     isRunning: isRunning,
     pairPendingToolCalls: pairPendingToolCalls,
+    normalizeToolCallTypes: normalizeToolCallTypes,
   };
 })();
 
 globalThis.createToolRegistry = createToolRegistry;
 globalThis.isRunning = isRunning;
+globalThis.normalizeToolCallTypes = normalizeToolCallTypes;
 globalThis.runAgentLoop = runAgentLoop;
 globalThis.pairPendingToolCalls = pairPendingToolCalls;
 })();

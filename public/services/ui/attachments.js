@@ -5,12 +5,12 @@
  * stored attachment metadata into payload content (fenced file blocks, vision image arrays).
  *
  * Non-obvious choice: document full texts never enter session storage — messages carry only
- * {id,name,chars,truncated}; the full text lives in IndexedDB (via the injected getBlob port)
- * plus an in-page memo that covers the async IDB write window, and expansion re-fetches it on
- * every send. This keeps the 2MB localStorage session slot from being overflowed by a single
- * paste, which used to evict the oldest messages (= real data loss).
+ * {id,name,chars,truncated}; the full text lives in the unified `attachments` store (via the
+ * injected getText/getBlob ports) plus an in-page memo that covers the async write window, and
+ * expansion re-fetches it on every send. This keeps the 2MB localStorage session slot from being
+ * overflowed by a single paste, which used to evict the oldest messages (= real data loss).
  *
- * The wiring (browser adapter appended by l0/emit.mjs) owns IndexedDB access, DOM rendering,
+ * The wiring (browser adapter appended by tooling/l0/emit.mjs) owns the storage backends, DOM rendering,
  * the lightbox gestures and the frozen attach facade; everything here is pure and vm-testable.
  * @module services/ui/attachments
  */
@@ -60,11 +60,13 @@ const ATT_MAX_CHARS = 100000;
 /**
  * Browser ports injected by the wiring. putBlob must never throw synchronously (its caller
  * wraps the Blob construction in the same try as before); getBlob resolves null instead of
- * rejecting when a device does not hold the blob.
+ * rejecting when a device does not hold the blob. getText is the fast path for text attachments
+ * (the SQL store keeps them in a text column); absent or null means "fall back to getBlob".
  */
                                  
-                                                                         
+                                                                                        
                                                 
+                                                   
                               
  
 
@@ -211,7 +213,7 @@ function createAttachmentsCore(host                )             {
     const text = String(item.text == null ? "" : item.text);
     _textMemo.set(id, text);
     try {
-      host.putBlob(id, new Blob([text], { type: "text/plain;charset=utf-8" }));
+      host.putBlob(id, new Blob([text], { type: "text/plain;charset=utf-8" }), item.name || "未命名");
     } catch (_) {
       // Blob construction can fail in non-browser realms; the memo below still covers the send.
     }
@@ -229,14 +231,14 @@ function createAttachmentsCore(host                )             {
       w: item.w || 0, h: item.h || 0
     };
     pending.push(p);
-    if (p.blob) host.putBlob(p.id, p.blob);
+    if (p.blob) host.putBlob(p.id, p.blob, p.name);
     host.onPendingChange();
     return p;
   }
 
   /**
    * Drain the pending list into the shapes a sent message needs. files/images carry metadata
-   * only (the full text lives in IDB/memo, fetched back via fileFullText) so the session
+   * only (the full text lives in the store/memo, fetched back via fileFullText) so the session
    * store is never overflowed by document bodies; _memImages exists for this render only.
    */
   function takePending()           {
@@ -262,7 +264,7 @@ function createAttachmentsCore(host                )             {
 
   /**
    * Put a sent message's attachments back into the pending list (the retry path). New-format
-   * files (with id) reuse the original id — the blob is already in IDB, no re-ingest; legacy
+   * files (with id) reuse the original id — the blob is already stored, no re-ingest; legacy
    * files (with inline text) are restaged as-is and read from f.text during expansion.
    */
   function restage(msg         )         {
@@ -286,7 +288,7 @@ function createAttachmentsCore(host                )             {
     }
     const images = Array.isArray(m.images) ? m.images.filter(isImageMeta) : [];
     for (const im of images) {
-      // Reuse the original id: the image blob is already in IndexedDB and can be fetched
+      // Reuse the original id: the image blob is already stored and can be fetched
       // back to a dataURL at send time.
       pending.push({ id: im.id || uid(), kind: "image", name: im.name || "图片", dataUrl: "", blob: null, w: im.w || 0, h: im.h || 0 });
       n++;
@@ -320,9 +322,10 @@ function createAttachmentsCore(host                )             {
   }
 
   /**
-   * Fetch a document's full text: in-page memo first (covers the IDB async-write race for
-   * texts added this page load), then the legacy inline f.text (historical sessions), then
-   * IDB. Empty string when nothing is available — never rejects.
+   * Fetch a document's full text: in-page memo first (covers the async store-write race for
+   * texts added this page load), then the legacy inline f.text (historical sessions), then the
+   * store's text column (getText), then the Blob body. Empty string when nothing is available —
+   * never rejects.
    */
   async function fileFullText(f                                )                  {
     if (!f) return "";
@@ -330,6 +333,10 @@ function createAttachmentsCore(host                )             {
     if (typeof f.text === "string") return f.text;
     if (f.id) {
       try {
+        if (typeof host.getText === "function") {
+          const text = await host.getText(f.id);
+          if (text != null) return text;
+        }
         const b = await host.getBlob(f.id);
         if (b) return await b.text();
       } catch (_) {
@@ -377,7 +384,7 @@ function createAttachmentsCore(host                )             {
    * Request-assembly expansion (memory-only; the session is never rewritten, so retry and
    * refresh cannot lose anything):
    *   · files — only the LATEST message carrying files expands full texts; earlier file
-   *     messages keep the first 1000 chars. Before the IDB migration every historical file
+   *     messages keep the first 1000 chars. Before the storage migration every historical file
    *     message resent its full text each turn (cost x turns, blowing the upstream context
    *     in 2-3 turns on large docs).
    *   · images — only the last user message expands, into the vision array.
@@ -465,10 +472,16 @@ function createAttachmentsCore(host                )             {
   };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/attachments.ts owns the pending
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/attachments.ts owns the pending
 // state machine, metadata shaping, token estimation and the request-assembly expansion; this file
-// owns IndexedDB blob storage, the DOM (text chips, image cards, lightbox with pinch/pan
-// gestures), the pending strip above the composer, and the frozen attach facade assembly.
+// owns the attachment storage adapters (the unified SQLite `attachments` table reached through
+// window.dbSvc, with the legacy IndexedDB database as the one-time import source and fallback), the
+// DOM (text chips, image cards, lightbox with pinch/pan gestures), the pending strip above the
+// composer, and the frozen attach facade assembly.
+//
+// Storage split: text attachments live in the `text` column (fileFullText reads them back without a
+// Blob round trip), image bytes live in `body` and travel the DbPort's `{__b64}` wire shape. A row
+// may legally have only one of the two, which is also what makes old rows readable.
 //
 // Frozen global name: the attach facade is written by chat-extras (add side) and read by app.js
 // and chat-ux (retry/restore side); every method key below is load-bearing for those callers.
@@ -476,30 +489,51 @@ function createAttachmentsCore(host                )             {
 // before, consumers expect it.
 (function (global) {
   "use strict";
-  if (global.__attach) return;
+  if (global.attachSvc) return;
 
-  const esc = global.__ownEscape.esc; // shared escaper, loaded earlier in the boot list
+  const esc = global.escapeSvc.esc; // shared escaper, loaded earlier in the boot list
 
-  // ───────── IndexedDB: chat image/document blob store ─────────
-  // A dedicated database on purpose: reusing cfw_image_gallery needs a version bump (conflicts
-  // with existing v1 openers, old users read null) and cfw_image_album has a "clear gallery"
-  // button that would wipe chat blobs. A separate DB is conflict-free.
+  function warn(message, error) {
+    try { console.warn("[attachments] " + message, error); } catch (e) {}
+  }
+
+  // ───────── Storage constants ─────────
+  // The IndexedDB database exists on purpose: reusing cfw_image_gallery needs a version bump
+  // (conflicts with existing v1 openers, old users read null) and cfw_image_album has a "clear
+  // gallery" button that would wipe chat blobs. A separate DB is conflict-free. It is now the
+  // fallback/legacy source, not the primary store.
   var IDB_NAME = "cfw_chat_images";
   var IDB_STORE = "blobs";
+  var IMPORT_MARK = "attachments_idb_v1";
+  // `attachments` is 0002's table; `storage_marks` arrives with 0003. Both are probed together:
+  // without the ledger the legacy import cannot be recorded, so a half schema must fall back.
+  var SQL_TABLES = ["attachments", "storage_marks"];
+  // Small batches: a stray photo can be megabytes and D1's /tx route accepts 4 MB of JSON per
+  // request. The legacy import writes one row per transaction; this batch size drives the orphan
+  // sweep only.
+  var WRITE_CHUNK = 10;
   var _db = null;
+  var _idbCreated = false;
+
+  // ───────── legacy IndexedDB adapter (fallback + one-time import source) ─────────
   function idb() {
     if (_db) return Promise.resolve(_db);
     return new Promise(function (resolve) {
       try {
         var req = global.indexedDB.open(IDB_NAME, 1);
-        req.onupgradeneeded = function () { try { req.result.createObjectStore(IDB_STORE); } catch (e) {} };
+        req.onupgradeneeded = function (ev) {
+          // oldVersion 0 means this open created the database; an upgrade of an existing database
+          // (oldVersion > 0) may hold real blobs and must still be read/imported.
+          _idbCreated = !ev || !ev.oldVersion;
+          try { req.result.createObjectStore(IDB_STORE); } catch (e) {}
+        };
         req.onsuccess = function () { _db = req.result; resolve(_db); };
         req.onerror = function () { resolve(null); };
         req.onblocked = function () { resolve(null); };
       } catch (e) { resolve(null); }
     });
   }
-  function putBlob(id, blob) {
+  function idbPut(id, blob) {
     return idb().then(function (db) {
       if (!db || !blob) return false;
       return new Promise(function (res) {
@@ -513,7 +547,7 @@ function createAttachmentsCore(host                )             {
       });
     }).catch(function () { return false; });
   }
-  function getBlob(id) {
+  function idbGet(id) {
     return idb().then(function (db) {
       if (!db) return null;
       return new Promise(function (res) {
@@ -525,64 +559,362 @@ function createAttachmentsCore(host                )             {
       });
     }).catch(function () { return null; });
   }
-  function delBlob(id) {
+  function idbDelete(id) {
     return idb().then(function (db) {
       if (!db) return;
       try { db.transaction(IDB_STORE, "readwrite").objectStore(IDB_STORE).delete(id); } catch (e) {}
     }).catch(function () {});
   }
+
+  // ───────── SQLite attachment store (attachments.text / attachments.body) ─────────
+  function sqlPort() {
+    try {
+      var svc = global.dbSvc;
+      if (svc && typeof svc.get === "function") return svc.get();
+    } catch (e) {
+      warn("DbPort 不可用，本次回退 IndexedDB", e);
+    }
+    return null;
+  }
+  function rowsOf(result) {
+    return result && Array.isArray(result.rows) ? result.rows : [];
+  }
+  function hasTables(p) {
+    return p.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?,?)", SQL_TABLES)
+      .then(function (res) {
+        var found = {};
+        rowsOf(res).forEach(function (row) { found[String(row && row.name)] = true; });
+        for (var i = 0; i < SQL_TABLES.length; i++) if (!found[SQL_TABLES[i]]) return false;
+        return true;
+      });
+  }
+  // One writer at a time: the node sidecar and the Tauri shell share one SQLite connection, and two
+  // overlapping BEGIN/COMMIT batches abort each other. Reads stay parallel.
+  var _writeChain = Promise.resolve();
+  function serialWrite(job) {
+    var run = _writeChain.then(job);
+    _writeChain = run.then(function () {}, function () {});
+    return run;
+  }
+
+  function writeChunks(p, statements) {
+    var at = 0;
+    function step() {
+      if (at >= statements.length) return Promise.resolve();
+      var batch = statements.slice(at, at + WRITE_CHUNK);
+      at += WRITE_CHUNK;
+      return serialWrite(function () {
+        return p.transaction(function (t) {
+          for (var i = 0; i < batch.length; i++) t.exec(batch[i].sql, batch[i].params);
+        });
+      }).then(step);
+    }
+    return step();
+  }
+  function isMarked(p) {
+    return p.exec("SELECT name FROM storage_marks WHERE name = ?", [IMPORT_MARK]).then(function (res) {
+      return rowsOf(res).length > 0;
+    });
+  }
+  function markDone(p) {
+    return serialWrite(function () {
+      return p.exec("INSERT OR REPLACE INTO storage_marks (name, ts) VALUES (?,?)", [IMPORT_MARK, Date.now()]);
+    }).then(function () {});
+  }
+
+  /** One row shape for both writes and the legacy import: text goes to `text`, bytes to `body`. */
+  function statFor(id, name, mime, size, body, text) {
+    return {
+      sql: "INSERT OR REPLACE INTO attachments (id, name, mime, size, body, text, ts) VALUES (?,?,?,?,?,?,?)",
+      params: [id, name, mime || null, size, body, text, Date.now()],
+    };
+  }
+
+  /** Blob → statement. Text blobs keep their text so fileFullText never reconstructs a Blob. */
+  function statementFromBlob(id, name, blob) {
+    var mime = String(blob.type || "");
+    var label = name ? String(name) : id;
+    var isText = /^text\//i.test(mime);
+    var read = isText ? blob.text() : blob.arrayBuffer().then(function (buf) { return new Uint8Array(buf); });
+    return read.then(function (value) {
+      var text = isText ? String(value) : null;
+      var body = isText ? null : value;
+      var size = typeof blob.size === "number" ? blob.size : (isText ? text.length : body.length);
+      return statFor(id, label, mime, size, body, text);
+    });
+  }
+
+  function sqlPut(p, id, blob, name) {
+    return statementFromBlob(id, name, blob).then(function (statement) {
+      // A single statement still goes through `transaction`: D1's /exec route caps the JSON body
+      // at 1 MB while /tx caps it at 4 MB, and an attachment is the only binary payload here.
+      return serialWrite(function () {
+        return p.transaction(function (t) { t.exec(statement.sql, statement.params); });
+      }).then(function () { return true; });
+    });
+  }
+
+  function bytesOf(value) {
+    if (value instanceof Uint8Array) return value;
+    if (value instanceof ArrayBuffer) return new Uint8Array(value);
+    return null;
+  }
+
+  function sqlGet(p, id) {
+    return p.exec("SELECT body, text, mime FROM attachments WHERE id = ?", [id]).then(function (res) {
+      var row = rowsOf(res)[0];
+      if (!row) return null;
+      var mime = row.mime == null ? "" : String(row.mime);
+      var bytes = bytesOf(row.body);
+      if (bytes) return new Blob([bytes], { type: mime });
+      if (row.body != null) return null; // malformed body is "not on this device", never a fake blob
+      if (row.text != null) return new Blob([String(row.text)], { type: mime || "text/plain" });
+      return null;
+    });
+  }
+
+  function sqlGetText(p, id) {
+    return p.exec("SELECT text FROM attachments WHERE id = ?", [id]).then(function (res) {
+      var row = rowsOf(res)[0];
+      return row && row.text != null ? String(row.text) : null;
+    });
+  }
+
+  function sqlDelete(p, id) {
+    return serialWrite(function () { return p.exec("DELETE FROM attachments WHERE id = ?", [id]); })
+      .then(function () {});
+  }
+
+  // ───────── Backend choice (lazy, once per page) ─────────
+  var _backend = null;
+  var _backendP = null;
+
+  function fallbackBackend() {
+    return { mode: "idb" };
+  }
+
+  /** Read every [key, Blob] pair from the legacy store; null means unreadable (never mark done). */
+  function readLegacy() {
+    // No IndexedDB in this host means no legacy data can exist; that is a definitive empty answer,
+    // not a read failure (a headless boot must still be able to use the SQL store).
+    if (!global.indexedDB || typeof global.indexedDB.open !== "function") return Promise.resolve([]);
+    return idb().then(function (db) {
+      if (!db) return null;
+      if (_idbCreated) return [];
+      return new Promise(function (resolve) {
+        try {
+          var entries = [];
+          var cursor = db.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).openCursor();
+          cursor.onsuccess = function (e) {
+            var c = e.target.result;
+            if (!c) return resolve(entries);
+            entries.push([c.key, c.value]);
+            c.continue();
+          };
+          cursor.onerror = function () { resolve(null); };
+        } catch (e) { resolve(null); }
+      });
+    }).catch(function (e) {
+      warn("旧附件读取失败", e);
+      return null;
+    });
+  }
+
+  /** Close our handle, then drop the legacy database. A blocked delete keeps the marker for retry. */
+  function deleteLegacyDb() {
+    return new Promise(function (resolve) {
+      try {
+        if (_db) { try { _db.close(); } catch (e) {} _db = null; }
+        if (!global.indexedDB || typeof global.indexedDB.deleteDatabase !== "function") return resolve(false);
+        var req = global.indexedDB.deleteDatabase(IDB_NAME);
+        req.onsuccess = function () { _idbCreated = false; resolve(true); };
+        req.onerror = function () {
+          warn("旧附件 IndexedDB 删除失败（旧数据已导入，标记保留；下次启动重试删除）");
+          resolve(false);
+        };
+        req.onblocked = function () {
+          warn("旧附件 IndexedDB 被其他标签页占用，未删除（旧数据已导入；下次启动重试）");
+          resolve(false);
+        };
+      } catch (e) {
+        warn("旧附件 IndexedDB 删除异常", e);
+        resolve(false);
+      }
+    });
+  }
+
+  // REPLACE, not IGNORE: until the marker exists the legacy store is the source of truth (a session
+  // that fell back to IndexedDB may have newer blobs), so a retry must converge on it. One row per
+  // transaction: a photo can be megabytes, and converting every blob before writing would hold the
+  // whole legacy database in memory.
+  function migrateLegacy(p) {
+    return isMarked(p).then(function (done) {
+      if (done) return deleteLegacyDb();
+      return readLegacy().then(function (entries) {
+        if (!entries) throw new Error("legacy attachment IndexedDB is unreadable");
+        var at = 0;
+        function step() {
+          if (at >= entries.length) return Promise.resolve();
+          var entry = entries[at++];
+          var id = String(entry[0]);
+          var blob = entry[1];
+          if (!id || !blob || typeof blob.arrayBuffer !== "function") return step();
+          return statementFromBlob(id, id, blob).then(function (statement) {
+            return serialWrite(function () {
+              return p.transaction(function (t) { t.exec(statement.sql, statement.params); });
+            });
+          }).then(step);
+        }
+        return step()
+          .then(function () { return markDone(p); })
+          .then(deleteLegacyDb);
+      });
+    });
+  }
+
+  function resolveBackend() {
+    var p = sqlPort();
+    if (!p) return Promise.resolve(fallbackBackend());
+    return hasTables(p).then(function (ok) {
+      if (!ok) {
+        warn("统一存储缺少 attachments/storage_marks 表，本次回退 IndexedDB");
+        return fallbackBackend();
+      }
+      return migrateLegacy(p).then(function () { return { mode: "sql", port: p }; }, function (e) {
+        warn("旧附件 IndexedDB 迁移失败，本次继续用 IndexedDB（旧数据保留，不删库）", e);
+        return fallbackBackend();
+      });
+    }, function (e) {
+      // Unreachable is not "schema missing": keep the SQL backend so writes fail loudly instead of
+      // silently moving to a second local store that would have to be reconciled later.
+      warn("统一存储不可达，附件操作将报错而不改写 IndexedDB", e);
+      return { mode: "sql", port: p };
+    });
+  }
+
+  function backend() {
+    if (_backend) return Promise.resolve(_backend);
+    if (!_backendP) {
+      // The `then` wrapper turns a synchronous throw (a hostile port, a missing global) into a
+      // rejection: every caller assumes it gets a promise back.
+      _backendP = Promise.resolve().then(resolveBackend).then(function (b) { _backend = b; return b; });
+    }
+    return _backendP;
+  }
+
+  // ───────── Ports (the same three the service always had, plus the text fast path) ─────────
+  function putBlob(id, blob, name) {
+    if (!blob) return Promise.resolve(false);
+    return backend().then(function (b) {
+      // Fallback mode means the SQL path was never tried; if the local write also fails, the caller
+      // gets false and the in-page memo still covers this send.
+      return b.mode === "sql" ? sqlPut(b.port, id, blob, name) : idbPut(id, blob);
+    }).catch(function (e) {
+      warn("写入附件失败", e);
+      return false;
+    });
+  }
+  function getBlob(id) {
+    return backend().then(function (b) {
+      return b.mode === "sql" ? sqlGet(b.port, id) : idbGet(id);
+    }).catch(function (e) {
+      warn("读取附件失败", e);
+      return null;
+    });
+  }
+  /** Text fast path: null means "no text row"; the service then falls back to getBlob(). */
+  function getText(id) {
+    return backend().then(function (b) {
+      return b.mode === "sql" ? sqlGetText(b.port, id) : null;
+    }).catch(function () { return null; });
+  }
+  function delBlob(id) {
+    return backend().then(function (b) {
+      return b.mode === "sql" ? sqlDelete(b.port, id) : idbDelete(id);
+    }).catch(function (e) { warn("删除附件失败", e); });
+  }
+
+  // One orphan sweep 4s after boot (blobs left behind by deleted messages): the keep set cannot be
+  // the current session alone — the sweep runs once at startup, and collecting only the live
+  // session's ids would delete every other conversation's blobs (symptom: switching back shows
+  // unusable images / empty documents). Walk every slot of the session store, then union the
+  // in-memory session and the not-yet-sent attachments (when history is off the live session never
+  // lands in storage and the pending list is the safety net). It waits for the backend probe so a
+  // migration in flight is never half-swept.
   if (global.indexedDB && global.indexedDB.databases) {
-    // One orphan sweep 4s after boot (blobs left behind by deleted messages): the keep set can
-    // not be the current session alone — the sweep runs once at startup, and collecting only
-    // the live session's ids would delete every other conversation's blobs (symptom: switching
-    // back shows unusable images / empty documents). Walk every slot of the session store,
-    // then union the in-memory session and the not-yet-sent attachments (when history is off
-    // the live session never lands in storage and the pending list is the safety net).
     setTimeout(function () { gcOrphanBlobs(); }, 4000);
+  }
+  function collectKeepIds() {
+    var keep = {};
+    var keepMsg = function (m) {
+      (m && m.images ? m.images : []).forEach(function (im) { if (im && im.id) keep[im.id] = 1; });
+      // Document full texts also live in storage (message files carry an id) — leaving them out
+      // would GC them as orphans (symptom: texts vanish after refresh / empty docs on send).
+      (m && m.files ? m.files : []).forEach(function (f) { if (f && f.id) keep[f.id] = 1; });
+    };
+    try {
+      // T3-D: localStorage only carries the hot window now; the full arrays (hot + cold projection)
+      // come from the session store mirror, so archived messages keep their blobs. Fall back to the
+      // legacy blob when the mirror is not up yet (early boot).
+      var all = null;
+      try {
+        if (global.appSvc && typeof global.appSvc.getAllSessionMessages === "function") {
+          all = global.appSvc.getAllSessionMessages();
+        }
+      } catch (e4) {}
+      if (!all || typeof all !== "object") {
+        all = JSON.parse(global.localStorage.getItem("cfw_chat_session_v1") || "{}") || {};
+      }
+      if (Array.isArray(all)) all = { "__none__": all };
+      Object.keys(all).forEach(function (slot) {
+        (all[slot] || []).forEach(keepMsg);
+      });
+    } catch (e3) {}
+    var arr = (global.appSvc && global.appSvc.getSessionMessages) ? global.appSvc.getSessionMessages() : [];
+    (arr || []).forEach(keepMsg);
+    // Not-yet-sent attachments must survive too.
+    try {
+      core.list().forEach(function (p) {
+        if (p && p.id) keep[p.id] = 1;
+      });
+    } catch (e2) {}
+    return keep;
   }
   function gcOrphanBlobs() {
     try {
-      var keep = {};
-      var keepMsg = function (m) {
-        (m && m.images ? m.images : []).forEach(function (im) { if (im && im.id) keep[im.id] = 1; });
-        // Document full texts also live in IDB (message files carry an id) — leaving them out
-        // would GC them as orphans (symptom: texts vanish after refresh / empty docs on send).
-        (m && m.files ? m.files : []).forEach(function (f) { if (f && f.id) keep[f.id] = 1; });
-      };
-      try {
-        var all = JSON.parse(global.localStorage.getItem("cfw_chat_session_v1") || "{}") || {};
-        if (Array.isArray(all)) all = { "__none__": all };
-        Object.keys(all).forEach(function (slot) {
-          (all[slot] || []).forEach(keepMsg);
+      var keep = collectKeepIds();
+      backend().then(function (b) {
+        if (b.mode === "sql") {
+          return b.port.exec("SELECT id FROM attachments").then(function (res) {
+            var statements = [];
+            rowsOf(res).forEach(function (row) {
+              var id = String(row && row.id);
+              if (id && !keep[id]) statements.push({ sql: "DELETE FROM attachments WHERE id = ?", params: [id] });
+            });
+            return writeChunks(b.port, statements);
+          });
+        }
+        return idb().then(function (db) {
+          if (!db) return;
+          try {
+            var os = db.transaction(IDB_STORE, "readwrite").objectStore(IDB_STORE);
+            os.openCursor().onsuccess = function (e) {
+              var c = e.target.result;
+              if (!c) return;
+              if (!keep[c.key]) { try { c.delete(); } catch (e2) {} }
+              c.continue();
+            };
+          } catch (e) {}
         });
-      } catch (e3) {}
-      var arr = (global.__app && global.__app.getSessionMessages) ? global.__app.getSessionMessages() : [];
-      (arr || []).forEach(keepMsg);
-      // Not-yet-sent attachments must survive too.
-      try {
-        core.list().forEach(function (p) {
-          if (p && p.id) keep[p.id] = 1;
-        });
-      } catch (e2) {}
-      idb().then(function (db) {
-        if (!db) return;
-        try {
-          var os = db.transaction(IDB_STORE, "readwrite").objectStore(IDB_STORE);
-          os.openCursor().onsuccess = function (e) {
-            var c = e.target.result;
-            if (!c) return;
-            if (!keep[c.key]) { try { c.delete(); } catch (e2) {} }
-            c.continue();
-          };
-        } catch (e) {}
-      });
+      }).catch(function (e) { warn("附件孤儿清理失败", e); });
     } catch (e) {}
   }
 
-  // ───────── Core instantiation: IDB ports + strip re-render hook ─────────
+  // ───────── Core instantiation: storage ports + strip re-render hook ─────────
   const core = createAttachmentsCore({
     putBlob: putBlob,
     getBlob: getBlob,
+    getText: getText,
     onPendingChange: function () { renderPendingBar(); }
   });
 
@@ -678,13 +1010,13 @@ function createAttachmentsCore(host                )             {
     // export_binary_file (writes into the Android/media visible dir); the web build keeps the
     // native download untouched.
     dl.addEventListener("click", function (e) {
-      const sf = global.__saveFile;
+      const sf = global.saveFileSvc;
       if (!sf || !sf.isTauri || !sf.isTauri() || !sf.saveBinaryFile) return;
       e.preventDefault(); e.stopPropagation();
       const it = items[cur] || {};
       sf.saveBinaryFile(it.src || img.src, it.name || "image.png").then(function (r) {
         const msg = (r && r.ok) ? ("已保存：" + (r.path || r.filename || "文件")) : ("保存失败：" + ((r && r.error) || "未知错误"));
-        try { if (global.__feedback && global.__feedback.toast) global.__feedback.toast(msg, 3200); } catch (e3) {}
+        try { if (global.feedbackSvc && global.feedbackSvc.toast) global.feedbackSvc.toast(msg, 3200); } catch (e3) {}
       });
     });
     const op = doc.createElement("button");
@@ -1084,7 +1416,7 @@ function createAttachmentsCore(host                )             {
   }
 
   // ───────── Frozen facade: key set is the contract, do not rename ─────────
-  global.__attach = {
+  global.attachSvc = {
     list: core.list, count: core.count, countImages: core.countImages, clear: core.clear, remove: core.remove,
     addText: core.addText, addImage: core.addImage,
     takePending: core.takePending, restage: restage,

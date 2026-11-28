@@ -345,7 +345,7 @@ function lexAsRegistry(v         )                     {
   };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/local/local-exec-tools.ts; this file
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/local/local-exec-tools.ts; this file
 // owns localStorage, fetch, the desktop probe and the published tool-group object. The desktop
 // build registers the same four tool names through the invoke-based module, so registration is
 // skipped whenever that bridge is present — never both.
@@ -356,7 +356,7 @@ function lexAsRegistry(v         )                     {
   var ports = {
     storage: { getItem: function (k) { return localStorage.getItem(k); } },
     fetchImpl: function (url, init) { return fetch(url, init); },
-    desktop: function () { return !!window.__TAURI__; },
+    desktop: function () { return !!(window.tauriSvc && window.tauriSvc.has()); },
   };
 
   window.__localExecTools = {

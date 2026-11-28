@@ -1,12 +1,12 @@
 // public/audio/app.js
 // 音频工作台 (/audio/)
-// 选本地文本文件 → 切句 → 逐句 GPT-SoVITS 合成 → 顺序播放。复用 window.__omniTTS(tts.js)。
+// 选本地文本文件 → 切句 → 逐句 GPT-SoVITS 合成 → 顺序播放。复用 window.omniTtsSvc(tts-text.js)。
 // 仅桌面 App 内可真正发声(依赖 __TAURI__ + 本地 9880);网页版降级为只读提示。
 (function () {
   'use strict';
 
-  var TTS = window.__omniTTS || null;
-  var inApp = !!(window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke);
+  var TTS = window.omniTtsSvc || null;
+  var inApp = !!(window.tauriSvc && window.tauriSvc.available());
 
   // 与 tts.js 共用的 LS key(同源 → 主站设置即此处设置)
   var LS = { ref: 'cfw_tts_ref_audio_v1', prompt: 'cfw_tts_prompt_text_v1', speed: 'cfw_tts_speed_v1', port: 'cfw_tts_port_v1' };
@@ -17,10 +17,10 @@
   var state = { sentences: [], idx: 0, playing: false, paused: false, fileName: '', runId: 0 };
 
   // ───── toast ─────
-  // 2026-09-14 UI第一轮:统一反馈组件代理 —— __feedback 在则转发,缺失回退 #toast 原实现
+  // 2026-09-14 UI第一轮:统一反馈组件代理 —— feedbackSvc 在则转发,缺失回退 #toast 原实现
   var _toastT = null;
   function toast(msg) {
-    if (window.__feedback && window.__feedback.toast) return window.__feedback.toast(msg, { ms: 2600 });
+    if (window.feedbackSvc && window.feedbackSvc.toast) return window.feedbackSvc.toast(msg, { ms: 2600 });
     var el = $('toast'); if (!el) return;
     el.textContent = msg; el.classList.add('show');
     clearTimeout(_toastT); _toastT = setTimeout(function () { el.classList.remove('show'); }, 2600);
@@ -30,7 +30,7 @@
   // ───── 文件读取 ─────
   async function pickAndRead() {
     if (!inApp) { toast('选择文件需要在桌面 App 内使用'); return; }
-    var inv = window.__TAURI__.core.invoke;
+    var inv = window.tauriSvc ? window.tauriSvc.invokeOrNull() : null;
     var name = '', content = null;
     // 首选:一步弹框 + 读取
     try {
@@ -185,7 +185,7 @@
   // 网页版/麦克风录音无法把字节交给该端点(缺二进制落盘命令),暂不支持。
   async function asrPick() {
     if (!inApp) { toast('音频转文字需要在桌面 App 内使用(依赖本机语音服务)'); return; }
-    var inv = window.__TAURI__.core.invoke;
+    var inv = window.tauriSvc ? window.tauriSvc.invokeOrNull() : null;
     var p = '';
     try { p = await inv('tts_pick_file'); } catch (e) { toast('打开文件选择器失败'); return; }
     if (!p) return;

@@ -4,7 +4,7 @@
  *
  * Every window bridge arrives as a port (storage for the strip switch, sceneNames for group name
  * tags, stripPhotoSignal / applyAmbientTags / extractPhotoSignal for the image and ambience signals);
- * the adapters and all their try/catch semantics live in l0/wiring/text-format.js, and each bridge is
+ * the adapters and all their try/catch semantics live in tooling/l0/wiring/text-format.js, and each bridge is
  * still looked up at call time rather than captured up front.
  *
  * Red line carried over from the old comment: never touch the unlock prompt. The model keeps emitting
@@ -76,7 +76,7 @@ function createTextFormat(ports                 ) {
   function isJailbreakStripOn()          {
     return (ports.storage.getItem(LS_JAILBREAK_STRIP) ?? "1") === "1";
   }
-  // The settings entry point stays with the module (app.js's __dev.setJailbreakStripOn forwards here) so the LS key has one owner
+  // The settings entry point stays with the module (app.js's devSvc.setJailbreakStripOn forwards here) so the LS key has one owner
   function setJailbreakStripOn(on         )       {
     ports.storage.setItem(LS_JAILBREAK_STRIP, on ? "1" : "0");
   }
@@ -419,12 +419,12 @@ function createTextFormat(ports                 ) {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 // The implementation lives in services/chat/text-format.ts; this file carries every window bridge
 // with the same try/catch shape as the old inline code. Bridges are resolved per call, never
 // captured, because the modules behind them load later.
 (function () {
-  if (window.__textFormat) return;
+  if (window.textFormatSvc) return;
   var ports = {
     storage: {
       getItem: function (key) { return window.localStorage.getItem(key); },
@@ -434,8 +434,8 @@ function createTextFormat(ports                 ) {
     sceneNames: function () {
       var names = [];
       try {
-        if (window.__multi && window.__multi.getSceneCards) {
-          names = window.__multi.getSceneCards().map(function (c) { return (c && c.name) || ""; }).filter(Boolean);
+        if (window.multiSvc && window.multiSvc.getSceneCards) {
+          names = window.multiSvc.getSceneCards().map(function (c) { return (c && c.name) || ""; }).filter(Boolean);
         }
       } catch (e) {}
       return names;
@@ -444,8 +444,8 @@ function createTextFormat(ports                 ) {
     // or a throw returns the text untouched.
     stripPhotoSignal: function (text) {
       try {
-        if (window.__chatImageText && window.__chatImageText.stripSignalForDisplay) {
-          return window.__chatImageText.stripSignalForDisplay(text);
+        if (window.chatImageTextSvc && window.chatImageTextSvc.stripSignalForDisplay) {
+          return window.chatImageTextSvc.stripSignalForDisplay(text);
         }
       } catch (e) {}
       return text;
@@ -463,14 +463,14 @@ function createTextFormat(ports                 ) {
     // scene means anything stays on the service side.
     extractPhotoSignal: function (text) {
       try {
-        var cit = window.__chatImageText;
+        var cit = window.chatImageTextSvc;
         if (cit && typeof cit.extractSignal === "function") return cit.extractSignal(text) || null;
       } catch (e) {}
       return null;
     },
   };
   var tf = createTextFormat(ports);
-  window.__textFormat = {
+  window.textFormatSvc = {
     isJailbreakStripOn: tf.isJailbreakStripOn,
     setJailbreakStripOn: tf.setJailbreakStripOn,
     splitJailbreakPrefix: tf.splitJailbreakPrefix,

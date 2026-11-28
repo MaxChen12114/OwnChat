@@ -90,9 +90,19 @@ export function apStartPlan(
   return { ok: true, reason: "", mode, persistMode, stopFishbowl: false };
 }
 
+/** @returns the selected address mode; missing means the default dialogue mode. */
+export function apAddressOf(raw: unknown): string {
+  return raw == null ? "dialogue" : String(raw);
+}
+
+/** @returns the selected options frequency; missing means "only at forks". */
+export function apChoicesOf(raw: unknown): string {
+  return raw == null ? "fork" : String(raw);
+}
+
 /** @returns the address-mode instruction appended to the director prompt. */
 export function apAddressContract(raw: unknown): string {
-  const addr = raw == null ? "dialogue" : String(raw);
+  const addr = apAddressOf(raw);
   switch (addr) {
     case "immersive": return "用第二人称直接对“你”说话，可含动作 / 心理 / 场景旁白，旁白用 *…* 或（…）包裹（朗读自动跳过）";
     case "narration": return "用第三人称小说叙事推进剧情";
@@ -102,7 +112,7 @@ export function apAddressContract(raw: unknown): string {
 
 /** @returns the [options] rule, or an empty string when options are disabled. */
 export function apChoicesRule(raw: unknown): string {
-  const freq = raw == null ? "fork" : String(raw);
+  const freq = apChoicesOf(raw);
   if (freq === "off") return "";
   if (freq === "every") return "本段末尾追加 [选项] ①… ②…（2-4 条，每条一句走向）[/选项]";
   return "仅当出现 ≥2 个合理走向、需要我拍板方向时，本段末才追加 [选项]（2-4 条）[/选项]；连贯推进 / 高潮 / 动作中段不要给";

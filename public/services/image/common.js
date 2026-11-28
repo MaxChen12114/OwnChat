@@ -330,13 +330,13 @@ function preferSmaller(candidate        , original        )         {
   return candidate && candidate.length < original.length ? candidate : original;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/common.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/common.ts; this file owns the
 // frozen global name, every network call, the canvas/FileReader work and the base-image storage.
 //
 // Load order matters: this must run before image-chat / image-quickgen / image-embed, because all
 // three read it once at load time and give up if it is missing.
 (function () {
-  if (window.__imageCommon) return;
+  if (window.imageCommonSvc) return;
 
   var LS_BASE = "cfw_chat_base_v1";
 
@@ -345,13 +345,13 @@ function preferSmaller(candidate        , original        )         {
   }
 
   function getChannel() {
-    try { return window.__imageChannels && window.__imageChannels.getActive ? window.__imageChannels.getActive() : null; }
+    try { return window.imageChannelsSvc && window.imageChannelsSvc.getActive ? window.imageChannelsSvc.getActive() : null; }
     catch (e) { return null; }
   }
 
   function appToken() {
     try {
-      return (window.__auth && window.__auth.getToken && window.__auth.getToken()) || readLS("cfw_auth_token_v1") || "";
+      return (window.authSvc && window.authSvc.getToken && window.authSvc.getToken()) || readLS("cfw_auth_token_v1") || "";
     } catch (e) { return ""; }
   }
 
@@ -374,7 +374,7 @@ function preferSmaller(candidate        , original        )         {
   }
 
   function syncToken() {
-    try { return (window.__auth && window.__auth.getToken && window.__auth.getToken()) || ""; } catch (e) { return ""; }
+    try { return (window.authSvc && window.authSvc.getToken && window.authSvc.getToken()) || ""; } catch (e) { return ""; }
   }
 
   function syncHeaders(extra) {
@@ -587,7 +587,7 @@ function preferSmaller(candidate        , original        )         {
       if (!urls.length) throw new Error("改图返回为空");
       return { fileUrl: urls[0], taskId: null };
     }
-    if (!(window.__imageChannels && window.__imageChannels.hasEdit(ch))) {
+    if (!(window.imageChannelsSvc && window.imageChannelsSvc.hasEdit(ch))) {
       throw new Error("当前渠道不支持改图：Gitee 预设 / 配置了改图模型的自定义渠道 / ComfyUI 可用");
     }
     var srcBlob = o.blob || await (await dlFetch(o.srcUrl, { signal: o.signal })).blob();
@@ -618,7 +618,7 @@ function preferSmaller(candidate        , original        )         {
   // Raw style tags only: each chain concatenates them differently, so this module does not join.
   function styleSuffix() {
     try {
-      var t = window.__portrait && window.__portrait.getStyleTags && window.__portrait.getStyleTags();
+      var t = window.portraitSvc && window.portraitSvc.getStyleTags && window.portraitSvc.getStyleTags();
       return (t || "").trim();
     } catch (e) { return ""; }
   }
@@ -655,7 +655,7 @@ function preferSmaller(candidate        , original        )         {
     return id;
   }
 
-  window.__imageCommon = {
+  window.imageCommonSvc = {
     ENDPOINTS: ENDPOINTS,
     getKey: getKey, getChannel: getChannel, authHeaders: authHeaders,
     syncToken: syncToken, syncHeaders: syncHeaders,

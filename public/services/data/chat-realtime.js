@@ -5,8 +5,8 @@
  *
  * Everything platform-shaped arrives through {@link RealtimePorts} — storage, fetch, timers, the
  * visibility flag, the DOM event bus, and the three sibling modules (`__chatEvents` for message
- * diffs, `__sync` for auth and the snapshot channel, `__app` for the active conversation). This file
- * touches no `window`, `document` or `fetch`; l0/wiring/chat-realtime.js is the adapter.
+ * diffs, `syncSvc` for auth and the snapshot channel, `appSvc` for the active conversation). This file
+ * touches no `window`, `document` or `fetch`; tooling/l0/wiring/chat-realtime.js is the adapter.
  *
  * Three behaviours are load-bearing and easy to break:
  *  - Events for a conversation with an active turn wait in `pending`. Applying them mid-stream
@@ -94,6 +94,20 @@
                                  
                           
                         
+     
+                                                                                                   
+                                                                                              
+                                                                                                  
+     
+                                   
+ 
+
+/** The session-store surface this channel needs. */
+                               
+                                     
+                                                                                   
+                                                                                              
+                    
  
 
                                  
@@ -183,6 +197,43 @@ function createRealtime(ports               ) {
     }
   }
 
+  /** The conversation map as the UI sees it: the store's full-array mirror when one is mounted. */
+  function readSessionMap()       {
+    try {
+      const store = typeof ports.sessions === "function" ? ports.sessions() : null;
+      if (store && typeof store.loadAll === "function") return recOf(store.loadAll());
+    } catch (e) {
+      /* stale facade: fall back to the raw key */
+    }
+    return readJson(SESSION_KEY);
+  }
+
+  /** The tail the push channel serialises; the synced hash must cover the same slice. */
+  function hotSlice(arr           )            {
+    let keep = 10;
+    try {
+      const store = typeof ports.sessions === "function" ? ports.sessions() : null;
+      if (store && typeof store.HOT_KEEP === "number" && store.HOT_KEEP > 0) keep = store.HOT_KEEP;
+    } catch (e) {
+      /* stale facade: keep the documented default */
+    }
+    return arr.length > keep ? arr.slice(arr.length - keep) : arr;
+  }
+
+  /** Publish a mutated map back through the store so the mirror and the hot window stay in step. */
+  function writeSessionMap(all      )       {
+    try {
+      const store = typeof ports.sessions === "function" ? ports.sessions() : null;
+      if (store && typeof store.applyRemote === "function") {
+        store.applyRemote(all, { source: "realtime" });
+        return;
+      }
+    } catch (e) {
+      /* fall through to the legacy write */
+    }
+    storage.setItem(SESSION_KEY, JSON.stringify(all));
+  }
+
   function readSeq()         {
     const n = parseInt(storage.getItem(SEQ_KEY) || "0", 10);
     return Number.isFinite(n) && n > 0 ? n : 0;
@@ -248,7 +299,7 @@ function createRealtime(ports               ) {
 
   /**
    * Whether the channel may run at all. The token is read directly from storage instead of asking
-   * `__sync.getStatus`, because that path calls back into `enabled` and would recurse forever.
+   * `syncSvc.getStatus`, because that path calls back into `enabled` and would recurse forever.
    */
   function enabled()          {
     const sync = ports.sync();
@@ -500,7 +551,7 @@ function createRealtime(ports               ) {
     if (!Array.isArray(events) || !events.length) return;
     const eventsPort = ports.events();
     const sync = ports.sync();
-    const all = readJson(SESSION_KEY);
+    const all = readSessionMap();
     const slotMeta = readJson(SLOT_META_KEY);
     const tomb = readJson(TOMB_KEY);
     const convMeta = readJson(CONV_META_KEY);
@@ -644,14 +695,16 @@ function createRealtime(ports               ) {
       try {
         if (sync) {
           await sync.withRemoteApply(() => {
-            storage.setItem(SESSION_KEY, JSON.stringify(all));
+            writeSessionMap(all);
             storage.setItem(SLOT_META_KEY, JSON.stringify(slotMeta));
             storage.setItem(TOMB_KEY, JSON.stringify(tomb));
             storage.setItem(CONV_META_KEY, JSON.stringify(convMeta));
             const synced = readJson(SYNCED_KEY);
             for (const id of touched) {
               if (Array.isArray(all[id])) {
-                synced[id] = { hash: sync.hashChat(JSON.stringify(all[id])), syncedAt: ports.now() };
+                // Hash the hot tail (what gets pushed), not the full mirror: a full-array hash would
+                // never match the push channel and every remote apply would schedule a redundant push.
+                synced[id] = { hash: sync.hashChat(JSON.stringify(hotSlice(all[id]))), syncedAt: ports.now() };
               } else {
                 delete synced[id];
               }
@@ -897,10 +950,10 @@ function createRealtime(ports               ) {
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 // The realtime chat channel keeps its state machine in services/data/chat-realtime.ts; this file
 // supplies the platform surface only — localStorage, fetch, timers, `document.hidden`, the DOM
-// event bus, and the bridges to the three sibling modules (`__chatEvents`, `__sync`, `__app`).
+// event bus, and the bridges to the three sibling modules (`__chatEvents`, `syncSvc`, `appSvc`).
 // The listeners stay here too (online / offline / visibilitychange / cfw:conv-turns / a storage
 // toggle flipping): the service layer knows nothing about event names, only what to do once woken.
 (function () {
@@ -930,11 +983,14 @@ function createRealtime(ports               ) {
     isHidden: function () { return !!document.hidden; },
     emit: emit,
     events: function () { return (typeof window !== "undefined" && window.__chatEvents) || null; },
-    sync: function () { return (typeof window !== "undefined" && window.__sync) || null; },
-    app: function () { return (typeof window !== "undefined" && window.__app) || null; },
+    sync: function () { return (typeof window !== "undefined" && window.syncSvc) || null; },
+    app: function () { return (typeof window !== "undefined" && window.appSvc) || null; },
+    // T4-A: the session store instance (created by the chat shell after this script). Without it the
+    // channel reads the hot-window key and writes the shortened map back, losing the mirror's prefix.
+    sessions: function () { return (typeof window !== "undefined" && window.sessionStoreSvc) || null; },
   });
 
-  window.__chatRealtime = {
+  window.chatRealtimeSvc = {
     start: rt.start,
     stop: rt.stop,
     isRunning: rt.isRunning,

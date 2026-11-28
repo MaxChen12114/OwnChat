@@ -376,7 +376,7 @@ function clampRounds(raw         , fallback        )         {
   return Math.max(1, Math.min(1000, n));
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 // Scene membership, mode and name matching live in services/scene/multi-agent.ts. What stays here is
 // everything that needs the page: the topbar toggle, the console panel in the right-hand slot, the
 // peer roster in the agent panel, and the two events the rest of the app listens to.
@@ -387,13 +387,21 @@ function clampRounds(raw         , fallback        )         {
 // Ports are resolved per call, never snapshotted: the emit artifact is a classic script that may run
 // before the character facade exists, and slot mounting rewrites the panel's parent at runtime.
 (function () {
-  if (window.__multi) return;
+  if (window.multiSvc) return;
 
   var KEY_HINT = "cfw_multi_agent_hint_seen";
   var KEY_DEV = "cfw_dev_mode_v1";
 
+  // The one HTML escaper (lib/escape.ts, boot row ahead of this wiring). The two render fns keep
+  // their local `safe` aliases of the same function; this one covers the helpers above them.
+  // Resolved lazily: this product is also loaded standalone by test/scene-multi-agent.test.mjs,
+  // where the boot-time lib is absent and only the service rules are exercised, never the panel.
+  function esc(value) {
+    return window.escapeSvc.esc(value);
+  }
+
   function charFacade() {
-    return window.__character || null;
+    return window.characterSvc || null;
   }
 
   var api = createScene({
@@ -427,7 +435,7 @@ function clampRounds(raw         , fallback        )         {
     },
   });
 
-  window.__multi = api;
+  window.multiSvc = api;
 
   // scene-strip: removed from the UI in 4.18 in favour of model-driven turn hand-off. The renderer
   // survives only as a collector for a strip left behind by an older session.
@@ -470,7 +478,7 @@ function clampRounds(raw         , fallback        )         {
   }
 
   function getFishbowl() {
-    return window.__fishbowl || null;
+    return window.fishbowlSvc || null;
   }
 
   // Inline SVG rather than emoji: the console must inherit currentColor like every other control.
@@ -486,7 +494,7 @@ function clampRounds(raw         , fallback        )         {
       "end-tag": "AI 触发 [end] 标签",
       stop: "手动终止",
       error: "运行出错",
-    })[r] || (r || "—");
+    })[r] || esc(r || "—");
   }
 
   // Group chat and relay share the left/right bubble split; roast alternates sides instead.
@@ -499,7 +507,7 @@ function clampRounds(raw         , fallback        )         {
   // user behind a missing feedback module.
   function uiPrompt(message, opts) {
     try {
-      if (window.__feedback && window.__feedback.prompt) return window.__feedback.prompt(Object.assign({ message: message }, opts || {}));
+      if (window.feedbackSvc && window.feedbackSvc.prompt) return window.feedbackSvc.prompt(Object.assign({ message: message }, opts || {}));
     } catch (e) {}
     var v = window.prompt(message, (opts && opts.input && opts.input.value) || "");
     return Promise.resolve(v);
@@ -584,10 +592,13 @@ function clampRounds(raw         , fallback        )         {
       return;
     }
 
-    // Desktop docks into the right-hand slot; phones fall back to body (V3 bottom sheet).
+    // The new mobile shell moves the whole right rail (and this slot) into its console, so desktop
+    // and mobile use the same host. No body-mounted bottom sheet: that was the old mobile UI.
     var slot = window.slotRegistry.pick("fishbowlSlot");
-    var isDesktop = window.matchMedia("(min-width: 1024px)").matches;
-    var target = isDesktop && slot ? slot : document.body;
+    if (!slot) {
+      if (panel) panel.style.display = "none";
+      return;
+    }
     // The agent console shares this slot when both run at once. The console sits above the timeline
     // so a long timeline cannot push the controls out of the viewport, and DOM order is
     // roster -> group-chat console -> agent console.
@@ -596,34 +607,29 @@ function clampRounds(raw         , fallback        )         {
       panel.id = "fishbowlSidePanel";
       panel.className = "fishbowl-side-panel";
     }
-    if (target === slot) {
-      var anchor = slot.querySelector("#__agentConsoleRoot");
-      if (anchor && anchor.parentNode === slot) {
-        if (panel.parentNode !== slot || panel.nextElementSibling !== anchor) {
-          slot.insertBefore(panel, anchor);
-        }
-      } else if (panel.parentNode !== slot) {
-        if (panel.parentNode) panel.parentNode.removeChild(panel);
-        slot.appendChild(panel);
+    var anchor = slot.querySelector("#__agentConsoleRoot");
+    if (anchor && anchor.parentNode === slot) {
+      if (panel.parentNode !== slot || panel.nextElementSibling !== anchor) {
+        slot.insertBefore(panel, anchor);
       }
-    } else if (panel.parentNode !== target) {
+    } else if (panel.parentNode !== slot) {
       if (panel.parentNode) panel.parentNode.removeChild(panel);
-      target.appendChild(panel);
+      slot.appendChild(panel);
     }
-    panel.classList.toggle("in-slot", target === slot);
+    panel.classList.add("in-slot");
     panel.style.display = "";
 
     var s = fb.getState();
     var mode = s.mode || "orchestrate";
     syncChatMode(mode);
 
-    var safe = window.__ownEscape.esc;
+    var safe = window.escapeSvc.esc;
     var stateLabel = ({
       idle: fbSvg('<circle cx="12" cy="12" r="7"/>') + " 待启动",
       running: fbSvg('<path d="M8 6l9 6-9 6z" fill="currentColor" stroke="none"/>') + " 进行中",
       paused: fbSvg('<rect x="7" y="5" width="3.4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="13.6" y="5" width="3.4" height="14" rx="1" fill="currentColor" stroke="none"/>') + " 已暂停",
       ended: fbSvg('<path d="M6 21V4"/><path d="M6 5h11l-2 3 2 3H6"/>') + " 已结束",
-    })[s.state] || s.state;
+    })[s.state] || safe(s.state);
 
     var modes = [
       { id: "orchestrate", label: fbSvg('<path d="M14 5l5 5"/><path d="M4 20l1-4L16 5l3 3L8 19z"/>') + " 编排", title: "你手选下一句由谁说(群聊视觉)" },
@@ -681,7 +687,7 @@ function clampRounds(raw         , fallback        )         {
     var orchestrateHtml = "";
     if (mode === "orchestrate") {
       var roster = api.getSceneCards();
-      var activeId = ((window.__character && window.__character.getActiveCard && window.__character.getActiveCard()) || {}).id || "";
+      var activeId = ((window.characterSvc && window.characterSvc.getActiveCard && window.characterSvc.getActiveCard()) || {}).id || "";
       orchestrateHtml = '<div class="fb-side-status"><div class="fb-info-line">点角色让 TA 说下一句:</div><div class="fb-side-roster" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">' +
         roster.map(function (c) {
           return '<button class="chip-btn fb-orch-speaker' + (c.id === activeId ? " active" : "") + '" data-fborch="' + safe(c.id) + '"><span>' + safe(c.icon || "\u{1F642}") + '</span> ' + safe(c.name) + '</button>';
@@ -721,7 +727,7 @@ function clampRounds(raw         , fallback        )         {
           return c.id === id;
         });
         if (!card) return;
-        if (window.__character && window.__character.setActiveId) window.__character.setActiveId(id);
+        if (window.characterSvc && window.characterSvc.setActiveId) window.characterSvc.setActiveId(id);
         if (window.hostApi.app && window.hostApi.app.sendOne) {
           var reply = await window.hostApi.app.sendOne({ allowEmptyText: true, asCard: card });
           if (window.hostApi.app.continueGroupChat) {
@@ -747,7 +753,7 @@ function clampRounds(raw         , fallback        )         {
       return;
     }
     box.style.display = "";
-    var safe = window.__ownEscape.esc;
+    var safe = window.escapeSvc.esc;
     var cards = api.getSceneCards();
     var info = null;
     try {

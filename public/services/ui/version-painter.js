@@ -3,25 +3,26 @@
  * Version painter: reads the app version from the Tauri shell and paints both version tags.
  *
  * Two shell shapes are supported (plugin API first, raw invoke second), both routed through
- * {@link PainterPorts} so the plan asserts in a vm with fake objects; web builds have no
- * `__TAURI__` and stay unpainted. The painted text is also mirrored onto `window.__appVersion`
- * through the ports — env-context reads that global, the wiring owns the assignment.
+ * {@link PainterPorts} so the plan asserts in a vm with fake objects; web builds have no shell
+ * object and stay unpainted. The painted text is also handed to the environment port
+ * (`documentElement.dataset.appVersion`), which env-context reads without a window global. The
+ * shell global itself belongs to services/platform/tauri.ts; this module sees only the raw object.
  * @module services/ui/version-painter
  */
 
-/** Ports: shell access, the two text sinks and the global version mirror. */
+/** Ports: shell access, the two text sinks and the environment version mirror. */
                                
-                                                              
+                                                                                   
                       
                                                                                     
                                         
                                                                                           
                                           
-                                                       
-                                    
+                                                                                        
+                                 
  
 
-/** Public surface; no frozen contract of its own — `__appVersion` already is one. */
+/** Public surface; no frozen contract of its own. */
                              
                                                                                                     
                        
@@ -68,7 +69,7 @@ function createVersionPainter(ports              )             {
       v = "";
     }
     if (v === "" || typeof v !== "string") return;
-    ports.setGlobalVersion(v);
+    ports.setEnvVersion(v);
     const text = versionText(v);
     ports.setText("appVersionTag", text);
     ports.setText("appVersionTagHome", text);
@@ -76,21 +77,21 @@ function createVersionPainter(ports              )             {
   return { run: run };
 }
 
-// Browser wiring (injected by l0/emit.mjs): shell access, text sinks and the __appVersion mirror;
-// no frozen contract of its own — __appVersion is the pre-existing one env-context reads.
+// Browser wiring (injected by tooling/l0/emit.mjs): shell access, text sinks and the environment version
+// mirror; no frozen contract of its own — the version goes to dataset.appVersion for env-context.
 (function () {
   var api = createVersionPainter({
     getTauri: function () {
       try {
-        return window.__TAURI__ || null;
+        return window.tauriSvc ? window.tauriSvc.raw() : null;
       } catch (e) {
         return null;
       }
     },
     invoke: function (cmd) {
       try {
-        var T = window.__TAURI__;
-        if (T && T.core && typeof T.core.invoke === "function") return Promise.resolve(T.core.invoke(cmd));
+        var invoke = window.tauriSvc ? window.tauriSvc.invokeOrNull() : null;
+        if (invoke) return Promise.resolve(invoke(cmd));
       } catch (e) {}
       return Promise.resolve("");
     },
@@ -100,9 +101,10 @@ function createVersionPainter(ports              )             {
         if (el) el.textContent = text;
       } catch (e) {}
     },
-    setGlobalVersion: function (v) {
+    setEnvVersion: function (v) {
       try {
-        window.__appVersion = v; // env-context.js 读这个，应用版本不再显示 unknown
+        // env-context reads dataset.appVersion; no window global anymore (G1).
+        document.documentElement.dataset.appVersion = v;
       } catch (e) {}
     },
   });

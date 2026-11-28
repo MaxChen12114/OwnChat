@@ -139,7 +139,22 @@ export function isRunning(): boolean {
 
 export interface ToolCall {
   id?: string;
+  /** OpenAI protocol discriminant; every echoed call must carry it or DeepSeek 422s the next turn. */
+  type?: string;
   function?: { name?: string; arguments?: string };
+  [key: string]: unknown;
+}
+
+/** Repairs stored calls from older turns by adding the required discriminant before a new request. */
+export function normalizeToolCallTypes(calls: unknown): ToolCall[] {
+  if (!Array.isArray(calls)) return [];
+  return calls.map((call) => {
+    if (call === null || typeof call !== "object" || Array.isArray(call)) return {};
+    const entry: ToolCall = {};
+    for (const [key, value] of Object.entries(call)) entry[key] = value;
+    entry.type = typeof entry.type === "string" && entry.type ? entry.type : "function";
+    return entry;
+  });
 }
 
 export interface ToolResultMeta {
@@ -331,8 +346,9 @@ export const runAgentLoop = async (opts: RunAgentLoopOpts): Promise<RunAgentLoop
 
       // The assistant turn carrying tool_calls must echo reasoning_content: DeepSeek 400s the next
       // request when a reasoning model's tool turn loses it. Content stays as returned; request
-      // assembly is what blanks it before sending.
-      const asstMsg: LoopMessage = { role: "assistant", content: res.content || "", tool_calls: toolCalls };
+      // assembly is what blanks it before sending. Same protocol family: every echoed call carries
+      // the OpenAI `type` discriminant, or the next request 422s on calls that omit it.
+      const asstMsg: LoopMessage = { role: "assistant", content: res.content || "", tool_calls: normalizeToolCallTypes(toolCalls) };
       if (res.reasoning_content) asstMsg.reasoning_content = res.reasoning_content;
       messages.push(asstMsg);
 
@@ -455,6 +471,11 @@ function summarizeToolResult(result: unknown): string {
  * and is reused by request assembly and worker-side inbound sanitising, which is also why synthetic
  * results are spliced right after their assistant turn instead of appended: a dangling call in the
  * middle of a stored history is illegal order, not just untidy.
+ *
+ * Because request assembly runs this immediately before sending, it is also where echoed calls get
+ * their `type` discriminant repaired in place (`normalizeToolCallTypes`): stored calls from older
+ * turns may predate it, and a call without `type` 422s the next request. The repair is idempotent —
+ * a call that already carries a valid `type` is byte-identical after it.
  * @returns how many results were synthesised
  */
 export function pairPendingToolCalls(messages: LoopMessage[], note?: string): number {
@@ -466,6 +487,7 @@ export function pairPendingToolCalls(messages: LoopMessage[], note?: string): nu
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
     if (!m || m.role !== "assistant" || !Array.isArray(m.tool_calls)) continue;
+    m.tool_calls = normalizeToolCallTypes(m.tool_calls);
     const missing = m.tool_calls.filter((c) => c && c.id && !answered.has(c.id));
     if (!missing.length) continue;
     const synth: LoopMessage[] = missing.map((c) => ({

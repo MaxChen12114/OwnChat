@@ -7,7 +7,7 @@
  * diffs each step and catches failures so a broken stage cannot take the whole trace down.
  *
  * Dependencies arrive through {@link PipelinePorts}. The old code captured the two bridge objects
- * at load time, so l0/wiring/pipeline.js captures them once at the top of its IIFE and passes them
+ * at load time, so tooling/l0/wiring/pipeline.js captures them once at the top of its IIFE and passes them
  * in, instead of looking them up per call.
  *
  * Equivalence: test/chat-migration-equiv.test.mjs runs the old JS and this product side by side,
@@ -143,24 +143,24 @@ function createPipeline(ports               )           {
   return { stripFns, trace };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the existing window contract.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the existing window contract.
 // Line for line the old pipeline.js: the bridge functions are captured once at the top of the IIFE
 // and handed to the service, not re-read on every trace — so `stripFns` still holds the original
 // function references and reference equality survives.
 // Every bridge is spelled out with the `window.` prefix: an alias drops the contract count to zero.
 (function () {
-  if (window.__pipeline) return;
+  if (window.pipelineSvc) return;
 
   var ports = {
     textFormat: {
-      stripThinkBlocks: window.__textFormat.stripThinkBlocks,
-      splitJailbreakPrefix: window.__textFormat.splitJailbreakPrefix,
-      stripResidualMarkup: window.__textFormat.stripResidualMarkup,
-      stripVoiceTags: window.__textFormat.stripVoiceTags,
-      stripChoiceSignals: window.__textFormat.stripChoiceSignals,
-      stripWechatActions: window.__textFormat.stripWechatActions,
-      autoSplitWechat: window.__textFormat.autoSplitWechat,
-      diffPrefixSuffix: window.__textFormat.diffPrefixSuffix,
+      stripThinkBlocks: window.textFormatSvc.stripThinkBlocks,
+      splitJailbreakPrefix: window.textFormatSvc.splitJailbreakPrefix,
+      stripResidualMarkup: window.textFormatSvc.stripResidualMarkup,
+      stripVoiceTags: window.textFormatSvc.stripVoiceTags,
+      stripChoiceSignals: window.textFormatSvc.stripChoiceSignals,
+      stripWechatActions: window.textFormatSvc.stripWechatActions,
+      autoSplitWechat: window.textFormatSvc.autoSplitWechat,
+      diffPrefixSuffix: window.textFormatSvc.diffPrefixSuffix,
     },
     reasoning: {
       extractThinkText: window.__reasoning.extractThinkText,
@@ -168,7 +168,7 @@ function createPipeline(ports               )           {
   };
 
   var pipeline = createPipeline(ports);
-  window.__pipeline = {
+  window.pipelineSvc = {
     stripFns: pipeline.stripFns,
     trace: pipeline.trace,
   };

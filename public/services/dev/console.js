@@ -477,7 +477,7 @@ function estCostCNY(model         , usage         , pricing         )           
   return (cached * numOr(p.cache_hit, 0) + normal * numOr(p.input, 0) + comp * numOr(p.output, 0)) / 1e6;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/dev/console.ts; this file owns every
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/dev/console.ts; this file owns every
 // side effect around it: the fetch interception that feeds the capture ring, IndexedDB persistence,
 // the Dev Panel / HUD rendering, the settings card, and the long-press entry points.
 //
@@ -516,12 +516,12 @@ function estCostCNY(model         , usage         , pricing         )           
     setLastPayload: setLastPayload,
     openPanel: openPanel,
   };
-  window.__dev = api;
+  window.devSvc = api;
 
   // Unified toast: forward to the shared themed component when present, fall back to a bare
   // fixed-position div so a page without the feedback bundle still gets feedback.
   function toast(msg, ms) {
-    if (window.__feedback && window.__feedback.toast) return window.__feedback.toast(msg, { ms: ms });
+    if (window.feedbackSvc && window.feedbackSvc.toast) return window.feedbackSvc.toast(msg, { ms: ms });
     var t = document.createElement("div");
     t.textContent = msg;
     t.style.cssText = "position:fixed;left:50%;top:24px;transform:translateX(-50%);padding:10px 18px;background:rgba(0,0,0,.88);color:#fff;border-radius:10px;font-size:13px;font-weight:600;z-index:99999;box-shadow:0 6px 20px rgba(0,0,0,.4);backdrop-filter:blur(8px);";
@@ -611,17 +611,17 @@ function estCostCNY(model         , usage         , pricing         )           
     var PAUSE_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5v14M15 5v14"/></svg>';
     var RESUME_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
     function refresh() {
-      var paused = window.__sync && window.__sync.isPaused && window.__sync.isPaused();
+      var paused = window.syncSvc && window.syncSvc.isPaused && window.syncSvc.isPaused();
       btn.innerHTML = paused ? RESUME_SVG : PAUSE_SVG;
       btn.title = paused ? "恢复同步(目前已暂停)" : "暂停同步(临时不推 KV,避免乱聊污染云端)";
       btn.style.background = paused ? "rgba(255,160,80,0.25)" : "";
     }
     btn.addEventListener("click", function () {
-      if (!window.__sync) return;
-      if (window.__sync.isPaused()) window.__sync.resume();
-      else window.__sync.pause();
+      if (!window.syncSvc) return;
+      if (window.syncSvc.isPaused()) window.syncSvc.resume();
+      else window.syncSvc.pause();
       refresh();
-      toast(window.__sync.isPaused() ? "⏸ 同步已暂停" : "▶ 同步已恢复", 1200);
+      toast(window.syncSvc.isPaused() ? "⏸ 同步已暂停" : "▶ 同步已恢复", 1200);
     });
     refresh();
   }
@@ -967,7 +967,7 @@ function estCostCNY(model         , usage         , pricing         )           
     // Desktop shell (Tauri): an <a download>.click() often never writes to disk while the toast
     // lies about success — so the shell path uses the native export and reports the real path;
     // the web path keeps the download; both fall back to the clipboard.
-    var inv = (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function") ? window.__TAURI__.core.invoke.bind(window.__TAURI__.core) : null;
+    var inv = window.tauriSvc ? window.tauriSvc.invokeOrNull() : null;
     async function clip(tip) {
       try { await navigator.clipboard.writeText(json); toast(tip + " · 已复制到剪贴板(" + entries.length + "条)", 2600); }
       catch (_) { toast("写盘+剪贴板都失败,请从控制台取 dev 数据", 3000); }
@@ -1026,8 +1026,8 @@ function estCostCNY(model         , usage         , pricing         )           
     var think = (document.getElementById("thinkToggle") || {}).textContent || "";
     var sync = "—", push = "—";
     try {
-      if (window.__sync && window.__sync.getStatus) {
-        var s = window.__sync.getStatus();
+      if (window.syncSvc && window.syncSvc.getStatus) {
+        var s = window.syncSvc.getStatus();
         sync = s.enabled ? (s.paused ? "暂停" : "开") : "关";
         push = s.pushCount;
       }
@@ -1063,7 +1063,7 @@ function estCostCNY(model         , usage         , pricing         )           
     // Restore records from the previous session into the list (once per load; re-renders itself).
     try { ioLoadHistory(); } catch (e) {}
   }
-  var esc = window.__ownEscape.esc;
+  var esc = window.escapeSvc.esc;
   function fmtBytes(n) { n = n || 0; if (n < 1024) return n + "B"; if (n < 1048576) return (n / 1024).toFixed(1) + "KB"; return (n / 1048576).toFixed(2) + "MB"; }
   // Restored records can be days old; raw seconds are unreadable past a minute.
   function agoStr(at) {
@@ -1106,7 +1106,7 @@ function estCostCNY(model         , usage         , pricing         )           
       if (dbg && dbg.flags) {
         var f = dbg.flags;
         html += '<div style="margin-top:8px;color:var(--muted);">服务端实际标志位</div>';
-        html += kvRow("解限底座", f.useBuiltinPersona ? "ON" : "OFF");
+        html += kvRow("基座提示词", f.useBuiltinPersona ? "ON" : "OFF");
         html += kvRow("回复风格 / profile", (f.replyStyle || "default") + " / " + (f.promptProfile || "?"));
         html += kvRow("system 装配", dbg.sysParts + " · " + dbg.sysChars + " 字 · " + dbg.msgCount + " 条消息");
       } else { html += '<div style="margin-top:8px;color:var(--muted);">未拿到服务端装配快照(需已解锁本人;dev 面板会自动带 _debugEcho,worker 只反射不改)。</div>'; }
@@ -1136,9 +1136,9 @@ function estCostCNY(model         , usage         , pricing         )           
       return html3;
     }
     if (tab === "pipeline") {
-      if (!window.__pipeline || !window.__pipeline.trace) return '<div style="color:var(--muted);font-size:12px;padding:12px;">清洗管线探针未就绪(app.js pipeline 未加载)。</div>';
+      if (!window.pipelineSvc || !window.pipelineSvc.trace) return '<div style="color:var(--muted);font-size:12px;padding:12px;">清洗管线探针未就绪(app.js pipeline 未加载)。</div>';
       if (!lp.content) return '<div style="color:var(--muted);font-size:12px;padding:12px;">这条还没有正文输出可追踪。</div>';
-      var tr; try { tr = window.__pipeline.trace(lp.content, { wechat: (pay.replyStyle === "wechat") }); } catch (e) { return '<div style="color:#f66;">trace 失败: ' + esc(String(e)) + '</div>'; }
+      var tr; try { tr = window.pipelineSvc.trace(lp.content, { wechat: (pay.replyStyle === "wechat") }); } catch (e) { return '<div style="color:#f66;">trace 失败: ' + esc(String(e)) + '</div>'; }
       var html4 = '<div style="color:var(--muted);font-size:11px;margin-bottom:8px;">原始正文依次跑过清洗各级——<span style="color:#e8607d;">红=该级裁掉</span>、<span style="color:#5ec98a;">绿=新增/改写</span>。重点看正文在哪一级被吃掉。</div>';
       (tr.stages || []).forEach(function (s, i) {
         var dc = s.delta < 0 ? "#e8607d" : s.delta > 0 ? "#5ec98a" : "var(--muted)";
@@ -1164,8 +1164,8 @@ function estCostCNY(model         , usage         , pricing         )           
     h.push(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--border,#2a2a2a);padding-bottom:12px;"><h3 style="margin:0;font-size:15px;font-weight:700;letter-spacing:.02em;display:flex;align-items:center;gap:9px;color:inherit;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.4 2.4-2-2z"/></svg>Dev Panel</h3><button data-close style="background:var(--bubble-ai,#141414);color:inherit;border:1px solid var(--border,#2a2a2a);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;">关闭</button></div>`);
     h.push(`<div style="margin-bottom:12px;padding:14px 16px;background:var(--bubble-ai,#101010);border:1px solid var(--border,#242424);border-radius:14px;"><label style="display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" ${api.debug ? "checked" : ""} data-debug-toggle><span>Console verbose log <code style="font-size:11px;background:rgba(127,127,127,.16);padding:1px 6px;border-radius:5px;">debug 开关</code></span></label></div>`);
     // Cloud sync status + KV quota readout (read-only mirror of the sync engine's state).
-    if (window.__sync && window.__sync.getStatus) {
-      var ss = window.__sync.getStatus();
+    if (window.syncSvc && window.syncSvc.getStatus) {
+      var ss = window.syncSvc.getStatus();
       var quotaColor = ss.pushCount >= 800 ? "#f60" : ss.pushCount >= 500 ? "#fc0" : "#888";
       h.push(`<div style="margin-bottom:12px;padding:14px 16px;background:var(--bubble-ai,#101010);border:1px solid var(--border,#242424);border-radius:14px;font-size:12px;line-height:1.7;"><div style="color:inherit;font-weight:600;margin-bottom:4px;letter-spacing:.02em;">云同步状态</div><div>启用: <code>${ss.enabled ? "YES" : "NO"}</code> · 暂停: <code>${ss.paused ? "YES" : "NO"}</code> · 同步聊天: <code>${ss.includeChat ? "YES" : "NO"}</code></div><div>今日 push: <code style="color:${quotaColor};">${ss.pushCount}</code> / 1000 (Cloudflare KV 免费层)</div></div>`);
     }

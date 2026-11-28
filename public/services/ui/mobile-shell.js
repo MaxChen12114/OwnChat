@@ -82,7 +82,7 @@ function msLayout(narrow         )                    {
   return narrow ? "menu" : "inline";
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/mobile-shell.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/mobile-shell.ts; this file owns the
 // real nodes: the scroll listener with its rAF throttle, the two comment anchors that let the topbar
 // entries be moved into a menu and put back, and the matchMedia listener.
 //

@@ -118,7 +118,7 @@ function cmFollowPlan(current         , want         )                {
   return want === current ? null : want;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/channel-mode.ts; this file keeps the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/channel-mode.ts; this file keeps the
 // frozen global surface plus every side effect — providers/auth reads, localStorage, DOM writes and
 // the deferred follow after a channel switch.
 //
@@ -129,7 +129,7 @@ function cmFollowPlan(current         , want         )                {
 
   function isGuest() {
     try {
-      return !!(window.__auth && window.__auth.getToken && !window.__auth.getToken());
+      return !!(window.authSvc && window.authSvc.getToken && !window.authSvc.getToken());
     } catch (e) {
       return false;
     }
@@ -151,7 +151,7 @@ function cmFollowPlan(current         , want         )                {
 
       function activeChannelInfo() {
         try {
-          const P = window.__providers;
+          const P = window.providersSvc;
           if (!P || !P.read) return null;
           const st = P.read();
           const key = st && st.activeId;
@@ -202,11 +202,11 @@ function cmFollowPlan(current         , want         )                {
         // The pill doubles as a shortcut to the paired preset: a custom channel is switched back to
         // it, while "already following the pill" stays a follow (active id cleared).
         try {
-          if (window.__providers && window.__providers.setActive) {
-            const st = window.__providers.read();
+          if (window.providersSvc && window.providersSvc.setActive) {
+            const st = window.providersSvc.read();
             const cur = st && st.activeId;
-            if (cmIsCustomActive(cur)) window.__providers.setActive(cmPresetFor(next));
-            else window.__providers.setActive(null);
+            if (cmIsCustomActive(cur)) window.providersSvc.setActive(cmPresetFor(next));
+            else window.providersSvc.setActive(null);
           }
         } catch (e) {}
         applyMode(next);
@@ -214,7 +214,7 @@ function cmFollowPlan(current         , want         )                {
 
       function followActiveChannel() {
         try {
-          const want = window.__providers && window.__providers.modeForActive && window.__providers.modeForActive();
+          const want = window.providersSvc && window.providersSvc.modeForActive && window.providersSvc.modeForActive();
           const target = cmFollowPlan(getMode(), want);
           if (target) {
             // The click that triggered this event applies the same mode itself, so re-check before

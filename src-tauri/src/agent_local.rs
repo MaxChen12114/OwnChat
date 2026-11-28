@@ -30,7 +30,9 @@ use std::time::{Duration, Instant};
 // agent_workdir_pick 调 app.dialog(),那是 DialogExt 提供的方法。
 // lib.rs 里也有这条 import,但那是它自己的作用域 —— 子模块看不到,必须各自引入。
 // (CI 首轮编译报的是 "no method named `dialog` found",原因就是这个。)
-#[cfg(desktop)]
+// Manager 必须无条件引入：local_env_info 在所有平台都用 app.path().resource_dir()；
+// 早先它被 #[cfg(desktop)] 包着，桌面能编过、Android 直接报 "no method named path"。
+use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 /// 单次命令的时间上限(毫秒)
@@ -467,6 +469,7 @@ pub struct LocalEnvInfo {
 #[tauri::command]
 pub fn local_env_info(app: tauri::AppHandle) -> Result<LocalEnvInfo, String> {
     let storage = crate::resolve_storage_dir(&app)?;
+    let resource_dir = app.path().resource_dir().ok();
     let wd = crate::kv_read(&app, WD_NAMESPACE, WD_KEY)?
         .filter(|s| !s.trim().is_empty())
         .map(|s| PathBuf::from(s.trim().to_string()));
@@ -477,7 +480,7 @@ pub fn local_env_info(app: tauri::AppHandle) -> Result<LocalEnvInfo, String> {
     Ok(LocalEnvInfo {
         workdir: wd.as_ref().map(|p| p.to_string_lossy().to_string()),
         entries,
-        node: crate::runtime::status(&storage),
+        node: crate::runtime::status(&storage, resource_dir.as_deref()),
         platform: std::env::consts::OS.to_string(),
     })
 }

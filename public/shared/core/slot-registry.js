@@ -22,6 +22,18 @@
 //     falling back to the #settings root changes the style context entirely. Hence `fallbacks` and
 //     `rootFallback` are two fields, never one.
 //
+// The mount API (declareCard) absorbs the old three-line boilerplate — `pick` → `claim` →
+// `getElementById(cardId)` guard — one card at a time. It re-uses pick/claim unchanged (no
+// re-resolution logic of its own), stamps `data-card="<id>"` on the mounted element so card CSS
+// can move under a per-card scope, and fences build() failures into a visible placeholder card:
+// the original wrong-chain bug was "a card vanish on some devices — no error, no log", so a mount
+// failure here must never be silent — fence + console.error. A build() that returns without
+// leaving `getElementById(id)` resolvable is reported as "no-card" (the same vanish, now logged).
+// Existing pick/claim call sites stay valid; migration is per-card, and a card whose guard id
+// sits on an inner control must move that id onto the card element before converting.
+// There is no dev HUD error channel today (the dev console service captures chat traffic only),
+// so the fence reports through console.error only; hook a HUD here if one ever appears.
+//
 // Every `evidence` entry below is re-read by the test against the named file and line; evidence
 // that does not actually contain the slot id fails the build.
 // @module core/slot-registry
@@ -117,6 +129,45 @@
                          
                                                                          
 
+/** A card declaration consumed by {@link SlotRegistryRuntime.declareCard}. */
+                               
+     
+                                                                                              
+                                                                                                  
+                                                                                                
+     
+                      
+                                                                                                   
+                          
+     
+                                                                                                  
+                                                                                                   
+                                                              
+     
+                          
+     
+                                                                                                 
+                                                                                              
+     
+                                
+ 
+
+/**
+ * Result of one declareCard call. `mounted:false` always carries a reason; the reason set is
+ * exhaustive and test-locked. `already-mounted` is the normal idempotent path, not an error.
+ */
+                                    
+                            
+                                                                                                
+ 
+
+/** One row of the declaration ledger returned by declared(). */
+                                   
+                      
+                          
+                          
+ 
+
 /** Registry instance. The app side depends on this interface, never on the table directly. */
                                
                                       
@@ -142,7 +193,7 @@ const SLOT_SPECS                      = [
     fallbacks: [],
     rootFallback: false,
     owner: "module",
-    evidence: "js/text/ui/settings.js:433",
+    evidence: "../tooling/l0/wiring/settings/30-chat.js:91",
   },
   {
     id: "setAppearanceTopSlot",
@@ -151,7 +202,7 @@ const SLOT_SPECS                      = [
     fallbacks: [],
     rootFallback: false,
     owner: "module",
-    evidence: "js/text/ui/settings.js:60",
+    evidence: "../tooling/l0/wiring/settings/10-appearance.js:13",
   },
   {
     // The two appearance slots are treated as one landing spot in 5 places: `Theme || Top`.
@@ -161,7 +212,7 @@ const SLOT_SPECS                      = [
     fallbacks: ["setAppearanceTopSlot"],
     rootFallback: false,
     owner: "module",
-    evidence: "js/text/ui/settings.js:76",
+    evidence: "../tooling/l0/wiring/settings/10-appearance.js:37",
   },
   {
     id: "setChatSlot",
@@ -170,17 +221,19 @@ const SLOT_SPECS                      = [
     fallbacks: [],
     rootFallback: false,
     owner: "module",
-    evidence: "js/text/ui/settings.js:232",
+    evidence: "../tooling/l0/wiring/settings/30-chat.js:14",
   },
   {
     // Agent config became its own section (2026-09-14); pages without the slot fall back to chat.
+    // Evidence re-anchored 2026-11-28 (card-shell batch 3): the 40-agent picks moved into
+    // declareCard calls, so the anchor is now multiAgentCard's slotId line.
     id: "setAgentSlot",
     order: 5,
     area: "settings",
     fallbacks: ["setChatSlot"],
     rootFallback: false,
     owner: "module",
-    evidence: "js/text/ui/settings.js:574",
+    evidence: "../tooling/l0/wiring/settings/40-agent.js:13",
   },
   {
     id: "setPersonalizeSlot",
@@ -189,7 +242,7 @@ const SLOT_SPECS                      = [
     fallbacks: ["setAgentSlot"],
     rootFallback: false,
     owner: "module",
-    evidence: "js/text/ui/settings.js:476",
+    evidence: "../tooling/l0/wiring/settings/30-chat.js:184",
   },
   {
     id: "setSkillSlot",
@@ -198,7 +251,7 @@ const SLOT_SPECS                      = [
     fallbacks: [],
     rootFallback: false,
     owner: "module",
-    evidence: "services/agent/skills.js:571",
+    evidence: "services/agent/skills.js:576",
   },
   {
     id: "setImageChatSlot",
@@ -207,7 +260,7 @@ const SLOT_SPECS                      = [
     fallbacks: [],
     rootFallback: false,
     owner: "module",
-    evidence: "../l0/wiring/chat-image-text.js:257",
+    evidence: "../tooling/l0/wiring/chat-image-text.js:262",
   },
   {
     // Both image cards (avatar / expressions) mount settingsImageSlot; the page root is the
@@ -219,7 +272,7 @@ const SLOT_SPECS                      = [
     fallbacks: [],
     rootFallback: true,
     owner: "module",
-    evidence: "../l0/wiring/image-avatar.js:13",
+    evidence: "../tooling/l0/wiring/image-avatar.js:84",
   },
   {
     // The model-key card also falls to the page root when its slot is missing.
@@ -229,7 +282,7 @@ const SLOT_SPECS                      = [
     fallbacks: [],
     rootFallback: true,
     owner: "module",
-    evidence: "../l0/wiring/image-channels-ui.js:38",
+    evidence: "../tooling/l0/wiring/image-channels-ui.js:38",
   },
   {
     // The only slot that returns null instead of falling back when missing.
@@ -239,7 +292,7 @@ const SLOT_SPECS                      = [
     fallbacks: [],
     rootFallback: false,
     owner: "module",
-    evidence: "js/text/ui/settings.js:1605",
+    evidence: "../tooling/l0/wiring/settings/70-images.js:10",
   },
   {
     id: "setDevSlot",
@@ -248,7 +301,7 @@ const SLOT_SPECS                      = [
     fallbacks: [],
     rootFallback: false,
     owner: "module",
-    evidence: "../l0/wiring/dev.js:738",
+    evidence: "../tooling/l0/wiring/dev.js:738",
   },
   {
     id: "setCostSlot",
@@ -257,29 +310,29 @@ const SLOT_SPECS                      = [
     fallbacks: [],
     rootFallback: false,
     owner: "module",
-    evidence: "../l0/wiring/cost-log.js:44",
+    evidence: "../tooling/l0/wiring/cost-log.js:52",
   },
   {
-    // Mount logic lives in index.html's inline scripts; mobile falls back to #mobileTabPanel-agent.
+    // Mount logic lives in index.html's inline scripts; the mobile shell moves the whole right
+    // sidebar into its console, so the same slot is the mobile host too.
     id: "agentConsoleSlot",
     order: 14,
     area: "shell",
     fallbacks: [],
     rootFallback: false,
     owner: "index-inline",
-    mobileHost: "mobileTabPanel-agent",
-    evidence: "index.html:1295",
+    evidence: "index.html:1245",
   },
   {
-    // Mobile falls back to document.body.
+    // The mobile shell moves this slot (inside #rightSidebar) into the console; body is no longer
+    // a fallback host.
     id: "fishbowlSlot",
     order: 15,
     area: "shell",
     fallbacks: [],
     rootFallback: false,
     owner: "index-inline",
-    mobileHost: "body",
-    evidence: "index.html:1305",
+    evidence: "index.html:1255",
   },
 ];
 
@@ -290,7 +343,7 @@ const SLOT_IDS                    = SLOT_SPECS.map(function (s) {
 
 // Inventory of index.html's inline scripts (read line by line after the α2 pass, not guessed).
 //
-// Why it exists: after α2 the page still carried 18 inline scripts (17 business + the boot line).
+// Why it exists: after α2 the page still carried 17 business inline scripts plus the boot line.
 // The acceptance for the slot work is "all getElementById('*Slot') calls resolve through the
 // registry", and the mounts for agentConsoleSlot / fishbowlSlot are exactly in those inline
 // blocks — so before extracting them, there must be a table of which slots each one touches and
@@ -330,8 +383,8 @@ const SLOT_IDS                    = SLOT_SPECS.map(function (s) {
 const INDEX_INLINE_SCRIPTS                              = [
   {
     id: "inline-0",
-    anchor: 'var ALLOWED = unlocked ? { glass: 1, candle: 1 } : { glass: 1 };',
-    line: 496,
+    anchor: 'var ALLOWED = unlocked ? { glass: 1, lumen: 1, candle: 1 } : { glass: 1, lumen: 1 };',
+    line: 481,
     role: "头部守卫：URL 参数旗标（预览/调试形态）→ html 类",
     mounts: [],
     observes: [],
@@ -370,7 +423,7 @@ const INDEX_INLINE_SCRIPTS                              = [
     observes: [],
     positionSensitive: false,
     externalizable: true, externalizedAs: "services/ui/version-painter.js",
-    note: "2026-11-17 服务层搬迁：源=services/ui/version-painter.ts，接线 l0/wiring；只读顶栏节点，均在 boot 之前",
+    note: "2026-11-17 服务层搬迁：源=services/ui/version-painter.ts，接线 tooling/l0/wiring；只读顶栏节点，均在 boot 之前",
   },
   {
     id: "inline-4",
@@ -381,18 +434,7 @@ const INDEX_INLINE_SCRIPTS                              = [
     observes: [],
     positionSensitive: false,
     externalizable: true, externalizedAs: "services/ui/settings-footer-keeper.js",
-    note: "2026-11-17 服务层搬迁：源=services/ui/settings-footer-keeper.ts，接线在 l0/wiring；触碰节点 settings/settingsFooter/settingsBtn 均在 boot 之前",
-  },
-  {
-    id: "inline-5",
-    anchor: "querySelectorAll(\".mobile-tab-btn\")",
-    line: 1397,
-    role: "手机底部 tab 切换器（mobile-tab-btn / mobile-tab-panel）",
-    mounts: [],
-    observes: [],
-    positionSensitive: false,
-    externalizable: true, externalizedAs: "services/ui/mobile-tabs.js",
-    note: "触碰节点 1376/1380，在 boot 之前",
+    note: "2026-11-17 服务层搬迁：源=services/ui/settings-footer-keeper.ts，接线在 tooling/l0/wiring；触碰节点 settings/settingsFooter/settingsBtn 均在 boot 之前",
   },
   {
     id: "inline-6",
@@ -403,7 +445,7 @@ const INDEX_INLINE_SCRIPTS                              = [
     observes: [],
     positionSensitive: false,
     externalizable: true, externalizedAs: "services/ui/left-sidebar-toggle.js",
-    note: "2026-11-17 服务层搬迁：源=services/ui/left-sidebar-toggle.ts，接线 l0/wiring；触碰节点 962–1078，均在 boot 之前",
+    note: "2026-11-17 服务层搬迁：源=services/ui/left-sidebar-toggle.ts，接线 tooling/l0/wiring；触碰节点 962–1078，均在 boot 之前",
   },
   {
     id: "inline-7",
@@ -468,7 +510,7 @@ const INDEX_INLINE_SCRIPTS                              = [
     observes: [],
     positionSensitive: false,
     externalizable: true, externalizedAs: "services/ui/android-mark.js",
-    note: "2026-11-17 服务层搬迁：源=services/ui/android-mark.ts，接线 l0/wiring；只写 documentElement，位置无关",
+    note: "2026-11-17 服务层搬迁：源=services/ui/android-mark.ts，接线 tooling/l0/wiring；只写 documentElement，位置无关",
   },
   {
     id: "inline-14",
@@ -501,13 +543,13 @@ const INDEX_INLINE_SCRIPTS                              = [
     observes: ["settingsImageSlot"],
     positionSensitive: false,
     externalizable: true, externalizedAs: "services/ui/settings-orphan-observer.js",
-    note: "2026-11-17 服务层搬迁：源=services/ui/settings-orphan-observer.ts，接线 l0/wiring；观察器须在业务模块挂卡之前就位（boot 清单头部段不变）；SKIP_IDS 里的 settingsFooter 与 footer-keeper 的搬移目标相扣，两件锁互为护栏",
+    note: "2026-11-17 服务层搬迁：源=services/ui/settings-orphan-observer.ts，接线 tooling/l0/wiring；观察器须在业务模块挂卡之前就位（boot 清单头部段不变）；SKIP_IDS 里的 settingsFooter 与 footer-keeper 的搬移目标相扣，两件锁互为护栏",
   },
   {
     id: "inline-17",
     anchor: "function safeInit(){ if (_agentInited) return; _agentInited = true; init(); }",
     line: 1799,
-    role: "Agent 模式编排器：控制台挂载（桌面 agentConsoleSlot||fishbowlSlot / 手机 mobileTabPanel-agent）、断点自愈、外部设置同步",
+    role: "Agent 模式编排器：控制台挂载（agentConsoleSlot||fishbowlSlot）、断点自愈、外部设置同步",
     mounts: ["agentConsoleSlot"],
     observes: ["fishbowlSlot"],
     createsGlobal: "agentConsoleSlot",
@@ -541,6 +583,19 @@ const INDEX_INLINE_SCRIPTS                              = [
                             
                                                            
                   
+     
+                                                                                               
+                                                                                               
+     
+                             
+                                                                                        
+                                                          
+                                                                               
+                                         
+                                     
+                                                
+                                                                                
+                          
  
 
 /** Resolution with plain strings: the runtime never sees the SlotId union at run time. */
@@ -566,6 +621,13 @@ const INDEX_INLINE_SCRIPTS                              = [
                             
                                                                                          
                                                
+     
+                                                                                                   
+                                                                                            
+     
+                                                     
+                                                                                                    
+                                          
  
 
 /**
@@ -579,6 +641,13 @@ function createSlotRegistry(ports                  )                      {
   const index                        = new Map();
   for (let i = 0; i < SLOT_SPECS.length; i++) index.set(SLOT_SPECS[i].id, SLOT_SPECS[i]);
   const claims                      = new Map();
+  // Mount-API state. fences: cardId → the fence card currently standing in for it (element handles
+  // are kept here so a successful mount can retire the fence without a document query). declared:
+  // the first-declare ledger. flagged: ids whose no-slot / no-card condition already logged — the
+  // settings host re-runs mount functions on re-init, so these stay once-per-condition, not spam.
+  const fences                       = new Map();
+  const declaredCards                     = [];
+  const flagged              = new Set();
 
   function resolve(requested        , presentFn                          )                           {
     const has = presentFn === undefined ? ports.present : presentFn;
@@ -621,6 +690,94 @@ function createSlotRegistry(ports                  )                      {
     return out;
   }
 
+  /** One-error-one-log helper: same card + same condition never repeats (re-init re-runs mounts). */
+  function flagOnce(id        , kind        , detail        )       {
+    const key = id + ":" + kind;
+    if (flagged.has(key)) return;
+    flagged.add(key);
+    console.error('[slot-registry] card "' + id + '" ' + detail);
+  }
+
+  /**
+   * The visible placeholder card for a failed build. Low-key on purpose: a dashed muted border,
+   * small text, the card id and the error message — diagnostics for the owner, not an alarm for
+   * the user. The message goes in through ports.text (textContent), never through HTML.
+   */
+  function fenceCard(decl              , message        )          {
+    const prev = fences.get(decl.id);
+    if (prev !== undefined) {
+      ports.drop(prev);
+      fences.delete(decl.id);
+    }
+    const card = ports.make("div");
+    ports.setAttr(card, "class", "card slot-card-error");
+    ports.setAttr(card, "data-card", decl.id);
+    ports.setAttr(card, "id", decl.id + ":error");
+    const title = ports.make("div");
+    ports.setAttr(title, "class", "slot-card-error-title");
+    ports.text(title, "卡片加载失败");
+    const body = ports.make("div");
+    ports.setAttr(body, "class", "slot-card-error-msg");
+    ports.text(body, "卡片 " + decl.id + " 渲染时出错：" + message + "。其它功能不受影响，重试或刷新页面可再试一次。");
+    ports.append(card, title);
+    ports.append(card, body);
+    fences.set(decl.id, card);
+    return card;
+  }
+
+  function declareCard(decl              )                    {
+    // Ledger first, regardless of outcome: declared() must show every card that moved over.
+    let seen = false;
+    for (let i = 0; i < declaredCards.length; i++) {
+      if (declaredCards[i].id === decl.id) { seen = true; break; }
+    }
+    if (!seen) {
+      const row                                                 = { id: decl.id, slotId: decl.slotId };
+      if (decl.order !== undefined) row.order = decl.order;
+      declaredCards.push(row);
+    }
+
+    if (index.get(decl.slotId) === undefined) {
+      flagOnce(decl.id, "unknown-slot", 'declares into unknown slot "' + decl.slotId + '" — the id is not in SLOT_IDS');
+      return { mounted: false, reason: "unknown-slot" };
+    }
+    // Idempotency probe = header note 1 verbatim: the DOM id is the only "already mounted" truth.
+    if (ports.byId(decl.id)) return { mounted: false, reason: "already-mounted" };
+    const slot = get(decl.slotId);
+    if (!slot) {
+      flagOnce(decl.id, "no-slot", 'slot "' + decl.slotId + '" is missing and no fallback fired — the old boilerplate would have dropped it silently');
+      return { mounted: false, reason: "no-slot" };
+    }
+    try {
+      decl.build(slot);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      ports.append(slot, fenceCard(decl, message));
+      console.error('[slot-registry] card "' + decl.id + '" failed to mount in "' + decl.slotId + '": ' + message, err);
+      return { mounted: false, reason: "build-failed" };
+    }
+    const el = ports.byId(decl.id);
+    if (!el) {
+      flagOnce(decl.id, "no-card", 'build ran without throwing but getElementById("' + decl.id + '") still misses — the card vanished silently, header note 1 contract broken');
+      return { mounted: false, reason: "no-card" };
+    }
+    ports.setAttr(el, "data-card", decl.id);
+    const standing = fences.get(decl.id);
+    if (standing !== undefined) {
+      ports.drop(standing);
+      fences.delete(decl.id);
+    }
+    // Claim only on success, so occupants() lists cards that are really in the DOM. The DOM probe
+    // above already guarantees mount-once; a stale "occupied" verdict (claim left behind by a
+    // previous fence cycle) must not block the re-mount, hence the verdict is deliberately ignored.
+    claim({ cardId: decl.id, slotId: decl.slotId });
+    return { mounted: true };
+  }
+
+  function declared()                              {
+    return declaredCards.slice();
+  }
+
   return {
     specs: SLOT_SPECS,
     spec: function (id        ) { return index.get(id); },
@@ -629,11 +786,13 @@ function createSlotRegistry(ports                  )                      {
     pick: function (id        ) { return get(id); },
     claim: claim,
     occupants: occupants,
+    declareCard: declareCard,
+    declared: declared,
   };
 }
 
 // Browser wiring for core/slot-registry.ts: the DOM side of the registry. The factory and the
-// table are generated by l0/emit.mjs — this file only supplies document lookups.
+// table are generated by tooling/l0/emit.mjs — this file only supplies document lookups.
 // Global name: window.slotRegistry (no __ prefix: the L1a frozen surface is window.__*).
 (function () {
   "use strict";
@@ -641,6 +800,15 @@ function createSlotRegistry(ports                  )                      {
     present: function (id) { return !!document.getElementById(id); },
     byId: function (id) { return document.getElementById(id); },
     root: function () { return document.getElementById("settings"); },
+    // Mount API (declareCard): the five DOM primitives the fence and the data-card stamping need.
+    // Each guard is fail-closed by design: declareCard runs right after build() produced arbitrary
+    // values, so a non-element handle must degrade to a no-op instead of throwing inside the very
+    // path that is supposed to report other people's errors.
+    make: function (tag) { return document.createElement(tag); },
+    setAttr: function (el, name, value) { if (el && typeof el.setAttribute === "function") el.setAttribute(name, value); },
+    text: function (el, value) { if (el) el.textContent = value; },
+    append: function (parent, child) { if (parent && child) parent.appendChild(child); },
+    drop: function (el) { if (el && typeof el.remove === "function") el.remove(); },
   });
 })();
 

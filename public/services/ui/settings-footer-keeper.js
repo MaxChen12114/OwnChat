@@ -83,7 +83,7 @@ function createFooterKeeper(ports                   )                  {
   return { moveToEnd: moveToEnd, auto: auto };
 }
 
-// Browser wiring (injected by l0/emit.mjs): runs the keeper once at boot — no frozen contract,
+// Browser wiring (injected by tooling/l0/emit.mjs): runs the keeper once at boot — no frozen contract,
 // the old inline script was an anonymous IIFE with no window surface.
 (function () {
   var api = createFooterKeeper({

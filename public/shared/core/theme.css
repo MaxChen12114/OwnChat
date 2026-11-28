@@ -1,7 +1,7 @@
 /* public/shared/core/theme.css — 卫星页(工作页)统一主题层 · 唯一真相来源
    ─────────────────────────────────────────────────────────────────
    作用: 让 studio / coding / write / flow / audio 五个工作页与主站主题跟随。
-   主题来源: localStorage `cfw_theme_v1`(minimal/glass/candle)
+   主题来源: localStorage `cfw_theme_v1`(minimal/glass/lumen/candle)
              + `my-theme`(light/dark), 由各页 <head> 内的主题引导脚本在首屏前
              写到 <html data-theme / data-scheme> 上 —— 与主站 theme.js 同一套键。
    令牌家族(三族并存,按页取用):
@@ -28,6 +28,10 @@
   --input-bg:#0e0e11; --input-border:#2d2d32; --btn-bg:#1a1a1a; --btn-bg-hover:#232329;
   --grad:linear-gradient(135deg,#8fb2d4,#587a9d);
   --radius:10px; --radius-sm:7px;
+  /* 分段控件（工作页的页签/分段）：几何与状态走主站 styles-controls.css，颜色在这里定。
+     轨道/活动项都不使用渐变，活动项只染一层 accent 淡底。 */
+  --seg-track:rgba(127,127,127,.10); --seg-track-shadow:none;
+  --seg-active-fill:var(--ac-soft); --seg-active-fg:#eaeaea; --seg-active-shadow:none;
 }
 
 /* ═══ minimal · 日间(Notion 风,对齐主站 data-scheme=light) ═══ */
@@ -40,6 +44,8 @@
   --accent-soft:rgba(55,53,47,.08); --accent-border:rgba(55,53,47,.35);
   --input-bg:#ffffff; --input-border:#e3e3e0; --btn-bg:#ffffff; --btn-bg-hover:#f1f1ef;
   --grad:linear-gradient(135deg,#4f4e49,#37352f);
+  --seg-track:rgba(127,127,127,.10); --seg-track-shadow:none;
+  --seg-active-fill:var(--ac-soft); --seg-active-fg:#37352f; --seg-active-shadow:none;
 }
 
 /* ═══ glass · 晴空竹屋(亮色毛玻璃) ═══ */
@@ -52,6 +58,36 @@
   --accent-soft:rgba(63,111,143,.10); --accent-border:rgba(63,111,143,.35);
   --input-bg:rgba(255,255,255,.8); --input-border:rgba(15,30,60,.14); --btn-bg:rgba(255,255,255,.9); --btn-bg-hover:#ffffff;
   --grad:linear-gradient(135deg,#3f6f8f,#6f9bb5);
+  --seg-track:rgba(255,255,255,.22); --seg-track-shadow:inset 0 0 0 1px rgba(255,255,255,.25);
+  --seg-active-fill:rgba(255,255,255,.60); --seg-active-fg:#1c2330; --seg-active-shadow:none;
+}
+
+/* ═══ lumen · 流光（Daygo 液态玻璃，明/暗双态） ═══ */
+/* 2026-11-26: 主站流光主题的卫星页映射。颜色逐字取自 Daygo tokens
+   （MIT © 2026 Jwz-git），这里只做三族 token 的落位，不引入新色板。 */
+[data-theme="lumen"]{
+  --bg:#fbf6f4; --panel:rgba(251,251,251,.78); --panel2:rgba(251,251,251,.58); --panel3:rgba(255,255,255,.45);
+  --border:rgba(96,64,44,.09); --text:#2c2a2e; --muted:#726e77;
+  --ac:#f3854b; --ac-soft:rgba(243,133,75,.14); --ac-strong:#d9642c; --danger:#d9432f; --ok:#2f7d57; --ac-contrast:#ffffff;
+  --card:rgba(255,255,255,.78); --card-2:#fbf6f4; --border-soft:rgba(96,64,44,.09); --line:rgba(96,64,44,.08);
+  --accent:#f3854b; --accent-2:#d9642c; --accent-3:#ff9466;
+  --accent-soft:rgba(243,133,75,.10); --accent-border:rgba(243,133,75,.35);
+  --input-bg:rgba(255,255,255,.9); --input-border:#e1e1e1; --btn-bg:rgba(255,255,255,.84); --btn-bg-hover:#ffffff;
+  --grad:linear-gradient(135deg,#f3854b,#d9642c);
+  --seg-track:#e7e6e5; --seg-track-shadow:inset 0 0 0 1px #e1e1e1;
+  --seg-active-fill:#ffffff; --seg-active-fg:#2c2a2e; --seg-active-shadow:none;
+}
+[data-theme="lumen"][data-scheme="dark"]{
+  --bg:#272a3c; --panel:rgba(39,41,58,.82); --panel2:rgba(39,41,58,.65); --panel3:rgba(39,41,58,.45);
+  --border:rgba(255,255,255,.10); --text:#f5f5f7; --muted:#9d9ca8;
+  --ac:#f3854b; --ac-soft:rgba(243,133,75,.18); --ac-strong:#f77952; --danger:#ff7053; --ok:#46a758; --ac-contrast:#1c1c1e;
+  --card:rgba(255,255,255,.065); --card-2:#272a3c; --border-soft:rgba(255,255,255,.09); --line:rgba(255,255,255,.06);
+  --accent:#f3854b; --accent-2:#f77952; --accent-3:#ff9466;
+  --accent-soft:rgba(243,133,75,.16); --accent-border:rgba(243,133,75,.42);
+  --input-bg:rgba(255,255,255,.08); --input-border:rgba(255,255,255,.14); --btn-bg:rgba(255,255,255,.08); --btn-bg-hover:rgba(255,255,255,.13);
+  --grad:linear-gradient(135deg,#f3854b,#f77952);
+  --seg-track:rgba(0,0,0,.35); --seg-track-shadow:inset 0 0 0 1px rgba(255,255,255,.14);
+  --seg-active-fill:#4a4852; --seg-active-fg:#f5f5f7; --seg-active-shadow:none;
 }
 
 /* ═══ candle · 烛夜私语(暗金) ═══ */
@@ -64,6 +100,8 @@
   --accent-soft:rgba(217,168,104,.12); --accent-border:rgba(217,168,104,.4);
   --input-bg:rgba(20,13,8,.6); --input-border:rgba(217,168,104,.25); --btn-bg:rgba(40,28,18,.5); --btn-bg-hover:rgba(217,168,104,.22);
   --grad:linear-gradient(135deg,#d9a868,#f2e7d6);
+  --seg-track:rgba(217,168,104,.12); --seg-track-shadow:inset 0 0 0 1px rgba(217,168,104,.20);
+  --seg-active-fill:var(--ac-soft); --seg-active-fg:var(--text); --seg-active-shadow:none;
 }
 
 /* ═══ 公共基线(所有卫星页一致的小件) ═══ */

@@ -1,0 +1,17 @@
+# SPIKE (2026-11-27): keep the image to the runtime surface.
+# Secrets never enter the image; runtime state lives in the /data volume.
+.git
+.gitignore
+.local-data
+node_modules
+.wrangler
+src-tauri
+public/models
+docs
+_docs
+test
+e2e
+.tmp-*
+*.key
+.dev.vars
+.dev.vars.*

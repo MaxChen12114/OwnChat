@@ -100,6 +100,12 @@ export interface LifecyclePorts {
   clearChoiceChips(): void;
   applyConvChar(convId: string): void;
   appModeApplyConv(convId: string): void;
+  /** Load the target conversation's prior summary into the host's synchronous mirror. */
+  restoreSummary(convId: string): void;
+  /** Drop the conversation's summary entry (called before the conversation metadata is removed). */
+  removeSummary(convId: string): void;
+  /** Drop the cold truth (events/messages/summaries rows) for a deleted conversation. */
+  removeColdSession?(convId: string): void;
   renderSummaryChip(): void;
   updateSpacer(): void;
   scrollToBottom(): void;
@@ -234,6 +240,7 @@ export function createLifecycle(ports: LifecyclePorts): ConversationLifecycle {
       p.setSession([]);
       if (!memRestoreSlot(id) && p.historyEnabled()) restoreSessionIfEnabled();
     }
+    p.restoreSummary(id);
     p.renderSummaryChip();
     p.updateSpacer();
     p.scrollToBottom();
@@ -436,6 +443,10 @@ export function createLifecycle(ports: LifecyclePorts): ConversationLifecycle {
     } catch (e) {}
     p.writeChatTombstone(convId); // cross-device: without it the other device pulls it back
     p.recordConv(convId, null, "delete");
+    p.removeSummary(convId); // the compressed history of a deleted conversation must not linger
+    // Cold truth cascade (T3-D): events + messages + the summaries row. Best effort — a data
+    // plane that is offline must not block the local delete.
+    try { if (p.removeColdSession) p.removeColdSession(convId); } catch (e) {}
     // Also drop the conversation's agent workspace files, or they become unreadable orphans.
     p.agentWorkspaceRemove(convId);
     const meta = p.loadConvMeta();

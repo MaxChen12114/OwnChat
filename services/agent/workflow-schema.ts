@@ -7,7 +7,7 @@
  * not_exists.
  *
  * Zero browser globals: the only value export is a factory. The classic binding in
- * l0/wiring/workflow-schema.js publishes the frozen `window.__workflowSchema` contract and resolves
+ * tooling/l0/wiring/workflow-schema.js publishes the frozen `window.__workflowSchema` contract and resolves
  * nothing lazily — every function here is pure over unknown JSON, bridged through recOf/arrOf.
  * @module services/agent/workflow-schema
  */

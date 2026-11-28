@@ -28,7 +28,7 @@
                              
                                                    
                                                                
-                                                                         
+                                                                          
                                                                                                                                   
  
 
@@ -240,7 +240,8 @@ function createCouncilTools(env            )                  {
                       title: "三方会商 · " + thread,
                       messages: msgs.map(function (m) {
                         const msg = recOf(m);
-                        return { who: msg.from, kind: msg.kind, text: msg.body, refs: msg.refs };
+                        return { who: msg.from, kind: msg.kind, text: msg.body, refs: msg.refs,
+                                 idx: msg.idx, ts: msg.ts, reply_to: msg.reply_to };
                       }),
                     },
                   ],
@@ -335,7 +336,7 @@ function createCouncilTools(env            )                  {
   return { base: base, down: down, api: api, fmtMsg: fmtMsg, defineTools: defineTools };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // The implementation moved to services/agent/council-tools.ts. Ports are storage (the address override),
 // fetch, and the content panel (used to mirror a thread into the discussion view).
 (function (g) {
@@ -344,7 +345,7 @@ function createCouncilTools(env            )                  {
   var api = createCouncilTools({
     storage: { getItem: function (key) { return g.localStorage.getItem(key); } },
     fetch: function (url, init) { return g.fetch(url, init); },
-    panel: function () { return window.__panel || null; },
+    panel: function () { return window.panelSvc || null; },
   });
   window.__councilTools = { defineTools: api.defineTools, __v: 1 };
 })(window);

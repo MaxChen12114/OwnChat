@@ -1,0 +1,530 @@
+/* public/themes/lumen/app.css — “流光”主题 · OwnChat 外壳桥
+ * ─────────────────────────────────────────────────────────────────────────────
+ * The token substrate is tokens.css (Daygo, MIT). This file maps that substrate onto
+ * OwnChat's existing DOM: the floating panel, top bar, sidebars, settings, composer
+ * and the theme swatch. Component primitives stay in styles-controls.css; this file
+ * only supplies the surfaces and bridges where OwnChat's markup predates tokens.
+ *
+ * Load order: after styles.css / styles-2.css / styles-panel.css / styles-controls.css.
+ * Every rule is scoped to html[data-theme="lumen"] except the appearance swatch
+ * (.theme-swatch-lumen), which must render while another theme is active.
+ */
+
+/* ── Appearance swatch (global: the settings card is shown in every theme) ───── */
+/* 2026-11-27：外框（44×30 / radius 8 / 1px hairline / 内高光）由 styles.css 的
+   .theme-swatch 统一供给；这里只提供流光的内部色板，避免它比另外三张卡亮一档。 */
+.theme-swatch-lumen {
+  background:
+    radial-gradient(circle at 74% 88%, #ffe6cf 0 22%, transparent 58%),
+    radial-gradient(circle at 24% 26%, rgba(255, 255, 255, .9), transparent 62%),
+    linear-gradient(135deg, #ffe6e0 0%, #d6e8ff 100%);
+}
+
+/* ── Window field: the gradient the glass samples ──────────────────────────── */
+html[data-theme="lumen"] body {
+  background-color: var(--dg-window-bg);
+  background-image: var(--dg-window-gradient);
+  background-attachment: fixed;
+  color: var(--dg-text-primary);
+}
+html[data-theme="lumen"] ::selection {
+  background: var(--dg-control-fill-hover);
+  color: var(--dg-text-primary);
+}
+html[data-theme="lumen"] ::-webkit-scrollbar-thumb { background: var(--dg-input-border); }
+html[data-theme="lumen"] ::-webkit-scrollbar-thumb:hover { background: var(--dg-text-muted); }
+
+/* ── The primary glass slab ────────────────────────────────────────────────── */
+html[data-theme="lumen"] #app {
+  position: relative;
+  height: auto;
+  align-self: stretch;
+  min-height: 0;
+  margin: var(--dg-window-padding);
+  overflow: hidden;
+  border: 1px solid var(--dg-panel-border);
+  border-radius: var(--dg-panel-radius);
+  background: var(--dg-panel-fill);
+  box-shadow: var(--dg-panel-shadow);
+}
+/* The blur lives on a pseudo-element so it never becomes the containing block for
+   the fixed settings mask / popovers inside #app. */
+html[data-theme="lumen"] #app::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: var(--dg-glass-sheen);
+  -webkit-backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
+  backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
+  pointer-events: none;
+}
+html[data-theme="lumen"] #history { position: relative; z-index: 1; background: transparent; }
+html[data-theme="lumen"] #chat { padding: 0 20px; }
+
+/* Top bar: the panel is the material; the bar is only a hairline. */
+html[data-theme="lumen"] #topbar {
+  z-index: 5;
+  background: transparent;
+  border-bottom: 1px solid var(--dg-card-border);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+html[data-theme="lumen"] .topbar-shell { padding: 12px 20px; }
+html[data-theme="lumen"] .model-label,
+html[data-theme="lumen"] #costDisplay,
+html[data-theme="lumen"] #syncStatusIndicator { color: var(--dg-text-muted); }
+html[data-theme="lumen"] #syncStatusIndicator {
+  background: var(--dg-capsule-fill);
+  border: 1px solid var(--ctl-border);
+  color: var(--dg-capsule-text);
+}
+html[data-theme="lumen"] .pill.model-pill {
+  height: 34px;
+  border: 1px solid var(--ctl-field-border);
+  border-radius: 9px;
+  background: var(--dg-input-fill);
+  box-shadow: inset 0 0 0 1px transparent;
+}
+html[data-theme="lumen"] .pill.model-pill select {
+  min-width: 96px;
+  color: var(--dg-text-primary);
+  background: transparent;
+  border: 0;
+}
+html[data-theme="lumen"] select {
+  background: var(--dg-input-fill);
+  color: var(--dg-text-primary);
+  border: 1px solid var(--ctl-field-border);
+  border-radius: 8px;
+}
+html[data-theme="lumen"] select option { background: var(--dg-popover-fill); color: var(--dg-text-primary); }
+
+/* The top bar's toggles are Daygo's capsule controls, not a second glass material. They still
+   need the shared hairline: `--ctl-border` is what makes them read as controls on the glass. */
+html[data-theme="lumen"] #topbar #personaToggle,
+html[data-theme="lumen"] #topbar #modeToggle {
+  background: var(--dg-capsule-fill);
+  border-color: var(--ctl-border);
+  color: var(--dg-capsule-text);
+}
+html[data-theme="lumen"] #topbar #personaToggle:hover,
+html[data-theme="lumen"] #topbar #modeToggle:hover {
+  background: var(--dg-capsule-hover);
+  border-color: var(--ctl-border-hover);
+  color: var(--dg-text-primary);
+}
+
+/* The legacy .iconbtn base carries a dark 0 1px 2px shadow tuned for minimal dark.
+   On the light Daygo field it reads as a grey block; replace it with the air shadow. */
+html[data-theme="lumen"] .iconbtn,
+html[data-theme="lumen"] .pill {
+  box-shadow: var(--dg-card-shadow);
+}
+html[data-theme="lumen"] .iconbtn:focus:not(:focus-visible),
+html[data-theme="lumen"] .pill:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: var(--dg-card-shadow);
+}
+
+/* Bubble presentation (data-chat-present="bubble") still needs the Daygo palette: styles-2.css
+   has a late minimal-dark .bubble.ai gradient that would otherwise win over the token bridge. */
+html[data-theme="lumen"] .bubble { box-shadow: var(--dg-card-shadow); }
+html[data-theme="lumen"] .bubble.ai {
+  background: var(--bubble-ai);
+  border-color: var(--dg-card-border);
+  color: var(--dg-text-primary);
+}
+html[data-theme="lumen"] .bubble.user {
+  background: var(--bubble-user);
+  border-color: var(--dg-accent-border);
+  color: var(--dg-text-primary);
+}
+html[data-theme="lumen"] .avatar.bot {
+  background: color-mix(in srgb, var(--dg-accent) 14%, transparent);
+  border-color: var(--dg-card-border);
+  color: var(--dg-accent-text);
+}
+html[data-theme="lumen"] .avatar.human {
+  background: var(--dg-control-fill);
+  border-color: var(--dg-accent-border);
+  color: var(--dg-text-primary);
+}
+
+/* Cost widgets still carry the minimal-dark #101010/#141414 blocks. */
+html[data-theme="lumen"] #costDisplay.topbar-cost-inline {
+  background: var(--dg-capsule-fill);
+  border-color: var(--ctl-border);
+  color: var(--dg-capsule-text) !important;
+}
+html[data-theme="lumen"] .cost-cell {
+  background: var(--dg-card-fill);
+  border-color: var(--dg-card-border);
+}
+html[data-theme="lumen"] .cost-cell.total {
+  background: var(--dg-accent-bg);
+  border-color: var(--dg-accent-border);
+}
+html[data-theme="lumen"] .cost-label,
+html[data-theme="lumen"] .cost-sub { color: var(--dg-text-muted); }
+html[data-theme="lumen"] .cost-val { color: var(--dg-text-primary); }
+
+/* ── Sidebars sit on the gradient, like Daygo's rail ───────────────────────── */
+html[data-theme="lumen"] .left-sidebar,
+html[data-theme="lumen"] .right-sidebar {
+  background: transparent;
+  border-color: var(--dg-card-border);
+}
+html[data-theme="lumen"] .sidebar-header,
+html[data-theme="lumen"] .sidebar-section-title { color: var(--dg-text-muted); }
+html[data-theme="lumen"] .sidebar-title {
+  background: var(--dg-accent-bg);
+  border-color: var(--dg-accent-border);
+  color: var(--dg-accent-text);
+}
+html[data-theme="lumen"] .sidebar-divider { background: var(--dg-timeline-grid); }
+html[data-theme="lumen"] .sidebar-btn {
+  background: transparent;
+  border-color: transparent;
+  color: var(--dg-text-secondary);
+  border-radius: 8px;
+}
+html[data-theme="lumen"] .sidebar-btn:hover:not([disabled]) {
+  background: var(--dg-hover-fill);
+  border-color: transparent;
+  color: var(--dg-text-primary);
+}
+html[data-theme="lumen"] .sidebar-btn.active {
+  background: var(--dg-nav-active-fill);
+  border-color: var(--dg-card-border);
+  color: var(--dg-text-primary);
+  box-shadow: var(--dg-nav-active-shadow);
+}
+html[data-theme="lumen"] .sidebar-btn-disabled,
+html[data-theme="lumen"] .sidebar-btn[disabled] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--dg-text-muted);
+  opacity: .5;
+}
+html[data-theme="lumen"] .sidebar-slot-placeholder,
+html[data-theme="lumen"] .rs-empty,
+html[data-theme="lumen"] #rightSidebar .sidebar-slot-placeholder { color: var(--dg-text-muted); }
+html[data-theme="lumen"] .rs-build-group {
+  background: var(--dg-card-fill);
+  border-color: var(--dg-card-border);
+  box-shadow: var(--dg-card-shadow);
+}
+html[data-theme="lumen"] .rs-build-group:hover {
+  background: var(--dg-control-fill);
+  border-color: var(--dg-accent-border);
+}
+html[data-theme="lumen"] .rs-build-group .rs-build-group-ico {
+  background: var(--dg-accent-bg);
+  color: var(--dg-accent-text);
+}
+html[data-theme="lumen"] .rs-build-group .rs-build-group-tx b { color: var(--dg-text-primary); }
+html[data-theme="lumen"] .rs-build-group .rs-build-group-tx small { color: var(--dg-text-muted); }
+
+/* ── Composer: Daygo's input bar ───────────────────────────────────────────── */
+@media (min-width: 1024px) {
+  html[data-theme="lumen"] .input-floating {
+    position: absolute;
+    left: 0;
+    right: 0;
+    /* 2026-11-27：0 会让输入框的投影与圆角咬在浮板下边缘上，像被截断；
+       留 14px 呼吸位（#bottom-spacer 仍是 180px，滚动到底不会压住最后一屏）。 */
+    bottom: 14px;
+    width: 100%;
+    padding: 0 20px;
+    z-index: 1;
+  }
+}
+html[data-theme="lumen"] .input-inner {
+  max-width: 780px;
+  border: 1px solid var(--dg-input-border);
+  border-radius: 12px;
+  background: var(--dg-input-fill);
+  box-shadow: 0 2px 10px rgba(48, 34, 24, .06);
+  transition: border-color var(--dg-motion-base) ease, box-shadow var(--dg-motion-base) ease;
+}
+html[data-theme="lumen"] .input-inner:focus-within {
+  border-color: var(--dg-accent);
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
+}
+html[data-theme="lumen"] textarea#msg {
+  color: var(--dg-text-primary);
+  font-size: 14px;
+}
+html[data-theme="lumen"] textarea#msg::placeholder { color: var(--dg-text-muted); opacity: 1; }
+html[data-theme="lumen"] button#sendBtn {
+  width: 38px;
+  height: 38px;
+  flex-basis: 38px;
+  border-radius: 10px;
+  background: var(--dg-button-primary-fill);
+  color: var(--dg-button-primary-text);
+  box-shadow: var(--dg-button-primary-shadow);
+}
+html[data-theme="lumen"] button#sendBtn:hover {
+  background: var(--dg-button-primary-hover);
+  transform: none;
+}
+html[data-theme="lumen"] .composer-toolbar { max-width: 780px; }
+
+/* ── Settings: dense glass, cards at the card tier ─────────────────────────── */
+html[data-theme="lumen"] #settingsMask { background: rgba(44, 42, 46, .28); }
+html[data-theme="lumen"] #settings {
+  border: 1px solid var(--dg-panel-border);
+  border-radius: 14px;
+  background: var(--dg-popover-fill);
+  box-shadow: var(--dg-popover-shadow);
+  color: var(--dg-text-primary);
+  -webkit-backdrop-filter: blur(36px) saturate(180%);
+  backdrop-filter: blur(36px) saturate(180%);
+}
+html[data-theme="lumen"] #settings .card {
+  border: 1px solid var(--ctl-border);
+  border-radius: var(--dg-card-radius);
+  background: var(--dg-card-fill);
+  box-shadow: var(--dg-card-shadow);
+}
+html[data-theme="lumen"] #settings .card:hover { border-color: var(--ctl-border-hover); }
+html[data-theme="lumen"] #settings .card h4 { color: var(--dg-text-primary) !important; }
+html[data-theme="lumen"] #settings .card p,
+html[data-theme="lumen"] #settings .card label,
+html[data-theme="lumen"] #settings .settings-tip,
+html[data-theme="lumen"] #settings .settings-warn { color: var(--dg-text-secondary); }
+html[data-theme="lumen"] #settings .card code {
+  background: var(--dg-track-fill);
+  color: var(--dg-accent-text);
+}
+html[data-theme="lumen"] #settings .settings-tip { border-color: var(--ctl-border); }
+html[data-theme="lumen"] #settings input[type="text"],
+html[data-theme="lumen"] #settings input[type="password"],
+html[data-theme="lumen"] #settings input[type="number"],
+html[data-theme="lumen"] #settings input[type="url"],
+html[data-theme="lumen"] #settings select,
+html[data-theme="lumen"] #settings textarea {
+  background: var(--dg-input-fill) !important;
+  border-color: var(--ctl-field-border) !important;
+  color: var(--dg-text-primary) !important;
+  border-radius: 7px;
+}
+html[data-theme="lumen"] #settings input:focus-visible,
+html[data-theme="lumen"] #settings select:focus-visible,
+html[data-theme="lumen"] #settings textarea:focus-visible,
+html[data-theme="lumen"] #settings .smallbtn:focus-visible,
+html[data-theme="lumen"] #settings .toggle input:focus-visible,
+html[data-theme="lumen"] .theme-option input[type="radio"]:focus-visible {
+  outline-color: var(--dg-accent);
+}
+html[data-theme="lumen"] #settings .smallbtn {
+  background: var(--dg-capsule-fill);
+  border-color: var(--ctl-border);
+  color: var(--dg-capsule-text);
+}
+html[data-theme="lumen"] #settings .smallbtn:hover {
+  background: var(--dg-capsule-hover);
+  border-color: var(--ctl-border-hover);
+  color: var(--dg-text-primary);
+}
+html[data-theme="lumen"] #settings .smallbtn:active { border-color: var(--ctl-border-hover); }
+html[data-theme="lumen"] #settings .toggle input { accent-color: var(--dg-accent); }
+/* The settings switch is an appearance:none checkbox (index.html). Lumen gives it the Daygo
+   track + white knob so both states stay legible on the near-white sheet; the base inline
+   palette leaves the knob at rgba(255,255,255,.4) on a rgba(127,127,127,.18) track. */
+html[data-theme="lumen"] #settings .toggle input[type="checkbox"] {
+  /* A white knob on #e4e4e4 has almost no contrast; mixing the switch track with the
+     secondary text colour darkens the off state without leaving the Daygo palette. */
+  background: color-mix(in srgb, var(--dg-switch-track) 70%, var(--dg-text-secondary));
+  border: 1px solid var(--ctl-border-strong);
+  box-shadow: inset 0 1px 2px rgba(48, 34, 24, .16);
+}
+html[data-theme="lumen"] #settings .toggle input[type="checkbox"]::after {
+  background: var(--dg-switch-knob);
+  box-shadow: 0 1px 3px rgba(48, 34, 24, .42), 0 0 0 1px rgba(48, 34, 24, .05);
+}
+html[data-theme="lumen"] #settings .toggle input[type="checkbox"]:checked {
+  background: var(--dg-accent);
+  border-color: var(--dg-accent-strong);
+}
+html[data-theme="lumen"] #settings .toggle input[type="checkbox"]:checked::after {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(96, 46, 16, .28);
+}
+html[data-theme="lumen"] .settings-cat-nav .scn-item { color: var(--dg-text-secondary); }
+html[data-theme="lumen"] .settings-cat-nav .scn-item.active {
+  background: var(--dg-nav-active-fill);
+  color: var(--dg-text-primary);
+  box-shadow: var(--dg-nav-active-shadow);
+}
+
+/* Appearance radio cards */
+html[data-theme="lumen"] .theme-option {
+  background: var(--dg-card-fill);
+  border: 1px solid var(--ctl-border);
+}
+html[data-theme="lumen"] .theme-option:hover { background: var(--dg-control-fill); border-color: var(--dg-accent-border); }
+/* A 1px state-bearing ring, not the old near-invisible .5px #e1e1e1 hairline. */
+html[data-theme="lumen"] .theme-option input[type="radio"] {
+  border: 1px solid var(--ctl-border-strong);
+  background: var(--dg-input-fill);
+}
+html[data-theme="lumen"] .theme-option:hover input[type="radio"] { border-color: var(--ctl-border-hover); }
+html[data-theme="lumen"] .theme-option input[type="radio"]:checked { border-color: var(--dg-accent-strong); background: var(--dg-input-fill); }
+html[data-theme="lumen"] .theme-option input[type="radio"]:checked::after { background: var(--dg-accent); }
+html[data-theme="lumen"] .theme-option input[type="radio"]:checked ~ .theme-text .theme-title { color: var(--dg-text-primary); }
+html[data-theme="lumen"] .theme-title { color: var(--dg-text-primary); }
+html[data-theme="lumen"] .theme-sub { color: var(--dg-text-muted); }
+/* 2026-11-27：删掉 `html[data-theme="lumen"] .theme-swatch { border-color: … }` ——
+   它同样命中整行四张缩略图；外框统一在 styles.css 的 .theme-swatch 里定义。 */
+
+/* ── Character sheet: same dense glass as Settings ─────────────────────────── */
+/* styles.css 把基础 .char-panel 写死成 #0f0f0f（夜间极简的底），玻璃与烛夜各自
+   覆盖过，流光之前漏了 —— 角色卡在浅色浮板上是一块黑洞，且面板没设 color，正文
+   继承 html/body 的 #eaeaea，在亮底上直接隐形。下面按设置弹层的同一套材质补齐：
+   遮罩、面板、标题、分区标题、当前角色、角色网格、关系/情绪胶囊、输入框、关闭键。 */
+html[data-theme="lumen"] .char-panel-mask {
+  background: rgba(44, 42, 46, .28);
+  -webkit-backdrop-filter: blur(6px) saturate(140%);
+  backdrop-filter: blur(6px) saturate(140%);
+}
+html[data-theme="lumen"] .char-panel {
+  border: 1px solid var(--dg-panel-border);
+  border-radius: 14px;
+  background: var(--dg-popover-fill);
+  color: var(--dg-text-primary);
+  box-shadow: var(--dg-popover-shadow);
+  -webkit-backdrop-filter: blur(36px) saturate(180%);
+  backdrop-filter: blur(36px) saturate(180%);
+}
+html[data-theme="lumen"] .char-panel-header h3,
+html[data-theme="lumen"] .char-current-name,
+html[data-theme="lumen"] .char-label { color: var(--dg-text-primary); }
+html[data-theme="lumen"] .char-section-title { color: var(--dg-text-muted); }
+/* “未选择角色卡（将以非角色模式发送）”是内联 color:#888，亮色弹层上偏淡 */
+html[data-theme="lumen"] .char-current-info[style] { color: var(--dg-text-muted) !important; }
+html[data-theme="lumen"] .char-avatar-large.has-avatar-img,
+html[data-theme="lumen"] .char-item-avatar.has-avatar-img { background-color: var(--dg-track-fill); }
+
+html[data-theme="lumen"] .char-rel-btn {
+  background: var(--dg-capsule-fill);
+  border: 1px solid var(--ctl-border);
+  color: var(--dg-text-secondary);
+}
+html[data-theme="lumen"] .char-rel-btn:hover {
+  background: var(--dg-capsule-hover);
+  border-color: var(--ctl-border-hover);
+  color: var(--dg-text-primary);
+}
+/* 选中的关系/页签与“保存”按钮：实心 accent，前景用主按钮的白色 */
+html[data-theme="lumen"] .char-rel-btn.active {
+  background: var(--dg-button-primary-fill);
+  border-color: var(--dg-button-primary-border);
+  color: var(--dg-button-primary-text);
+}
+
+html[data-theme="lumen"] .char-item {
+  background: var(--dg-card-fill);
+  border: 1px solid var(--ctl-border);
+  box-shadow: var(--dg-card-shadow);
+}
+html[data-theme="lumen"] .char-item:hover {
+  background: var(--dg-surface);
+  border-color: var(--ctl-border-hover);
+}
+html[data-theme="lumen"] .char-item.active {
+  background: var(--dg-accent-bg);
+  border-color: var(--dg-accent-border);
+  box-shadow: 0 0 0 2px var(--dg-focus-ring);
+}
+html[data-theme="lumen"] .char-item-name { color: var(--dg-text-secondary); }
+html[data-theme="lumen"] .char-item-btn {
+  background: var(--dg-capsule-fill);
+  border: 1px solid var(--ctl-border);
+  color: var(--dg-text-secondary);
+}
+html[data-theme="lumen"] .char-item-btn:hover {
+  background: var(--dg-capsule-hover);
+  color: var(--dg-text-primary);
+}
+
+html[data-theme="lumen"] .char-input,
+html[data-theme="lumen"] .char-textarea {
+  background: var(--dg-input-fill);
+  border: 1px solid var(--ctl-field-border);
+  color: var(--dg-text-primary);
+  border-radius: 7px;
+}
+html[data-theme="lumen"] .char-input::placeholder,
+html[data-theme="lumen"] .char-textarea::placeholder { color: var(--dg-text-muted); opacity: 1; }
+html[data-theme="lumen"] .char-input:focus,
+html[data-theme="lumen"] .char-textarea:focus {
+  border-color: var(--dg-accent);
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
+  outline: none;
+}
+
+/* 关闭键是 .iconbtn（透明底 + #cfcfcf 前景），在亮色弹层上几乎看不见 */
+html[data-theme="lumen"] .char-close-btn {
+  background: var(--dg-capsule-fill);
+  border: 1px solid var(--ctl-border);
+  color: var(--dg-capsule-text);
+  box-shadow: none;
+}
+html[data-theme="lumen"] .char-close-btn:hover {
+  background: var(--dg-capsule-hover);
+  color: var(--dg-text-primary);
+}
+
+/* ── Popovers / menus / bill ──────────────────────────────────────────────── */
+html[data-theme="lumen"] .bill-pop,
+html[data-theme="lumen"] .topbar-popover,
+html[data-theme="lumen"] .pbar-menu,
+html[data-theme="lumen"] .pmenu-sec,
+html[data-theme="lumen"] .pmenu-item {
+  background: var(--dg-popover-fill);
+  border-color: var(--dg-card-border);
+  color: var(--dg-text-primary);
+  box-shadow: var(--dg-popover-shadow);
+}
+html[data-theme="lumen"] .pmenu-item:hover { background: var(--dg-hover-fill-strong); color: var(--dg-text-primary); }
+html[data-theme="lumen"] .pmenu-item.on { background: var(--dg-accent-bg); color: var(--dg-text-primary); }
+html[data-theme="lumen"] .pmenu-sec { color: var(--dg-text-muted); }
+html[data-theme="lumen"] .pmenu-time { color: var(--dg-text-muted); }
+
+/* Keep the small components that still hard-code the old blue glass in the palette. */
+html[data-theme="lumen"] .meta,
+html[data-theme="lumen"] .stats,
+html[data-theme="lumen"] .hint { color: var(--dg-text-muted); }
+html[data-theme="lumen"] .empty,
+html[data-theme="lumen"] .muted { color: var(--dg-text-muted); }
+
+/* ── Narrow screens: no floating slab, full-bleed like a phone app ─────────── */
+@media (max-width: 1023px) {
+  html[data-theme="lumen"] #app {
+    height: 100%;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  html[data-theme="lumen"] #app::before { display: none; }
+  html[data-theme="lumen"] #chat { padding: 0 12px; }
+  html[data-theme="lumen"] .topbar-shell { padding: 8px 12px; }
+  html[data-theme="lumen"] .input-floating { position: fixed; }
+}
+
+/* ── Low-effects tier (Android shell): no per-surface blur, opaque fallback ─── */
+html[data-theme="lumen"].android-app:not(.fx-rich) #app { background: var(--dg-glass-fallback); }
+html[data-theme="lumen"].android-app:not(.fx-rich) #app::before { display: none; }
+html[data-theme="lumen"].android-app:not(.fx-rich) #settings,
+html[data-theme="lumen"].android-app:not(.fx-rich) .input-inner,
+html[data-theme="lumen"].android-app:not(.fx-rich) .bill-pop,
+html[data-theme="lumen"].android-app:not(.fx-rich) .topbar-popover {
+  background: var(--dg-popover-fill);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}

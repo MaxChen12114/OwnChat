@@ -45,12 +45,12 @@ function wgrIsEmpty(count        )          {
   return count === 0;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/welcome-greeting.ts
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/welcome-greeting.ts
 // (desktop detection, greeting and empty-chat count); this file owns DOM classes,
 // the MutationObserver and the click handlers.
 (function(){
   var html = document.documentElement;
-  try { if (wgrIsDesktop({ tauri: !!window.__TAURI__, internals: !!window.__TAURI_INTERNALS__, isTauri: !!window.isTauri, metadata: !!window.__TAURI_METADATA__ }, navigator.userAgent, location.protocol, location.hostname)) html.classList.add('is-desktop'); } catch(e){}
+  try { if (wgrIsDesktop((window.tauriSvc ? window.tauriSvc.presence() : { tauri: false, internals: false, isTauri: false, metadata: false }), navigator.userAgent, location.protocol, location.hostname)) html.classList.add('is-desktop'); } catch(e){}
   var wrap = document.getElementById('ownchatWelcome');
   var chat = document.getElementById('chat');
   if (!wrap || !chat) return;

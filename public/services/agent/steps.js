@@ -25,7 +25,7 @@ function recOf(v         )                          {
 }
 
 /** Argument keys worth showing in the brief line, in priority order. */
-const STEP_BRIEF_KEYS = ["path", "file", "file_path", "filename", "url", "query", "q", "keyword", "name", "pattern", "id", "topic", "text", "content"];
+const STEP_BRIEF_KEYS = ["path", "file", "file_path", "filename", "url", "command", "cmd", "query", "q", "keyword", "name", "pattern", "id", "topic", "text", "content"];
 
 /** One-line argument brief: the first known key wins, else the remaining pairs, truncated. */
 function briefArgs(name         , args         )         {
@@ -44,6 +44,75 @@ function briefArgs(name         , args         )         {
 
                                                
 
+/** Semantic tool family used by the document-mode process rows. */
+                                                                                        
+
+/**
+ * Classify a tool name into the row family shown by the document transcript. The match is
+ * deliberately prefix/substring based: tool names differ by host (local_read_file, read_source,
+ * bash, exec_command, ...), but the reader only needs the family.
+ */
+function stepCategory(name         )               {
+  const n = String(name == null ? "" : name).toLowerCase();
+  if (/subagent|agent_team|delegate/.test(n)) return "subagents";
+  if (/web|fetch|http|browse_url|url_read/.test(n)) return "web";
+  if (/bash|shell|exec|terminal|command|run|pwsh|cmd|process/.test(n)) return "commands";
+  if (/edit|write|patch|create|update|delete|rename|move|mkdir|mkdirs/.test(n)) return "edit";
+  if (/read|grep|glob|search|list|browse|inspect|view|cat|head|tail|stat/.test(n)) return "read";
+  return "tools";
+}
+
+/**
+ * The document transcript's collapsed process summary: category counts, e.g. "已查阅 1 项，已执行
+ * 3 命令". Bubble mode keeps the existing "已完成 · N 步" capsule.
+ */
+function panelDocTitle(steps         , enLabels         )         {
+  const list = Array.isArray(steps) ? steps : [];
+  const counts                               = { read: 0, commands: 0, edit: 0, web: 0, subagents: 0, tools: 0 };
+  list.forEach((el) => {
+    counts[stepCategory(recOf(el).name)]++;
+  });
+  const labels = enLabels
+    ? {
+        read: (n        ) => `Read ${n} item${n === 1 ? "" : "s"}`,
+        commands: (n        ) => `Ran ${n} command${n === 1 ? "" : "s"}`,
+        edit: (n        ) => `Edited ${n} file${n === 1 ? "" : "s"}`,
+        web: (n        ) => `Browsed ${n} page${n === 1 ? "" : "s"}`,
+        subagents: (n        ) => `Used ${n} subagent${n === 1 ? "" : "s"}`,
+        tools: (n        ) => `Called ${n} tool${n === 1 ? "" : "s"}`,
+      }
+    : {
+        read: (n        ) => `已查阅 ${n} 项`,
+        commands: (n        ) => `已执行 ${n} 命令`,
+        edit: (n        ) => `已修改 ${n} 文件`,
+        web: (n        ) => `已联网 ${n} 次`,
+        subagents: (n        ) => `已调用 ${n} 个子智能体`,
+        tools: (n        ) => `已调用 ${n} 个工具`,
+      };
+  const order                 = ["read", "commands", "edit", "web", "subagents", "tools"];
+  const parts           = [];
+  for (const kind of order) if (counts[kind] > 0) parts.push(labels[kind](counts[kind]));
+  if (parts.length === 0) return enLabels ? "Thinking process" : "思考过程";
+  return parts.slice(0, 3).join(enLabels ? ", " : "，");
+}
+
+/** First line of a reasoning block, or the latest paragraph's first line while streaming. */
+function reasoningSummary(text         , running         )         {
+  const value = String(text == null ? "" : text).replaceAll("**", "");
+  if (!running) {
+    const newline = value.indexOf("\n");
+    return (newline === -1 ? value : value.slice(0, newline)).trim();
+  }
+  const paragraphs = value.split(/\r?\n(?:[\t ]*\r?\n)+/);
+  for (let i = paragraphs.length - 1; i >= 0; i--) {
+    const line = paragraphs[i].trim();
+    if (!line) continue;
+    const newline = line.indexOf("\n");
+    return (newline === -1 ? line : line.slice(0, newline)).trim();
+  }
+  return "";
+}
+
 /** denied or ok===false is a failure; ok===true done; anything else still running. */
 function stepState(info         )            {
   const i = recOf(info);
@@ -54,6 +123,8 @@ function stepState(info         )            {
                                     
                                                                                            
                 
+                                                                        
+                   
                                                                                              
                 
                    
@@ -81,6 +152,7 @@ function panelDone(steps         , ms               , reason         , enLabels 
       : hasSteps
         ? (err ? "已结束" : "已完成") + " · " + list.length + " 步"
         : "思考过程",
+    docTitle: panelDocTitle(list, enLabels),
     names: names.slice(0, 4).join(", ") + (names.length > 4 ? suffix : ""),
     errored: err > 0,
   };
@@ -190,7 +262,7 @@ function replayTurn(handle                     , rounds         )         {
   return played;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/agent/steps.ts (brief line, step and
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/agent/steps.ts (brief line, step and
 // panel states, the summary text, the replay dispatch); this file owns the CSS, the DOM builders, the
 // anchor placement and the live controller.
 //
@@ -224,6 +296,9 @@ function replayTurn(handle                     , rounds         )         {
 .ags-panel[data-state="err"] .ags-hico{color:#e8607d;}
 .ags-panel[data-state="aborted"] .ags-hico{color:#f5a524;}
 .ags-htx{flex:none;font-weight:600;color:inherit;}
+/* Document presentation swaps the bubble summary for category counts; the base hides those
+   document-only spans so the bubble capsule keeps its existing header. */
+.ags-doc-sum,.ags-think-sum{display:none;}
 .ags-hnames{flex:1;min-width:0;color:var(--muted,#9a9a9a);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;opacity:.9;}
 .ags-hms{flex:none;color:var(--muted,#9a9a9a);font-size:11px;font-variant-numeric:tabular-nums;opacity:.9;}
 .ags-hchev{flex:none;display:inline-flex;align-items:center;color:var(--muted,#9a9a9a);transition:transform .18s ease;}
@@ -286,8 +361,26 @@ function replayTurn(handle                     , rounds         )         {
  // Line SVG for the caret -- bare text glyphs like U+25B6 render as emoji on some platforms.
   var ICON_CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
   var ICON_STOP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+  // Document-mode row glyphs follow DeepSeek Harness's process rows: one 14px line icon per tool
+  // family instead of a check mark at settle time.
+  var ICON_READ = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h4"/></svg>';
+  var ICON_COMMANDS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>';
+  var ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+  var ICON_WEB = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18"/></svg>';
+  var ICON_SUBAGENTS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M18 8v6M15 11h6"/></svg>';
+  var ICON_TOOL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.1 2.1-2.3-2.3z"/></svg>';
+  var ICON_THINK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.5.4.9 1 .9 1.7v.5h5.4v-.5c0-.7.4-1.3.9-1.7A6 6 0 0 0 12 3Z"/></svg>';
+  function stepIcon(name) {
+    var c = stepCategory(name);
+    if (c === "read") return ICON_READ;
+    if (c === "commands") return ICON_COMMANDS;
+    if (c === "edit") return ICON_EDIT;
+    if (c === "web") return ICON_WEB;
+    if (c === "subagents") return ICON_SUBAGENTS;
+    return ICON_TOOL;
+  }
 
-  var esc = window.__ownEscape.esc;
+  var esc = window.escapeSvc.esc;
   function fmtResult(text) {
     var t = String(text == null ? "" : text);
     try {
@@ -326,11 +419,13 @@ function replayTurn(handle                     , rounds         )         {
     var body = el.querySelector(".ags-body");
     var ico = el.querySelector(".ags-ico");
     var b = briefArgs(info.name, info.args);
+    if (!b && info.summary != null) b = String(info.summary).replace(/\s+/g, " ").trim().slice(0, 90);
+    if (!b && info.result != null) b = String(info.result).replace(/\s+/g, " ").trim().slice(0, 90);
     if (b) brief.textContent = b;
     if (info.ms != null) meta.textContent = info.ms + "ms";
     var st = stepState(info);
     el.dataset.state = st;
-    ico.innerHTML = st === "done" ? ICON_DONE : (st === "err" ? ICON_ERR : ICON_SPIN);
+    ico.innerHTML = stepIcon(info.name);
     if (st === "err") el.classList.add("open"); // failures start open; never make the user guess
     var html = "";
     if (info.args) html += '<div class="ags-label">参数</div><pre><code>' + esc(JSON.stringify(info.args, null, 2)) + "</code></pre>";
@@ -350,7 +445,8 @@ function replayTurn(handle                     , rounds         )         {
     rw.appendChild(lb);
     return rw;
   }
-  // The thinking block; open while running, collapsed when the panel finishes.
+  // The thinking block; open while running, collapsed when the panel finishes. Document mode
+  // shows a one-line preview beside the title, mirroring DSH's ReasoningRow.
   function thinkBlock(text) {
     var t = document.createElement("div");
     t.className = "ags-think open";
@@ -359,10 +455,14 @@ function replayTurn(handle                     , rounds         )         {
     var lb = document.createElement("span");
     lb.className = "ags-think-lb";
     lb.textContent = "思考";
+    var sum = document.createElement("span");
+    sum.className = "ags-think-sum";
+    sum.dataset.streaming = "1";
+    sum.textContent = reasoningSummary(text, true);
     var chev = document.createElement("span");
     chev.className = "ags-caret";
     chev.innerHTML = ICON_CHEV;
-    hd.appendChild(lb); hd.appendChild(chev);
+    hd.appendChild(lb); hd.appendChild(sum); hd.appendChild(chev);
     var tx = document.createElement("div");
     tx.className = "ags-think-tx";
     tx.textContent = String(text == null ? "" : text);
@@ -370,9 +470,9 @@ function replayTurn(handle                     , rounds         )         {
     t.appendChild(hd); t.appendChild(tx);
     return t;
   }
-  function preambleEl(text) {
+  function preambleEl(text, doc) {
     var p = document.createElement("div");
-    p.className = "ags-preamble";
+    p.className = doc ? "ags-preamble ags-doc-preamble" : "ags-preamble";
     p.textContent = String(text == null ? "" : text);
     return p;
   }
@@ -382,7 +482,14 @@ function replayTurn(handle                     , rounds         )         {
     var cur = rw.querySelector(".ags-think");
     if (!val) { if (cur) cur.remove(); return; }
     if (!cur) { cur = thinkBlock(val); rw.insertBefore(cur, rw.querySelector(".ags-step")); }
-    else cur.querySelector(".ags-think-tx").textContent = val;
+    else {
+      cur.querySelector(".ags-think-tx").textContent = val;
+      var sum = cur.querySelector(".ags-think-sum");
+      if (sum) {
+        sum.dataset.streaming = "1";
+        sum.textContent = reasoningSummary(val, true);
+      }
+    }
   }
 
   // ── the panel shell ──
@@ -390,10 +497,12 @@ function replayTurn(handle                     , rounds         )         {
     var p = document.createElement("div");
     p.className = "ags-panel open";
     p.dataset.state = "run";
+    var doc = document.documentElement.getAttribute("data-chat-present") === "doc";
     p.innerHTML =
       '<div class="ags-hd">' +
-        '<span class="ags-hico">' + ICON_SPIN + "</span>" +
+        '<span class="ags-hico">' + (doc ? ICON_THINK : ICON_SPIN) + "</span>" +
         '<span class="ags-htx">运行中…</span>' +
+        '<span class="ags-doc-sum">正在处理…</span>' +
         '<span class="ags-hnames"></span>' +
         '<span class="ags-hms"></span>' +
         '<span class="ags-hchev">' + ICON_CHEV + "</span>" +
@@ -443,13 +552,25 @@ function replayTurn(handle                     , rounds         )         {
     });
     var done = panelDone(steps, null, reason, document.documentElement.classList.contains("i18n-en"));
     p.dataset.state = done.state;
-    p.querySelector(".ags-hico").innerHTML = done.state === "aborted" ? ICON_STOP : (done.state === "err" ? ICON_ERR : ICON_DONE);
+    var doc = document.documentElement.getAttribute("data-chat-present") === "doc";
+    p.querySelector(".ags-hico").innerHTML = doc
+      ? (steps.length ? stepIcon(steps[0].name) : ICON_THINK)
+      : done.state === "aborted" ? ICON_STOP : (done.state === "err" ? ICON_ERR : ICON_DONE);
     p.querySelector(".ags-htx").textContent = done.title;
+    p.querySelector(".ags-doc-sum").textContent = done.docTitle;
     p.querySelector(".ags-hnames").textContent = done.names;
     var msText = panelMs(ms);
     if (msText != null) p.querySelector(".ags-hms").textContent = msText;
     // Collapse the thinking blocks too: a long open thought buries the tool rows.
-    Array.prototype.forEach.call(p.querySelectorAll(".ags-think.open"), function (t) { t.classList.remove("open"); });
+    Array.prototype.forEach.call(p.querySelectorAll(".ags-think"), function (t) {
+      var tx = t.querySelector(".ags-think-tx");
+      var sum = t.querySelector(".ags-think-sum");
+      if (tx && sum) {
+        delete sum.dataset.streaming;
+        sum.textContent = reasoningSummary(tx.textContent, false);
+      }
+      t.classList.remove("open");
+    });
     p.classList.remove("open"); // auto-collapse on finish; only the summary line remains
   }
 
@@ -467,11 +588,18 @@ function replayTurn(handle                     , rounds         )         {
     var p = makePanel();
     var bd = p.querySelector(".ags-bd");
     var totalMs = 0, hasErr = false;
+    var doc = document.documentElement.getAttribute("data-chat-present") === "doc";
+    var docPreambles = [];
     rounds.forEach(function (r, i) {
       if (!r) return;
       var rw = makeRoundEl(i + 1);
       if (r.thinking) rw.appendChild(thinkBlock(r.thinking));
-      if (r.preamble) rw.appendChild(preambleEl(r.preamble));
+      if (r.preamble) {
+        // A document transcript interleaves prose and process rows: keep the model's preamble
+        // above the DSH disclosure instead of burying it in a collapsed panel.
+        if (doc) docPreambles.push(r.preamble);
+        else rw.appendChild(preambleEl(r.preamble));
+      }
       (r.calls || []).forEach(function (c) {
         var el = makeStepEl(c.name);
         fillStep(el, c);
@@ -484,6 +612,7 @@ function replayTurn(handle                     , rounds         )         {
     setPanelDone(p, totalMs || null);
     if (hasErr) p.classList.add("open"); // keep failures visible at a glance
     wrap.appendChild(p);
+    docPreambles.forEach(function (text) { wrap.insertBefore(preambleEl(text, true), p); });
   }
 
   // ── live controller ──
@@ -508,6 +637,15 @@ function replayTurn(handle                     , rounds         )         {
       body.appendChild(curRound);
       return curRound;
     }
+    function refreshDocSummary() {
+      if (!panel) return;
+      var steps = [];
+      Array.prototype.forEach.call(panel.querySelectorAll(".ags-step"), function (el) {
+        steps.push({ name: el.querySelector(".ags-name").textContent, state: el.dataset.state });
+      });
+      var sum = panel.querySelector(".ags-doc-sum");
+      if (sum) sum.textContent = panelDocTitle(steps, document.documentElement.classList.contains("i18n-en"));
+    }
     return {
       element: wrap,
       // A new round begins (the kernel emits model_call before each model call).
@@ -517,30 +655,40 @@ function replayTurn(handle                     , rounds         )         {
       // The preamble: talking while calling tools in the same round.
       preamble: function (text) {
         if (!text || !String(text).trim()) return;
-        ensureRound().appendChild(preambleEl(String(text).trim()));
+        var val = String(text).trim();
+        if (document.documentElement.getAttribute("data-chat-present") === "doc") {
+          ensurePanel();
+          wrap.insertBefore(preambleEl(val, true), panel);
+          return;
+        }
+        ensureRound().appendChild(preambleEl(val));
       },
       tool_run: function (name, args) {
         var rw = ensureRound();
         curStep = makeStepEl(name);
         fillStep(curStep, { name: name, args: args });
         rw.appendChild(curStep);
+        refreshDocSummary();
       },
       tool_done: function (name, info) {
         var rw = curRound || ensureRound();
         if (!curStep || curStep.dataset.tool !== name) curStep = rw.querySelector('.ags-step[data-state="run"]');
         fillStep(curStep, Object.assign({ name: name }, info || {}));
         curStep = null;
+        refreshDocSummary();
       },
       tool_error: function (name, info) {
         var rw = curRound || ensureRound();
         if (!curStep || curStep.dataset.tool !== name) curStep = rw.querySelector('.ags-step[data-state="run"]');
         fillStep(curStep, Object.assign({ name: name, ok: false }, info || {}));
         curStep = null;
+        refreshDocSummary();
       },
       tool_denied: function (name, args) {
         var el = makeStepEl(name);
         fillStep(el, { name: name, args: args, ok: false, denied: true, error: "你拒绝了这次操作" });
         ensureRound().appendChild(el);
+        refreshDocSummary();
       },
       // Council meetings and staged appearances flow through the same panel -- the whole process is
       // visible on the bubble without faking character bubbles into the timeline.
@@ -555,9 +703,10 @@ function replayTurn(handle                     , rounds         )         {
         var key = peerStepKey("meeting", ev.who, ev.round);
         var el = _peers[key];
         if (!el) { el = makeStepEl(key); ensureRound().appendChild(el); _peers[key] = el; }
-        if (ev.phase === "start") return; // show it running first; fill the text when done
+        if (ev.phase === "start") { refreshDocSummary(); return; } // show it running first; fill the text when done
         if (ev.phase === "error") fillStep(el, { name: key, ok: false, error: String(ev.error || "出错") });
         else fillStep(el, { name: key, ok: true, result: ev.text || ev.summary || "" });
+        refreshDocSummary();
       },
       peer_invite: function (ev) {
         if (!ev) return;
@@ -565,6 +714,7 @@ function replayTurn(handle                     , rounds         )         {
         var el = _peers[key];
         if (!el) { el = makeStepEl(key); ensureRound().appendChild(el); _peers[key] = el; }
         if (ev.phase === "done") fillStep(el, { name: key, ok: true, result: ev.text || "（无内容）" });
+        refreshDocSummary();
       },
       // Round over: collapse to the summary line. reason: undefined=normal / "aborted" / "error".
       finish: function (reason) { if (panel) setPanelDone(panel, Date.now() - started, reason); },
@@ -587,6 +737,9 @@ function replayTurn(handle                     , rounds         )         {
 
 globalThis.STEP_BRIEF_KEYS = STEP_BRIEF_KEYS;
 globalThis.briefArgs = briefArgs;
+globalThis.stepCategory = stepCategory;
+globalThis.panelDocTitle = panelDocTitle;
+globalThis.reasoningSummary = reasoningSummary;
 globalThis.stepState = stepState;
 globalThis.panelDone = panelDone;
 globalThis.panelMs = panelMs;

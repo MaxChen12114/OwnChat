@@ -1,0 +1,46 @@
+# VPS deployment template invoked by deploy/vps-docker.json.
+# Build context is the repository root (this file lives at <repo>/deploy/vps/).
+# `.env` in this directory supplies CHAT_PASSWORD / DEEPSEEK_API_KEY / OWNCHAT_DATA_DIR.
+services:
+  ownchat:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: ownchat:deployed
+    environment:
+      CHAT_PASSWORD: ${CHAT_PASSWORD:-}
+      CHAT_MODE: ${CHAT_MODE:-open}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      AMD_API_KEY: ${AMD_API_KEY:-}
+      EXA_API_KEY: ${EXA_API_KEY:-}
+      DEEPSEEK_SEARCH_API_KEY: ${DEEPSEEK_SEARCH_API_KEY:-}
+      # A self-hosted deployment advertises itself; the deploy pack's verify step reads this.
+      RUNTIME_PROFILE: ${RUNTIME_PROFILE:-selfhost}
+    volumes:
+      - ${OWNCHAT_DATA_DIR:-./data}:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/config.js"]
+      interval: 30s
+      timeout: 3s
+      start_period: 15s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      ownchat:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy-data:
+  caddy-config:

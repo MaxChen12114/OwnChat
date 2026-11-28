@@ -69,8 +69,6 @@
         '<div class="hp-node"><b>正则提取/替换</b> <span>— 填替换文本=替换;留空=把所有匹配抠出来(每行一个)。</span></div>',
         '<div class="hp-node"><b>HTTP 请求</b> <span>— GET 一个网址取回文本(受浏览器跨域 CORS 限制,不是所有站都能拿)。</span></div>',
         '<div class="hp-node"><b>代码生成</b> <span>— 选语言,让 AI 按需求只吐代码本体。</span></div>',
-        '<p style="color:var(--muted,#9a9aab);font-size:12.5px;margin:14px 0 0;">洪都 · GIS(占位)</p>',
-        '<div class="hp-node"><b>GeoJSON 输入 / 缓冲区 / 质心</b> <span>— 地理分析演示节点,目前是占位(待接 Turf.js),先了解即可。</span></div>',
 
         '<h3>小贴士</h3>',
         '<div class="hp-tip">',

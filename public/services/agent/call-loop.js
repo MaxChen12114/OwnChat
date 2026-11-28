@@ -187,7 +187,7 @@ function createCallLoop(env             )                  {
   return { v: 1, create: create };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name.
 // The implementation lives in services/agent/call-loop.ts; this file only binds the name and
 // injects ports. `retry` stays a function port because it must be resolved at `create()` time —
 // the old code read the sibling module there too, and the retry service may load later.

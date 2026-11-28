@@ -1,0 +1,595 @@
+{
+  "date": "2026-11-26T01:32:34Z",
+  "scope": "public/** + tooling/scripts/** + src/** + test/** 下的 .js/.mjs/.cjs/.html",
+  "frozen": true,
+  "total": 84,
+  "names": {
+    "__stage": {
+      "uses": 42,
+      "consumeFiles": 10,
+      "assignFiles": [
+        "public/services/panel/panel-host.js",
+        "public/services/ui/stage-tools.js",
+        "public/shared/panel/stage-call-client.js",
+        "public/tools/council/index.html",
+        "public/tools/sandbox/index.html",
+        "services/ui/stage-tools.ts",
+        "test/load-order.test.mjs"
+      ]
+    },
+    "__memCore": {
+      "uses": 29,
+      "consumeFiles": 10,
+      "assignFiles": [
+        "public/services/memory/auto-write.js",
+        "public/services/memory/config.js"
+      ]
+    },
+    "__reasoning": {
+      "uses": 13,
+      "consumeFiles": 4,
+      "assignFiles": [
+        "public/services/chat/reasoning.js"
+      ]
+    },
+    "__sim": {
+      "uses": 13,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/tools/sandbox/kernel-bridge.js"
+      ]
+    },
+    "__agentSteps": {
+      "uses": 12,
+      "consumeFiles": 4,
+      "assignFiles": [
+        "public/services/agent/steps.js"
+      ]
+    },
+    "__workflowSchema": {
+      "uses": 11,
+      "consumeFiles": 5,
+      "assignFiles": [
+        "public/services/agent/workflow-schema.js"
+      ]
+    },
+    "__abortCurrent": {
+      "uses": 10,
+      "consumeFiles": 3,
+      "assignFiles": [
+        "public/services/chat/app.js",
+        "public/services/ui/chat-ux.js"
+      ]
+    },
+    "__ambientTags": {
+      "uses": 10,
+      "consumeFiles": 4,
+      "assignFiles": [
+        "public/services/agent/ambient-tools.js"
+      ]
+    },
+    "__chatEvents": {
+      "uses": 10,
+      "consumeFiles": 5,
+      "assignFiles": [
+        "public/services/sync/chat-events.js"
+      ]
+    },
+    "__charMemory": {
+      "uses": 9,
+      "consumeFiles": 5,
+      "assignFiles": [
+        "public/services/memory/char-memory.js"
+      ]
+    },
+    "__costLedger": {
+      "uses": 9,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/cost/ledger.js"
+      ]
+    },
+    "__gallery": {
+      "uses": 9,
+      "consumeFiles": 4,
+      "assignFiles": [
+        "public/services/image/gallery.js"
+      ]
+    },
+    "__stageCall": {
+      "uses": 9,
+      "consumeFiles": 5,
+      "assignFiles": [
+        "public/services/panel/panel-frame.js",
+        "public/shared/panel/stage-call-client.js",
+        "public/tools/sandbox/index.html",
+        "services/panel/panel-frame.ts",
+        "test/load-order.test.mjs"
+      ]
+    },
+    "__agentRegistry": {
+      "uses": 8,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/agent/registry.js"
+      ]
+    },
+    "__baseSwitchMode": {
+      "uses": 8,
+      "consumeFiles": 6,
+      "assignFiles": []
+    },
+    "__convAutoname": {
+      "uses": 8,
+      "consumeFiles": 1,
+      "assignFiles": []
+    },
+    "__promptProfile": {
+      "uses": 8,
+      "consumeFiles": 3,
+      "assignFiles": [
+        "public/services/data/prompt-profile.js"
+      ]
+    },
+    "__stopCurrent": {
+      "uses": 8,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/chat/app.js",
+        "public/services/ui/chat-ux.js"
+      ]
+    },
+    "__agentWorkspace": {
+      "uses": 7,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/data/agent-workspace.js"
+      ]
+    },
+    "__context": {
+      "uses": 7,
+      "consumeFiles": 3,
+      "assignFiles": [
+        "public/services/chat/context.js"
+      ]
+    },
+    "__modelCatalog": {
+      "uses": 7,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/model-router/model-catalog.js"
+      ]
+    },
+    "__workflowRunner": {
+      "uses": 7,
+      "consumeFiles": 3,
+      "assignFiles": [
+        "public/services/agent/workflow-runner.js"
+      ]
+    },
+    "__retry": {
+      "uses": 6,
+      "consumeFiles": 4,
+      "assignFiles": [
+        "public/services/chat/retry.js",
+        "test/l0-bundle.test.mjs"
+      ]
+    },
+    "__scrollTouchUntil": {
+      "uses": 6,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/ui/chat-ux.js"
+      ]
+    },
+    "__topbarCost": {
+      "uses": 6,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/ui/topbar-cost.js"
+      ]
+    },
+    "__agentTrace": {
+      "uses": 5,
+      "consumeFiles": 3,
+      "assignFiles": [
+        "public/services/agent/trace.js"
+      ]
+    },
+    "__agentVisionOn": {
+      "uses": 5,
+      "consumeFiles": 3,
+      "assignFiles": [
+        "public/services/chat/app.js"
+      ]
+    },
+    "__ambient": {
+      "uses": 5,
+      "consumeFiles": 3,
+      "assignFiles": [
+        "public/services/ui/theme.js"
+      ]
+    },
+    "__avatar": {
+      "uses": 5,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/image/avatar.js"
+      ]
+    },
+    "__navHideReset": {
+      "uses": 5,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/ui/mobile-shell.js"
+      ]
+    },
+    "__pcTools": {
+      "uses": 5,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/local/pc-tools.js"
+      ]
+    },
+    "__promptEditor": {
+      "uses": 5,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/ui/prompt-editor.js"
+      ]
+    },
+    "__request": {
+      "uses": 5,
+      "consumeFiles": 3,
+      "assignFiles": [
+        "public/services/chat/request.js"
+      ]
+    },
+    "__resetSending": {
+      "uses": 5,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/chat/app.js",
+        "public/services/ui/chat-ux.js"
+      ]
+    },
+    "__skillsImport": {
+      "uses": 5,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/agent/skills-import.js"
+      ]
+    },
+    "__thinkControl": {
+      "uses": 5,
+      "consumeFiles": 3,
+      "assignFiles": [
+        "public/services/ui/think-control.js"
+      ]
+    },
+    "__agentEvents": {
+      "uses": 4,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/agent/events.js"
+      ]
+    },
+    "__callLoop": {
+      "uses": 4,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/agent/call-loop.js"
+      ]
+    },
+    "__channelMode": {
+      "uses": 4,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/ui/channel-mode.js"
+      ]
+    },
+    "__checkpoints": {
+      "uses": 4,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/data/checkpoints.js"
+      ]
+    },
+    "__composer": {
+      "uses": 4,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/ui/composer.js"
+      ]
+    },
+    "__markdown": {
+      "uses": 4,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/chat/markdown.js"
+      ]
+    },
+    "__messageList": {
+      "uses": 4,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/ui/message-list.js"
+      ]
+    },
+    "__mobileShell": {
+      "uses": 4,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/ui/mobile-shell.js"
+      ]
+    },
+    "__pacing": {
+      "uses": 4,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/ui/pacing.js"
+      ]
+    },
+    "__peerActions": {
+      "uses": 4,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/agent/peer-actions.js"
+      ]
+    },
+    "__peerCalls": {
+      "uses": 4,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/agent/peer-calls.js"
+      ]
+    },
+    "__sessionDeleteAt": {
+      "uses": 4,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/chat/app.js",
+        "public/services/ui/chat-ux.js"
+      ]
+    },
+    "__sessionTruncateTo": {
+      "uses": 4,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/chat/app.js",
+        "public/services/ui/chat-ux.js"
+      ]
+    },
+    "__simReady": {
+      "uses": 4,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/tools/sandbox/index.html",
+        "public/tools/sandbox/kernel-bridge.js"
+      ]
+    },
+    "__agentImageBubble": {
+      "uses": 3,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/chat/app.js",
+        "public/services/local/pc-tools.js"
+      ]
+    },
+    "__agentPushImage": {
+      "uses": 3,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/chat/app.js"
+      ]
+    },
+    "__agentTurn": {
+      "uses": 3,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/agent/turn.js"
+      ]
+    },
+    "__appMode": {
+      "uses": 3,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/conv/app-mode.js"
+      ]
+    },
+    "__convLifecycle": {
+      "uses": 3,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/conv/lifecycle.js"
+      ]
+    },
+    "__convStore": {
+      "uses": 3,
+      "consumeFiles": 2,
+      "assignFiles": []
+    },
+    "__i18n": {
+      "uses": 3,
+      "consumeFiles": 1,
+      "assignFiles": [
+        "public/shared/core/i18n.js"
+      ]
+    },
+    "__ioTools": {
+      "uses": 3,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/dev/console.js"
+      ]
+    },
+    "__openSettingsCat": {
+      "uses": 3,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/ui/settings.js"
+      ]
+    },
+    "__pcAppendImage": {
+      "uses": 3,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/chat/app.js"
+      ]
+    },
+    "__settingsRefreshAuth": {
+      "uses": 3,
+      "consumeFiles": 1,
+      "assignFiles": [
+        "public/services/ui/settings.js"
+      ]
+    },
+    "__settingsRefreshSync": {
+      "uses": 3,
+      "consumeFiles": 1,
+      "assignFiles": [
+        "public/services/ui/settings.js"
+      ]
+    },
+    "__stageTools": {
+      "uses": 3,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/ui/stage-tools.js"
+      ]
+    },
+    "__agentReachProxy": {
+      "uses": 2,
+      "consumeFiles": 1,
+      "assignFiles": [
+        "public/services/agent/reach.js"
+      ]
+    },
+    "__charCaps": {
+      "uses": 2,
+      "consumeFiles": 1,
+      "assignFiles": [
+        "public/services/data/prompt-profile.js"
+      ]
+    },
+    "__charMemoryUiRefresh": {
+      "uses": 2,
+      "consumeFiles": 1,
+      "assignFiles": []
+    },
+    "__convList": {
+      "uses": 2,
+      "consumeFiles": 1,
+      "assignFiles": [
+        "public/services/ui/conv-list.js"
+      ]
+    },
+    "__councilTools": {
+      "uses": 2,
+      "consumeFiles": 1,
+      "assignFiles": [
+        "public/services/agent/council-tools.js"
+      ]
+    },
+    "__envContext": {
+      "uses": 2,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/services/agent/env-context.js"
+      ]
+    },
+    "__localExecTools": {
+      "uses": 2,
+      "consumeFiles": 1,
+      "assignFiles": [
+        "public/services/local/local-exec-tools.js"
+      ]
+    },
+    "__rafCount": {
+      "uses": 2,
+      "consumeFiles": 1,
+      "assignFiles": [
+        "public/tools/sandbox/index.html"
+      ]
+    },
+    "__rafProbeInstalled": {
+      "uses": 2,
+      "consumeFiles": 1,
+      "assignFiles": [
+        "public/tools/sandbox/index.html"
+      ]
+    },
+    "__simError": {
+      "uses": 2,
+      "consumeFiles": 2,
+      "assignFiles": [
+        "public/tools/sandbox/index.html",
+        "public/tools/sandbox/kernel-bridge.js"
+      ]
+    },
+    "__sourceTools": {
+      "uses": 2,
+      "consumeFiles": 1,
+      "assignFiles": [
+        "public/services/agent/source-tools.js"
+      ]
+    },
+    "__updateSendBtnState": {
+      "uses": 2,
+      "consumeFiles": 1,
+      "assignFiles": [
+        "public/services/chat/app.js"
+      ]
+    },
+    "__usageStats": {
+      "uses": 2,
+      "consumeFiles": 1,
+      "assignFiles": []
+    },
+    "__chatAppearance": {
+      "uses": 1,
+      "consumeFiles": 1,
+      "assignFiles": []
+    },
+    "__imageCache": {
+      "uses": 1,
+      "consumeFiles": 1,
+      "assignFiles": []
+    },
+    "__imageQuota": {
+      "uses": 1,
+      "consumeFiles": 1,
+      "assignFiles": []
+    },
+    "__jobTools": {
+      "uses": 1,
+      "consumeFiles": 1,
+      "assignFiles": [
+        "public/services/agent/job-tools.js"
+      ]
+    },
+    "__modelThink": {
+      "uses": 1,
+      "consumeFiles": 1,
+      "assignFiles": []
+    },
+    "__pcAppendImageError": {
+      "uses": 1,
+      "consumeFiles": 1,
+      "assignFiles": [
+        "public/services/chat/app.js"
+      ]
+    },
+    "__providerMerge": {
+      "uses": 1,
+      "consumeFiles": 1,
+      "assignFiles": []
+    },
+    "__sessionStore": {
+      "uses": 1,
+      "consumeFiles": 1,
+      "assignFiles": []
+    }
+  },
+  "note": "L1a 契约冻结名单。frozen=true 表示新出现的 window.__* 一律判红；每个名字的 uses 是冻结时刻的快照，用于观察归零趋势，降到 0 且确认无引用后才允许用 --update-contracts 移除（计数到 0 才准删）。计数上升只提示不判红。assignFiles 供 93→1 分类时定位归属。"
+}

@@ -10,7 +10,7 @@
  *
  * Ports: `shell` (the invoke bridge, `null` in a plain browser), `downloadText` / `downloadHref`
  * (Blob, object URL, anchor lifetime and the 4 s revoke schedule) and `now` (the default JSON
- * filename stamp). `l0/wiring/save-file.js` owns `window`/`document` and publishes the frozen
+ * filename stamp). `tooling/l0/wiring/save-file.js` owns `window`/`document` and publishes the frozen
  * global; this file touches neither. Per-case assertions live in `test/save-file.test.mjs`.
  * @module services/save-file
  */
@@ -172,7 +172,7 @@ function createSaveFile(ports               )           {
   };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/save-file.ts; this file owns the frozen
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/save-file.ts; this file owns the frozen
 // global name, the Tauri probe and the anchor lifetime.
 //
 // The 4 s cleanup is not cosmetic: the anchor has to stay in the DOM until the browser has consumed
@@ -183,9 +183,7 @@ function createSaveFile(ports               )           {
 
   function shellInvoke() {
     try {
-      var t = G.__TAURI__;
-      if (t && t.core && typeof t.core.invoke === "function") return t.core.invoke.bind(t.core);
-      return null;
+      return G.tauriSvc ? G.tauriSvc.invokeOrNull() : null;
     } catch (e) {
       return null;
     }
@@ -228,7 +226,7 @@ function createSaveFile(ports               )           {
     }
   });
 
-  G.__saveFile = {
+  G.saveFileSvc = {
     saveTextFile: saveFile.saveTextFile,
     saveJsonFile: saveFile.saveJsonFile,
     saveBinaryFile: saveFile.saveBinaryFile,

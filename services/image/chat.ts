@@ -4,7 +4,7 @@
  * and hands the result to the shared image pipeline.
  *
  * The pipeline itself is not here. Generation, editing, polling, R2 persistence and the base-image
- * store all live in the classic `__imageCommon` module, which arrives as one port; this file owns
+ * store all live in the classic `imageCommonSvc` module, which arrives as one port; this file owns
  * only the chat-specific semantics:
  *  - the comma-tag art style is appended here, because the other two chains splice it differently;
  *  - edit parameters are pinned to 20 steps / guidance 3.5 with a 2.5s poll — the fast preset loses

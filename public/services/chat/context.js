@@ -44,13 +44,97 @@
                              
                                           
                                                              
-                                                                                             
+                          
+                                                                    
+                                                      
+    
                                              
                                          
-                                                            
+                     
+                                        
+                                                                                            
+                                               
+                                   
+    
                                                                                                       
                     
  
+
+/** The compaction configuration. Keys live here, so the settings card and the send path cannot drift. */
+                                
+                   
+                  
+               
+                
+ 
+
+const COMPACT_KEYS = {
+  enabled: "cfw_summary_enabled",
+  trigger: "cfw_summary_trigger",
+  keep: "cfw_summary_keep",
+  ratio: "cfw_summary_ratio_v1",
+};
+
+/** Defaults match the pre-2026-11-25 hard-coded behaviour: on, 30/10, 70% of the window. */
+const COMPACT_DEFAULTS                          = {
+  enabled: true,
+  trigger: 30,
+  keep: 10,
+  ratio: 0.7,
+};
+
+/** Ranges the settings card exposes; out-of-range stored values clamp instead of surviving. */
+const COMPACT_LIMITS = {
+  trigger: { min: 10, max: 200 },
+  keep: { min: 2, max: 50 },
+  ratio: { min: 0.3, max: 0.95 },
+};
+
+function clampNumber(value        , min        , max        )         {
+  return Math.max(min, Math.min(max, value));
+}
+
+/** The on/off key keeps the legacy polarity: absent or any value but "0" means on. */
+function normalizeCompactEnabled(raw               )          {
+  return raw !== "0";
+}
+
+/** Integer with the legacy 30 default; dirty input falls back, a valid number clamps. */
+function normalizeCompactTrigger(raw               )         {
+  const n = parseInt(String(raw == null ? "" : raw), 10);
+  return isNaN(n) ? COMPACT_DEFAULTS.trigger : clampNumber(n, COMPACT_LIMITS.trigger.min, COMPACT_LIMITS.trigger.max);
+}
+
+/** Integer with the legacy 10 default; dirty input falls back, a valid number clamps. */
+function normalizeCompactKeep(raw               )         {
+  const n = parseInt(String(raw == null ? "" : raw), 10);
+  return isNaN(n) ? COMPACT_DEFAULTS.keep : clampNumber(n, COMPACT_LIMITS.keep.min, COMPACT_LIMITS.keep.max);
+}
+
+/** Watermark ratio with the legacy 0.7 default, clamped to [0.3, 0.95]. */
+function normalizeCompactRatio(raw               )         {
+  const n = parseFloat(String(raw == null ? "" : raw));
+  return isFinite(n) ? clampNumber(n, COMPACT_LIMITS.ratio.min, COMPACT_LIMITS.ratio.max) : COMPACT_DEFAULTS.ratio;
+}
+
+/** Read the whole configuration; an unreadable storage yields the defaults, loudly at the call site. */
+function readCompactConfig(storage                       )                {
+  let enabled                = null, trigger                = null, keep                = null, ratio                = null;
+  try {
+    enabled = storage.getItem(COMPACT_KEYS.enabled);
+    trigger = storage.getItem(COMPACT_KEYS.trigger);
+    keep = storage.getItem(COMPACT_KEYS.keep);
+    ratio = storage.getItem(COMPACT_KEYS.ratio);
+  } catch (e) {
+    return { enabled: COMPACT_DEFAULTS.enabled, trigger: COMPACT_DEFAULTS.trigger, keep: COMPACT_DEFAULTS.keep, ratio: COMPACT_DEFAULTS.ratio };
+  }
+  return {
+    enabled: normalizeCompactEnabled(enabled),
+    trigger: normalizeCompactTrigger(trigger),
+    keep: normalizeCompactKeep(keep),
+    ratio: normalizeCompactRatio(ratio),
+  };
+}
 
                               
                              
@@ -67,8 +151,13 @@
                                        
                                
                                  
-                                                                                               
+                                                                                                          
                                                                           
+                                                                                   
+                                 
+                                                                                                    
+                                                     
+                                                                 
                                                                                      
                                                                                                             
                                                                                   
@@ -196,7 +285,13 @@ function createContextFactory(env            ) {
           const o              = { role: m.role, content: typeof m.content === "string" ? m.content : (Array.isArray(m.content) ? m.content : "") };
           if (hasTC) {
             o.content = "";
-            o.tool_calls = m.tool_calls;
+            // This is the history-to-request exit for the agent path: calls stored by older turns
+            // may predate the OpenAI `type` discriminant, and a call without it 422s the next
+            // request. Repair here and in pairPendingToolCalls below; without the kernel handle
+            // the raw array passes through unchanged, exactly as before this repair existed.
+            o.tool_calls = (env.agentKernel && typeof env.agentKernel.normalizeToolCallTypes === "function")
+              ? env.agentKernel.normalizeToolCallTypes(m.tool_calls)
+              : m.tool_calls;
             if (typeof m.reasoning_content === "string" && m.reasoning_content) o.reasoning_content = m.reasoning_content;
           }
           if (typeof m.speakerName === "string") o.speakerName = m.speakerName;
@@ -268,13 +363,35 @@ function createContextFactory(env            ) {
       }
 
       // Numeric gate only: the host short-circuits the on/off switches and the in-flight flag so
-      // token counting stays off the common no-summarization path. 70% leaves room for the summary
-      // request and the next turn; the count trigger preserves the legacy short-message fallback.
+      // token counting stays off the common no-summarization path. The ratio (default 70%) leaves
+      // room for the summary request and the next turn; the count trigger preserves the legacy
+      // short-message fallback.
+      function compactConfig()                {
+        return readCompactConfig(env.storage);
+      }
+
+      function setCompactConfig(patch                        )                {
+        const p = patch || {};
+        const set = env.storage.setItem;
+        if (typeof set === "function") {
+          try {
+            if (typeof p.enabled === "boolean") set.call(env.storage, COMPACT_KEYS.enabled, p.enabled ? "1" : "0");
+            if (p.trigger !== undefined) set.call(env.storage, COMPACT_KEYS.trigger, String(normalizeCompactTrigger(String(p.trigger))));
+            if (p.keep !== undefined) set.call(env.storage, COMPACT_KEYS.keep, String(normalizeCompactKeep(String(p.keep))));
+            if (p.ratio !== undefined) set.call(env.storage, COMPACT_KEYS.ratio, String(normalizeCompactRatio(String(p.ratio))));
+          } catch (e) {
+            // Storage refused the write; still return the normalised intent so the card can paint it.
+          }
+        }
+        return readCompactConfig(env.storage);
+      }
+
       function shouldCompact(sessionLength         , summaryTrigger         )          {
         const length = asNumber(sessionLength, 0);
         if (length <= 4) return false;
         const limit = ctxLimitForCompact();
-        const watermark = limit > 0 && sessTokensForCompact() >= limit * 0.7;
+        const ratio = readCompactConfig(env.storage).ratio;
+        const watermark = limit > 0 && sessTokensForCompact() >= limit * ratio;
         return watermark || length > asNumber(summaryTrigger, 0);
       }
 
@@ -350,12 +467,13 @@ function createContextFactory(env            ) {
         kernelMessagesToSession,
         estimateTokens, ctxLimitForCompact, sessTokensForCompact,
         shouldCompact, planCompact, readSummary,
+        compactConfig, setCompactConfig,
         toRenderableMessages };
     },
   };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the existing window contract.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the existing window contract.
 // The bridges are getters rather than snapshotted fields, so a module that loads after this one is
 // still reachable — the old file read them at call time for the same reason. Every bridge name is
 // spelled out in full with the `window.` prefix: an alias makes the contract scan count drop to
@@ -365,14 +483,16 @@ function createContextFactory(env            ) {
 
   var env = {};
   Object.defineProperties(env, {
-    multi: { get: function () { return window.__multi; }, enumerable: true },
-    character: { get: function () { return window.__character; }, enumerable: true },
+    multi: { get: function () { return window.multiSvc; }, enumerable: true },
+    character: { get: function () { return window.characterSvc; }, enumerable: true },
     agentKernel: { get: function () { return window.AgentKernel; }, enumerable: true },
     ctxExact: { get: function () { return window.APP_CTX_EXACT; }, enumerable: true },
     ctxHints: { get: function () { return window.APP_CTX_HINTS; }, enumerable: true },
   });
   env.storage = {
     getItem: function (key) { return window.localStorage.getItem(key); },
+    setItem: function (key, value) { window.localStorage.setItem(key, value); },
+    removeItem: function (key) { window.localStorage.removeItem(key); },
   };
   // The `#modelSel` / `cfw_model` lookup for the compaction limit lives here; a throw becomes the
   // empty string and the service falls back to the 128K default.
@@ -386,5 +506,13 @@ function createContextFactory(env            ) {
   window.__context = { create: factory.create };
 })();
 
+globalThis.COMPACT_KEYS = COMPACT_KEYS;
+globalThis.COMPACT_DEFAULTS = COMPACT_DEFAULTS;
+globalThis.COMPACT_LIMITS = COMPACT_LIMITS;
+globalThis.normalizeCompactEnabled = normalizeCompactEnabled;
+globalThis.normalizeCompactTrigger = normalizeCompactTrigger;
+globalThis.normalizeCompactKeep = normalizeCompactKeep;
+globalThis.normalizeCompactRatio = normalizeCompactRatio;
+globalThis.readCompactConfig = readCompactConfig;
 globalThis.createContextFactory = createContextFactory;
 })();

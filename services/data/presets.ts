@@ -5,7 +5,7 @@
  * The bug this removes: the tool used to write the key with a bare localStorage.setItem and never
  * nudged cloud sync, while the editor did markDirty + a delayed pushNow. An agent-created preset
  * could therefore stay only on the device. Both writers now go through the same `save`, whose
- * onSave port is implemented once in l0/wiring/presets.js as that touchSync nudge.
+ * onSave port is implemented once in tooling/l0/wiring/presets.js as that touchSync nudge.
  *
  * Normalization is absorbed from services/ui/prompt-editor.ts (pePresetsFrom): a non-array is empty,
  * unnamed rows are dropped, and missing fields take the row index / empty-string / false defaults.

@@ -10,7 +10,7 @@
  * after `begin()` would otherwise see nothing. And a host without IndexedDB (or with it blocked)
  * degrades to memory-only instead of throwing: losing replay history must never break the loop.
  *
- * Lock: `scripts/test-agent-trace.mjs` (18 assertions, vm + fake IndexedDB).
+ * Lock: `tooling/scripts/test-agent-trace.mjs` (18 assertions, vm + fake IndexedDB).
  * @module services/agent/trace
  */
 

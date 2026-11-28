@@ -155,7 +155,7 @@ function tapFires(state          )          {
   return state.count >= UNLOCK_TAPS;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/auth/unlock.ts; this file owns the modal,
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/auth/unlock.ts; this file owns the modal,
 // the version-tag trigger, the html class and the reload.
 //
 // Default state is locked: everything marked [data-nsfw] stays hidden until the passphrase is proven.
@@ -209,7 +209,7 @@ function tapFires(state          )          {
 
   // Feedback goes through the shared toast when it is loaded; the fallback keeps a bare page usable.
   function toast(msg){
-    if(window.__feedback&&window.__feedback.toast)return window.__feedback.toast(msg,{ms:1400});
+    if(window.feedbackSvc&&window.feedbackSvc.toast)return window.feedbackSvc.toast(msg,{ms:1400});
     var t=document.createElement("div");
     t.textContent=msg;
     t.style.cssText="position:fixed;left:50%;top:24px;transform:translateX(-50%);padding:10px 18px;background:rgba(0,0,0,.88);color:#fff;border-radius:10px;font-size:13px;font-weight:600;z-index:99999;";

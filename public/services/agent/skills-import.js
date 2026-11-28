@@ -508,7 +508,7 @@ function createSkillImport(ports                  )                 {
 // already installed at boot. All package decisions live in the service, none in this file.
 (function () {
   window.__skillsImport = createSkillImport({
-    store: function () { return window.__skills || null; },
+    store: function () { return window.skillsSvc || null; },
     zip: function (bytes, limits) {
       var reader = window.ZipRead;
       if (!reader || typeof reader.readZip !== "function") return null;

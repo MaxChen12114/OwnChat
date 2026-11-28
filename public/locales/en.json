@@ -1,0 +1,305 @@
+{
+  "$meta": {
+    "version": 1,
+    "updated": "2026-11-27",
+    "note": "en mirrors zh key for key. Placeholders and plural rules: docs/i18n/rules.md. Glossary: docs/i18n/terminology.md."
+  },
+  "common": {
+    "confirm": "Continue?",
+    "unknownReason": "unknown reason",
+    "unknownError": "unknown error"
+  },
+  "oobe": {
+    "title": "Welcome to OwnChat",
+    "skip": "Skip setup",
+    "back": "Back",
+    "next": "Continue",
+    "stepOf": "Step {current} of {total}",
+    "theme": "Theme",
+    "themes": {
+      "minimal": "Minimal",
+      "glass": "Glass",
+      "lumen": "Lumen"
+    },
+    "start": "Get started",
+    "doneTitle": "You're all set",
+    "doneBody": "Setup complete. Start chatting.",
+    "enter": "Enter OwnChat",
+    "subtitle": "Configure the admin password and model key, then choose whether to enable sync.",
+    "close": "Close",
+    "localFirst": "Local-first · stays on this machine",
+    "health": {
+      "ok": "Host: connected ({base})",
+      "down": "Host: not reachable ({base}) — the local host may still be starting",
+      "checking": "Host: checking…"
+    },
+    "steps": {
+      "password": {
+        "title": "Admin password",
+        "done": "Signed in",
+        "pending": "Admin password required"
+      },
+      "modelKey": {
+        "title": "Model key",
+        "done": "Saved",
+        "pending": "Not set"
+      },
+      "sync": {
+        "title": "Sync",
+        "on": "On",
+        "off": "Off"
+      }
+    },
+    "password": {
+      "placeholder": "The host's admin password",
+      "useLocal": "Use local password",
+      "verify": "Verify and save",
+      "hint": "The host generates a password on first start and keeps it in admin-password.txt in the data directory.",
+      "empty": "Enter the admin password",
+      "checking": "Verifying…",
+      "signedIn": "Signed in",
+      "connectFailed": "Cannot reach the host: {error}",
+      "localUnsupported": "This environment cannot read the local password",
+      "localFilled": "Local password filled in — press “Verify and save” to continue",
+      "localMissing": "No local password file yet: the host creates one on first start",
+      "localFailed": "Could not read the local password: {error}",
+      "wrong": "Wrong password",
+      "network": "Network error (HTTP {status}); try again in a moment"
+    },
+    "modelKey": {
+      "endpointLabel": "Endpoint",
+      "endpointPlaceholder": "Endpoint (OpenAI-compatible)",
+      "modelLabel": "Model",
+      "modelPlaceholder": "Model id",
+      "keyLabel": "API key",
+      "keyPlaceholder": "sk-…",
+      "save": "Save model key",
+      "hint": "The key stays on this machine (provider registry); it is never written into repository files.",
+      "saved": "Saved — the next message will use this provider",
+      "saveFailed": "Could not save: {error}",
+      "registryMissing": "The provider registry is unavailable, so the key cannot be saved",
+      "channelFailed": "Provider creation failed",
+      "defaultName": "Model from first-time setup",
+      "error": {
+        "scheme": "The endpoint must start with http:// or https://",
+        "empty": "Enter an API key",
+        "short": "That API key looks too short — check that you copied all of it",
+        "space": "The API key cannot contain spaces"
+      }
+    },
+    "sync": {
+      "label": "Enable cloud sync (multiple devices)",
+      "hint": "Leave it off for local-only use. When on, settings and conversations are pushed to the host and take effect on the next start."
+    },
+    "later": "Later",
+    "done": "Done"
+  },
+  "settings": {
+    "memory": {
+      "title": "Character memory",
+      "intro": "The character extracts long-term memory from the conversation (L1 events / L2 conclusions) and recalls it by topic when building a reply; matching knowledge-base documents ride along with the request. Everything lives in the unified store (local SQLite / self-hosted D1) and <b>follows the host's sync</b>. With the master switch off, nothing is extracted or injected.",
+      "enabled": "Enable character memory",
+      "vecEnabled": "Enable vector recall (loads a local embedding model on first use; off means keyword/entity matching only)",
+      "recallK": "Recall count",
+      "recallKHint": "Maximum memories injected per request",
+      "injectChunks": "Knowledge chunks",
+      "injectChunksHint": "Maximum knowledge-base chunks",
+      "injectChars": "Knowledge characters",
+      "injectCharsHint": "Total character budget for knowledge chunks",
+      "autoWrite": "Write memory after every turn (one extra extraction call per turn, billed)",
+      "tip": "Auto-write is off by default: with it on, every completed turn sends one extra extraction request (billed to your model account). The vector leg loads its model only the first time you enable it, and falls back to keyword search if that fails."
+    },
+    "compact": {
+      "title": "Context compaction",
+      "intro": "Long conversations trigger automatic compaction: early messages are folded into a story summary and later requests carry the summary plus the last few turns verbatim. Either trigger is enough — the message count reaching its threshold, or the conversation's estimated tokens reaching a share of the context window. <b>Summaries are stored per conversation</b> and never leak into another one.",
+      "enabled": "Enable automatic compaction",
+      "trigger": "Trigger at",
+      "triggerHint": "Compact at this many messages (10-200)",
+      "keep": "Keep",
+      "keepHint": "Recent messages kept verbatim (2-50)",
+      "ratio": "Watermark",
+      "ratioHint": "Share of the context window (0.3-0.95, default 0.7)",
+      "tip": "A successful compaction calls the summary model once (it costs money). A lower ratio compacts earlier and saves more context, but drops the original text sooner; conversations under 5 messages never trigger."
+    },
+    "deploy": {
+      "card": {
+        "title": "Deploy",
+        "intro": "Deploy OwnChat to your own Cloudflare Worker or VPS (Docker + Caddy TLS); the host profile is written back when the run finishes.",
+        "target": "Target host",
+        "preview": "Preview commands",
+        "run": "Start deploy",
+        "runConfirm": "Confirm and deploy",
+        "rollback": "Roll back last deploy",
+        "gate": "The deploy wizard is not available for this profile: it needs a signed-in account, a desktop host, or a self-hosted host."
+      },
+      "capability": {
+        "line": "profile: {profile} · capabilities: {caps}",
+        "none": "none"
+      },
+      "profile": {
+        "account": "account (signed in)",
+        "desktop": "desktop (this machine)",
+        "selfhost": "selfhost (self-hosted)",
+        "guest": "guest"
+      },
+      "manifestPending": "The runtime manifest has not loaded yet",
+      "plan": {
+        "empty": "(no steps to preview)",
+        "line": "{index}. {title} [{kind}]",
+        "skipped": "    (skipped: {reason})",
+        "preview": "    {text}",
+        "inverse": "    rollback: {text}",
+        "note": "    note: {text}"
+      },
+      "outcome": {
+        "none": "The deploy returned no result",
+        "done": "Deploy finished; the host profile has been written back.",
+        "dryRun": "Preview finished (no step was executed).",
+        "verifyFailed": "Verification failed; the remaining steps were stopped",
+        "stepFailed": "A step failed and the run stopped",
+        "aborted": "Cancelled",
+        "invalid": "The deploy pack or the inputs are invalid",
+        "other": "Deploy finished ({reason})",
+        "otherUnknown": "Deploy finished (unknown reason)",
+        "detail": ": {error}"
+      },
+      "status": {
+        "executorMissing": "The deploy executor is not loaded (deployer.js)",
+        "invalidPack": "The deploy pack or the inputs are invalid",
+        "previewed": "Preview ready: nothing runs until you confirm (secret values show as ***).",
+        "running": "Running…",
+        "exception": "Deploy error: {error}",
+        "noRecord": "There is no deploy record to roll back.",
+        "packMissing": "The pack in the rollback state is not in the catalogue: {id}",
+        "rollingBack": "Rolling back…",
+        "rollbackDone": "Rollback finished ({ran} steps run, {skipped} skipped).",
+        "rollbackFailed": "Rollback failed: {error}",
+        "rollbackException": "Rollback error: {error}",
+        "packUnreadable": "The deploy pack is not published or not readable: {file} ({error})."
+      },
+      "hint": {
+        "publish": "Run node deploy/publish.mjs to generate the public/deploy/ mirror, then reload the page."
+      },
+      "confirm": {
+        "runTitle": "Deploy to {pack}",
+        "runMessage": "This runs {count, plural, one{# step} other{# steps}} in the previewed order and stops on the first failure.\nA failed verification never continues; a successful run can be rolled back (steps marked non-rollbackable are skipped).\n\nStart now?",
+        "runOk": "Start deploy",
+        "rollbackTitle": "Roll back {pack}",
+        "rollbackMessage": "This runs the inverse of each completed step in reverse order; steps marked non-rollbackable are skipped and listed.\n\nSecrets (access code / API token) must be re-entered; they are never read back from local storage. Roll back now?",
+        "rollbackOk": "Roll back"
+      },
+      "toast": {
+        "done": "Deploy finished",
+        "verifyStopped": "Verification failed; stopped",
+        "failed": "Deploy failed",
+        "rollbackDone": "Rollback finished",
+        "rollbackFailed": "Rollback failed",
+        "newHost": "New host detected: open Settings → Deploy and choose this machine / the host / merge"
+      },
+      "event": {
+        "runStart": "Started{message}",
+        "runEnd": "Finished{message}",
+        "stepStart": "▶ {index}/{total} {title}{message}",
+        "stepStartBare": "▶ {title}{message}",
+        "stepEnd": "✓ {title}{message}",
+        "stepSkip": "· skipped {title}{message}",
+        "stepError": "✗ {title}: {error}",
+        "failed": "failed",
+        "verifyFail": "✗ verification failed: {error}",
+        "journalError": "! could not write the deploy journal: {error}",
+        "rollbackStart": "Rolling back {count, plural, one{# completed step} other{# completed steps}}",
+        "rollbackSkip": "· rollback skipped {step} ({message})",
+        "rollbackEnd": "Rollback finished{message}",
+        "detail": ": {text}",
+        "detailColon": ": {text}",
+        "detailParen": " ({text})",
+        "detailDash": " — {text}"
+      },
+      "firstConnect": {
+        "title": "New host detected: choose which side wins",
+        "warning": {
+          "backupMissing": "The backup module (backupSvc) is not ready, so nothing will be backed up automatically. Export a backup from Settings → Cloud sync first.",
+          "hostUnknown": "The current host cannot be identified (no origin), so the first-connect choice is unavailable."
+        },
+        "localTitle": "Keep this machine",
+        "localDetail": "Keep local settings and the hot window; the next sync uploads this machine's copy. Character cards and memory on the host are not deleted (they already live in the host store).",
+        "hostTitle": "Use the host",
+        "hostDetail": "Pull settings and the conversation hot window from the host, replacing the local copy; character cards and memory are read from the host directly.",
+        "mergeTitle": "Merge",
+        "mergeDetail": "Merge both hot windows by newest timestamp; conflicts are never overwritten silently, and a backup runs first.",
+        "backupTitle": "Back up first",
+        "backupMessage": "Before choosing “{choice}”, window.backupSvc will run one backup.\nContinue?",
+        "backupOk": "Back up and continue",
+        "backupDone": "Automatic backup finished",
+        "backupFailed": "Backup failed; this choice was cancelled: {error}",
+        "noBackupTitle": "Backup module not ready",
+        "noBackupMessage": "window.backupSvc is missing or exports no backup function (T3-E may not be merged yet).\nContinuing will not back anything up; export a backup from Settings → Cloud sync first. Continue anyway?",
+        "noBackupOk": "Continue without backup",
+        "localDone": "Using this machine: local settings will overwrite the cloud hot window.",
+        "localUploadFailed": "Choice recorded, but the upload failed: {error}",
+        "localOffline": "Using this machine (cloud sync is off: the choice was recorded, nothing was uploaded).",
+        "mergeDone": "Merged: the hot window was pulled from the host and merged.",
+        "hostDone": "Using the host: pulling from the host now.",
+        "pullFailed": "Choice recorded, but pulling from the host failed: {error}",
+        "syncMissing": "Choice recorded (the sync module is not ready, so nothing was pulled)."
+      },
+      "progress": {
+        "handoff": "Host profile recorded: {profile}{base}",
+        "handoffBase": " · {base}"
+      },
+      "port": {
+        "timeout": "The HTTP request timed out",
+        "commandWebOnly": "Command steps only run on the desktop (the web build has no process execution)",
+        "commandEnvUnsupported": "The desktop command channel does not support env/stdin yet (T4-B must extend local_run_command)"
+      }
+    },
+    "backup": {
+      "card": {
+        "title": "Data backup",
+        "intro": "Packs the unified store — session events, messages, summaries, character cards, memory, knowledge base, workspaces, attachments and the gallery — into one ZIP. API keys, UI settings and sync cursors are not included. Importing replaces local data and rebuilds the message index from the event log.",
+        "includeKv": "Also export the local hot window (native_kv; secret, settings and sync-cursor namespaces are skipped automatically)",
+        "export": "Export backup",
+        "import": "Import backup",
+        "reading": "Reading local data size…",
+        "tip": "Export a current backup before importing. A table over 500,000 rows or 200 MB is refused outright (never silently truncated); a failed import rolls back to the pre-import data."
+      },
+      "progress": {
+        "counter": " ({done}/{total})",
+        "count": "Counting{table}{count}",
+        "dump": "Exporting:{table}{count}",
+        "write": "Packing the ZIP…",
+        "read": "Reading the backup…",
+        "validate": "Validating{table}{count}",
+        "snapshot": "Snapshotting local data for rollback{table}{count}",
+        "clear": "Clearing local tables…",
+        "insert": "Importing{table}{count}",
+        "rebuild": "Rebuilding the message index from the event log{count}",
+        "rollback": "Rolling back{table}{count}",
+        "done": "Done"
+      },
+      "status": {
+        "summary": "{tables, plural, one{# table} other{# tables}} / {rows, plural, one{# row} other{# rows}} stored on this machine.",
+        "summaryFailed": "Could not read the local data size: {error}",
+        "exportFailed": "Export failed: {error}",
+        "exported": "Exported {tables, plural, one{# table} other{# tables}} / {rows, plural, one{# row} other{# rows}} ({size} MB) → {target}",
+        "exportedWarnings": "Exported with {count, plural, one{# note} other{# notes}}: {warnings}",
+        "importing": "Importing {file} …",
+        "imported": "Import finished: {rows, plural, one{# row} other{# rows}}, rebuilt {conversations, plural, one{# conversation} other{# conversations}} / {messages, plural, one{# message} other{# messages}}. Reloading…",
+        "importFailed": "Import failed: {error}",
+        "importIncomplete": "Local data may be incomplete; import the same backup again.",
+        "fileEmpty": "Could not read the backup file: it is empty",
+        "fileFailed": "Could not read the backup file: {error}",
+        "saveCancelled": "Save cancelled (nothing was written)",
+        "saveFailed": "Could not write the file: {error}",
+        "importDone": "Import finished; reloading"
+      },
+      "confirm": {
+        "title": "Import backup",
+        "message": "Importing replaces all local data with the backup (conversations, character cards, memory, knowledge base, workspaces, attachments, gallery), then rebuilds the message index from the event log and reloads the page. Export the current data first. Continue?",
+        "ok": "Import and replace",
+        "cancel": "Cancel"
+      },
+      "dialogTitle": "Data backup"
+    }
+  }
+}

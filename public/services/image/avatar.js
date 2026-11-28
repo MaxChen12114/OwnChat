@@ -5,7 +5,7 @@
  * also what files the result into the local gallery — this module never talks to a provider.
  *
  * The map is one JSON blob under a single storage key, not one key per character: the set is small,
- * every read wants at most one entry, and `__character` reads it on each card render. A payload
+ * every read wants at most one entry, and `characterSvc` reads it on each card render. A payload
  * that is not a JSON object is treated as empty, and non-string values are dropped on read, so a
  * bad write degrades to "no avatar" instead of breaking the settings card.
  * @module services/image/avatar
@@ -235,7 +235,7 @@ function createAvatar(ports             )         {
   };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/image/avatar.ts; this file owns the
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/image/avatar.ts; this file owns the
 // frozen global name, the storage key, the avatar change event, the chat-image edit call and the
 // whole settings card (that UI has no other consumer, so it ships with the adapter).
 //
@@ -246,9 +246,9 @@ function createAvatar(ports             )         {
 
   var LS_AV = "cfw_char_avatar_v1";
 
-  function headSlot() {
-    return window.slotRegistry.pick("settingsImageSlot");
-  }
+  // 2026-11-28 card-shell batch 2: the headSlot() pick helper is gone — injectCard declares through
+  // slotRegistry.declareCard, which resolves settingsImageSlot (with its #settings root fallback)
+  // and owns the mount-once probe.
 
   function setStatus(m) {
     var el = document.getElementById("imgAvStatus");
@@ -281,11 +281,11 @@ function createAvatar(ports             )         {
       }
     },
     hasEdit: function () {
-      return !!(window.__chatImage && typeof window.__chatImage.editImage === "function");
+      return !!(window.chatImageSvc && typeof window.chatImageSvc.editImage === "function");
     },
-    edit: function (arg) { return window.__chatImage.editImage(arg); },
+    edit: function (arg) { return window.chatImageSvc.editImage(arg); },
     activeCard: function () {
-      try { return (window.__character && window.__character.getActiveCard) ? window.__character.getActiveCard() : null; } catch (e) { return null; }
+      try { return (window.characterSvc && window.characterSvc.getActiveCard) ? window.characterSvc.getActiveCard() : null; } catch (e) { return null; }
     },
     notify: function (id, url) {
       try { window.dispatchEvent(new window.CustomEvent("avatar:changed", { detail: { id: id, url: url } })); } catch (e) {}
@@ -313,59 +313,63 @@ function createAvatar(ports             )         {
   }
 
   function injectCard() {
-    var settings = document.getElementById("settings");
-    if (!settings || document.getElementById("imgAvatarCard")) return;
-    // Mounted into the image slot explicitly. Falling back to the settings root was only for older
-    // pages whose markup lacked that slot: the card still showed, just at the bottom of the panel.
-    var slot = headSlot();
-    ensureStyles();
-    var card = document.createElement("div");
-    card.className = "card";
-    card.id = "imgAvatarCard";
-    var opts = avatar.list.map(function (e) { return '<option value="' + e.key + '">' + e.key + "</option>"; }).join("");
-    card.innerHTML = [
-      '<h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><circle cx="12" cy="10" r="2.8"/><path d="M6.5 19.5a5.5 5.5 0 0 1 11 0"/></svg>角色头像</h4>',
-      '<p>以发图基准图为底，裁一张近景头像（可选表情），保存为当前角色头像。当前角色：<b id="imgAvWho"></b>。</p>',
-      '<div class="av-row"><label style="font-size:12px;opacity:.8;">表情</label><select id="imgAvExpr">' + opts + '</select><button id="imgAvGen" style="font-weight:600;">生成头像</button><button id="imgAvBase">设为基准图</button><button id="imgAvDl">下载</button><button id="imgAvClear">清除</button></div>',
-      '<div id="imgAvStatus" style="font-size:12px;opacity:.75;min-height:16px;"></div>',
-      '<div id="imgAvPreview"></div>'
-    ].join("");
-    slot.appendChild(card);
-    var who = document.getElementById("imgAvWho");
-    if (who) who.textContent = avatar.activeName();
-    renderPreview();
-    document.getElementById("imgAvGen").addEventListener("click", function () {
-      var sel = document.getElementById("imgAvExpr");
-      avatar.generate({ expression: sel ? sel.value : undefined });
-    });
-    document.getElementById("imgAvBase").addEventListener("click", function () {
-      var url = avatar.get(avatar.activeId());
-      if (!url) { setStatus("还没有头像"); return; }
-      if (window.__chatImage && window.__chatImage.setBaseImage) {
-        window.__chatImage.setBaseImage({ characterId: avatar.activeId(), imageUrl: url });
-        setStatus("已把头像设为该角色发图基准图");
+    // 2026-11-28 card-shell batch 2: shell + declareCard (the old guard checked #settings and its
+    // own id by hand; declareCard owns the mount-once probe and the root fallback). The wiring
+    // below is unchanged — it reads its controls by document id.
+    window.slotRegistry.declareCard({
+      id: "imgAvatarCard",
+      slotId: "settingsImageSlot",
+      build: function (slot) {
+        ensureStyles();
+        var opts = avatar.list.map(function (e) { return '<option value="' + e.key + '">' + e.key + "</option>"; }).join("");
+        var shell = window.cardShell.createCardShell({
+          id: "imgAvatarCard",
+          title: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><circle cx="12" cy="10" r="2.8"/><path d="M6.5 19.5a5.5 5.5 0 0 1 11 0"/></svg>角色头像',
+          desc: '以发图基准图为底，裁一张近景头像（可选表情），保存为当前角色头像。当前角色：<b id="imgAvWho"></b>。',
+          extra: '<div class="av-row"><label style="font-size:12px;opacity:.8;">表情</label><select id="imgAvExpr">' + opts + '</select><button id="imgAvGen" style="font-weight:600;">生成头像</button><button id="imgAvBase">设为基准图</button><button id="imgAvDl">下载</button><button id="imgAvClear">清除</button></div>'
+            + '<div id="imgAvStatus" style="font-size:12px;opacity:.75;min-height:16px;"></div>'
+            + '<div id="imgAvPreview"></div>'
+        });
+        var card = shell.card;
+        slot.appendChild(card);
+        var who = document.getElementById("imgAvWho");
+        if (who) who.textContent = avatar.activeName();
+        renderPreview();
+        document.getElementById("imgAvGen").addEventListener("click", function () {
+          var sel = document.getElementById("imgAvExpr");
+          avatar.generate({ expression: sel ? sel.value : undefined });
+        });
+        document.getElementById("imgAvBase").addEventListener("click", function () {
+          var url = avatar.get(avatar.activeId());
+          if (!url) { setStatus("还没有头像"); return; }
+          if (window.chatImageSvc && window.chatImageSvc.setBaseImage) {
+            window.chatImageSvc.setBaseImage({ characterId: avatar.activeId(), imageUrl: url });
+            setStatus("已把头像设为该角色发图基准图");
+          }
+        });
+        document.getElementById("imgAvDl").addEventListener("click", function () {
+          var url = avatar.get(avatar.activeId());
+          if (!url) { setStatus("还没有头像"); return; }
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = "avatar.png";
+          a.target = "_blank";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        });
+        document.getElementById("imgAvClear").addEventListener("click", function () {
+          avatar.clear(avatar.activeId());
+          renderPreview();
+          setStatus("已清除当前角色头像");
+        });
+        window.addEventListener("character:changed", function () {
+          var w = document.getElementById("imgAvWho");
+          if (w) w.textContent = avatar.activeName();
+          renderPreview();
+        });
+        return card;
       }
-    });
-    document.getElementById("imgAvDl").addEventListener("click", function () {
-      var url = avatar.get(avatar.activeId());
-      if (!url) { setStatus("还没有头像"); return; }
-      var a = document.createElement("a");
-      a.href = url;
-      a.download = "avatar.png";
-      a.target = "_blank";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    });
-    document.getElementById("imgAvClear").addEventListener("click", function () {
-      avatar.clear(avatar.activeId());
-      renderPreview();
-      setStatus("已清除当前角色头像");
-    });
-    window.addEventListener("character:changed", function () {
-      var w = document.getElementById("imgAvWho");
-      if (w) w.textContent = avatar.activeName();
-      renderPreview();
     });
   }
 

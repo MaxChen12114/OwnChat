@@ -372,7 +372,7 @@ async function applyRoleplay(payload         , host              )              
   }
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the checkpoint store to `window.__checkpoints` ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the checkpoint store to `window.__checkpoints` ──
 // Generic checkpoint storage in its own IndexedDB (`cfw_checkpoints_v1`: checkpoints + blobs), the
 // SHA-256 digest, and the live roleplay host. `work` and `sandbox` adapters land separately; they
 // share the same store and blob table, not their domain tables.
@@ -487,13 +487,13 @@ async function applyRoleplay(payload         , host              )              
 
   /**
    * The live roleplay host. The three setters are the host hooks added for rollback:
-   * `__app.setSessionMessages`, `__multi.setSceneIds`, `__app.setPriorSummary`.
+   * `appSvc.setSessionMessages`, `multiSvc.setSceneIds`, `appSvc.setPriorSummary`.
    * Capture is read-only; apply refuses while a turn is live (setSessionMessages returns false).
    */
   function roleplayHost() {
-    var app = (typeof window !== "undefined" && window.__app) || null;
-    var ch = (typeof window !== "undefined" && window.__character) || null;
-    var multi = (typeof window !== "undefined" && window.__multi) || null;
+    var app = (typeof window !== "undefined" && window.appSvc) || null;
+    var ch = (typeof window !== "undefined" && window.characterSvc) || null;
+    var multi = (typeof window !== "undefined" && window.multiSvc) || null;
     return {
       getMessages: function () {
         try { return (app && app.getSessionMessages) ? app.getSessionMessages() : []; } catch (e) { return []; }
@@ -546,7 +546,11 @@ async function applyRoleplay(payload         , host              )              
         try { if (multi && multi.setSceneIds) multi.setSceneIds(ids); } catch (e) {}
       },
       getPriorSummary: function () {
-        try { return localStorage.getItem("cfw_prior_summary_v1") || ""; } catch (e) { return ""; }
+        // Summaries are per conversation now (services/conv/summary.ts); capture the current one.
+        try {
+          var id = (app && app.getActiveConvId) ? app.getActiveConvId() : "";
+          return (window.convSummarySvc && id) ? window.convSummarySvc.load(id) : "";
+        } catch (e) { return ""; }
       },
       setPriorSummary: function (text) {
         try { if (app && app.setPriorSummary) app.setPriorSummary(String(text || "")); } catch (e) {}

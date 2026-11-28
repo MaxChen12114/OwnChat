@@ -5,7 +5,7 @@
  * Libraries are fetched through {@link MarkdownPorts} on every render rather than cached, matching
  * the old "never capture the reference early" semantics. The normalization of the marked-highlight
  * UMD — which may be a function or an exports object carrying `.markedHighlight` — happens in
- * l0/wiring/markdown.js, so this module only receives an already-normalized highlight factory and
+ * tooling/l0/wiring/markdown.js, so this module only receives an already-normalized highlight factory and
  * treats null as "library missing, fall back to legacy".
  *
  * Red line carried over from the old comment, and the P0 fix of the 2026-11-08 review must stay as
@@ -178,7 +178,7 @@ function createMarkdown(ports               )                   {
   return { safe: renderMarkdownSafe, rich, legacy: renderMarkdownLegacy };
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the existing window contract.
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the existing window contract.
 // The CDN libraries and the escape bridge are resolved per call, mirroring the old markdown.js
 // rule of never capturing a reference up front — the scripts load when they load.
 // Normalising the marked-highlight UMD shape (a bare function versus an exports object carrying
@@ -206,7 +206,7 @@ function createMarkdown(ports               )                   {
         highlight: resolveHighlight(),
       };
     },
-    esc: function (text) { return window.__ownEscape.esc(text); },
+    esc: function (text) { return window.escapeSvc.esc(text); },
   };
 
   var md = createMarkdown(ports);

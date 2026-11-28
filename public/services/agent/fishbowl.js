@@ -168,7 +168,7 @@ function sideFor(sceneIds         , id         )                {
   return idx >= 0 && idx % 2 === 1 ? "right" : null;
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/agent/fishbowl.ts (tag parsing, name
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/agent/fishbowl.ts (tag parsing, name
 // matching, speaker selection, round limits, reaction delay); this file owns the run loop, the LS
 // accessors, the tick event and the hostApi calls.
 //
@@ -176,7 +176,7 @@ function sideFor(sceneIds         , id         )                {
 // modes: orchestrate (the user picks speakers, the engine does not drive), relay (round-robin with no
 // topic), discuss (topic-driven, N rounds).
 //
-// Public API: window.__fishbowl = { getMode, setMode, getTopic, setTopic, getMaxRounds,
+// Public API: window.fishbowlSvc = { getMode, setMode, getTopic, setTopic, getMaxRounds,
 // setMaxRounds, getStrategy, setStrategy, start, pause, resume, stop, resetEnded, getState, onTick,
 // parseTags, MAX_PARTICIPANTS, MAX_ROUNDS_HARD } -- multi-agent.js is the main consumer.
 // Event: window `fishbowl:tick`, detail = { state, mode, round, max, topic, strategy, speakerName,
@@ -259,7 +259,7 @@ function devNoRoundCap() { return localStorage.getItem("cfw_dev_mode_v1") === "1
 
 // ── participants (cap 6) ──
 function getParticipants() {
-  const m = window.__multi;
+  const m = window.multiSvc;
   if (!m || !m.getSceneCards) return [];
   return m.getSceneCards().slice(0, MAX_PARTICIPANTS);
 }
@@ -290,8 +290,8 @@ async function runLoop() {
       if (!speaker) break;
       lastSpeaker = speaker.name;
       // 3. sync the UI active card
-      if (window.__character && window.__character.setActiveId) {
-        window.__character.setActiveId(speaker.id);
+      if (window.characterSvc && window.characterSvc.setActiveId) {
+        window.characterSvc.setActiveId(speaker.id);
       }
       emit();
       // 4.58: hold the typing pause before generating — machine-gun hand-offs read as fake and tangle.
@@ -301,7 +301,7 @@ async function runLoop() {
       // odd scene index sits right).
       let side = null;
       try {
-        const sceneIds = (window.__multi && window.__multi.getSceneIds && window.__multi.getSceneIds()) || [];
+        const sceneIds = (window.multiSvc && window.multiSvc.getSceneIds && window.multiSvc.getSceneIds()) || [];
         const idx = sceneIds.indexOf(speaker.id);
         if (idx >= 0 && idx % 2 === 1) side = "right";
       } catch (e) {}
@@ -322,8 +322,8 @@ async function runLoop() {
       // 5. parse tags. The summon tag brings an off-scene character in and hands them the floor; it
       // wins over the next tag.
       const tags = parseTags(reply || "");
-      if ((getMode() === "discuss" || getMode() === "relay") && tags.summon && window.__multi && window.__multi.summonByName) {
-        try { const _sc = window.__multi.summonByName(tags.summon); if (_sc) lastNextHint = _sc.name; } catch (e) {}
+      if ((getMode() === "discuss" || getMode() === "relay") && tags.summon && window.multiSvc && window.multiSvc.summonByName) {
+        try { const _sc = window.multiSvc.summonByName(tags.summon); if (_sc) lastNextHint = _sc.name; } catch (e) {}
       } else if ((getMode() === "discuss" || getMode() === "relay") && tags.next) {
         // relay/discuss both record [next:X] and hand it to pickNext.
         lastNextHint = tags.next;
@@ -440,7 +440,7 @@ function onTick(fn) {
   return () => { listeners = listeners.filter(x => x !== fn); };
 }
 
-window.__fishbowl = {
+window.fishbowlSvc = {
   getMode, setMode,
   getTopic, setTopic,
   getMaxRounds, setMaxRounds,

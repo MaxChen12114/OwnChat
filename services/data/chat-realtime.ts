@@ -4,8 +4,8 @@
  *
  * Everything platform-shaped arrives through {@link RealtimePorts} — storage, fetch, timers, the
  * visibility flag, the DOM event bus, and the three sibling modules (`__chatEvents` for message
- * diffs, `__sync` for auth and the snapshot channel, `__app` for the active conversation). This file
- * touches no `window`, `document` or `fetch`; l0/wiring/chat-realtime.js is the adapter.
+ * diffs, `syncSvc` for auth and the snapshot channel, `appSvc` for the active conversation). This file
+ * touches no `window`, `document` or `fetch`; tooling/l0/wiring/chat-realtime.js is the adapter.
  *
  * Three behaviours are load-bearing and easy to break:
  *  - Events for a conversation with an active turn wait in `pending`. Applying them mid-stream
@@ -93,6 +93,20 @@ export interface RealtimePorts {
   events(): ChatEventPort | null;
   sync(): SyncPort | null;
   app(): AppPort | null;
+  /**
+   * Late-bound session store. Reading the raw hot-window key would hand this channel only the last
+   * ten messages and then write that shortened map back — the mirror (and the conversation on
+   * screen) would lose its archived prefix on the first remote append. Absent → legacy behaviour.
+   */
+  sessions?(): SessionsPort | null;
+}
+
+/** The session-store surface this channel needs. */
+export interface SessionsPort {
+  loadAll(): Record<string, unknown>;
+  applyRemote(sessions: Record<string, unknown>, opts?: { source?: string }): void;
+  /** Hot-window length, so the sync hash stays over the same slice the push channel sends. */
+  HOT_KEEP?: number;
 }
 
 export interface RealtimeStatus {
@@ -182,6 +196,43 @@ export function createRealtime(ports: RealtimePorts) {
     }
   }
 
+  /** The conversation map as the UI sees it: the store's full-array mirror when one is mounted. */
+  function readSessionMap(): Json {
+    try {
+      const store = typeof ports.sessions === "function" ? ports.sessions() : null;
+      if (store && typeof store.loadAll === "function") return recOf(store.loadAll());
+    } catch (e) {
+      /* stale facade: fall back to the raw key */
+    }
+    return readJson(SESSION_KEY);
+  }
+
+  /** The tail the push channel serialises; the synced hash must cover the same slice. */
+  function hotSlice(arr: unknown[]): unknown[] {
+    let keep = 10;
+    try {
+      const store = typeof ports.sessions === "function" ? ports.sessions() : null;
+      if (store && typeof store.HOT_KEEP === "number" && store.HOT_KEEP > 0) keep = store.HOT_KEEP;
+    } catch (e) {
+      /* stale facade: keep the documented default */
+    }
+    return arr.length > keep ? arr.slice(arr.length - keep) : arr;
+  }
+
+  /** Publish a mutated map back through the store so the mirror and the hot window stay in step. */
+  function writeSessionMap(all: Json): void {
+    try {
+      const store = typeof ports.sessions === "function" ? ports.sessions() : null;
+      if (store && typeof store.applyRemote === "function") {
+        store.applyRemote(all, { source: "realtime" });
+        return;
+      }
+    } catch (e) {
+      /* fall through to the legacy write */
+    }
+    storage.setItem(SESSION_KEY, JSON.stringify(all));
+  }
+
   function readSeq(): number {
     const n = parseInt(storage.getItem(SEQ_KEY) || "0", 10);
     return Number.isFinite(n) && n > 0 ? n : 0;
@@ -247,7 +298,7 @@ export function createRealtime(ports: RealtimePorts) {
 
   /**
    * Whether the channel may run at all. The token is read directly from storage instead of asking
-   * `__sync.getStatus`, because that path calls back into `enabled` and would recurse forever.
+   * `syncSvc.getStatus`, because that path calls back into `enabled` and would recurse forever.
    */
   function enabled(): boolean {
     const sync = ports.sync();
@@ -499,7 +550,7 @@ export function createRealtime(ports: RealtimePorts) {
     if (!Array.isArray(events) || !events.length) return;
     const eventsPort = ports.events();
     const sync = ports.sync();
-    const all = readJson(SESSION_KEY);
+    const all = readSessionMap();
     const slotMeta = readJson(SLOT_META_KEY);
     const tomb = readJson(TOMB_KEY);
     const convMeta = readJson(CONV_META_KEY);
@@ -643,14 +694,16 @@ export function createRealtime(ports: RealtimePorts) {
       try {
         if (sync) {
           await sync.withRemoteApply(() => {
-            storage.setItem(SESSION_KEY, JSON.stringify(all));
+            writeSessionMap(all);
             storage.setItem(SLOT_META_KEY, JSON.stringify(slotMeta));
             storage.setItem(TOMB_KEY, JSON.stringify(tomb));
             storage.setItem(CONV_META_KEY, JSON.stringify(convMeta));
             const synced = readJson(SYNCED_KEY);
             for (const id of touched) {
               if (Array.isArray(all[id])) {
-                synced[id] = { hash: sync.hashChat(JSON.stringify(all[id])), syncedAt: ports.now() };
+                // Hash the hot tail (what gets pushed), not the full mirror: a full-array hash would
+                // never match the push channel and every remote apply would schedule a redundant push.
+                synced[id] = { hash: sync.hashChat(JSON.stringify(hotSlice(all[id]))), syncedAt: ports.now() };
               } else {
                 delete synced[id];
               }

@@ -134,6 +134,9 @@ function parseCtxInput(raw         )         {
                                                                          
                                        
                                                  
+                                                                                                
+                                                                                                  
+                            
                   
                      
  
@@ -219,7 +222,8 @@ function collectSnapshot(src                )              {
     });
   } catch (e) {}
 
-  const sumTokens = est(src.storage.getItem("cfw_prior_summary_v1") || "");
+  const sumText = String(src.summaryText() || "");
+  const sumTokens = est(sumText);
   const cardTokens = est(card ? JSON.stringify(card) : "");
   const presetTokens = est(presetsText);
   const skillTokens = est(skillsText);
@@ -376,31 +380,28 @@ function sysHtml(s             , esc                        )         {
   return rows.map((row) => '<div class="sp-kv"><span class="k">' + row[0] + '</span><span class="v">' + row[1] + "</span></div>").join("");
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/status-panel.ts; this file owns the
-// stylesheet, the skeleton markup, both hosts, the input wiring and the refresh loop.
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/status-panel.ts; this file owns the
+// stylesheet, the skeleton markup, the host, the input wiring and the refresh loop.
 //
-// Dual mount by design: the desktop right-rail tab and the mobile bottom-sheet tab share one skeleton
-// and one snapshot per tick. The refresh strategy is the cost-widget pattern: a 2s interval that only
-// recomputes while a host is visible, plus immediate refresh on storage/focus/visibility/tab changes.
+// One host by design: #statusPanelDesktop lives in the right rail, and the mobile shell moves that
+// whole rail into its console. The refresh strategy is the cost-widget pattern: a 2s interval that
+// only recomputes while the host is visible, plus immediate refresh on storage/focus/visibility/tab
+// changes.
 //
 // The estimation note is honest by construction: the client only sees the payload blocks it assembles;
 // the worker's system base and compliance layers are invisible, and the card says so.
 (function(){
   "use strict";
-  if (window.__statusPanel) return;
 
   const LS_CTX_WINDOW = "cfw_ctx_window_v1";
   const REFRESH_MS = 2000;
   const STYLE_ID = "statusPanelStyles";
 
   const CSS_TEXT = `
-/* The injected stylesheet sits at the end of head and would override styles-2.css's
-   .mobile-tab-panel{display:none} with equal specificity, so an inactive mobile panel used to
-   participate in layout and scroll into view (reported as "the status panel appears while scrolling").
-   Display is therefore declared per host: desktop always; mobile only when .active. */
+/* The injected stylesheet sits at the end of head, so the host declares its own display rather
+   than relying on the old mobile bottom-sheet rules. */
 .sp-host{padding:10px 12px calc(12px + env(safe-area-inset-bottom,0px));box-sizing:border-box;font-family:var(--chat-font-family,ui-sans-serif,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif);}
 #statusPanelDesktop{display:flex;flex-direction:column;gap:10px;}
-.mobile-tab-panel.sp-host.active{display:flex;flex-direction:column;gap:10px;}
 .sp-card{background:var(--bubble-ai,#141414);border:1px solid var(--border,#222);border-radius:14px;padding:12px 14px;box-sizing:border-box;}
 .sp-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .sp-title{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted,#9a9a9a);text-transform:uppercase;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis;}
@@ -465,7 +466,7 @@ function sysHtml(s             , esc                        )         {
     (document.head || document.documentElement).appendChild(s);
   }
 
-  var esc = window.__ownEscape.esc;
+  var esc = window.escapeSvc.esc;
 
   // The manual limit beats detection, detection beats the default; the manual value lives in
   // localStorage and only the wiring touches that key.
@@ -486,14 +487,21 @@ function sysHtml(s             , esc                        )         {
   // missing module costs one number, not the whole card.
   function collect(){
     return collectSnapshot({
-      app: window.__app || {},
-      lorebook: window.__lorebook || {},
-      skills: window.__skills || {},
-      character: window.__character || {},
-      attach: window.__attach || {},
+      app: window.appSvc || {},
+      lorebook: window.lorebookSvc || {},
+      skills: window.skillsSvc || {},
+      character: window.characterSvc || {},
+      attach: window.attachSvc || {},
       cost: (window.hostApi && window.hostApi.cost) || {},
-      sync: window.__sync || {},
+      sync: window.syncSvc || {},
       storage: localStorage,
+      summaryText: function () {
+        try {
+          var app = window.appSvc;
+          var id = (app && app.getActiveConvId) ? app.getActiveConvId() : "";
+          return (window.convSummarySvc && id) ? window.convSummarySvc.load(id) : "";
+        } catch (e) { return ""; }
+      },
       modelId: (document.getElementById("modelSel") || {}).value || "",
     });
   }
@@ -520,12 +528,46 @@ function sysHtml(s             , esc                        )         {
         <summary>系统状态</summary>
         <div data-sp="lastreq"><div class="sp-empty">发送一条消息后显示真实 usage / 耗时。</div></div>
         <div data-sp="sys"></div>
+        <div data-sp="runtime"></div>
       </details>
     </div>`;
 
   // Section HTML is produced by the service; the wiring only feeds esc and the host-local range.
   function catRows(s) { return catRowsHtml(s, ctxWindow(), "var(--accent, #7fa4c9)", esc); }
   function lastReq(lr) { return lastReqHtml(lr, esc, Date.now()); }
+
+  // T4-A: the runtime container's own read-out. `ctx.explain` is reachable per plugin through the
+  // host's status snapshot: names, activation state, which services are missing for a PENDING
+  // plugin, and why the last one was unmounted. Anything unavailable prints as "未接线" — an empty
+  // section would hide a broken container, which is exactly the failure this panel must surface.
+  function runtimeHtml() {
+    var host = window.runtimeCore && window.runtimeCore.host;
+    if (!host || typeof host.status !== "function") {
+      return '<div class="sp-kv"><span class="k">运行时容器</span><span class="v sp-warn">未接线</span></div>';
+    }
+    var s;
+    try { s = host.status(); } catch (e) { return '<div class="sp-kv"><span class="k">运行时容器</span><span class="v sp-warn">读取失败</span></div>'; }
+    if (!s) return "";
+    var plugins = Array.isArray(s.plugins) ? s.plugins : [];
+    var pending = Array.isArray(s.pending) ? s.pending : [];
+    var rows = [];
+    rows.push('<div class="sp-kv"><span class="k">插件</span><span class="v">' +
+      plugins.length + ' 个 · ' + (pending.length ? pending.length + " PENDING" : "全部就绪") + '</span></div>');
+    rows.push('<div class="sp-kv"><span class="k">服务</span><span class="v">' +
+      (Array.isArray(s.services) && s.services.length ? esc(s.services.join(", ")) : '<span class="sp-warn">无</span>') + '</span></div>');
+    if (Array.isArray(s.missingServices) && s.missingServices.length) {
+      rows.push('<div class="sp-kv"><span class="k">缺失服务</span><span class="v sp-warn">' + esc(s.missingServices.join(", ")) + '</span></div>');
+    }
+    for (var i = 0; i < pending.length; i++) {
+      var p = pending[i] || {};
+      var need = Array.isArray(p.missing) && p.missing.length ? p.missing.join(", ") : "未知";
+      rows.push('<div class="sp-kv"><span class="k">PENDING</span><span class="v">' + esc(p.name || "?") + ' ← ' + esc(need) + '</span></div>');
+    }
+    var last = s.lastDispose;
+    rows.push('<div class="sp-kv"><span class="k">最近卸载</span><span class="v">' +
+      (last ? esc(String(last.name || "?")) + " · " + esc(String(last.reason || "")) : "无") + '</span></div>');
+    return rows.join("");
+  }
 
   // Unconditionally rewriting the sections every tick made the panel flicker: DOM rebuilds re-ran
   // i18n and scrollbar math, and in a narrow rail the content height visibly oscillated. Sections are
@@ -550,6 +592,9 @@ function sysHtml(s             , esc                        )         {
     setSection(host, "usage", usageHtml(s.usage, host.__spRange, esc));
     setSection(host, "lastreq", lastReq(s.lastReq));
     setSection(host, "sys", sysHtml(s, esc));
+    // The container read-out changes only on mount/unmount, but the 2s tick is cheap and the
+    // signature guard already skips the DOM write when nothing moved.
+    setSection(host, "runtime", runtimeHtml());
     // Where the limit came from: which model was matched, or that a manual value can be cleared.
     const srcEl = host.querySelector("[data-sp=\"ctxsrc\"]");
     if (srcEl) {
@@ -568,11 +613,11 @@ function sysHtml(s             , esc                        )         {
     }
   }
 
-  // Mounting and the refresh loop.
+  // Mounting and the refresh loop. The mobile shell moves this host into its console.
   let hosts = [];
   function mountAll(){
     ensureCss();
-    hosts = [document.getElementById("statusPanelDesktop"), document.getElementById("mobileTabPanel-status")].filter(Boolean);
+    hosts = [document.getElementById("statusPanelDesktop")].filter(Boolean);
     hosts.forEach(h => {
       if (h.__spDone) return;
       h.__spDone = true;
@@ -645,8 +690,6 @@ function sysHtml(s             , esc                        )         {
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
   else start();
-
-  window.__statusPanel = { refresh: tick, collect };
 })();
 
 globalThis.DEFAULT_CTX = DEFAULT_CTX;

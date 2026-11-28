@@ -191,7 +191,7 @@ function mlSpeakerCard(msg         )
   return { id, name: m["speakerName"], icon };
 }
 
-// Browser adapter, appended by l0/emit.mjs. Engine: services/ui/message-list.ts; this file owns
+// Browser adapter, appended by tooling/l0/emit.mjs. Engine: services/ui/message-list.ts; this file owns
 // the DOM: the row factory, the clear whitelist, the RAF-throttled scroll and the render loop
 // itself. Every decision lives in the engine — spacer math, the near-bottom threshold, the
 // tool-turn collector, empty-shell detection, bubble hide/remove, stats lines, speaker cards.
@@ -434,8 +434,8 @@ function mlSpeakerCard(msg         )
             // answers avatar:changed. Without a decorator / before character.js is ready, fall
             // back to the emoji text.
             const _card = mlSpeakerCard(m);
-            if (global.__character && global.__character.decorateAiRow) {
-              global.__character.decorateAiRow(r.rowEl, _card);
+            if (global.characterSvc && global.characterSvc.decorateAiRow) {
+              global.characterSvc.decorateAiRow(r.rowEl, _card);
             } else {
               const av = r.rowEl.querySelector(".avatar.bot");
               if (av) { av.textContent = m.speakerIcon || "🙂"; av.title = m.speakerName; }

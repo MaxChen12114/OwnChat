@@ -47,7 +47,7 @@ export interface PromptProfilePorts {
   setIcon(el: ToggleLike | null, name: string, label: string): void;
   /** document.getElementById("personaToggle"), snapshotted at creation. */
   personaToggle(): ToggleLike | null;
-  /** window.__character.getActiveCard(); null when no card is selected. */
+  /** window.characterSvc.getActiveCard(); null when no card is selected. */
   activeCard(): ActiveCardLike | null;
 }
 
@@ -79,6 +79,7 @@ export interface PromptProfileApi {
   neutralIdPayload(): Record<string, unknown>;
   stateLayerPayload(): Record<string, unknown>;
   webSearchPayload(): Record<string, unknown>;
+  deepseekKitPayload(): Record<string, unknown>;
 }
 
 // Storage keys: values are byte-identical to the old code; changing one is changing the contract.
@@ -90,6 +91,10 @@ const LS_NEUTRAL_ID = "cfw_neutral_id_v1";
 const LS_STATE_LAYER = "cfw_state_layer_v1";
 const LS_WEB_SEARCH = "cfw_web_search_v1";
 const LS_WEB_SEARCH_DEEP = "cfw_web_search_deep_v1";
+// DeepSeek full-kit toggles, written by the model-API settings card. Server-side built-in tools are
+// only mounted on the DeepSeek channel; every other provider ignores the payload.
+const LS_DS_READ_URL = "cfw_deepseek_read_url_v1";
+const LS_DS_SAFETY = "cfw_deepseek_safety_v1";
 const LS_GEN_PARAMS = "cfw_gen_params_v1";
 const LS_CHAR_CAPS = "cfw_char_caps_v1";
 
@@ -320,6 +325,16 @@ export function createPromptProfile(ports: PromptProfilePorts): PromptProfileApi
     return { webSearch: true, webSearchDeep: read(LS_WEB_SEARCH_DEEP) === "1" };
   }
 
+  // 2026-11-25: server-side built-in tools (read_url / safety_check) from the DeepSeek kit card.
+  // The field is omitted entirely unless at least one toggle is on, so non-DeepSeek channels and
+  // old deployments see no change at all.
+  function deepseekKitPayload(): Record<string, unknown> {
+    const readUrl = read(LS_DS_READ_URL) === "1";
+    const safety = read(LS_DS_SAFETY) === "1";
+    if (!readUrl && !safety) return {};
+    return { deepseekKit: { readUrl: readUrl, safetyCheck: safety } };
+  }
+
   return {
     baseIdsList: baseIdsList,
     customIdsList: customIdsList,
@@ -338,5 +353,6 @@ export function createPromptProfile(ports: PromptProfilePorts): PromptProfileApi
     neutralIdPayload: neutralIdPayload,
     stateLayerPayload: stateLayerPayload,
     webSearchPayload: webSearchPayload,
+    deepseekKitPayload: deepseekKitPayload,
   };
 }

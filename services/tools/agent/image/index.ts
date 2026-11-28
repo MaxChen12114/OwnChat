@@ -60,7 +60,7 @@ export function createImageTools(deps: ImageDeps): ImageApi {
     const args = recOf(input);
     const facade = deps.chatImage();
     if (!facade || typeof facade.sendPhoto !== "function") {
-      return { ok: false, error: "发图模块未就绪 (image-chat.js / window.__chatImage)" };
+      return { ok: false, error: "发图模块未就绪 (image-chat.js / window.chatImageSvc)" };
     }
 
     let timer: ReturnType<typeof setTimeout> | null = null;

@@ -19,7 +19,17 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 公开版开箱即用：安装包内置 Node 24 运行时（下面的 step 会把它复制进 bundle resources），
+          # 同一次构建的 stage-host 脚本也跑在这个版本上。
+          node-version: 24
+
+      - name: Stage the bundled Node runtime
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri/runtime/node | Out-Null
+          Copy-Item (Get-Command node).Source src-tauri/runtime/node/node.exe
+          node --version
+          "{0:N1} MB" -f ((Get-Item src-tauri/runtime/node/node.exe).Length / 1MB)
 
       - name: Generate Tauri icons
         run: npx --yes @tauri-apps/cli@2 icon public/assets/icon-512.png -o src-tauri/icons
@@ -83,7 +93,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Setup Java
         uses: actions/setup-java@v4

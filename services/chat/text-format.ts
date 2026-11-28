@@ -3,7 +3,7 @@
  *
  * Every window bridge arrives as a port (storage for the strip switch, sceneNames for group name
  * tags, stripPhotoSignal / applyAmbientTags / extractPhotoSignal for the image and ambience signals);
- * the adapters and all their try/catch semantics live in l0/wiring/text-format.js, and each bridge is
+ * the adapters and all their try/catch semantics live in tooling/l0/wiring/text-format.js, and each bridge is
  * still looked up at call time rather than captured up front.
  *
  * Red line carried over from the old comment: never touch the unlock prompt. The model keeps emitting
@@ -75,7 +75,7 @@ export function createTextFormat(ports: TextFormatPorts) {
   function isJailbreakStripOn(): boolean {
     return (ports.storage.getItem(LS_JAILBREAK_STRIP) ?? "1") === "1";
   }
-  // The settings entry point stays with the module (app.js's __dev.setJailbreakStripOn forwards here) so the LS key has one owner
+  // The settings entry point stays with the module (app.js's devSvc.setJailbreakStripOn forwards here) so the LS key has one owner
   function setJailbreakStripOn(on: unknown): void {
     ports.storage.setItem(LS_JAILBREAK_STRIP, on ? "1" : "0");
   }

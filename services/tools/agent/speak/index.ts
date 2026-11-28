@@ -59,7 +59,7 @@ export function createSpeakTools(deps: SpeakDeps): SpeakApi {
     if (!body) return { ok: false, error: "text 不能为空" };
 
     const tts = deps.tts();
-    // Placeholder degradation: on the web the media module no-ops entirely, so __omniTTS is absent.
+    // Placeholder degradation: on the web the media module no-ops entirely, so omniTtsSvc is absent.
     // Answering ready:false tells the agent nothing was spoken without treating it as a fault.
     if (!tts || typeof tts.speak !== "function") {
       return { ok: true, ready: false, spoken: false, note: "TTS 接口未就绪(仅桌面 App 生效),已占位跳过" };

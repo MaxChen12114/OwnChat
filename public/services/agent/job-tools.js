@@ -473,7 +473,7 @@ function createJobTools(env        )              {
   };
 }
 
-// ── Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name ──
+// ── Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name ──
 // The implementation moved to services/agent/job-tools.ts. Ports are storage (the config, which holds
 // the shared secret), fetch, the toast host, the `cfw:job` event and the content panel.
 (function (g) {
@@ -482,12 +482,12 @@ function createJobTools(env        )              {
     storage: { getItem: function (key) { return g.localStorage.getItem(key); } },
     fetch: function (url, init) { return g.fetch(url, init); },
     toast: function (msg, ms) {
-      try { if (window.__feedback && typeof window.__feedback.toast === "function") window.__feedback.toast(msg, { ms: ms }); } catch (e) {}
+      try { if (window.feedbackSvc && typeof window.feedbackSvc.toast === "function") window.feedbackSvc.toast(msg, { ms: ms }); } catch (e) {}
     },
     notify: function (detail) {
       try { g.dispatchEvent(new CustomEvent("cfw:job", { detail: detail })); } catch (e) {}
     },
-    panel: function () { return window.__panel || null; },
+    panel: function () { return window.panelSvc || null; },
   });
   window.__jobTools = {
     defineTools: api.defineTools,

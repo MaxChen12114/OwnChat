@@ -9,7 +9,7 @@
  *
  * Dependencies arrive through {@link ChatStreamPorts}: storage (four LS keys), modelsFast (the
  * fast-tier list) and fetch (the network exit). No `window` here; the adapter and the try/catch
- * wrappers live in l0/wiring/chat-stream.js.
+ * wrappers live in tooling/l0/wiring/chat-stream.js.
  *
  * The SSE line-prefix rule has two tiers that must not be merged: the chat pages match `data: `
  * with the space, while the tools pages' call() has always used the loose tier; unifying either
@@ -305,13 +305,13 @@ function deltaContent(payload         )         {
   return typeof content === "string" ? content : "";
 }
 
-// Browser wiring (injected by l0/emit.mjs): binds the service to the frozen window contract name;
+// Browser wiring (injected by tooling/l0/emit.mjs): binds the service to the frozen window contract name;
 // the version stamp stays 2. The implementation lives in services/data/chat-stream.ts, so every
 // window bridge lives here: localStorage, APP_MODELS_FAST and the fetch exit.
 // The idempotence check keeps the old rule — already installed at v 2 means keep it, because the
 // tools page can load an older public bundle first.
 (function () {
-  if (window.__chatStream && window.__chatStream.v === 2) return;
+  if (window.chatStreamSvc && window.chatStreamSvc.v === 2) return;
 
   var storage = {
     getItem: function (key) {
@@ -338,7 +338,7 @@ function deltaContent(payload         )         {
     },
   });
 
-  window.__chatStream = {
+  window.chatStreamSvc = {
     v: 2,
     modeForModel: api.modeForModel,
     buildBody: api.buildBody,

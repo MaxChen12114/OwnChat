@@ -6,7 +6,7 @@
  * to keep "deleted on one device" and "configured on the other" from cancelling each other.
  *
  * Pure functions, no DOM and no localStorage; the frozen global lives in
- * l0/wiring/provider-merge.js. Merge order is always local-then-remote, so ties keep the local copy.
+ * tooling/l0/wiring/provider-merge.js. Merge order is always local-then-remote, so ties keep the local copy.
  *
  * Type discipline: no `as`, no `any`. Channel entries are dynamic JSON, so every read goes through
  * a typeof guard plus {@link toRec}; outputs keep the original object identity (toRec is read-side

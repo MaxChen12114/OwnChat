@@ -27,7 +27,7 @@ export interface CouncilResponse {
 export interface CouncilEnv {
   storage: { getItem(key: string): string | null };
   fetch(url: string, init?: unknown): Promise<CouncilResponse>;
-  /** `window.__panel`, or null when the content panel is not mounted. */
+  /** `window.panelSvc`, or null when the content panel is not mounted. */
   panel(): { call?(fn: string, args: unknown[], timeoutMs: number): Promise<unknown>; state?(): { hasContent?: unknown } } | null;
 }
 
@@ -239,7 +239,8 @@ export function createCouncilTools(env: CouncilEnv): CouncilToolsApi {
                       title: "三方会商 · " + thread,
                       messages: msgs.map(function (m) {
                         const msg = recOf(m);
-                        return { who: msg.from, kind: msg.kind, text: msg.body, refs: msg.refs };
+                        return { who: msg.from, kind: msg.kind, text: msg.body, refs: msg.refs,
+                                 idx: msg.idx, ts: msg.ts, reply_to: msg.reply_to };
                       }),
                     },
                   ],
