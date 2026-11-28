@@ -554,13 +554,8 @@ html[data-theme="candle"] .sidebar-slot-placeholder,
 html[data-theme="candle"] #fishbowlSlot:empty::before { color: #8a606a; }
 html[data-theme="candle"] #syncStatusIndicator { background: rgba(40,28,18,.45); border-color: rgba(217,168,104,.22); color: #f2e7d6; }
 
-/* ─── 输入框桌面端避开两侧栏 ─── */
+/* ─── 输入框桌面端避开两侧栏（.input-floating 的桌面偏移已收口进 styles-controls.css）─── */
 @media (min-width: 1024px) {
- .input-floating {
- left: 240px;
- right: 240px;
- width: auto;
- }
  /* 2026-05-30 / 4.25 修复「电脑端顶栏按钮被卡在页面后面」:
  桌面端取消 760px 限制,让顶栏用满中间栏宽度,所有按钮(模式/解限/同步/⚙️)平铺不溢出、不需横滑、不被裁切。 */
  .topbar-shell { max-width: none; }
@@ -1382,7 +1377,8 @@ html[data-theme="candle"] .img-close:hover { background: rgba(217,168,104,.25); 
  button#sendBtn svg { width: 16px; height: 16px; }
 
  .composer-toolbar { margin-bottom: 4px; gap: 6px; }
- .chip-btn { padding: 4px 9px; font-size: 11px; }
+ /* 手机端 .chip-btn 瘦身行已删：styles-controls.css 是更晚的同特异性规则，这里那两行
+    自 2026-11-26 控件层上线起就是死值（padding:0 12px / font-size:12px 一直生效到今天）。 */
 
  #bottom-spacer { height: 100px; }
 }
@@ -1468,18 +1464,14 @@ html, body {
  box-shadow: 0 2px 6px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.06);
 }
 
-/* —— 顶栏胶囊/图标按钮：基底微立体（主题设了 box-shadow 的会覆盖） —— */
-.pill, .iconbtn {
+/* —— 顶栏胶囊/图标按钮：基底微立体（主题设了 box-shadow 的会覆盖）。.iconbtn 那半已并入
+   styles-controls.css 的 .iconbtn 基块 —— —— */
+.pill {
  box-shadow: 0 1px 2px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.04);
 }
 
-/* —— meta 时间戳/名签：字距与字重精修（全主题继承，颜色随主题） —— */
-.meta {
- font-size: 11.5px;
- letter-spacing: .2px;
- font-weight: 500;
- opacity: .92;
-}
+/* meta 时间戳/名签的 4.27 精修块已并入 styles-controls.css 的 .meta 基块（取最终生效值），
+   glass/candle 的字距差异仍在下方按 html[data-theme] 作用域保留。 */
 
 /* —— minimal 发送键：纯平 → 微渐变 + 质感阴影（主题覆盖其渐变） —— */
 button#sendBtn {
@@ -1898,7 +1890,9 @@ html[data-scheme="light"]:not([data-theme]) { --link: #37352f; } /* 批 J2：白
   --hl-comment: #7a8290; --hl-keyword: #c678dd; --hl-string: #98c379; --hl-number: #d19a66;
   --hl-func: #61afef; --hl-attr: #e5c07b; --hl-type: #56b6c2; --hl-meta: #abb2bf;
 }
-html[data-scheme="light"]:not([data-theme]) {
+html[data-scheme="light"]:not([data-theme]),
+html[data-theme="lumen"]:not([data-scheme="dark"]),
+html[data-theme="glass"]:not([data-scheme="dark"]) {
   --hl-comment: #8a919c; --hl-keyword: #8250df; --hl-string: #0a7d32; --hl-number: #b3541e;
   --hl-func: #0550ae; --hl-attr: #953800; --hl-type: #1b7c83; --hl-meta: #57606a;
 }
@@ -1929,6 +1923,11 @@ html[data-scheme="light"]:not([data-theme]) {
    否则多轮 agent(每轮都有工具往返)里按钮和统计会反复闪现,像是每回一次都重建一遍。 */
 .row[data-streaming="1"] .my-action-btns > button:not(.my-stop-btn) { display: none !important; }
 .row[data-streaming="1"] .stats { display: none !important; }
+
+/* 每条消息下方的 token 统计默认不显示：它把消息间距撑得很松，而且免费档多数时候只有估算值。
+   需要时在设置里打开，会给 html 加 .msg-stats-on。存档/回退按钮已移出 .stats
+   （见 roleplay-checkpoint-ui），所以隐藏统计不会连带藏掉那两个图标。 */
+html:not(.msg-stats-on) .stats { display: none !important; }
 
 /* Agent 模式:AI 回复保留正常玻璃气泡(4.83 按用户要求撤销"平铺"设计 ——
    平铺在 minimal 暗色下尚可,在 glass/亮色主题下文字直接贴底、可读性差且观感像方形色块)。

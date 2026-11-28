@@ -24,9 +24,9 @@ html.panel-expanded .app-shell {
 :root {
   --panel-seam: #0b0c0f;                       /* 缝底色 */
   --panel-seam-shadow: rgba(0, 0, 0, .30);    /* 景深投影 */
-  --panel-seam-line: rgba(255, 255, 255, .10);/* 右缘 1px 细线 */
-  --panel-seam-fade: rgba(0, 0, 0, .22);      /* 内侧淡出 */
-  --panel-grip: rgba(255, 255, 255, .22);     /* 握把常态 */
+  --panel-seam-line: color-mix(in srgb, var(--text) 14%, transparent); /* 1px 发丝线 */
+  --panel-seam-fade: color-mix(in srgb, var(--text) 4%, transparent);  /* 悬停内侧淡出 */
+  --panel-grip: color-mix(in srgb, var(--accent, #7fa4c9) 32%, transparent); /* 握把常态 */
   --panel-grip-on: var(--accent, #7fa4c9);    /* 握把高亮 */
 }
 html[data-scheme="light"]:not([data-theme]) {
@@ -51,13 +51,27 @@ html[data-theme="candle"] {
   --panel-grip: rgba(217, 168, 104, .30);
 }
 
+/* ── lumen（Daygo 液态玻璃）──
+   lumen 是后加的第四主题，旧的四主题隔离带清单没有它，于是回落到 #0b0c0f 黑带。
+   这里用 Daygo 的窗口底色与玻璃边框收口；右栏空画布也回到同一条窗口渐变。 */
+html[data-theme="lumen"] body {
+  /* Let the window gradient show through the 10px hit band; only the hairline and grip mark it. */
+  --panel-seam: transparent;
+  --panel-seam-shadow: color-mix(in srgb, var(--dg-text-primary, #f5f5f7) 3%, transparent);
+  --panel-seam-line: color-mix(in srgb, var(--dg-card-border, rgba(255,255,255,.10)) 65%, transparent);
+  --panel-seam-fade: transparent;
+  --panel-grip: color-mix(in srgb, var(--dg-text-muted, #9d9ca8) 28%, transparent);
+  --panel-grip-on: var(--dg-accent, #ff8a5b);
+}
+html[data-theme="lumen"] .pframe-box { background: transparent; }
+
 html.panel-expanded .right-sidebar {
   margin-left: 10px;
-  border-left: none;
-  /* 第一层 0 模糊的硬阴影把 10px 缝填成主题色：box-shadow 不受元素自身
-     overflow-y:auto 裁剪，所以不必把伪元素挪到 left:-10px（那样会被裁掉）。 */
-  box-shadow: -10px 0 0 var(--panel-seam),
-              -14px 0 26px var(--panel-seam-shadow);
+  /* The gap is breathing room, not a painted 10px bar: let the window field show through and
+     keep only a hairline at the panel edge. The old solid fill + hard shadow read as a separate
+     chrome strip, especially on lumen's warm glass. */
+  border-left: 1px solid var(--panel-seam-line);
+  box-shadow: none;
   position: relative;
   cursor: default;
 }
@@ -70,8 +84,7 @@ html.panel-expanded .right-sidebar::before {
   bottom: 0;
   width: 10px;
   cursor: col-resize;
-  border-left: 1px solid var(--panel-seam-line);
-  background: linear-gradient(to right, var(--panel-seam-fade), transparent);
+  background: transparent;
   z-index: 25; /* 盖在 iframe 之上，否则鼠标落在 iframe 里 */
   transition: background .18s ease, border-left-color .18s ease;
 }
@@ -94,7 +107,6 @@ html.panel-expanded .right-sidebar::after {
 /* 只由 panel-host 在指针确实落在隔离带上时加类，右栏本体 hover 不会误亮 */
 html.panel-expanded .right-sidebar.seam-hover::before,
 html.panel-resizing .right-sidebar::before {
-  border-left-color: var(--panel-grip-on);
   background: linear-gradient(to right, var(--accent-soft, rgba(127, 164, 201, .16)), transparent);
 }
 html.panel-expanded .right-sidebar.seam-hover::after,

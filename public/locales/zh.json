@@ -10,7 +10,24 @@
     "unknownError": "未知错误"
   },
   "oobe": {
-    "title": "首次设置",
+    "title": "欢迎使用 OwnChat",
+    "skip": "跳过引导",
+    "back": "返回",
+    "next": "继续",
+    "stepOf": "第 {current} 步，共 {total} 步",
+    "theme": "主题",
+    "themes": {
+      "minimal": "极简",
+      "glass": "玻璃",
+      "lumen": "流光"
+    },
+    "start": "开始设置",
+    "doneTitle": "一切就绪",
+    "doneBody": "配置完成，可以开始聊天了。",
+    "enter": "进入 OwnChat",
+    "subtitle": "请配置管理员密码和模型 Key，并决定是否开启同步。",
+    "close": "关闭",
+    "localFirst": "本地优先 · 数据不出机",
     "health": {
       "ok": "宿主状态：已连接（{base}）",
       "down": "宿主状态：未连接（{base}）—— 本机宿主可能还没启动",

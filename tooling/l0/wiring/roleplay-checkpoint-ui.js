@@ -84,19 +84,38 @@
     presentList: presentList,
   });
 
-  // Row decoration: two small actions appended to each row's .stats.
-  function decorateRow(row) {
+  // Row decoration: two icon actions appended to the row's existing action row (.my-action-btns).
+  // They used to be text buttons inside .stats. That put them on a second line, in a different
+  // container from copy/delete, in a different visual language. Same container, same shell now.
+  var CP_ICON_SAVE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 4.2h11a1.3 1.3 0 0 1 1.3 1.3v15.2l-6.8-4.1-6.8 4.1V5.5a1.3 1.3 0 0 1 1.3-1.3Z"/></svg>';
+  var CP_ICON_RESTORE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H9"/><path d="m8.5 4.5-4.5 4.5 4.5 4.5"/></svg>';
+
+  // .my-action-btns is created by chat-ux on window load, i.e. after this observer first fires.
+  // Retry briefly instead of leaving the row undecorated, and only mark it done once appended.
+  function decorateRow(row, attempt) {
     if (!row || row.dataset.cpDone === "1") return;
-    var stats = row.querySelector(".stats");
-    if (!stats) return;
+    var content = row.querySelector(".content");
+    var wrap = content ? content.querySelector(".my-action-btns") : null;
+    if (!wrap) {
+      if ((attempt || 0) < 15) setTimeout(function () { decorateRow(row, (attempt || 0) + 1); }, 150);
+      return;
+    }
     row.dataset.cpDone = "1";
-    var span = document.createElement("span");
-    span.className = "cp-actions";
-    span.style.cssText = "margin-left:8px;opacity:.75;";
-    span.innerHTML =
-      '<button class="smallbtn" data-cp-act="save" title="把当前状态存为存档">存档</button>' +
-      '<button class="smallbtn" data-cp-act="restore" data-sidx="' + row.dataset.sidx + '" title="回退到这条消息时的状态">回退</button>';
-    stats.appendChild(span);
+    var save = document.createElement("button");
+    save.className = "msg-action-btn icon-only";
+    save.setAttribute("data-cp-act", "save");
+    save.setAttribute("title", "存档：把当前状态存为一份快照");
+    save.setAttribute("aria-label", "存档");
+    save.innerHTML = CP_ICON_SAVE;
+    var restore = document.createElement("button");
+    restore.className = "msg-action-btn icon-only";
+    restore.setAttribute("data-cp-act", "restore");
+    restore.setAttribute("data-sidx", row.dataset.sidx || "");
+    restore.setAttribute("title", "回退到这条消息时的状态");
+    restore.setAttribute("aria-label", "回退");
+    restore.innerHTML = CP_ICON_RESTORE;
+    wrap.appendChild(save);
+    wrap.appendChild(restore);
   }
 
   function decorateAll() {

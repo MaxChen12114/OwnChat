@@ -123,7 +123,7 @@ export function buildSteps(state: OobeState): OobeStepView[] {
     {
       id: "sync",
       title: { key: "oobe.steps.sync.title" },
-      done: true,
+      done: state.syncOn,
       blocking: false,
       status: state.syncOn ? { key: "oobe.steps.sync.on" } : { key: "oobe.steps.sync.off" },
     },

@@ -10,7 +10,24 @@
     "unknownError": "unknown error"
   },
   "oobe": {
-    "title": "First-time setup",
+    "title": "Welcome to OwnChat",
+    "skip": "Skip setup",
+    "back": "Back",
+    "next": "Continue",
+    "stepOf": "Step {current} of {total}",
+    "theme": "Theme",
+    "themes": {
+      "minimal": "Minimal",
+      "glass": "Glass",
+      "lumen": "Lumen"
+    },
+    "start": "Get started",
+    "doneTitle": "You're all set",
+    "doneBody": "Setup complete. Start chatting.",
+    "enter": "Enter OwnChat",
+    "subtitle": "Configure the admin password and model key, then choose whether to enable sync.",
+    "close": "Close",
+    "localFirst": "Local-first · stays on this machine",
     "health": {
       "ok": "Host: connected ({base})",
       "down": "Host: not reachable ({base}) — the local host may still be starting",
